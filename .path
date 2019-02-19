@@ -9,3 +9,8 @@ export PATH="$HOME/tools/confluent/bin:$PATH"
 
 # Openssl bin
 export PATH="/usr/local/opt/openssl/bin:$PATH"
+
+# Add gnu bin
+if which brew; then
+  export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+fi
