@@ -7,12 +7,14 @@ files_from=$(greadlink -f "$d")/restore.bom
 
 shift
 
-# Run in home folder
-cd || exit;
-
 function doIt() {
 	echo "Backing up $(pwd) to ${backup_path} as a gzipped tar ball...";
 	echo "";
+
+	# Run in home folder
+	CURR_DIR=$(pwd)
+	cd || exit;
+
 	rsync \
     --rsync-path="sudo rsync" \
     --perms \
@@ -25,9 +27,8 @@ function doIt() {
 		-avh . ~/.tmp-backup-dir;
 	cd ~/.tmp-backup-dir && tar -czf ../.tmp-backup-dir.tgz . && cd -;
 
-	cd "$(dirname "${BASH_SOURCE}")";
+	cd $CURR_DIR;
   mv ~/.tmp-backup-dir.tgz $backup_path;
-	cd -;
 
 	echo "Backed up successfully";
 	rm -rf ~/.tmp-backup-dir;
