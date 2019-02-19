@@ -1,0 +1,304 @@
+cask_args appdir: "/Applications"
+cask_args colorpickerdir: "/Library/ColorPickers"
+cask_args fontdir: "/Library/Fonts"
+cask_args input_methoddir: "/Library/Input Methods"
+cask_args prefpanedir: "/Library/PreferencePanes"
+cask_args qlplugindir: "/Library/QuickLook"
+cask_args screen_saverdir: "/Library/Screen Savers"
+
+### Taps
+
+tap "boz/repo"
+tap "derailed/k9s"
+tap "sqitchers/sqitch"
+tap "bramstein/webfonttools"
+
+## Basics
+
+# Browsers
+cask "google-chrome"
+cask "firefox"
+cask "torbrowser"
+
+# Text based web browser
+brew "lynx"
+
+# Text editors
+brew "micro"
+brew "vim", args: ["with-override-system-vi"]
+cask "visual-studio-code"
+cask "sublime-text"
+
+# Documentation finders (dash for API/libs and tldr for short man)
+cask "dash"
+brew "dash"
+brew "tldr"
+
+# Archive extraction
+brew "unrar"
+brew "p7zip"
+cask "the-unarchiver"
+cask "unrarx"
+cask "betterzip"
+
+# File compression for gzip/deflate if tar isn't enough
+brew "zopfli"
+
+## Everyday apps
+cask "dropbox"
+cask "slack"
+cask "iterm2"
+cask "vlc"
+cask "zoomus"
+cask "whatsapp"
+cask "spotify"
+cask "google-drive-file-stream"
+cask "google-backup-and-sync"
+mas "1Password", id: 443987910
+mas "Keynote", id: 409183694
+mas "Numbers", id: 409203825
+mas "Pages", id: 409201541
+mas "XCode", id: 497799835
+mas "Wifi Explorer", id: 494803304
+
+# API testing
+cask "postman"
+
+# The butler of you mac or the swiss army knife of searchbars - https://www.alfredapp.com/
+cask "alfred"
+
+# Todo app with a vengeance
+mas "2Do", id": 477670270
+
+# Background noise
+mas "Coffitivity", id: 659901392
+
+# Manage resolutions
+cask "resolutionator"
+
+# Macos notif system
+mas "Growl", id: 467939042
+
+# Send growl notifications when devices are connected
+mas "HardwareGrowler", id: 475260933
+
+# Status bar organiser
+cask "bartender"
+
+# Status bar stats and menus
+cask "istat-menus"
+
+# Torrent client
+cask "transmission"
+
+# IRC client
+cask "limechat"
+
+# Note taking with markdown and stuff - http://brettterpstra.com/projects/nvalt/
+cask "nvalt"
+
+# Various cloud service statuses in the status bar
+mas "stts", id: 1187772509
+
+# Mac cleaner
+cask "cleanmymac3"
+
+## Everyday commandline tools
+
+# Nice httpie client (wget etc. are for compatibility)
+brew "httpie"
+brew "wget", args: ["with-iri"]
+
+# Quick access to files and folders from anywhere - https://github.com/clvv/fasd
+brew "fasd"
+
+# Code-search tool similar to ack - `ag find_this_var src/` - https://github.com/ggreer/the_silver_searcher
+brew "the_silver_searcher"
+
+# JSON and yaml query/mangling/cleanup/prettify tool
+brew "jq"
+brew "yq"
+
+# Count lines of code
+brew "cloc"
+
+# Shell script linter
+brew "shellcheck"
+
+# Cat with syntax highlighting etc.
+brew "bat"
+
+# Monitor data passing through a pipe - pipeviewer - https://www.ivarch.com/programs/pv.shtml
+brew "pv"
+
+# Rename files with a bunch of helpers - http://plasmasturm.org/code/rename/
+brew "rename"
+
+# Display directores as trees
+brew "tree"
+
+# Expose local ports to the internet - https://ngrok.com/
+cask "ngrok"
+
+# Run commands in parallel
+brew "parallel"
+
+# Autocorrecting for the commandline
+brew "thefuck"
+
+# Watch something happen by running a command multiple times
+brew "watch"
+
+# Terminal windows you know and love
+brew "tmux"
+
+# View file/folder size and delete them, like `du` but with a UX
+brew "ncdu"
+
+# Moves files or folders to trash
+brew "trash"
+
+# Manipulate macos file tags
+brew "tag"
+
+# Parallel gzip
+brew "pigz"
+
+## Infra and kubernetes tooling
+cask "google-cloud-sdk"
+brew "terraform"
+brew "kubernetes-cli"
+
+# Helm
+brew "kubernetes-helm"
+
+# Overview of resources and exploratory UI - https://github.com/derailed/k9s
+brew "derailed/k9s/k9s"
+
+# Watch a resource (e.g. deployment being rolled out, pod status) - https://github.com/pulumi/kubespy
+brew "kubespy"
+
+# Tail the logs of some collection of resources
+brew "boz/repo/kail"
+
+## Databases
+
+brew "sqlite"
+
+## Database GUI
+
+# Redis
+cask "medis"
+
+# Postgres
+cask "postico"
+
+## Database tooling
+
+# Kafkacat for reading kafka data
+brew "kafkacat"
+
+# Postgres schema management with sqitch
+brew "sqitchers/sqitch/sqitch", args: ["with-postgres-support"]
+
+## Debug and CTF tools; see https://github.com/ctfs/write-ups
+
+# 'traceroute' and 'ping' in a single tool
+brew "mtr"
+
+# Network map, port scanning utility
+brew "nmap"
+
+cask "wireshark"
+
+brew "aircrack-ng"
+brew "bfg"
+brew "binutils"
+brew "binwalk"
+brew "cifer"
+brew "dex2jar"
+brew "dns2tcp"
+brew "fcrackzip"
+brew "foremost"
+brew "hashpump"
+brew "hydra"
+brew "john"
+brew "knock"
+brew "netpbm"
+brew "pngcheck"
+brew "socat"
+brew "sqlmap"
+brew "tcpflow"
+brew "tcpreplay"
+brew "tcptrace"
+brew "ucspi-tcp" # `tcpserver` etc.
+brew "xpdf"
+brew "xz"
+
+## Font tools
+
+brew "sfnt2woff"
+brew "sfnt2woff-zopfli"
+brew "woff2"
+
+## Random apps
+
+# Kapture your screen
+cask "kap"
+
+# Markdown presentation writer
+cask "marp"
+
+# Image transcoding etc.
+cask "handbrake"
+
+# Pls no exif
+cask "exifrenamer"
+brew "exiftool"
+
+# Rename files with GUI
+cask "namechanger"
+
+# Turn off notifications when screen sharing (in case I turn on notif center again)
+cask "muzzle"
+
+## Random command-line utilities and tools
+
+# Do pretty much anything to images - https://www.imagemagick.org/
+brew "imagemagick", args: ["with-webp"]
+
+# Download YouTube videos from the command line
+brew "youtube-dl"
+
+# Let's encrypt tooling
+brew "certbot"
+
+# Copy ssh public key to server
+brew "ssh-copy-id"
+
+# Optical character recognition tool
+brew "tesseract"
+
+# The unix spell checker
+brew "aspell"
+
+# Utilities for ext2, ext3, ext4 fs
+brew "e2fsprogs"
+
+# Tool for downloading RTMP streaming media
+brew "rtmpdump"
+
+# Find duplicate files
+brew "fdupes"
+
+# Mail retrieval system
+brew "getmail"
+
+# Do something when mac goes to sleep/wakes up/etc.
+brew "sleepwatcher"
+
+# Go fast
+brew "speedtest-cli"
+
+# Go ham
+brew "cmatrix"

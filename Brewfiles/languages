@@ -1,0 +1,24 @@
+### Taps
+tap "homebrew/php"
+
+## Languages
+# nvm for node version management is installed by 'setup.sh'
+
+brew "node"
+brew "go"
+brew "plenv" # Perl version manager
+brew "pyenv" # Python version manager
+brew "rbenv" # Ruby version manager
+brew "homebrew/php/php71"
+brew "lua"
+brew "rust"
+cask "java"
+
+# Perl build utils
+brew "perl-build"
+
+# Yarn for node package management
+brew "yarn"
+
+# C++ kafka lib that works as basis for node-rdkafka etc.
+brew "librdkafka"
