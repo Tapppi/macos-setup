@@ -3,7 +3,6 @@
 
 ## Usage
 1. Backup credentials and personal settings by running `backup.sh path/to/backup.tgz`
-   in home directory
 2. Copy backup and this repo to new mac
 3. Run `setup.sh path/to/backup.tgz` to setup
 
@@ -15,6 +14,9 @@
 It includes hard to generalise plist settings and credentials.
 Other files, such as documents are expected to be backed up to file-sharing,
 e.g. google drive or dropbox.
+
+The script takes the path of the resulting backup tarball as an argument. Note
+that the path is relative to your home folder, or use an absolute path instead.
 
 ### Setup
 
