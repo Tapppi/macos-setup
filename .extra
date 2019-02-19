@@ -1,0 +1,38 @@
+#!/bin/bash
+
+## Git credentials
+GIT_AUTHOR_NAME="Tapani Moilanen"
+GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+git config --global user.name "$GIT_AUTHOR_NAME"
+GIT_AUTHOR_EMAIL="moilanen.tapani@gmail.com"
+GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+git config --global user.email "$GIT_AUTHOR_EMAIL"
+
+## Remote Kafka server
+export REMOTE_KAFKA_SERVER="kafka-tuup.tuup.aivencloud.com:29009"
+
+## Postgres default database
+export PGDATABASE=tuup
+
+## Shortcut to kyyti projects
+alias w="p; cd kyyti"
+
+## Postgres cli shortcuts
+alias psqd="psql -h localhost -p 5432 -U postgres"
+alias psqs="psql -h pg-10.dev-562c.aivencloud.com -p 27905 -U avnadmin"
+alias psqp="psql -h pg-production.tuup.aivencloud.com -p 18015 -U avnadmin"
+
+## Kubectl shortcuts
+alias kl="/Applications/Docker.app/Contents/Resources/bin/kubectl --context local"
+alias kd="/Applications/Docker.app/Contents/Resources/bin/kubectl --context docker-for-desktop"
+alias ks="kubectl --context sb"
+alias kp="kubectl --context prd"
+
+## tiny-care-terminal configs
+export TTC_WEATHER=Helsinki
+export TTC_CELSIUS=true
+export TTC_UPDATE_INTERVAL=10
+export TTC_REPOS=~/prog
+export TTC_REPOS_DEPTH=4
+export TTC_GITBOT=gitlog
+export TTC_APIKEYS=false

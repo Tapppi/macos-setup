@@ -1,0 +1,11 @@
+# Yarn bin
+export PATH="$HOME/.yarn/bin:$PATH"
+
+# Tools bin folder
+export PATH="$HOME/tools/bin:$PATH"
+
+# Confluent platform bin
+export PATH="$HOME/tools/confluent/bin:$PATH"
+
+# Openssl bin
+export PATH="/usr/local/opt/openssl/bin:$PATH"
