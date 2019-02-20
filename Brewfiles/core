@@ -6,7 +6,6 @@ tap "caskroom/versions"
 tap "homebrew/bundle"
 tap "homebrew/cask"
 tap "homebrew/core"
-tap "homebrew/science"
 tap "homebrew/services"
 tap "homebrew/command-not-found"
 
@@ -17,15 +16,18 @@ brew "mas"
 
 ## Core programs and tooling
 
+# XCode
+mas "XCode", id: 497799835
+
 # Install GNU core utilities (those that come with macOS are outdated).
 # Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` to `$PATH`.
 brew "coreutils"
-brew "moreutls"
+brew "moreutils"
 brew "findutils"
-brew "gnu-sed", args: ["with-default-names"]
+brew "gnu-sed"
 brew "gawk"
 
-# Bash 4
+# Bash 5
 brew "bash"
 brew "bash-completion@2"
 

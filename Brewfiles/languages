@@ -1,6 +1,3 @@
-### Taps
-tap "homebrew/php"
-
 ## Languages
 # nvm for node version management is installed by 'setup.sh'
 
@@ -9,7 +6,7 @@ brew "go"
 brew "plenv" # Perl version manager
 brew "pyenv" # Python version manager
 brew "rbenv" # Ruby version manager
-brew "homebrew/php/php71"
+brew "php"
 brew "lua"
 brew "rust"
 cask "java"

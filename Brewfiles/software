@@ -18,14 +18,14 @@ tap "bramstein/webfonttools"
 # Browsers
 cask "google-chrome"
 cask "firefox"
-cask "torbrowser"
+cask "tor-browser"
 
 # Text based web browser
 brew "lynx"
 
 # Text editors
 brew "micro"
-brew "vim", args: ["with-override-system-vi"]
+brew "vim"
 cask "visual-studio-code"
 cask "sublime-text"
 
@@ -38,7 +38,6 @@ brew "tldr"
 brew "unrar"
 brew "p7zip"
 cask "the-unarchiver"
-cask "unrarx"
 cask "betterzip"
 
 # File compression for gzip/deflate if tar isn't enough
@@ -54,12 +53,13 @@ cask "whatsapp"
 cask "spotify"
 cask "google-drive-file-stream"
 cask "google-backup-and-sync"
-mas "1Password", id: 443987910
+cask "1password"
 mas "Keynote", id: 409183694
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
-mas "XCode", id: 497799835
-mas "Wifi Explorer", id: 494803304
+mas "Wifi Explorer Lite", id: 1408727408
+# Pro, but it's expensive
+# mas "Wifi Explorer", id: 494803304
 
 # API testing
 cask "postman"
@@ -68,19 +68,20 @@ cask "postman"
 cask "alfred"
 
 # Todo app with a vengeance
-mas "2Do", id": 477670270
+mas "2Do", id: 477670270
 
 # Background noise
-mas "Coffitivity", id: 659901392
+# Not available in the Finnish app store :(
+# mas "Coffitivity", id: 659901392
 
 # Manage resolutions
 cask "resolutionator"
 
-# Macos notif system
-mas "Growl", id: 467939042
+# Macos notif system (paid :( )
+#mas "Growl", id: 467939042
 
 # Send growl notifications when devices are connected
-mas "HardwareGrowler", id: 475260933
+#mas "HardwareGrowler", id: 475260933
 
 # Status bar organiser
 cask "bartender"
@@ -92,7 +93,7 @@ cask "istat-menus"
 cask "transmission"
 
 # IRC client
-cask "limechat"
+mas "Limechat", id: 414030210
 
 # Note taking with markdown and stuff - http://brettterpstra.com/projects/nvalt/
 cask "nvalt"
@@ -107,7 +108,7 @@ cask "cleanmymac3"
 
 # Nice httpie client (wget etc. are for compatibility)
 brew "httpie"
-brew "wget", args: ["with-iri"]
+brew "wget"
 
 # Quick access to files and folders from anywhere - https://github.com/clvv/fasd
 brew "fasd"
@@ -139,9 +140,6 @@ brew "tree"
 
 # Expose local ports to the internet - https://ngrok.com/
 cask "ngrok"
-
-# Run commands in parallel
-brew "parallel"
 
 # Autocorrecting for the commandline
 brew "thefuck"
@@ -188,7 +186,7 @@ brew "sqlite"
 ## Database GUI
 
 # Redis
-cask "medis"
+mas "Medis", id: 1063631769
 
 # Postgres
 cask "postico"
@@ -249,6 +247,12 @@ cask "kap"
 # Markdown presentation writer
 cask "marp"
 
+# Menubar countdown clock
+cask "menubar-countdown"
+
+# Caffeine to keep screen awake when wanted
+cask "caffeine"
+
 # Image transcoding etc.
 cask "handbrake"
 
@@ -265,7 +269,7 @@ cask "muzzle"
 ## Random command-line utilities and tools
 
 # Do pretty much anything to images - https://www.imagemagick.org/
-brew "imagemagick", args: ["with-webp"]
+brew "imagemagick"
 
 # Download YouTube videos from the command line
 brew "youtube-dl"
