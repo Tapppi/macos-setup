@@ -15,7 +15,7 @@ export REMOTE_KAFKA_SERVER="kafka-tuup.tuup.aivencloud.com:29009"
 export PGDATABASE=tuup
 
 ## Shortcut to kyyti projects
-alias w="p; cd kyyti"
+alias pk="p; cd kyyti"
 
 ## Postgres cli shortcuts
 alias psqd="psql -h localhost -p 5432 -U postgres"
