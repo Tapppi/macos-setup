@@ -28,7 +28,7 @@ function doIt() {
 	cd ~/.tmp-backup-dir && tar -czf ../.tmp-backup-dir.tgz . && cd -;
 
 	cd $CURR_DIR;
-  mv ~/.tmp-backup-dir.tgz $backup_path;
+    mv ~/.tmp-backup-dir.tgz $backup_path;
 
 	echo "Backed up successfully";
 	rm -rf ~/.tmp-backup-dir;
