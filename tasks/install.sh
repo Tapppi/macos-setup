@@ -1,37 +1,37 @@
 #!/bin/sh
 
-config_xcode() {
-  x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
-  if test -n "${x}"; then
-    sudo xcode-select -s "${x}"
-    sudo xcodebuild -license accept
-  fi
-}
+# Ask for the administrator password upfront
+sudo -v
 
 # Define Function =install=
 
 install () {
+  # Keep-alive: update existing `sudo` time stamp until `.macos` has finished
+  while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+  
+  init_no_sleep
+
   install_macos_sw
   install_node_sw
   install_perl_sw
   install_python_sw
   install_ruby_sw
   install_dotfiles
-
-  config_admin_req
-  config_istat_menus
-  config_vlc
-  config_macos
 }
 
 # Install macOS Software with =brew=
 
 install_macos_sw () {
-  p "Installing macOS Software"
   install_paths
   install_brew
 
+  p1 "Installing macOS Software"
+
+  config_xcode
+
   brew bundle --file="Brewfiles/core"
+
+  config_xcode
 
   # Set librdkafka openssl build flags
   export CPPFLAGS=-I/usr/local/opt/openssl/include
@@ -43,16 +43,11 @@ install_macos_sw () {
 
   BREW_PREFIX=$(brew --prefix)
 
-  # Standard "g*" name for sha256sum
-  ln -s "${BREW_PREFIX}/bin/gsha256sum" "${BREW_PREFIX}/bin/sha256sum"
-
   # Switch to using brew-installed bash as default shell
   if ! fgrep -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
     echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells;
     chsh -s "${BREW_PREFIX}/bin/bash";
   fi;
-
-  setup_xcode
 
   install_links
   sudo xattr -rd "com.apple.quarantine" "/Applications" > /dev/null 2>&1
@@ -70,12 +65,13 @@ install_paths () {
 # Install Homebrew Package Manager
 
 install_brew () {
+  p1 "Installing and/or configuring brew"
   if ! which brew > /dev/null; then
     ruby -e \
       "$(curl -Ls 'https://github.com/Homebrew/install/raw/master/install')" \
       < /dev/null > /dev/null 2>&1
   fi
-  printf "" > "${BREWFILE}"
+
   brew analytics off
   brew update
   brew doctor
@@ -100,18 +96,20 @@ install_links () {
 
 # Install Node.js with =nvm=
 
-_npm='´ts-node
+_npm='npm
+ts-node
 nodemon'
 
 install_node_sw () {
+  goback_dir=$(pwd)
   if which nvm > /dev/null; then
-    p "Update nvm"
+    p1 "Update nvm"
     cd "$NVM_DIR"
     git fetch --tags origin
     git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
-    . "$NVM_DIR/nvm.sh"
+    . "$NVM_DIR/nvm.sh";
   else
-    p "Install nvm"
+    p1 "Install nvm"
     export NVM_DIR="$HOME/.nvm"
 
     sudo mkdir -p "$NVM_DIR"
@@ -120,11 +118,13 @@ install_node_sw () {
     git clone https://github.com/creationix/nvm.git "$NVM_DIR"
     cd "$NVM_DIR"
     git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
-    . "$NVM_DIR/nvm.sh"
+    . "$NVM_DIR/nvm.sh";
   fi
 
+  cd "$goback_dir"
+
   if which nvm > /dev/null; then
-    p "Installing Node.js with nvm"
+    p1 "Installing Node.js with nvm"
     nvm install --lts
     nvm use --lts
     nvm alias default lts
@@ -147,9 +147,9 @@ install_perl_sw () {
     sudo mkdir -p "$PLENV_ROOT"
     sudo chown -R "$(whoami):admin" "$PLENV_ROOT"
 
-    p "Installing Perl 5 with plenv"
-    plenv install 5.26.0 > /dev/null 2>&1
-    plenv global 5.26.0
+    p1 "Installing Perl 5 with plenv"
+    plenv install 5.28.0 > /dev/null 2>&1
+    plenv global 5.28.0
 
     grep -q "${PLENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
@@ -157,7 +157,6 @@ ${PLENV_ROOT}/shims
 " "/etc/paths"
 
     init_paths
-    rehash
   fi
 }
 
@@ -172,11 +171,11 @@ install_python_sw () {
     sudo mkdir -p "$PYENV_ROOT"
     sudo chown -R "$(whoami):admin" "$PYENV_ROOT"
 
-    p "Installing Python 2 with pyenv"
-    pyenv install --skip-existing 2.7.13
-    p "Installing Python 3 with pyenv"
-    pyenv install --skip-existing 3.6.2
-    pyenv global 2.7.13
+    p1 "Installing Python 2 with pyenv"
+    pyenv install --skip-existing 2.7.15
+    p1 "Installing Python 3 with pyenv"
+    pyenv install --skip-existing 3.7.2
+    pyenv global 2.7.15
 
     grep -q "${PYENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
@@ -184,7 +183,6 @@ ${PYENV_ROOT}/shims
 " "/etc/paths"
 
     init_paths
-    rehash
 
     pip install --upgrade "pip" "setuptools"
 
@@ -205,89 +203,48 @@ install_ruby_sw () {
     sudo mkdir -p "$RBENV_ROOT"
     sudo chown -R "$(whoami):admin" "$RBENV_ROOT"
 
-    p "Installing Ruby with rbenv"
-    rbenv install --skip-existing 2.4.2
-    rbenv global 2.4.2
+    p1 "Installing Ruby with rbenv"
+    rbenv install --skip-existing 2.5.3
+    rbenv global 2.5.3
 
     grep -q "${RBENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
 ${RBENV_ROOT}/shims
 " "/etc/paths"
 
-    init_paths
-    rehash
+    init_paths;
 
     printf "%s\n" \
       "gem: --no-document" | \
-    tee "${HOME}/.gemrc" > /dev/null
+    tee "${HOME}/.gemrc" > /dev/null;
 
-    gem update --system > /dev/null
+    yes | gem update --system  > /dev/null;
 
-    trash "$(which rdoc)"
-    trash "$(which ri)"
-    gem update
+    yes | gem update;
 
-    gem install bundler
+    yes | gem install bundler;
   fi
+}
+
+# Cleanup conflicting binaries for ruby update
+
+clean_ruby_conflicts () {
+    if which bundle > /dev/null; then
+        trash "$(which bundle)";
+    fi
+    if which rdoc > /dev/null; then
+        trash "$(which rdoc)";
+    fi
+    if which ri > /dev/null; then
+        trash "$(which ri)";
+    fi
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
+
 install_dotfiles () {
-  cd "$( dirname "${BASH_SOURCE[0]}" )"
-  /bin/bash ../dotfiles/bootstrap.sh -f
-  ~/.macos
-  cd -;
-}
+  p1 "Installing dotfiles"
+  sudo ./dotfiles/bootstrap.sh -f
 
-# Define Function =config_defaults=
-
-config_defaults () {
-  printf "%s\n" "${1}" | \
-  while IFS="$(printf '\t')" read domain key type value host; do
-    ${2} defaults ${host} write ${domain} "${key}" ${type} "${value}"
-  done
-}
-
-# Mark Applications Requiring Administrator Account
-
-_admin_req='Docker.app
-Dropbox.app
-iStat Menus.app
-Wireshark.app'
-
-config_admin_req () {
-  printf "%s\n" "${_admin_req}" | \
-  while IFS="$(printf '\t')" read app; do
-    sudo tag -a "Red, admin" "/Applications/${app}"
-  done
-}
-
-# Configure VLC
-
-_vlc_defaults='org.videolan.vlc	SUEnableAutomaticChecks	-bool	true	
-org.videolan.vlc	SUHasLaunchedBefore	-bool	true	
-org.videolan.vlc	SUSendProfileInfo	-bool	true	'
-_vlcrc='macosx	macosx-nativefullscreenmode	1
-macosx	macosx-video-autoresize	0
-macosx	macosx-appleremote	0
-macosx	macosx-pause-minimized	1
-macosx	macosx-continue-playback	1
-core	metadata-network-access	1
-core	volume-save	0
-core	spdif	1
-core	sub-language	English
-core	medium-jump-size	30
-subsdec	subsdec-encoding	UTF-8
-avcodec	avcodec-hw	vda'
-
-config_vlc () {
-  config_defaults "${_vlc_defaults}"
-  if which crudini > /dev/null; then
-    test -d "${HOME}/Library/Preferences/org.videolan.vlc" || \
-      mkdir -p "${HOME}/Library/Preferences/org.videolan.vlc"
-    printf "%s\n" "${_vlcrc}" | \
-    while IFS="$(printf '\t')" read section key value; do
-      crudini --set "${HOME}/Library/Preferences/org.videolan.vlc/vlcrc" "${section}" "${key}" "${value}"
-    done
-  fi
+  cp ./{.extra,.path} ~/
 }

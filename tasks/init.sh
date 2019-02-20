@@ -14,6 +14,15 @@ init () {
   config_rm_sudoers
 }
 
+init_user () {
+  init_no_sleep
+  # Wipe all (default) app icons from the Dock
+  # This is only really useful when setting up a new Mac, or if you don’t use
+  # the Dock to launch apps.
+  defaults write com.apple.dock persistent-apps -array
+  init_ssh
+}
+
 if test "${1}" = 0; then
   printf "\n$(which init)\n"
 fi
@@ -22,7 +31,8 @@ fi
 
 init_paths () {
   test -x "/usr/libexec/path_helper" && \
-    eval $(/usr/libexec/path_helper -s)
+    eval $(/usr/libexec/path_helper -s) && \
+    hash -r
 }
 
 # Eliminate Prompts for Password
@@ -90,6 +100,25 @@ init_devtools () {
 
 init_updates () {
   sudo softwareupdate --install --all
+}
+
+# Customize SSH
+
+init_ssh () {
+  if ! test -d "${HOME}/.ssh"; then
+    mkdir -m go= "${HOME}/.ssh"
+    e="$(ask 'New SSH Key: Email Address?' 'OK' '')"
+    ssh-keygen -t ed25519 -a 100 -C "$e"
+    cat << EOF > "${HOME}/.ssh/config"
+Host *
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519
+EOF
+    ssh-add ~/.ssh/id_ed25519
+    pbcopy < "${HOME}/.ssh/id_ed25519.pub"
+    open "https://github.com/settings/keys"
+  fi
 }
 
 # Configure New Account

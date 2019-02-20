@@ -31,7 +31,7 @@ EOF
 
 # Define Function =p=
 
-p () {
+p1 () {
   printf "\n\033[1m\033[34m%s\033[0m\n\n" "${1}"
 }
 
@@ -45,6 +45,6 @@ run () {
 EOF
 }
 
-source tasks/init.sh
-source tasks/install.sh
-source tasks/restore.sh
+. tasks/init.sh
+. tasks/install.sh
+. tasks/config.sh
