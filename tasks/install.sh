@@ -102,7 +102,7 @@ nodemon'
 
 install_node_sw () {
   goback_dir=$(pwd)
-  if ls $NVM_DIR &> /dev/null; then
+  if [ ! -z "$NVM_DIR" ] && ls $NVM_DIR &> /dev/null; then
     p1 "Update nvm"
     cd "$NVM_DIR"
     git fetch --tags origin
@@ -123,11 +123,11 @@ install_node_sw () {
 
   cd "$goback_dir"
 
-  if which nvm > /dev/null; then
+  if ls $NVM_DIR &> /dev/null; then
     p1 "Installing Node.js with nvm"
     nvm install --lts
     nvm use --lts
-    nvm alias default lts
+    nvm alias default stable
   fi
 
   T=$(printf '\t')
