@@ -13,4 +13,6 @@ export PATH="/usr/local/opt/openssl/bin:$PATH"
 # Add gnu bin
 if which brew; then
   export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+  # Add gnu-getopt to path
+  export PATH="/usr/local/opt/gnu-getopt/bin:$PATH"
 fi
