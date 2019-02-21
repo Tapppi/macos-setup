@@ -8,12 +8,17 @@ files_from=$(greadlink -f "$d")/restore.bom
 shift
 
 function doIt() {
-	echo "Backing up $(pwd) to ${backup_path} as a gzipped tar ball...";
+	echo "Backing up $HOME to ${backup_path} as a gzipped tar ball...";
 	echo "";
 
 	# Run in home folder
 	CURR_DIR=$(pwd)
 	cd || exit;
+
+	if which gpg > /dev/null && [ -d "~/.gnupg" ]; then
+		gpg --export --armor --output=~/.gnupg/key_public.asc
+		gpg --export-secret-keys --armor --output=~/.gnupg/key_secret.asc
+	fi
 
 	rsync \
     --rsync-path="sudo rsync" \

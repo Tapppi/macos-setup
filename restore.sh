@@ -24,6 +24,15 @@ function doIt() {
     --hard-links \
     --files-from="$files_from" \
 		-avh . ~;
+
+	if which gpg > /dev/null && [ -f "~/.gnupg/key_public.asc" ]; then
+		gpg --import --armor ~/.gnupg/key_public.asc
+		rm ~/.gnupg/key_public.asc
+	fi
+	if which gpg > /dev/null && [ -f "~/.gnupg/key_secret.asc" ]; then
+		gpg --import --armor ~/.gnupg/key_secret.asc
+		rm ~/.gnupg/key_secret.asc
+	fi
   cd - && rm -rf .tmp-backup-dir;
 
 	echo "Restored";
