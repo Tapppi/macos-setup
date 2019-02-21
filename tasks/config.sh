@@ -21,6 +21,7 @@ config () {
 
   p1 "Configuring macOS"
   sudo ~/.macos
+  p1 "Done. Some changes require a reboot."
 }
 
 # Mark Applications Requiring Administrator Account
@@ -212,9 +213,11 @@ _disableditems='/Applications/autoping.app
 /Applications/Coffitivity.app
 /Applications/HardwareGrowler.app
 '
-_loginitems='/Applications/Alfred 3.app
+_loginitems='/Applications/1Password 7.app
+/Applications/Alfred 3.app
 /Applications/Backup and Sync from Google.app
 /Applications/Bartender 3.app
+/Applications/Caffeine.app
 /Applications/CleanMyMac 3.app
 /Applications/Docker.app
 /Applications/Dropbox.app
