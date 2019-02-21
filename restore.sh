@@ -9,7 +9,7 @@ backup_path_resolved=$(greadlink -f "$backup_path")
 shift
 
 function doIt() {
-	echo "Restoring from ${backup_path_resolved} to ~...";
+	echo "Restoring from ${backup_path_resolved} to $HOME...";
 	echo "";
 
 	mkdir .tmp-backup-dir
