@@ -102,7 +102,7 @@ nodemon'
 
 install_node_sw () {
   goback_dir=$(pwd)
-  if which nvm > /dev/null; then
+  if ls $NVM_DIR &> /dev/null; then
     p1 "Update nvm"
     cd "$NVM_DIR"
     git fetch --tags origin
