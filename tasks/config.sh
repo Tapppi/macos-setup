@@ -16,7 +16,7 @@ config () {
 
   p1 "Customising various launch options"
   custom_loginitems
-  config_energy
+  custom_energy
   custom_terminal
   custom_duti
 
@@ -80,32 +80,6 @@ config_launchd () {
   config_plist "$2" "$1" "$4" "$3" && \
     $3 plutil -convert xml1 "$1" && \
     $3 launchctl load "$1"
-}
-
-# Configure Energy Saver
-
-_energy='-b displaysleep	20
--b	sleep	90
--b	disksleep	45
--b	womp	1
--b	powernap	1
--c	displaysleep	60
--c	sleep	0
--c	disksleep	90
--c	womp	1
--c	autorestart	1
--c	powernap	1
--u	displaysleep	2
--u	lessbright	1
--u	haltafter	60
--u	haltremain	5
--u	haltlevel	5'
-
-config_energy () {
-  printf "%s\n" "${_energy}" | \
-  while IFS="$(printf '\t')" read flag setting value; do
-    sudo pmset $flag ${setting} ${value}
-  done
 }
 
 # Define Function =config_xcode=
@@ -341,6 +315,30 @@ custom_terminal () {
     "${HOME}/Library/Preferences/com.apple.Terminal.plist" \
     ":Window Settings:tapani"
   config_defaults "${_term_defaults}"
+}
+
+# Configure Energy Saver
+
+_energy='-b displaysleep  20
+-b	disksleep 45
+-b	sleep 90
+-b	womp	1
+-b	powernap	1
+-c	displaysleep	60
+-c	sleep	0
+-c	disksleep	90
+-c	womp	1
+-c	autorestart	1
+-c	powernap	1
+-u	displaysleep	2
+-u	lessbright	1'
+
+custom_energy () {
+  printf "%s\n" "${_energy}" | \
+  while IFS="$(printf '\t')" read flag setting value; do
+    echo "sudo pmset $flag ${setting} ${value}"
+    sudo pmset $flag ${setting} ${value}
+  done
 }
 
 # Customize Default UTIs
