@@ -336,7 +336,6 @@ _energy='-b displaysleep  20
 custom_energy () {
   printf "%s\n" "${_energy}" | \
   while IFS="$(printf '\t')" read flag setting value; do
-    echo "sudo pmset $flag ${setting} ${value}"
     sudo pmset $flag ${setting} ${value}
   done
 }
