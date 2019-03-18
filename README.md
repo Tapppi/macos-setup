@@ -57,7 +57,7 @@ The scripts take the path of the backup tarball as an argument.
       [`.path`](/.path) and [`.credentials.dist`](/.credentials.dist)
 
 #### config
-* 
+* Applies some application settings and terminal/duti settings
 * Applies basic settings macos settings as defined in `.macos` dotfile
 
 ## Manual steps
