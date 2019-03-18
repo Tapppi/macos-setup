@@ -40,6 +40,9 @@ The scripts take the path of the backup tarball as an argument.
   you don't have one (from backup)
 
 #### install
+Also works as update, just rerun it to update apps and node. Python and ruby
+versions are still manual in the script for now.
+
 * Installs Brew and libs, tools and software from Hombrew and Mac App Store
     * See [`Brewfiles/`](/Brewfiles/) for commented lists of installed
       applications in Homebrew bundle format
