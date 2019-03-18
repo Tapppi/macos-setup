@@ -1,4 +1,4 @@
-''# macos-setup
+# macos-setup
 > Macos setup automation with basic settings, application installs and dotfiles
 
 ## Usage
