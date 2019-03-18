@@ -13,7 +13,7 @@ install () {
 
   install_macos_sw
   install_node_sw
-  install_perl_sw
+  #install_perl_sw # segfaults for some reason
   install_python_sw
   install_ruby_sw
   install_dotfiles
@@ -43,15 +43,17 @@ install_macos_sw () {
 
   BREW_PREFIX=$(brew --prefix)
 
-  # Switch to using brew-installed bash as default shell
+  # Switch to using brew-installed Bash 5 as default shell
   if ! fgrep -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
-    echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells;
-  fi;
-  chsh -s "${BREW_PREFIX}/bin/bash";
+    echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells
+  fi
+  if [ "$SHELL" != "${BREW_PREFIX}/bin/bash" ]; then
+    chsh -s "${BREW_PREFIX}/bin/bash"
+  fi
 
   install_links
-  sudo xattr -rd "com.apple.quarantine" "/Applications" > /dev/null 2>&1
-  sudo chmod -R go=u-w "/Applications" > /dev/null 2>&1
+  # sudo xattr -rd "com.apple.quarantine" "/Applications" > /dev/null 2>&1
+  # sudo chmod -R go=u-w "/Applications" > /dev/null 2>&1
 }
 
 # Add =/usr/local/bin/sbin= to Default Path
@@ -175,8 +177,11 @@ install_python_sw () {
     pyenv install --skip-existing 2.7.15
     p1 "Installing Python 3 with pyenv"
     pyenv install --skip-existing 3.7.2
-    pyenv global 2.7.15
 
+    p1 "Setting Python 3 as the default"
+    pyenv global 3.7.2
+
+    p1 "Install pip & utilities"
     grep -q "${PYENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
 ${PYENV_ROOT}/shims
@@ -186,11 +191,12 @@ ${PYENV_ROOT}/shims
 
     pip install --upgrade "pip" "setuptools"
 
-    # Reference: https://github.com/aiven/aiven-client
-    pip install --upgrade "aiven-client"
-
     # Reference: https://github.com/pixelb/crudini
     pip install --upgrade "crudini"
+
+    p1 "Install aiven-client"
+    # Reference: https://github.com/aiven/aiven-client
+    pip install --upgrade "aiven-client"
   fi
 }
 

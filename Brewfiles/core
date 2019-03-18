@@ -24,7 +24,7 @@ mas "XCode", id: 497799835
 brew "coreutils"
 # The parallel in moreutils is so broken, and don't know how to overwrite with brewfile..
 #brew "moreutils"
-brew "parallell"
+brew "parallel"
 brew "findutils"
 brew "gnu-sed"
 brew "gnu-getopt"

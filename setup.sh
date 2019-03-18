@@ -1,14 +1,5 @@
 #!/bin/sh
 
-# Initialize New Terminal
-if test -z "${1}"; then
-  osascript - "${0}" << EOF > /dev/null 2>&1
-    on run { _this }
-      tell app "Terminal" to do script "source " & quoted form of _this & " 0"
-    end run
-EOF
-fi
-
 # Define Function =ask=
 
 ask () {
@@ -48,3 +39,16 @@ EOF
 . tasks/init.sh
 . tasks/install.sh
 . tasks/config.sh
+
+if [ "${1}" = "init" ]; then
+  init
+elif [ "${1}" = "init_user" ]; then
+  init_user
+elif [ "${1}" = "install" ]; then
+  install
+elif [ "${1}" = "config" ]; then
+  config
+else
+  echo "Usage: $0 [init | init_user | install | config]"
+  echo "See README.md for more information."
+fi
