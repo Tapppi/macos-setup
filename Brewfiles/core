@@ -77,6 +77,7 @@ brew "duti"
 ## Core Libraries
 
 brew "snappy"
+brew "xz"
 brew "sdl2"
 brew "rubberband"
 brew "fontconfig"

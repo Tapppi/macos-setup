@@ -14,6 +14,9 @@ export REMOTE_KAFKA_SERVER="kafka-tuup.tuup.aivencloud.com:29009"
 ## Postgres default database
 export PGDATABASE=tuup
 
+# Pyenv home dir
+PYENV_ROOT="/usr/local/python" && export PYENV_ROOT
+
 ## Shortcut to kyyti projects
 alias pk="p; cd kyyti"
 

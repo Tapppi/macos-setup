@@ -231,7 +231,6 @@ brew "tcpreplay"
 brew "tcptrace"
 brew "ucspi-tcp" # `tcpserver` etc.
 brew "xpdf"
-brew "xz"
 
 ## Font tools
 
