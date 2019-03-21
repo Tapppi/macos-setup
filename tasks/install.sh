@@ -178,8 +178,8 @@ install_python_sw () {
     p1 "Installing Python 3 with pyenv"
     pyenv install --skip-existing 3.7.2
 
-    p1 "Setting Python 3 as the default"
-    pyenv global 3.7.2
+    p1 "Setting Python 3 as the default (also enable python2)"
+    pyenv global 3.7.2 2.7.15
 
     p1 "Install pip & utilities"
     grep -q "${PYENV_ROOT}" "/etc/paths" || \
