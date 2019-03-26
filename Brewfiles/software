@@ -92,6 +92,9 @@ cask "istat-menus"
 # Torrent client
 cask "transmission"
 
+# GUI for open files and sockets
+cask "sloth"
+
 # IRC client
 mas "Limechat", id: 414030210
 
