@@ -34,7 +34,7 @@ alias psqs="psql -h pg-10.dev-562c.aivencloud.com -p 27905 -U avnadmin"
 alias psqp="psql -h pg-production.tuup.aivencloud.com -p 18015 -U avnadmin"
 
 ## KGB alias
-alias kgb="docker pull gcr.io/kyyti-hacks/kgb:latest && mkdir -p $HOME/.kgb && mkdir -p $HOME/kgb-data && docker run -it --rm -v $HOME/kgb-data:/app/data -v $HOME/.kgb:/root/.kgb gcr.io/kyyti-hacks/kgb:latest"
+alias kgb="docker pull eu.gcr.io/kyyti-hacks/kgb:latest && mkdir -p $HOME/.kgb && mkdir -p $HOME/kgb-data && docker run -it --rm -v $HOME/kgb-data:/app/data -v $HOME/.kgb:/root/.kgb eu.gcr.io/kyyti-hacks/kgb:latest"
 
 ## Kubectl shortcuts
 alias kl="/Applications/Docker.app/Contents/Resources/bin/kubectl --context local"
