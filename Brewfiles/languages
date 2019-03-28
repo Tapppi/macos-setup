@@ -1,3 +1,5 @@
+brew tap AdoptOpenJDK/openjdk
+
 ## Languages
 # nvm for node version management is installed by 'setup.sh'
 
@@ -9,7 +11,7 @@ brew "rbenv" # Ruby version manager
 brew "php"
 brew "lua"
 brew "rust"
-cask "java"
+cask "adoptopenjdk8"
 
 # Perl build utils
 brew "perl-build"
