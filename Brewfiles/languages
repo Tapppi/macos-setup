@@ -1,4 +1,4 @@
-brew tap AdoptOpenJDK/openjdk
+tap "AdoptOpenJDK/openjdk"
 
 ## Languages
 # nvm for node version management is installed by 'setup.sh'
