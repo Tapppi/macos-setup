@@ -50,3 +50,10 @@ export TTC_REPOS=~/project
 export TTC_REPOS_DEPTH=4
 export TTC_GITBOT=gitlog
 export TTC_APIKEYS=false
+
+## Java switcher
+alias j8="export JAVA_HOME=`/usr/libexec/java_home -v 1.8`; java -version"
+alias j10="export JAVA_HOME=`/usr/libexec/java_home -v 10`; java -version"
+alias j11="export JAVA_HOME=`/usr/libexec/java_home -v 11`; java -version"
+# Set java 8 as default
+export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)

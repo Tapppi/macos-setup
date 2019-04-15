@@ -12,6 +12,8 @@ brew "php"
 brew "lua"
 brew "rust"
 cask "adoptopenjdk8"
+cask "adoptopenjdk10"
+cask "adoptopenjdk11"
 
 brew "maven"
 
