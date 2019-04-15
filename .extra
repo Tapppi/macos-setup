@@ -1,12 +1,15 @@
 #!/bin/bash
 
-# Init fasd through cache
+## Init fasd through cache
 fasd_cache="$HOME/.fasd-init-bash"
 if [ "$(command -v fasd)" -nt "$fasd_cache" -o ! -s "$fasd_cache" ]; then
   fasd --init posix-alias bash-hook bash-ccomp bash-ccomp-install >| "$fasd_cache"
 fi
 source "$fasd_cache"
 unset fasd_cache
+
+## ruby rbenv root
+RBENV_ROOT="/usr/local/ruby" && export RBENV_ROOT
 
 ## Git credentials
 GIT_AUTHOR_NAME="Tapani Moilanen"
@@ -22,7 +25,7 @@ export REMOTE_KAFKA_SERVER="kafka-tuup.tuup.aivencloud.com:29009"
 ## Postgres default database
 export PGDATABASE=tuup
 
-# Pyenv home dir
+## Pyenv home dir
 PYENV_ROOT="/usr/local/python" && export PYENV_ROOT
 
 ## Shortcut to kyyti projects
