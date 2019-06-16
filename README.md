@@ -70,6 +70,7 @@ Not all steps have been automated:
 
 * Postico favourites are backed up to file-share encrypted. Need to be imported
   manually.
+* set up iterm2 key binds if backups don't work correctly: https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
 ## Thanks to...
 
