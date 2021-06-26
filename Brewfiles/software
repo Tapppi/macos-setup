@@ -44,6 +44,9 @@ cask "the-unarchiver"
 # File compression for gzip/deflate if tar isn't enough
 brew "zopfli"
 
+# Notification on long running tasks
+brew "noti"
+
 ## Everyday apps
 cask "dropbox"
 cask "slack"
