@@ -83,6 +83,7 @@ brew "rubberband"
 brew "fontconfig"
 brew "mp4v2"
 
+cask "xquartz"
 brew "libcaca"
 brew "libbs2b"
 brew "libbluray"

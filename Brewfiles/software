@@ -12,6 +12,7 @@ tap "boz/repo"
 tap "derailed/k9s"
 tap "sqitchers/sqitch"
 tap "bramstein/webfonttools"
+tap "github/gh"
 
 ## Basics
 
@@ -20,6 +21,9 @@ cask "google-chrome"
 cask "firefox"
 cask "tor-browser"
 
+# GPG suite
+cask "gpg-suite"
+
 # Text based web browser
 brew "lynx"
 
@@ -27,7 +31,6 @@ brew "lynx"
 brew "micro"
 brew "vim"
 cask "visual-studio-code"
-cask "sublime-text"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
@@ -35,10 +38,8 @@ brew "dash"
 brew "tldr"
 
 # Archive extraction
-brew "unrar"
 brew "p7zip"
 cask "the-unarchiver"
-cask "betterzip"
 
 # File compression for gzip/deflate if tar isn't enough
 brew "zopfli"
@@ -48,7 +49,7 @@ cask "dropbox"
 cask "slack"
 cask "iterm2"
 cask "vlc"
-cask "zoomus"
+cask "zoom"
 cask "whatsapp"
 cask "spotify"
 cask "google-drive-file-stream"
@@ -64,7 +65,7 @@ mas "Wifi Explorer Lite", id: 1408727408
 # API testing
 cask "postman"
 
-# The butler of you mac or the swiss army knife of searchbars - https://www.alfredapp.com/
+# The butler of your mac or the swiss army knife of searchbars - https://www.alfredapp.com/
 cask "alfred"
 
 # Todo app with a vengeance
@@ -76,12 +77,6 @@ mas "2Do", id: 477670270
 
 # Manage resolutions
 cask "resolutionator"
-
-# Macos notif system (paid :( )
-#mas "Growl", id: 467939042
-
-# Send growl notifications when devices are connected
-#mas "HardwareGrowler", id: 475260933
 
 # Status bar organiser
 cask "bartender"
@@ -95,23 +90,20 @@ cask "transmission"
 # GUI for open files and sockets
 cask "sloth"
 
-# IRC client
-mas "Limechat", id: 414030210
-
 # Note taking with markdown and stuff - http://brettterpstra.com/projects/nvalt/
 cask "nvalt"
 
 # Various cloud service statuses in the status bar
 mas "stts", id: 1187772509
 
-# Mac cleaner
-cask "cleanmymac3"
-
 ## Everyday commandline tools
 
 # Nice httpie client (wget etc. are for compatibility)
 brew "httpie"
 brew "wget"
+
+# Github CLI
+brew "github/gh/gh"
 
 # Quick access to files and folders from anywhere - https://github.com/clvv/fasd
 brew "fasd"
