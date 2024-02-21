@@ -1,7 +1,7 @@
 
 ### Taps
-tap "caskroom/fonts"
-tap "caskroom/versions"
+tap "homebrew/cask-versions"
+tap "homebrew/cask-fonts"
 
 tap "homebrew/bundle"
 tap "homebrew/cask"
