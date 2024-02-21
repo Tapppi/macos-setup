@@ -15,12 +15,11 @@ init () {
 }
 
 init_user () {
-  init_no_sleep
   # Wipe all (default) app icons from the Dock
   # This is only really useful when setting up a new Mac, or if you don’t use
   # the Dock to launch apps.
   defaults write com.apple.dock persistent-apps -array
-  init_ssh
+  init_ssh_1password
 }
 
 if test "${1}" = 0; then
@@ -44,11 +43,6 @@ init_sudo () {
 }
 
 # Set Defaults for Sleep
-
-init_no_sleep () {
-  sudo pmset -a sleep 0
-  sudo pmset -a disksleep 0
-}
 
 # Set Hostname from DNS
 
@@ -104,7 +98,21 @@ init_updates () {
 
 # Customize SSH
 
-init_ssh () {
+init_ssh_1password () {
+  if ! test -d "${HOME}/.ssh"; then
+    mkdir -m go= "${HOME}/.ssh"
+  fi
+
+  cat << EOF > "${HOME}/.ssh/config"
+Host *
+  IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+EOF
+}
+
+# Unused function due to switching to _1password variant,
+# but saved for reference when needing local keys
+init_ssh_local () {
   if ! test -d "${HOME}/.ssh"; then
     mkdir -m go= "${HOME}/.ssh"
     e="$(ask 'New SSH Key: Email Address?' 'OK' '')"

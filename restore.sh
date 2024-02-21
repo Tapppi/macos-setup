@@ -27,13 +27,13 @@ function doIt() {
     --files-from="$files_from" \
 		-avh . ~;
 
-	if which gpg > /dev/null && [ -f "~/.gnupg/key_public.asc" ]; then
-		gpg --import --armor ~/.gnupg/key_public.asc
-		rm ~/.gnupg/key_public.asc
+	if which gpg > /dev/null && [ -f "./key_public.asc" ]; then
+		gpg --import --armor ./key_public.asc
+		rm ./key_public.asc
 	fi
-	if which gpg > /dev/null && [ -f "~/.gnupg/key_secret.asc" ]; then
-		gpg --import --armor ~/.gnupg/key_secret.asc
-		rm ~/.gnupg/key_secret.asc
+	if which gpg > /dev/null && [ -f "./key_secret.asc" ]; then
+		gpg --import --armor ./key_secret.asc
+		rm ./key_secret.asc
 	fi
   cd - && rm -rf .tmp-backup-dir;
 

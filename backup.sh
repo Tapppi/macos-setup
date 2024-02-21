@@ -15,11 +15,6 @@ function doIt() {
 	CURR_DIR=$(pwd)
 	cd || exit;
 
-	if which gpg > /dev/null && [ -d "~/.gnupg" ]; then
-		gpg --export --armor --output=~/.gnupg/key_public.asc
-		gpg --export-secret-keys --armor --output=~/.gnupg/key_secret.asc
-	fi
-
 	rsync \
     --rsync-path="sudo rsync" \
     --perms \

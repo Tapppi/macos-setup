@@ -25,9 +25,6 @@ Library/Preferences/com.microsoft.VSCode.plist
 
 ## KEYS
 
-.gnupg/key_public.asc
-.gnupg/key_secret.asc
-.ssh
 .ssl
 .credentials
 .pgpass

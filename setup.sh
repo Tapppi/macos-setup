@@ -44,6 +44,10 @@ if [ "${1}" = "init" ]; then
   init
 elif [ "${1}" = "init_user" ]; then
   init_user
+elif [ "${1}" = "init_ssh_local" ]; then
+  init_ssh_local
+elif [ "${1}" = "init_ssh_1password" ]; then
+  init_ssh_1password
 elif [ "${1}" = "install" ]; then
   install
 elif [ "${1}" = "config" ]; then
