@@ -34,8 +34,8 @@ install_macos_sw () {
   config_xcode
 
   # Set librdkafka openssl build flags
-  export CPPFLAGS=-I/usr/local/opt/openssl/include
-  export LDFLAGS=-L/usr/local/opt/openssl/lib
+  export CPPFLAGS=-I/usr/local/opt/openssl@1.1/include
+  export LDFLAGS=-L/usr/local/opt/openssl@1.1/lib
   
   brew bundle --file="Brewfiles/languages"
 
@@ -150,8 +150,8 @@ install_perl_sw () {
     sudo chown -R "$(whoami):admin" "$PLENV_ROOT"
 
     p1 "Installing Perl 5 with plenv"
-    plenv install 5.28.0 > /dev/null 2>&1
-    plenv global 5.28.0
+    plenv install 5.38.2 > /dev/null 2>&1
+    plenv global 5.38.2
 
     grep -q "${PLENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
@@ -174,12 +174,12 @@ install_python_sw () {
     sudo chown -R "$(whoami):admin" "$PYENV_ROOT"
 
     p1 "Installing Python 2 with pyenv"
-    pyenv install --skip-existing 2.7.15
+    pyenv install --skip-existing 2.7.18
     p1 "Installing Python 3 with pyenv"
-    pyenv install --skip-existing 3.7.2
+    pyenv install --skip-existing 3.12.2
 
-    p1 "Setting Python 3 as the default (also enable python2)"
-    pyenv global 3.7.2 2.7.15
+    p1 "Setting Python 3 as the default"
+    pyenv global 3.12.2
 
     p1 "Install pip & utilities"
     grep -q "${PYENV_ROOT}" "/etc/paths" || \
@@ -210,8 +210,8 @@ install_ruby_sw () {
     sudo chown -R "$(whoami):admin" "$RBENV_ROOT"
 
     p1 "Installing Ruby with rbenv"
-    rbenv install --skip-existing 2.5.3
-    rbenv global 2.5.3
+    rbenv install --skip-existing 3.2.3
+    rbenv global 3.2.3
 
     grep -q "${RBENV_ROOT}" "/etc/paths" || \
     sudo sed -i "" -e "1i\\
