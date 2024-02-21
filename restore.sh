@@ -1,10 +1,12 @@
 #!/bin/bash
 
+readlinkorreal() { readlink "$1" || echo "$1"; }
+
 backup_path="${backup_path:=$1}"
 : "${backup_path:?Missing backup_path, provide as argument (relative to home dir)}"
 d=$(dirname "$0")
-files_from=$(greadlink -f "$d")/restore.bom
-backup_path_resolved=$(greadlink -f "$backup_path")
+files_from=$(readlinkorreal "$d")/restore.bom
+backup_path_resolved=$(readlinkorreal "$backup_path")
 
 shift
 
