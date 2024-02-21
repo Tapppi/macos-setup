@@ -12,9 +12,11 @@ tap "boz/repo"
 tap "derailed/k9s"
 tap "sqitchers/sqitch"
 tap "bramstein/webfonttools"
-tap "github/gh"
 
 ## Basics
+
+# Mac keyboard layout editor
+cask "ukulele"
 
 # Browsers
 cask "google-chrome"
@@ -34,7 +36,6 @@ cask "visual-studio-code"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
-brew "dash"
 brew "tldr"
 
 # Archive extraction
@@ -106,7 +107,7 @@ brew "httpie"
 brew "wget"
 
 # Github CLI
-brew "github/gh/gh"
+brew "gh"
 
 # Quick access to files and folders from anywhere - https://github.com/clvv/fasd
 brew "fasd"
@@ -242,7 +243,7 @@ brew "woff2"
 cask "kap"
 
 # Markdown presentation writer
-cask "marp"
+brew "marp-cli"
 
 # Menubar countdown clock
 cask "menubar-countdown"
