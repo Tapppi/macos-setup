@@ -11,12 +11,8 @@ cask_args screen_saverdir: "/Library/Screen Savers"
 tap "boz/repo"
 tap "derailed/k9s"
 tap "sqitchers/sqitch"
-tap "bramstein/webfonttools"
 
 ## Basics
-
-# Mac keyboard layout editor
-cask "ukulele"
 
 # Browsers
 cask "google-chrome"
@@ -26,12 +22,9 @@ cask "tor-browser"
 # GPG suite
 cask "gpg-suite"
 
-# Text based web browser
-brew "lynx"
-
 # Text editors
 brew "micro"
-brew "vim"
+# brew "vim"
 cask "visual-studio-code"
 
 # Documentation finders (dash for API/libs and tldr for short man)
@@ -41,6 +34,9 @@ brew "tldr"
 # Archive extraction
 brew "p7zip"
 cask "the-unarchiver"
+
+# Mac keyboard layout editor
+cask "ukelele"
 
 # File compression for gzip/deflate if tar isn't enough
 brew "zopfli"
@@ -56,6 +52,7 @@ cask "vlc"
 cask "zoom"
 cask "whatsapp"
 cask "spotify"
+cask "notion"
 cask "google-drive-file-stream"
 cask "google-backup-and-sync"
 cask "1password"
@@ -68,6 +65,7 @@ mas "Wifi Explorer Lite", id: 1408727408
 
 # API testing
 cask "postman"
+cask "insomnia"
 
 # The butler of your mac or the swiss army knife of searchbars - https://www.alfredapp.com/
 cask "alfred"
@@ -167,7 +165,7 @@ brew "terraform"
 brew "kubernetes-cli"
 
 # Helm
-brew "kubernetes-helm"
+brew "helm"
 
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
 brew "derailed/k9s/k9s"
@@ -193,7 +191,7 @@ cask "postico"
 ## Database tooling
 
 # Kafkacat for reading kafka data
-brew "kafkacat"
+brew "kcat"
 
 # Postgres schema management with sqitch
 brew "sqitchers/sqitch/sqitch", args: ["with-postgres-support"]
@@ -208,34 +206,12 @@ brew "nmap"
 
 cask "wireshark"
 
-brew "aircrack-ng"
-brew "bfg"
-brew "binutils"
-brew "binwalk"
-brew "cifer"
-brew "dex2jar"
-brew "dns2tcp"
-brew "fcrackzip"
-brew "foremost"
-brew "hashpump"
-brew "hydra"
-brew "john"
-brew "knock"
-brew "netpbm"
-brew "pngcheck"
-brew "socat"
-brew "sqlmap"
-brew "tcpflow"
-brew "tcpreplay"
-brew "tcptrace"
-brew "ucspi-tcp" # `tcpserver` etc.
-brew "xpdf"
-
 ## Font tools
+# tap "bramstein/webfonttools"
 
-brew "sfnt2woff"
-brew "sfnt2woff-zopfli"
-brew "woff2"
+# brew "sfnt2woff"
+# brew "sfnt2woff-zopfli"
+# brew "woff2"
 
 ## Random apps
 
@@ -270,7 +246,7 @@ cask "muzzle"
 brew "imagemagick"
 
 # Download YouTube videos from the command line
-brew "youtube-dl"
+brew "yt-dlp"
 
 # Let's encrypt tooling
 brew "certbot"
@@ -292,9 +268,6 @@ brew "rtmpdump"
 
 # Find duplicate files
 brew "fdupes"
-
-# Mail retrieval system
-brew "getmail"
 
 # Do something when mac goes to sleep/wakes up/etc.
 brew "sleepwatcher"

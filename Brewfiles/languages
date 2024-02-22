@@ -1,24 +1,16 @@
-tap "AdoptOpenJDK/openjdk"
-
 ## Languages
 # nvm for node version management is installed by 'setup.sh'
 
 brew "node"
 brew "go"
-brew "plenv" # Perl version manager
 brew "pyenv" # Python version manager
 brew "rbenv" # Ruby version manager
 brew "php"
 brew "lua"
 brew "rust"
-cask "adoptopenjdk/openjdk/adoptopenjdk8"
-cask "adoptopenjdk10"
-cask "adoptopenjdk11"
 
-brew "maven"
-
-# Perl build utils
-brew "perl-build"
+# brew "plenv" # Perl version manager
+# brew "perl-build" # Perl build utils
 
 # Yarn for node package management
 brew "yarn"

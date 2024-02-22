@@ -20,43 +20,16 @@ GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
 git config --global user.email "$GIT_AUTHOR_EMAIL"
 
 ## Remote Kafka server
-export REMOTE_KAFKA_SERVER="kafka-tuup.tuup.aivencloud.com:29009"
-
-## Postgres default database
-export PGDATABASE=tuup
+export REMOTE_KAFKA_SERVER=
 
 ## Pyenv home dir
 PYENV_ROOT="/usr/local/python" && export PYENV_ROOT
 
-## Shortcut to kyyti projects
-alias pk="p; cd kyyti"
-
 ## Postgres cli shortcuts
 alias psqd="psql -h localhost -p 5432 -U postgres"
-alias psqs="psql -h pg-10.dev-562c.aivencloud.com -p 27905 -U avnadmin"
-alias psqp="psql -h pg-production.tuup.aivencloud.com -p 18015 -U avnadmin"
-
-## KGB alias
-alias kgb="docker pull eu.gcr.io/kyyti-hacks/kgb:latest && mkdir -p $HOME/.kgb && mkdir -p $HOME/kgb-data && docker run -it --rm -v $HOME/kgb-data:/app/data -v $HOME/.kgb:/root/.kgb eu.gcr.io/kyyti-hacks/kgb:latest"
 
 ## Kubectl shortcuts
 alias kl="/Applications/Docker.app/Contents/Resources/bin/kubectl --context local"
 alias kd="/Applications/Docker.app/Contents/Resources/bin/kubectl --context docker-for-desktop"
 alias ks="kubectl --context sb"
 alias kp="kubectl --context prd"
-
-## tiny-care-terminal configs
-export TTC_WEATHER=Helsinki
-export TTC_CELSIUS=true
-export TTC_UPDATE_INTERVAL=10
-export TTC_REPOS=~/project
-export TTC_REPOS_DEPTH=4
-export TTC_GITBOT=gitlog
-export TTC_APIKEYS=false
-
-## Java switcher
-alias j8="export JAVA_HOME=`/usr/libexec/java_home -v 1.8`; java -version"
-alias j10="export JAVA_HOME=`/usr/libexec/java_home -v 10`; java -version"
-alias j11="export JAVA_HOME=`/usr/libexec/java_home -v 11`; java -version"
-# Set java 8 as default
-export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)
