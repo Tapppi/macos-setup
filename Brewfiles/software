@@ -24,8 +24,10 @@ cask "gpg-suite"
 
 # Text editors
 brew "micro"
-# brew "vim"
+brew "vim"
+brew "neovim"
 cask "visual-studio-code"
+cask "cursor"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
@@ -56,6 +58,7 @@ cask "notion"
 cask "google-drive-file-stream"
 cask "google-backup-and-sync"
 cask "1password"
+cask "1password-cli"
 mas "Keynote", id: 409183694
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
@@ -91,9 +94,6 @@ cask "transmission"
 
 # GUI for open files and sockets
 cask "sloth"
-
-# Note taking with markdown and stuff - http://brettterpstra.com/projects/nvalt/
-cask "nvalt"
 
 # Various cloud service statuses in the status bar
 mas "stts", id: 1187772509

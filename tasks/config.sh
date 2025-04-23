@@ -3,20 +3,19 @@
 config () {
   # Keep-alive: update existing `sudo` time stamp until `.macos` has finished
   while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
-  
+
   p1 "Configuring software"
   config_admin_req
   config_vlc
   config_istatmenus
-  config_bartender
   config_alfred
   config_stts
-  config_nvalt
-  config_dropbox
+
+  # Need to buy bartender 5..
+  # config_bartender
 
   p1 "Customising various launch options"
   custom_loginitems
-  custom_energy
   custom_terminal
   custom_duti
 
@@ -28,7 +27,6 @@ config () {
 # Mark Applications Requiring Administrator Account
 
 _admin_req='Docker.app
-Dropbox.app
 iStat Menus.app
 Wireshark.app'
 
@@ -109,8 +107,8 @@ config_bartender () {
 # Configure Alfred
 
 config_alfred () {
-  test -d "/Applications/Alfred 3.app" && \
-    open "/Applications/Alfred 3.app"
+  test -d "/Applications/Alfred 5.app" && \
+    open "/Applications/Alfred 5.app"
 }
 
 # Configure stts
@@ -120,17 +118,10 @@ config_stts () {
     open "/Applications/stts.app"
 }
 
-# Configure Dropbox
-
-config_dropbox () {
-  test -d "/Applications/Dropbox.app" && \
-    open "/Applications/Dropbox.app"
-}
-
 # Configure VLC
 
-_vlc_defaults='org.videolan.vlc	SUEnableAutomaticChecks	-bool	true	
-org.videolan.vlc	SUHasLaunchedBefore	-bool	true	
+_vlc_defaults='org.videolan.vlc	SUEnableAutomaticChecks	-bool	true
+org.videolan.vlc	SUHasLaunchedBefore	-bool	true
 org.videolan.vlc	SUSendProfileInfo	-bool	true	'
 _vlcrc='macosx	macosx-nativefullscreenmode	1
 macosx	macosx-video-autoresize	0
@@ -157,71 +148,17 @@ config_vlc () {
   fi
 }
 
-# Configure nvALT
-
-_nvalt='net.elasticthreads.nv	TableFontPointSize	-int	11	
-net.elasticthreads.nv	AppActivationKeyCode	-int	-1	
-net.elasticthreads.nv	AppActivationModifiers	-int	-1	
-net.elasticthreads.nv	AutoCompleteSearches	-bool	true	
-net.elasticthreads.nv	ConfirmNoteDeletion	-bool	true	
-net.elasticthreads.nv	QuitWhenClosingMainWindow	-bool	false	
-net.elasticthreads.nv	StatusBarItem	-bool	true	
-net.elasticthreads.nv	ShowDockIcon	-bool	false	
-net.elasticthreads.nv	PastePreservesStyle	-bool	false	
-net.elasticthreads.nv	CheckSpellingInNoteBody	-bool	false	
-net.elasticthreads.nv	TabKeyIndents	-bool	true	
-net.elasticthreads.nv	UseSoftTabs	-bool	true	
-net.elasticthreads.nv	MakeURLsClickable	-bool	true	
-net.elasticthreads.nv	AutoSuggestLinks	-bool	false	
-net.elasticthreads.nv	UseMarkdownImport	-bool	false	
-net.elasticthreads.nv	UseReadability	-bool	false	
-net.elasticthreads.nv	rtl	-bool	false	
-net.elasticthreads.nv	UseAutoPairing	-bool	true	
-net.elasticthreads.nv	DefaultEEIdentifier	-string	com.microsoft.VSCode	
-net.elasticthreads.nv	UserEEIdentifiers	-array-add	com.apple.TextEdit	
-net.elasticthreads.nv	UserEEIdentifiers	-array-add	com.microsoft.VSCode	
-net.elasticthreads.nv	NoteBodyFont	-data	040b73747265616d747970656481e803840140848484064e53466f6e741e8484084e534f626a65637400858401692884055b3430635d060000001e000000fffe49006e0063006f006e0073006f006c006100740061004c004700430000008401660d8401630098019800980086	
-net.elasticthreads.nv	HighlightSearchTerms	-bool	true	
-net.elasticthreads.nv	SearchTermHighlightColor	-data	040b73747265616d747970656481e803840140848484074e53436f6c6f72008484084e534f626a65637400858401630184046666666683cdcc4c3f0183cdcc4c3f0186	
-net.elasticthreads.nv	ForegroundTextColor	-data	040b73747265616d747970656481e803840140848484074e53436f6c6f72008484084e534f626a65637400858401630184046666666683cdcc4c3f83cdcc4c3f83cdcc4c3f0186	
-net.elasticthreads.nv	BackgroundTextColor	-data	040b73747265616d747970656481e803840140848484074e53436f6c6f72008484084e534f626a65637400858401630184046666666683d1d0d03d83d1d0d03d83d1d0d03d0186	
-net.elasticthreads.nv	ShowGrid	-bool	true	
-net.elasticthreads.nv	AlternatingRows	-bool	true	
-net.elasticthreads.nv	UseETScrollbarsOnLion	-bool	false	
-net.elasticthreads.nv	KeepsMaxTextWidth	-bool	true	
-net.elasticthreads.nv	NoteBodyMaxWidth	-int	650	
-net.elasticthreads.nv	HorizontalLayout	-bool	true	
-net.elasticthreads.nv	NoteAttributesVisible	-array-add	Title	
-net.elasticthreads.nv	NoteAttributesVisible	-array-add	Tags	
-net.elasticthreads.nv	TableIsReverseSorted	-bool	true	
-net.elasticthreads.nv	TableSortColumn	-string	Date Modified	
-net.elasticthreads.nv	TableColumnsHaveBodyPreview	-bool	true	'
-_nvalt_launchd='add	:KeepAlive	bool	true
-add	:Label	string	net.elasticthreads.nv
-add	:ProcessType	string	Interactive
-add	:Program	string	/Applications/nvALT.app/Contents/MacOS/nvALT
-add	:RunAtLoad	bool	true'
-
-config_nvalt () {
-  config_defaults "$_nvalt"
-  config_launchd "${HOME}/Library/LaunchAgents/net.elasticthreads.nv.plist" "$_nvalt_launchd"
-}
-
 # Customize Login Items
 
 _disableditems='/Applications/autoping.app
+/Applications/Bartender 4.app
 /Applications/Caffeine.app
 /Applications/Coffitivity.app
 /Applications/HardwareGrowler.app
 '
-_loginitems='/Applications/1Password 7.app
-/Applications/Alfred 3.app
-/Applications/Backup and Sync from Google.app
-/Applications/Bartender 3.app
-/Applications/Caffeine.app
-/Applications/CleanMyMac 3.app
+_loginitems='/Applications/1Password.app
+/Applications/Alfred 5.app
 /Applications/Docker.app
-/Applications/Dropbox.app
 /Applications/Google Drive File Stream.app
 /Applications/iStat Menus.app
 /Applications/iTunes.app/Contents/MacOS/iTunesHelper.app
@@ -249,8 +186,9 @@ EOF
 
 # Customize Terminal
 
-_term_plist='delete			
-add	:		dict
+# shellcheck disable=SC2016
+_term_plist='delete
+add	:dict
 add	:name	string	tapani
 add	:type	string	Window Settings
 add	:ProfileCurrentVersion	real	2.05
@@ -307,7 +245,7 @@ add	:BellBounceCritical	bool	false
 add	:CharacterEncoding	integer	4
 add	:SetLanguageEnvironmentVariables	bool	true
 add	:EastAsianAmbiguousWide	bool	false'
-_term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani	
+_term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani
 com.apple.Terminal	Default Window Settings	-string	tapani	'
 
 custom_terminal () {
@@ -315,29 +253,6 @@ custom_terminal () {
     "${HOME}/Library/Preferences/com.apple.Terminal.plist" \
     ":Window Settings:tapani"
   config_defaults "${_term_defaults}"
-}
-
-# Configure Energy Saver
-
-_energy='-b displaysleep  20
--b	disksleep 45
--b	sleep 90
--b	womp	1
--b	powernap	1
--c	displaysleep	60
--c	sleep	0
--c	disksleep	90
--c	womp	1
--c	autorestart	1
--c	powernap	1
--u	displaysleep	2
--u	lessbright	1'
-
-custom_energy () {
-  printf "%s\n" "${_energy}" | \
-  while IFS="$(printf '\t')" read flag setting value; do
-    sudo pmset $flag ${setting} ${value}
-  done
 }
 
 # Customize Default UTIs
@@ -368,87 +283,87 @@ com.apple.iTunes	com.apple.protected-mpeg-4-video	all
 com.apple.iTunes	com.audible.aa-audio	all
 com.apple.iTunes	public.mpeg-4-audio	all
 com.apple.installer	com.apple.installer-package-archive	all
-com.microsoft.VSCode	com.apple.binary-property-list	editor
-com.microsoft.VSCode	com.apple.crashreport	editor
-com.microsoft.VSCode	com.apple.dt.document.ascii-property-list	editor
-com.microsoft.VSCode	com.apple.dt.document.script-suite-property-list	editor
-com.microsoft.VSCode	com.apple.dt.document.script-terminology-property-list	editor
-com.microsoft.VSCode	com.apple.log	editor
-com.microsoft.VSCode	com.apple.property-list	editor
-com.microsoft.VSCode	com.apple.rez-source	editor
-com.microsoft.VSCode	com.apple.symbol-export	editor
-com.microsoft.VSCode	com.apple.xcode.ada-source	editor
-com.microsoft.VSCode	com.apple.xcode.bash-script	editor
-com.microsoft.VSCode	com.apple.xcode.configsettings	editor
-com.microsoft.VSCode	com.apple.xcode.csh-script	editor
-com.microsoft.VSCode	com.apple.xcode.fortran-source	editor
-com.microsoft.VSCode	com.apple.xcode.ksh-script	editor
-com.microsoft.VSCode	com.apple.xcode.lex-source	editor
-com.microsoft.VSCode	com.apple.xcode.make-script	editor
-com.microsoft.VSCode	com.apple.xcode.mig-source	editor
-com.microsoft.VSCode	com.apple.xcode.pascal-source	editor
-com.microsoft.VSCode	com.apple.xcode.strings-text	editor
-com.microsoft.VSCode	com.apple.xcode.tcsh-script	editor
-com.microsoft.VSCode	com.apple.xcode.yacc-source	editor
-com.microsoft.VSCode	com.apple.xcode.zsh-script	editor
-com.microsoft.VSCode	com.apple.xml-property-list	editor
-com.microsoft.VSCode	com.barebones.bbedit.actionscript-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.erb-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.ini-configuration	editor
-com.microsoft.VSCode	com.barebones.bbedit.javascript-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.json-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.jsp-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.lasso-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.lua-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.setext-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.sql-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.tcl-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.tex-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.textile-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.vbscript-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.vectorscript-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.verilog-hdl-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.vhdl-source	editor
-com.microsoft.VSCode	com.barebones.bbedit.yaml-source	editor
-com.microsoft.VSCode	com.netscape.javascript-source	editor
-com.microsoft.VSCode	com.sun.java-source	editor
-com.microsoft.VSCode	dyn.ah62d4rv4ge80255drq	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge80g55gq3w0n	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge80g55sq2	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge80y2xzrf0gk3pw	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge81e3dtqq	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge81e7k	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge81g25xsq	all
-com.microsoft.VSCode	dyn.ah62d4rv4ge81g2pxsq	all
-com.microsoft.VSCode	net.daringfireball.markdown	editor
-com.microsoft.VSCode	public.assembly-source	editor
-com.microsoft.VSCode	public.c-header	editor
-com.microsoft.VSCode	public.c-plus-plus-source	editor
-com.microsoft.VSCode	public.c-source	editor
-com.microsoft.VSCode	public.csh-script	editor
-com.microsoft.VSCode	public.json	editor
-com.microsoft.VSCode	public.lex-source	editor
-com.microsoft.VSCode	public.log	editor
-com.microsoft.VSCode	public.mig-source	editor
-com.microsoft.VSCode	public.nasm-assembly-source	editor
-com.microsoft.VSCode	public.objective-c-plus-plus-source	editor
-com.microsoft.VSCode	public.objective-c-source	editor
-com.microsoft.VSCode	public.patch-file	editor
-com.microsoft.VSCode	public.perl-script	editor
-com.microsoft.VSCode	public.php-script	editor
-com.microsoft.VSCode	public.plain-text	editor
-com.microsoft.VSCode	public.precompiled-c-header	editor
-com.microsoft.VSCode	public.precompiled-c-plus-plus-header	editor
-com.microsoft.VSCode	public.python-script	editor
-com.microsoft.VSCode	public.ruby-script	editor
-com.microsoft.VSCode	public.script	editor
-com.microsoft.VSCode	public.shell-script	editor
-com.microsoft.VSCode	public.source-code	editor
-com.microsoft.VSCode	public.text	editor
-com.microsoft.VSCode	public.utf16-external-plain-text	editor
-com.microsoft.VSCode	public.utf16-plain-text	editor
-com.microsoft.VSCode	public.utf8-plain-text	editor
-com.microsoft.VSCode	public.xml	editor
+com.todesktop.230313mzl4w4u92	com.apple.binary-property-list	editor
+com.todesktop.230313mzl4w4u92	com.apple.crashreport	editor
+com.todesktop.230313mzl4w4u92	com.apple.dt.document.ascii-property-list	editor
+com.todesktop.230313mzl4w4u92	com.apple.dt.document.script-suite-property-list	editor
+com.todesktop.230313mzl4w4u92	com.apple.dt.document.script-terminology-property-list	editor
+com.todesktop.230313mzl4w4u92	com.apple.log	editor
+com.todesktop.230313mzl4w4u92	com.apple.property-list	editor
+com.todesktop.230313mzl4w4u92	com.apple.rez-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.symbol-export	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.ada-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.bash-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.configsettings	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.csh-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.fortran-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.ksh-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.lex-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.make-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.mig-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.pascal-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.strings-text	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.tcsh-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.yacc-source	editor
+com.todesktop.230313mzl4w4u92	com.apple.xcode.zsh-script	editor
+com.todesktop.230313mzl4w4u92	com.apple.xml-property-list	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.actionscript-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.erb-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.ini-configuration	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.javascript-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.json-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.jsp-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.lasso-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.lua-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.setext-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.sql-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.tcl-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.tex-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.textile-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vbscript-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vectorscript-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.verilog-hdl-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vhdl-source	editor
+com.todesktop.230313mzl4w4u92	com.barebones.bbedit.yaml-source	editor
+com.todesktop.230313mzl4w4u92	com.netscape.javascript-source	editor
+com.todesktop.230313mzl4w4u92	com.sun.java-source	editor
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80255drq	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80g55gq3w0n	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80g55sq2	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80y2xzrf0gk3pw	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81e3dtqq	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81e7k	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81g25xsq	all
+com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81g2pxsq	all
+com.todesktop.230313mzl4w4u92	net.daringfireball.markdown	editor
+com.todesktop.230313mzl4w4u92	public.assembly-source	editor
+com.todesktop.230313mzl4w4u92	public.c-header	editor
+com.todesktop.230313mzl4w4u92	public.c-plus-plus-source	editor
+com.todesktop.230313mzl4w4u92	public.c-source	editor
+com.todesktop.230313mzl4w4u92	public.csh-script	editor
+com.todesktop.230313mzl4w4u92	public.json	editor
+com.todesktop.230313mzl4w4u92	public.lex-source	editor
+com.todesktop.230313mzl4w4u92	public.log	editor
+com.todesktop.230313mzl4w4u92	public.mig-source	editor
+com.todesktop.230313mzl4w4u92	public.nasm-assembly-source	editor
+com.todesktop.230313mzl4w4u92	public.objective-c-plus-plus-source	editor
+com.todesktop.230313mzl4w4u92	public.objective-c-source	editor
+com.todesktop.230313mzl4w4u92	public.patch-file	editor
+com.todesktop.230313mzl4w4u92	public.perl-script	editor
+com.todesktop.230313mzl4w4u92	public.php-script	editor
+com.todesktop.230313mzl4w4u92	public.plain-text	editor
+com.todesktop.230313mzl4w4u92	public.precompiled-c-header	editor
+com.todesktop.230313mzl4w4u92	public.precompiled-c-plus-plus-header	editor
+com.todesktop.230313mzl4w4u92	public.python-script	editor
+com.todesktop.230313mzl4w4u92	public.ruby-script	editor
+com.todesktop.230313mzl4w4u92	public.script	editor
+com.todesktop.230313mzl4w4u92	public.shell-script	editor
+com.todesktop.230313mzl4w4u92	public.source-code	editor
+com.todesktop.230313mzl4w4u92	public.text	editor
+com.todesktop.230313mzl4w4u92	public.utf16-external-plain-text	editor
+com.todesktop.230313mzl4w4u92	public.utf16-plain-text	editor
+com.todesktop.230313mzl4w4u92	public.utf8-plain-text	editor
+com.todesktop.230313mzl4w4u92	public.xml	editor
 cx.c3.theunarchiver	com.alcohol-soft.mdf-image	all
 cx.c3.theunarchiver	com.allume.stuffit-archive	all
 cx.c3.theunarchiver	com.altools.alz-archive	all
@@ -592,3 +507,4 @@ custom_duti () {
     duti "${HOME}/Library/Preferences/org.duti.plist" 2> /dev/null
   fi
 }
+
