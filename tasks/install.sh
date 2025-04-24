@@ -97,18 +97,20 @@ install_links () {
 }
 
 install_amphetamine_enhancer () {
-  echo "Install amphetamine enhancer through /tmp"
-  goback_dir=$(pwd)
+  if [ ! -f "/Applications/Amphetamine Enhancer.app" ]; then
+    echo "Install amphetamine enhancer through /tmp"
+    goback_dir=$(pwd)
 
-  cd /tmp
+    cd /tmp
 
-  wget -q https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
-  device=$(hdiutil attach -nobrowse -quiet Amphetamine\ Enhancer.dmg | grep '^/dev/' | head -n 1 | awk '{print $1}')
-  cp -R /Volumes/Amphetamine\ Enhancer/Amphetamine\ Enhancer.app /Applications
-  hdiutil detach "$device"
-  rm -rf Amphetamine\ Enhancer.dmg
+    wget -q https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
+    hdiutil attach Amphetamine\ Enhancer.dmg
+    cp -R /Volumes/Amphetamine\ Enhancer/Amphetamine\ Enhancer.app /Applications
+    hdiutil detach /Volumes/Amphetamine\ Enhancer
+    rm -rf Amphetamine\ Enhancer.dmg
 
-  cd "$goback_dir"
+    cd "$goback_dir"
+  fi
 }
 
 # Install Node.js with =nvm=
