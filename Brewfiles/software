@@ -9,7 +9,6 @@ cask_args screen_saverdir: "/Library/Screen Savers"
 ### Taps
 
 tap "boz/repo"
-tap "derailed/k9s"
 tap "sqitchers/sqitch"
 
 ## Basics
@@ -31,7 +30,7 @@ cask "cursor"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
-brew "tldr"
+brew "tlrc"
 
 # Archive extraction
 brew "p7zip"
@@ -162,13 +161,12 @@ brew "pigz"
 ## Infra and kubernetes tooling
 cask "google-cloud-sdk"
 brew "terraform"
-brew "kubernetes-cli"
 
 # Helm
 brew "helm"
 
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
-brew "derailed/k9s/k9s"
+brew "k9s"
 
 # Watch a resource (e.g. deployment being rolled out, pod status) - https://github.com/pulumi/kubespy
 brew "kubespy"
