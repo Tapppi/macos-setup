@@ -10,6 +10,7 @@ config () {
   config_istatmenus
   config_alfred
   config_stts
+  config_amphetamine
 
   # Need to buy bartender 5..
   # config_bartender
