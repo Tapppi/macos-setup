@@ -222,8 +222,8 @@ brew "marp-cli"
 # Menubar countdown clock
 cask "menubar-countdown"
 
-# Caffeine to keep screen awake when wanted
-cask "caffeine"
+# Amphetamine to keep awake when wanted
+mas "Amphetamine", id: 937984704
 
 # Image transcoding etc.
 cask "handbrake"

@@ -34,7 +34,7 @@ install_macos_sw () {
   # Set librdkafka openssl build flags
   export CPPFLAGS=-I/usr/local/opt/openssl@1.1/include
   export LDFLAGS=-L/usr/local/opt/openssl@1.1/lib
-  
+
   brew bundle --file="Brewfiles/languages"
 
   brew bundle --file="Brewfiles/software"
@@ -94,6 +94,11 @@ install_links () {
   done
 }
 
+install_amphetamine_enhancer () {
+  wget https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
+  hdiutil attach Amphetamine\ Enhancer.dmg
+  cp -R /Volumes/Amphetamine\ Enhancer/Amphetamine\ Enhancer.app /Applications
+}
 # Install Node.js with =nvm=
 
 _npm='npm

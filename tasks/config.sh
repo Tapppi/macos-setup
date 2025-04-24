@@ -111,6 +111,15 @@ config_alfred () {
     open "/Applications/Alfred 5.app"
 }
 
+# Configure Amphetamine
+
+config_amphetamine () {
+  test -d "/Applications/Amphetamine.app" && \
+    open "/Applications/Amphetamine.app"
+  test -d "/Applications/Amphetamine Enhancer.app" && \
+    open "/Applications/Amphetamine Enhancer.app"
+}
+
 # Configure stts
 
 config_stts () {
@@ -152,12 +161,12 @@ config_vlc () {
 
 _disableditems='/Applications/autoping.app
 /Applications/Bartender 4.app
-/Applications/Caffeine.app
 /Applications/Coffitivity.app
 /Applications/HardwareGrowler.app
 '
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
+/Applications/Amphetamine.app
 /Applications/Docker.app
 /Applications/Google Drive File Stream.app
 /Applications/iStat Menus.app
