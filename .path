@@ -11,11 +11,18 @@ export PATH="$HOME/tools/confluent/bin:$PATH"
 export PATH="/usr/local/opt/openssl/bin:$PATH"
 
 # Go bin
-export PATH="$(go env GOPATH)/bin:$PATH"
+if which go &> /dev/null; then
+  export PATH="$(go env GOPATH)/bin:$PATH"
+fi;
 
-# Add gnu bin
+# Brew dependant paths
 if which brew; then
+  # Add gnu bin
   export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
   # Add gnu-getopt to path
   export PATH="/usr/local/opt/gnu-getopt/bin:$PATH"
+
+
+  # Rustup and cargo
+  export PATH="$(brew --prefix rustup)/bin:~/.cargo/bin:$PATH"
 fi
