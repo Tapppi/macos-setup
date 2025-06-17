@@ -50,6 +50,8 @@ elif [ "${1}" = "init_ssh_1password" ]; then
   init_ssh_1password
 elif [ "${1}" = "install" ]; then
   install
+elif [ "${1}" = "dotfiles" ]; then
+  install_dotfiles
 elif [ "${1}" = "config" ]; then
   config
 else
