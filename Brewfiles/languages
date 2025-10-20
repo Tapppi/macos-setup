@@ -7,7 +7,7 @@ brew "pyenv" # Python version manager
 brew "rbenv" # Ruby version manager
 brew "php"
 brew "lua"
-brew "rust"
+brew "rustup" # Rustup version manager
 
 # brew "plenv" # Perl version manager
 # brew "perl-build" # Perl build utils

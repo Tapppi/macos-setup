@@ -159,7 +159,7 @@ brew "tag"
 brew "pigz"
 
 ## Infra and kubernetes tooling
-cask "google-cloud-sdk"
+cask "gcloud-cli"
 brew "terraform"
 
 # Helm
@@ -202,7 +202,7 @@ brew "mtr"
 # Network map, port scanning utility
 brew "nmap"
 
-cask "wireshark"
+cask "wireshark-app"
 
 ## Font tools
 # tap "bramstein/webfonttools"
@@ -226,7 +226,7 @@ cask "menubar-countdown"
 mas "Amphetamine", id: 937984704
 
 # Image transcoding etc.
-cask "handbrake"
+cask "handbrake-app"
 
 # Pls no exif
 cask "exifrenamer"

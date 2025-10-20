@@ -41,7 +41,7 @@ brew "cmake"
 brew "gcc"
 
 # Docker
-cask "docker"
+cask "docker-desktop"
 
 # Git version control
 brew "git"

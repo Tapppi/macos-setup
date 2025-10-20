@@ -16,7 +16,7 @@ if which go &> /dev/null; then
 fi;
 
 # Brew dependant paths
-if which brew; then
+if which brew &> /dev/null; then
   # Add gnu bin
   export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
   # Add gnu-getopt to path
