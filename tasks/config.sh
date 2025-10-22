@@ -12,9 +12,6 @@ config () {
   config_stts
   config_amphetamine
 
-  # Need to buy bartender 5..
-  # config_bartender
-
   p1 "Customising various launch options"
   custom_loginitems
   custom_terminal
@@ -92,28 +89,18 @@ config_xcode() {
 }
 
 # Configure iStat Menus
-
 config_istatmenus () {
   test -d "/Applications/iStat Menus.app" && \
     open "/Applications/iStat Menus.app"
 }
 
-# Configure Bartender
-
-config_bartender () {
-  test -d "/Applications/Bartender 3.app" && \
-    open "/Applications/Bartender 3.app"
-}
-
 # Configure Alfred
-
 config_alfred () {
   test -d "/Applications/Alfred 5.app" && \
     open "/Applications/Alfred 5.app"
 }
 
 # Configure Amphetamine
-
 config_amphetamine () {
   test -d "/Applications/Amphetamine.app" && \
     open "/Applications/Amphetamine.app"
@@ -122,14 +109,12 @@ config_amphetamine () {
 }
 
 # Configure stts
-
 config_stts () {
   test -d "/Applications/stts.app" && \
     open "/Applications/stts.app"
 }
 
 # Configure VLC
-
 _vlc_defaults='org.videolan.vlc	SUEnableAutomaticChecks	-bool	true
 org.videolan.vlc	SUHasLaunchedBefore	-bool	true
 org.videolan.vlc	SUSendProfileInfo	-bool	true	'

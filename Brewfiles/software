@@ -28,6 +28,9 @@ brew "neovim"
 cask "visual-studio-code"
 cask "cursor"
 
+# Terminal AI Agent
+brew "opencode"
+
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
 brew "tlrc"
@@ -72,9 +75,6 @@ cask "insomnia"
 # The butler of your mac or the swiss army knife of searchbars - https://www.alfredapp.com/
 cask "alfred"
 
-# Todo app with a vengeance
-mas "2Do", id: 477670270
-
 # Background noise
 # Not available in the Finnish app store :(
 # mas "Coffitivity", id: 659901392
@@ -83,7 +83,7 @@ mas "2Do", id: 477670270
 cask "resolutionator"
 
 # Status bar organiser
-cask "bartender"
+cask jordanbaird-ice
 
 # Status bar stats and menus
 cask "istat-menus"
@@ -131,7 +131,7 @@ brew "pv"
 # Rename files with a bunch of helpers - http://plasmasturm.org/code/rename/
 brew "rename"
 
-# Display directores as trees
+# Display directories as trees
 brew "tree"
 
 # Expose local ports to the internet - https://ngrok.com/

@@ -40,8 +40,9 @@ brew "autoconf"
 brew "cmake"
 brew "gcc"
 
-# Docker
-cask "docker-desktop"
+# Podman
+brew "podman"
+cask "podman-desktop"
 
 # Git version control
 brew "git"
