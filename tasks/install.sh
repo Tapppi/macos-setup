@@ -17,19 +17,27 @@ install () {
   install_dotfiles
 }
 
-# Install macOS Software with =brew=
+# Define Function =install_xcode=
+install_xcode() {
+  x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
+  if test -n "${x}"; then
+    sudo xcode-select -s "${x}"
+    sudo xcodebuild -license accept
+  fi
+}
 
+# Install macOS Software with =brew=
 install_macos_sw () {
   install_paths
   install_brew
 
   p1 "Installing macOS Software"
 
-  config_xcode
+  install_xcode
 
   brew bundle --file="Brewfiles/core"
 
-  config_xcode
+  install_xcode
 
   # Set librdkafka openssl build flags
   export CPPFLAGS=-I/usr/local/opt/openssl@1.1/include
@@ -56,7 +64,6 @@ install_macos_sw () {
 }
 
 # Add =/usr/local/bin/sbin= to Default Path
-
 install_paths () {
   if ! grep -Fq "/usr/local/sbin" /etc/paths; then
     sudo sed -i "" -e "/\/usr\/sbin/{x;s/$/\/usr\/local\/sbin/;G;}" /etc/paths
@@ -64,7 +71,6 @@ install_paths () {
 }
 
 # Install Homebrew Package Manager
-
 install_brew () {
   p1 "Installing and/or configuring brew"
   if ! which brew > /dev/null; then
@@ -80,7 +86,6 @@ install_brew () {
 }
 
 # Link System Utilities to Applications
-
 _links='/System/Library/CoreServices/Applications
 /Applications/Xcode.app/Contents/Applications
 /Applications/Xcode.app/Contents/Developer/Applications
@@ -114,7 +119,6 @@ install_amphetamine_enhancer () {
 }
 
 # Install Node.js with =nvm=
-
 _npm='npm
 ts-node
 nodemon'
@@ -158,7 +162,6 @@ install_node_sw () {
 }
 
 # Install Perl 5 with =plenv=
-
 install_perl_sw () {
   if which plenv > /dev/null; then
     PLENV_ROOT="/usr/local/perl" && export PLENV_ROOT
@@ -180,7 +183,6 @@ ${PLENV_ROOT}/shims
 }
 
 # Install Python with =pyenv=
-
 install_python_sw () {
   if which pyenv > /dev/null; then
     CFLAGS="-I$(brew --prefix openssl)/include" && export CFLAGS
@@ -218,7 +220,6 @@ ${PYENV_ROOT}/shims
 }
 
 # Install Ruby with =rbenv=
-
 install_ruby_sw () {
   if which rbenv > /dev/null; then
     RBENV_ROOT="/usr/local/ruby" && export RBENV_ROOT
@@ -235,7 +236,7 @@ install_ruby_sw () {
 ${RBENV_ROOT}/shims
 " "/etc/paths"
 
-    init_paths;
+    init_paths
 
     printf "%s\n" \
       "gem: --no-document" | \
@@ -250,7 +251,6 @@ ${RBENV_ROOT}/shims
 }
 
 # Cleanup conflicting binaries for ruby update
-
 clean_ruby_conflicts () {
     if which bundle > /dev/null; then
         trash "$(which bundle)";
@@ -264,10 +264,10 @@ clean_ruby_conflicts () {
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
-
 install_dotfiles () {
   p1 "Installing dotfiles"
   sudo ./dotfiles/bootstrap.sh -f
 
   cp ./{.extra,.path} ~/
 }
+

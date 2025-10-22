@@ -78,16 +78,6 @@ config_launchd () {
     $3 launchctl load "$1"
 }
 
-# Define Function =config_xcode=
-
-config_xcode() {
-  x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
-  if test -n "${x}"; then
-    sudo xcode-select -s "${x}"
-    sudo xcodebuild -license accept
-  fi
-}
-
 # Configure iStat Menus
 config_istatmenus () {
   test -d "/Applications/iStat Menus.app" && \

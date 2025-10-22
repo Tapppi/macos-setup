@@ -1,6 +1,6 @@
 #!/bin/sh
-# Define Function =init=
 
+# Define Function =init=
 init () {
   init_sudo
   init_no_sleep
@@ -9,9 +9,9 @@ init () {
   init_updates
   init_devtools
 
-  config_new_account
-  config_guest
-  config_rm_sudoers
+  init_new_account
+  init_guest
+  init_rm_sudoers
 }
 
 init_user () {
@@ -27,7 +27,6 @@ if test "${1}" = 0; then
 fi
 
 # Define Function =init_paths=
-
 init_paths () {
   test -x "/usr/libexec/path_helper" && \
     eval $(/usr/libexec/path_helper -s) && \
@@ -35,17 +34,13 @@ init_paths () {
 }
 
 # Eliminate Prompts for Password
-
 init_sudo () {
   printf "%s\n" "%wheel ALL=(ALL) NOPASSWD: ALL" | \
   sudo tee "/etc/sudoers.d/wheel" > /dev/null && \
   sudo dscl /Local/Default append /Groups/wheel GroupMembership "$(whoami)"
 }
 
-# Set Defaults for Sleep
-
 # Set Hostname from DNS
-
 init_hostname () {
   a=$(ask2 "Set Computer Name and Hostname" "Set Hostname" "Cancel" "Set Hostname" $(ruby -e "print '$(hostname -s)'.capitalize") "false")
   if test -n $a; then
@@ -55,7 +50,6 @@ init_hostname () {
 }
 
 # Set Permissions on Install Destinations
-
 _dest='/usr/local/bin
 /Library/Desktop Pictures
 /Library/ColorPickers
@@ -76,7 +70,6 @@ init_perms () {
 }
 
 # Install Developer Tools
-
 init_devtools () {
   p="${HOMEBREW_CACHE}/Cask/Command Line Tools (macOS High Sierra version 10.13).pkg"
   i="com.apple.pkg.CLTools_SDK_macOS1013"
@@ -91,13 +84,11 @@ init_devtools () {
 }
 
 # Install macOS Updates
-
 init_updates () {
   sudo softwareupdate --install --all
 }
 
 # Customize SSH
-
 init_ssh_1password () {
   if ! test -d "${HOME}/.ssh"; then
     mkdir -m go= "${HOME}/.ssh"
@@ -130,8 +121,7 @@ EOF
 }
 
 # Configure New Account
-
-config_new_account () {
+init_new_account () {
   e="$(ask 'New macOS Account: Email Address?' 'OK' '')"
   curl --output "/Library/User Pictures/${e}.jpg" --silent \
     "https://www.gravatar.com/avatar/$(md5 -qs ${e}).jpg?s=512"
@@ -156,14 +146,12 @@ config_new_account () {
 }
 
 # Configure Guest Users
-
-config_guest () {
+init_guest () {
   sudo sysadminctl -guestAccount off
 }
 
 # Reinstate =sudo= Password
-
-config_rm_sudoers () {
+init_rm_sudoers () {
   sudo -- sh -c \
     "rm -f /etc/sudoers.d/wheel; dscl /Local/Default -delete /Groups/wheel GroupMembership $(whoami)"
 
@@ -173,3 +161,4 @@ config_rm_sudoers () {
     osascript -e 'tell app "loginwindow" to «event aevtrlgo»'
   fi
 }
+
