@@ -109,8 +109,11 @@ brew "gh"
 # Quick access to files and folders from anywhere - https://github.com/clvv/fasd
 brew "fasd"
 
-# Code-search tool similar to ack - `ag find_this_var src/` - https://github.com/ggreer/the_silver_searcher
-brew "the_silver_searcher"
+# Grep but fast like a Ferrari
+brew "ripgrep"
+
+# Cat with syntax highlighting etc.
+brew "bat"
 
 # JSON and yaml query/mangling/cleanup/prettify tool
 brew "jq"
@@ -121,9 +124,6 @@ brew "cloc"
 
 # Shell script linter
 brew "shellcheck"
-
-# Cat with syntax highlighting etc.
-brew "bat"
 
 # Monitor data passing through a pipe - pipeviewer - https://www.ivarch.com/programs/pv.shtml
 brew "pv"
@@ -158,11 +158,9 @@ brew "tag"
 # Parallel gzip
 brew "pigz"
 
-## Infra and kubernetes tooling
+## Infra tooling
 cask "gcloud-cli"
 brew "terraform"
-
-# Helm
 brew "helm"
 
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
@@ -174,8 +172,7 @@ brew "kubespy"
 # Tail the logs of some collection of resources
 brew "boz/repo/kail"
 
-## Databases
-
+## Databases, except it's just SQLITE because everything else is in containers now
 brew "sqlite"
 
 ## Database GUI
