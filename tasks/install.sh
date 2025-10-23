@@ -74,15 +74,18 @@ install_paths () {
 install_brew () {
   p1 "Installing and/or configuring brew"
   if ! which brew > /dev/null; then
+	p1 "Installing brew..."
     ruby -e \
       "$(curl -Ls 'https://github.com/Homebrew/install/raw/master/install')" \
       < /dev/null > /dev/null 2>&1
+  else
+	p1 "Brew already installed"
   fi
 
+  p1 "Update brew..."
   brew analytics off
   brew update
   brew doctor
-  brew tap "homebrew/bundle"
 }
 
 # Link System Utilities to Applications
