@@ -112,6 +112,9 @@ brew "fasd"
 # Grep but fast like a Ferrari
 brew "ripgrep"
 
+# Simpler to use 'find'
+brew "fd"
+
 # Cat with syntax highlighting etc.
 brew "bat"
 
