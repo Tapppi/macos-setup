@@ -83,7 +83,7 @@ cask "alfred"
 cask "resolutionator"
 
 # Status bar organiser
-cask jordanbaird-ice
+cask "jordanbaird-ice"
 
 # Status bar stats and menus
 cask "istat-menus"
