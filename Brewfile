@@ -1,3 +1,153 @@
+## ========================================================
+## CORE
+## ========================================================
+
+## Install mac app store cli
+brew "mas"
+
+## Install GNU utilities (macOS has missing and outdated tools)
+# Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` etc. to `$PATH`
+brew "coreutils"
+brew "findutils"
+brew "binutils"
+brew "diffutils"
+brew "gawk"
+brew "gnu-sed"
+brew "gnu-getopt"
+brew "gnu-tar"
+brew "grep"
+brew "gzip"
+brew "less"
+brew "make"
+
+# Execute commands in parallel
+brew "parallel"
+
+# Replacements for moreutils tools (ifdata and sponge), because it conflicts with parallel
+#
+# If we end up wanting 'ts' from moreutils, we'd need to use the following tap,
+# but it lags behind in versions
+# brew "slhck/moreutils/moreutils", args: ["without-parallel"]
+#
+# Easier network configuration (ip, bridge, ss) - https://github.com/brona/iproute2mac
+brew "iproute2mac"
+brew "sponge"
+
+# I don't really use these or the macOS version is sufficient, but here for reference
+# brew "gnu-indent"
+# brew "gnu-which"
+# brew "screen"
+# brew "emacs"
+# brew "gpatch"
+# brew "m4"
+# brew "nano"
+# brew "bison"
+# brew "flex"
+# brew "wget"
+# brew "wdiff"
+
+## Core programs and tooling
+
+# XCode
+mas "XCode", id: 497799835
+
+# Bash 5
+brew "bash"
+brew "bash-completion@2"
+
+# Fish shell
+brew "fish"
+
+# Oh my zsh - the Z-shell
+brew "zsh"
+brew "zsh-syntax-highlighting"
+brew "zsh-history-substring-search"
+
+# Watch something happen by running a command multiple times
+brew "watch"
+
+# Safe rm so I don't delete my laptop
+brew "safe-rm"
+
+# Compilers and helpers
+brew "autoconf"
+brew "cmake"
+brew "gcc"
+
+# Podman
+brew "podman"
+cask "podman-desktop"
+
+# Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
+brew "mise"
+# Install php through brew as the mise install requires 3rd party sources or a rebuild of 10m with
+# a ton of deps
+brew "php"
+
+# Git version control
+brew "git"
+brew "git-flow"
+brew "git-lfs"
+brew "diff-so-fancy"
+cask "kdiff3"
+
+# Github support to git cli - https://hub.github.com/
+brew "hub"
+
+# Mercurial version control
+brew "mercurial"
+
+# Openss* since macos is really bad about providing them
+brew "openssl@3"
+brew "openssh"
+
+# GnuPG to enable PGP-signing commits.
+brew "gnupg"
+brew "pinentry-mac"
+
+# Select default apps for documents and URL schemes
+brew "duti"
+
+## Core Libraries
+
+brew "snappy"
+brew "xz"
+brew "sdl2"
+brew "rubberband"
+brew "fontconfig"
+brew "mp4v2"
+
+cask "xquartz"
+brew "libcaca"
+brew "libbs2b"
+brew "libbluray"
+brew "libass"
+brew "libvorbis"
+brew "libvidstab"
+brew "libssh"
+brew "libsoxr"
+brew "libmodplug"
+brew "libgsm"
+
+# C++ kafka lib that works as basis for node-rdkafka etc.
+brew "librdkafka"
+
+## Codecs
+brew "opencore-amr"
+brew "opus"
+brew "speex"
+brew "webp"
+brew "x265"
+brew "openh264"
+brew "wavpack"
+brew "fdk-aac"
+brew "schroedinger"
+brew "theora"
+
+## ========================================================
+## SOFTWARE
+## ========================================================
+
 cask_args appdir: "/Applications"
 cask_args colorpickerdir: "/Library/ColorPickers"
 cask_args fontdir: "/Library/Fonts"
@@ -6,8 +156,7 @@ cask_args prefpanedir: "/Library/PreferencePanes"
 cask_args qlplugindir: "/Library/QuickLook"
 cask_args screen_saverdir: "/Library/Screen Savers"
 
-### Taps
-
+## Taps
 tap "boz/repo"
 tap "sqitchers/sqitch"
 
@@ -23,7 +172,6 @@ cask "gpg-suite"
 
 # Text editors
 brew "micro"
-brew "vim"
 brew "neovim"
 cask "visual-studio-code"
 cask "cursor"

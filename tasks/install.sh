@@ -30,8 +30,6 @@ install_xcode() {
 
 # Install macOS Software with =brew=
 install_macos_sw () {
-  install_paths
-  install_brew
 
   p1 "Installing macOS Software"
 
@@ -46,15 +44,14 @@ install_macos_sw () {
   export CPPFLAGS=-I/usr/local/opt/openssl@3/include
   export LDFLAGS=-L/usr/local/opt/openssl@3/lib
 
-  brew bundle --file="Brewfiles/core"
+  install_paths
+  install_brew
+  brew bundle --file="Brewfile"
 
   install_xcode
 
-  brew bundle --file="Brewfiles/software"
-
-  BREW_PREFIX=$(brew --prefix)
-
   # Switch to using brew-installed Bash 5 as default shell
+  BREW_PREFIX=$(brew --prefix)
   if ! grep -F -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
     echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells
   fi
@@ -64,8 +61,6 @@ install_macos_sw () {
 
   install_links
   install_amphetamine_enhancer
-  # sudo xattr -rd "com.apple.quarantine" "/Applications" > /dev/null 2>&1
-  # sudo chmod -R go=u-w "/Applications" > /dev/null 2>&1
 }
 
 # Add =/usr/local/bin/sbin= to Default Path
