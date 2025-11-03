@@ -183,20 +183,6 @@ install_mise_runtimes () {
   # yes | gem install bundler
 }
 
-# Cleanup conflicting binaries for ruby update
-# Note: This function is kept for backwards compatibility but may not be needed with mise
-clean_ruby_conflicts () {
-    if which bundle > /dev/null; then
-        trash "$(which bundle)";
-    fi
-    if which rdoc > /dev/null; then
-        trash "$(which rdoc)";
-    fi
-    if which ri > /dev/null; then
-        trash "$(which ri)";
-    fi
-}
-
 # Install dotfiles with =dotfiles/bootstrap.sh=
 install_dotfiles () {
   p1 "Installing dotfiles"
@@ -204,4 +190,3 @@ install_dotfiles () {
 
   cp ./{.extra,.path} ~/
 }
-
