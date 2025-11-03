@@ -1,6 +1,3 @@
-# Yarn bin
-export PATH="$HOME/.yarn/bin:$PATH"
-
 # Tools bin folder
 export PATH="$HOME/tools/bin:$PATH"
 
@@ -10,7 +7,7 @@ export PATH="$HOME/tools/confluent/bin:$PATH"
 # Openssl bin
 export PATH="/usr/local/opt/openssl/bin:$PATH"
 
-# Go bin
+# Go bin (GOPATH/bin is still useful even with mise)
 if which go &> /dev/null; then
   export PATH="$(go env GOPATH)/bin:$PATH"
 fi;
@@ -27,8 +24,5 @@ if which brew &> /dev/null; then
   export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
   # Add gnu-getopt to path
   export PATH="/usr/local/opt/gnu-getopt/bin:$PATH"
-
-
-  # Rustup and cargo
-  export PATH="$(brew --prefix rustup)/bin:~/.cargo/bin:$PATH"
 fi
+

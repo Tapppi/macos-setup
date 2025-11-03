@@ -52,15 +52,13 @@ versions are still manual in the script for now.
 - Installs Brew and libs, tools and software from Hombrew and Mac App Store
   - See [`Brewfiles/`](/Brewfiles/) for commented lists of installed
     applications in Homebrew bundle format
-  - Installed in order: `core, languages, software`
-- Sets default shell to Bash 5 instead of ancient Bash 3 from macOS
-- Installs language runtimes
-  - Go, PHP, Lua, Rust and Java through with Homebrew
-  - `nvm` (Node Version Manager) and with it the LTS version of node
-  - Python 2, Python 3, pip & utilities with `pyenv`
-    - Also installs `aiven-client` for controllin [Aiven DBaaS](https://aiven.io)
-  - Ruby 3 and bundler with `rbenv`
-  - Perl 5 with `plenv` (disabled currently due to install problems)
+  - Installed in order: `core, software`
+- Sets default shell to Bash 5 instead of ancient Bash from macOS
+- Installs lots of GNU utils to supplement and overwrite macOS builtins
+- Installs language runtimes with Mise
+  - Latest or LTS version
+  - Node, Go, Rust, Zig, Ruby, PHP, Perl, Python (with uv)
+- Installs crudini and aiven-client with uv tools
 - Bootstraps [_dotfiles_ subrepo](https://github.com/tapppi/dotfiles)
   - Core dotfiles are in the [`dotfiles` subrepo](https://github.com/tapppi/dotfiles)
   - Personal and extra configs are in this repo at [`.extra`](/.extra),

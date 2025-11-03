@@ -53,6 +53,9 @@ mas "XCode", id: 497799835
 brew "bash"
 brew "bash-completion@2"
 
+# Fish shell
+brew "fish"
+
 # Oh my zsh - the Z-shell
 brew "zsh"
 brew "zsh-syntax-highlighting"
@@ -72,6 +75,9 @@ brew "gcc"
 # Podman
 brew "podman"
 cask "podman-desktop"
+
+# Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
+brew "mise"
 
 # Git version control
 brew "git"
@@ -117,6 +123,9 @@ brew "libssh"
 brew "libsoxr"
 brew "libmodplug"
 brew "libgsm"
+
+# C++ kafka lib that works as basis for node-rdkafka etc.
+brew "librdkafka"
 
 ## Codecs
 brew "opencore-amr"

@@ -10,10 +10,7 @@ install () {
   while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
   install_macos_sw
-  install_node_sw
-  #install_perl_sw # segfaults for some reason
-  install_python_sw
-  install_ruby_sw
+  install_mise_runtimes
   install_dotfiles
 }
 
@@ -34,6 +31,15 @@ install_macos_sw () {
   p1 "Installing macOS Software"
 
   install_xcode
+
+  # Fix Homebrew permissions for fish directory
+  if [ -d "/usr/local/share/fish" ]; then
+    sudo chown -R "$(whoami):admin" /usr/local/share/fish
+  fi
+
+  # Set librdkafka openssl build flags
+  export CPPFLAGS=-I/usr/local/opt/openssl@3/include
+  export LDFLAGS=-L/usr/local/opt/openssl@3/lib
 
   brew bundle --file="Brewfiles/core"
 
@@ -111,149 +117,86 @@ install_amphetamine_enhancer () {
 
     cd /tmp
 
-    wget -q https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
-    hdiutil attach Amphetamine\ Enhancer.dmg
+    curl -sSL -o "Amphetamine Enhancer.dmg" https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
+    hdiutil attach -quiet Amphetamine\ Enhancer.dmg
     cp -R /Volumes/Amphetamine\ Enhancer/Amphetamine\ Enhancer.app /Applications
-    hdiutil detach /Volumes/Amphetamine\ Enhancer
+    hdiutil detach -quiet /Volumes/Amphetamine\ Enhancer
     rm -rf Amphetamine\ Enhancer.dmg
 
     cd "$goback_dir"
   fi
 }
 
-# Install Node.js with =nvm=
-_npm='npm
-ts-node
-nodemon'
-
-install_node_sw () {
-  goback_dir=$(pwd)
-  if [ ! -z "$NVM_DIR" ] && ls $NVM_DIR &> /dev/null; then
-    p1 "Update nvm"
-    cd "$NVM_DIR"
-    git fetch --tags origin
-    git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
-    . "$NVM_DIR/nvm.sh";
-  else
-    p1 "Install nvm"
-    export NVM_DIR="$HOME/.nvm"
-
-    sudo mkdir -p "$NVM_DIR"
-    sudo chown -R "$(whoami):admin" "$NVM_DIR"
-
-    git clone https://github.com/creationix/nvm.git "$NVM_DIR"
-    cd "$NVM_DIR"
-    git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
-    . "$NVM_DIR/nvm.sh";
+install_mise_runtimes () {
+  # Check if brew is installed first
+  if ! which brew > /dev/null; then
+    p1 "ERROR: brew not found. Please install Homebrew first."
+    return 1
   fi
 
-  cd "$goback_dir"
-
-  if ls $NVM_DIR &> /dev/null; then
-    p1 "Installing Node.js with nvm"
-    nvm install --lts
-    nvm use --lts
-    nvm alias default stable
+  # Check if mise is installed via brew
+  MISE_PREFIX="$(brew --prefix mise 2>/dev/null)"
+  if [ -z "$MISE_PREFIX" ] || [ ! -f "$MISE_PREFIX/bin/mise" ]; then
+    p1 "ERROR: mise not found. Please run 'brew install mise' first."
+    return 1
   fi
 
-  T=$(printf '\t')
+  p1 "Installing language runtimes with mise"
 
-  printf "%s\n" "$_npm" | \
-  while IFS="$T" read pkg; do
-    npm install --global "$pkg"
-  done
-}
+  # Ensure mise is activated in the current shell
+  eval "$(mise activate bash)"
 
-# Install Perl 5 with =plenv=
-install_perl_sw () {
-  if which plenv > /dev/null; then
-    PLENV_ROOT="/usr/local/perl" && export PLENV_ROOT
+  # Install Node.js (LTS version)
+  p1 "Installing Node.js LTS"
+  mise use -g node@lts
 
-    sudo mkdir -p "$PLENV_ROOT"
-    sudo chown -R "$(whoami):admin" "$PLENV_ROOT"
+  # Install uv (Python package manager)
+  p1 "Installing uv latest"
+  mise use -g uv@latest
 
-    p1 "Installing Perl 5 with plenv"
-    plenv install 5.38.2 > /dev/null 2>&1
-    plenv global 5.38.2
+  # Install Python (latest LTS/stable, but now pinned to 3.13 for compatiblity)
+  p1 "Installing Python latest"
+  mise use -g python@latest
 
-    grep -q "${PLENV_ROOT}" "/etc/paths" || \
-    sudo sed -i "" -e "1i\\
-${PLENV_ROOT}/shims
-" "/etc/paths"
+  # Install Ruby (latest stable)
+  p1 "Installing Ruby latest"
+  mise use -g ruby@latest
 
-    init_paths
-  fi
-}
+  # Install Go (latest stable)
+  p1 "Installing Go latest"
+  mise use -g go@latest
 
-# Install Python with =pyenv=
-install_python_sw () {
-  if which pyenv > /dev/null; then
-    CFLAGS="-I$(brew --prefix openssl)/include" && export CFLAGS
-    LDFLAGS="-L$(brew --prefix openssl)/lib" && export LDFLAGS
-    PYENV_ROOT="/usr/local/python" && export PYENV_ROOT
+  # Install Rust (latest stable)
+  p1 "Installing Rust latest"
+  mise use -g rust@latest
 
-    sudo mkdir -p "$PYENV_ROOT"
-    sudo chown -R "$(whoami):admin" "$PYENV_ROOT"
+  # Install Zig (latest)
+  p1 "Installing Zig latest"
+  mise use -g zig@latest
 
-    p1 "Installing Python 2 with pyenv"
-    pyenv install --skip-existing 2.7.18
-    p1 "Installing Python 3 with pyenv"
-    pyenv install --skip-existing 3.12.2
+  # Install PHP (latest stable)
+  p1 "Installing PHP latest"
+  mise use -g php@latest
 
-    p1 "Setting Python 3 as the default"
-    pyenv global 3.12.2
+  p1 "Installing Python utilities aiven-client and crudini with uv"
+  # Reference: https://github.com/pixelb/crudini
+  uv tool install "crudini"
+  # Reference: https://github.com/aiven/aiven-client
+  uv tool install "aiven-client"
 
-    p1 "Install pip & utilities"
-    grep -q "${PYENV_ROOT}" "/etc/paths" || \
-    sudo sed -i "" -e "1i\\
-${PYENV_ROOT}/shims
-" "/etc/paths"
+  # Configure gem to not generate documentation to make it faster
+  printf "%s\n" \
+    "gem: --no-document" | \
+  tee "${HOME}/.gemrc" > /dev/null
 
-    init_paths
-
-    pip install --upgrade "pip" "setuptools"
-
-    # Reference: https://github.com/pixelb/crudini
-    pip install --upgrade "crudini"
-
-    p1 "Install aiven-client"
-    # Reference: https://github.com/aiven/aiven-client
-    pip install --upgrade "aiven-client"
-  fi
-}
-
-# Install Ruby with =rbenv=
-install_ruby_sw () {
-  if which rbenv > /dev/null; then
-    RBENV_ROOT="/usr/local/ruby" && export RBENV_ROOT
-
-    sudo mkdir -p "$RBENV_ROOT"
-    sudo chown -R "$(whoami):admin" "$RBENV_ROOT"
-
-    p1 "Installing Ruby with rbenv"
-    rbenv install --skip-existing 3.2.3
-    rbenv global 3.2.3
-
-    grep -q "${RBENV_ROOT}" "/etc/paths" || \
-    sudo sed -i "" -e "1i\\
-${RBENV_ROOT}/shims
-" "/etc/paths"
-
-    init_paths
-
-    printf "%s\n" \
-      "gem: --no-document" | \
-    tee "${HOME}/.gemrc" > /dev/null;
-
-    yes | gem update --system  > /dev/null;
-
-    yes | gem update;
-
-    yes | gem install bundler;
-  fi
+  # This is slow, I don't really think we need to be updating system gems on every install..
+  # yes | gem update --system > /dev/null
+  # yes | gem update
+  # yes | gem install bundler
 }
 
 # Cleanup conflicting binaries for ruby update
+# Note: This function is kept for backwards compatibility but may not be needed with mise
 clean_ruby_conflicts () {
     if which bundle > /dev/null; then
         trash "$(which bundle)";
