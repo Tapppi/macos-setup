@@ -1,5 +1,5 @@
 # Local bin folder for user tools (uv, etc.)
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$XDG_BIN_HOME:$PATH"
 
 # Openssl bin
 export PATH="/usr/local/opt/openssl/bin:$PATH"
