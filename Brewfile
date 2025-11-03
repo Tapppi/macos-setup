@@ -255,8 +255,8 @@ brew "wget"
 # Github CLI
 brew "gh"
 
-# Quick access to files and folders from anywhere - https://github.com/clvv/fasd
-brew "fasd"
+# Better cd - quick access to folders from anywhere - https://github.com/ajeetdsouza/zoxide
+brew "zoxide"
 
 # Grep but fast like a Ferrari
 brew "ripgrep"
