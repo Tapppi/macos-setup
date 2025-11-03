@@ -143,9 +143,6 @@ cask "ngrok"
 # Autocorrecting for the commandline
 brew "thefuck"
 
-# Watch something happen by running a command multiple times
-brew "watch"
-
 # Terminal windows you know and love
 brew "tmux"
 

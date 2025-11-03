@@ -3,21 +3,51 @@
 # Install mac app store cli
 brew "mas"
 
+## Install GNU utilities (macOS has missing and outdated tools)
+# Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` etc. to `$PATH`
+brew "coreutils"
+brew "findutils"
+brew "binutils"
+brew "diffutils"
+brew "gawk"
+brew "gnu-sed"
+brew "gnu-getopt"
+brew "gnu-tar"
+brew "grep"
+brew "gzip"
+brew "less"
+brew "make"
+
+# Execute commands in parallel
+brew "parallel"
+
+# Replacements for moreutils tools (ifdata and sponge), because it conflicts with parallel
+#
+# If we end up wanting 'ts' from moreutils, we'd need to use the following tap,
+# but it lags behind in versions
+# brew "slhck/moreutils/moreutils", args: ["without-parallel"]
+#
+# Easier network configuration (ip, bridge, ss) - https://github.com/brona/iproute2mac
+brew "iproute2mac"
+brew "sponge"
+
+# I don't really use these or the macOS version is sufficient, but here for reference
+# brew "gnu-indent"
+# brew "gnu-which"
+# brew "screen"
+# brew "emacs"
+# brew "gpatch"
+# brew "m4"
+# brew "nano"
+# brew "bison"
+# brew "flex"
+# brew "wget"
+# brew "wdiff"
+
 ## Core programs and tooling
 
 # XCode
 mas "XCode", id: 497799835
-
-# Install GNU core utilities (those that come with macOS are outdated).
-# Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` to `$PATH`.
-brew "coreutils"
-# The parallel in moreutils is so broken, and don't know how to overwrite with brewfile..
-#brew "moreutils"
-brew "parallel"
-brew "findutils"
-brew "gnu-sed"
-brew "gnu-getopt"
-brew "gawk"
 
 # Bash 5
 brew "bash"
@@ -27,6 +57,9 @@ brew "bash-completion@2"
 brew "zsh"
 brew "zsh-syntax-highlighting"
 brew "zsh-history-substring-search"
+
+# Watch something happen by running a command multiple times
+brew "watch"
 
 # Safe rm so I don't delete my laptop
 brew "safe-rm"
