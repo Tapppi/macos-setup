@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Ask for the administrator password upfront and keep-alive
+sudo -v
+
+# Keep-alive: update existing `sudo` time stamp until has finished
+while true; do sudo -n true; sleep 120; kill -0 "$$" || exit; done 2>/dev/null &
+
 # Define Function =ask=
 ask () {
   osascript - "${1}" "${2}" "${3}" << EOF 2> /dev/null
@@ -54,6 +60,6 @@ elif [ "${1}" = "config" ]; then
   . tasks/config.sh
   config
 else
-  echo "Usage: $0 [init | init_user | install | config]"
+  echo "Usage: $0 [init | init_user | init_ssh_local | init_ssh_1password | install | dotfiles | config]"
   echo "See README.md for more information."
 fi
