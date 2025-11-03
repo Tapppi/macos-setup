@@ -78,6 +78,9 @@ cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
 brew "mise"
+# Install php through brew as the mise install requires 3rd party sources or a rebuild of 10m with
+# a ton of deps
+brew "php"
 
 # Git version control
 brew "git"

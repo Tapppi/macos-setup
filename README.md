@@ -57,7 +57,9 @@ versions are still manual in the script for now.
 - Installs lots of GNU utils to supplement and overwrite macOS builtins
 - Installs language runtimes with Mise
   - Latest or LTS version
-  - Node, Go, Rust, Zig, Ruby, PHP, Perl, Python (with uv)
+  - Node, Go, Rust, Zig, Ruby, Perl, Python (with uv)
+  - PHP is installed through Homebrew due to problems in mise install (see
+    Brewfiles/core comments)
 - Installs crudini and aiven-client with uv tools
 - Bootstraps [_dotfiles_ subrepo](https://github.com/tapppi/dotfiles)
   - Core dotfiles are in the [`dotfiles` subrepo](https://github.com/tapppi/dotfiles)
@@ -75,7 +77,8 @@ Not all steps have been automated:
 
 - Postico favourites are backed up to file-share encrypted. Need to be imported
   manually.
-- set up iterm2 key binds if backups don't work correctly: https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
+- set up iterm2 key binds if backups don't work correctly:
+  https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
 ## Thanks to...
 

@@ -162,10 +162,6 @@ install_mise_runtimes () {
   p1 "Installing Zig latest"
   mise use -g zig@latest
 
-  # Install PHP (latest stable)
-  p1 "Installing PHP latest"
-  mise use -g php@latest
-
   p1 "Installing Python utilities aiven-client and crudini with uv"
   # Reference: https://github.com/pixelb/crudini
   uv tool install "crudini"
