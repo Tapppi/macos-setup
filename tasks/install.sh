@@ -12,8 +12,19 @@ install () {
 install_xcode() {
   x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
   if test -n "${x}"; then
-    sudo xcode-select -s "${x}"
-    sudo xcodebuild -license accept
+    # Set the correct path for xcode-select (needs to point to Contents/Developer)
+    xcode_dev_path="${x}/Contents/Developer"
+
+    # Only change xcode-select if it's not already set to the correct path
+    current_xcode_path=$(xcode-select -p 2>/dev/null || echo "")
+    if [[ "${current_xcode_path}" != "${xcode_dev_path}" ]]; then
+      sudo xcode-select -s "${xcode_dev_path}"
+    fi
+
+    # Only run first launch setup if it hasn't been completed
+    if ! xcodebuild -checkFirstLaunchStatus 2>/dev/null; then
+      sudo xcodebuild -runFirstLaunch
+    fi
   fi
 }
 
