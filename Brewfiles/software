@@ -217,7 +217,7 @@ cask "kap"
 brew "marp-cli"
 
 # Menubar countdown clock
-cask "menubar-countdown"
+mas "Countdown Timer Pro", id: 6744842468
 
 # Amphetamine to keep awake when wanted
 mas "Amphetamine", id: 937984704

@@ -144,9 +144,9 @@ _loginitems='/Applications/1Password.app
 /Applications/Amphetamine.app
 /Applications/Docker.app
 /Applications/Google Drive File Stream.app
+/Applications/Ice.app
 /Applications/iStat Menus.app
 /Applications/iTunes.app/Contents/MacOS/iTunesHelper.app
-/Applications/Menubar Countdown.app
 /Applications/Muzzle.app
 /Applications/Resolutionator.app
 /Applications/Slack.app
