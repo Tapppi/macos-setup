@@ -163,6 +163,7 @@ tap "sqitchers/sqitch"
 ## Basics
 
 # Browsers
+cask "brave-browser"
 cask "google-chrome"
 cask "firefox"
 cask "tor-browser"
