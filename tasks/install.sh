@@ -44,7 +44,7 @@ install_macos_sw () {
   BREW_PREFIX=$(brew --prefix)
 
   # Switch to using brew-installed Bash 5 as default shell
-  if ! fgrep -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
+  if ! grep -F -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
     echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells
   fi
   if [ "$SHELL" != "${BREW_PREFIX}/bin/bash" ]; then
