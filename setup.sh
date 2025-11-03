@@ -26,7 +26,17 @@ EOF
 
 # Define Function =p=
 p1 () {
-  printf "\n\033[1m\033[34m%s\033[0m\n\n" "${1}"
+  printf "\n\033[1m\033[34m==> %s\033[0m\n" "${1}"
+}
+
+# Define Function =p2= (darker blue version)
+p2 () {
+  printf "\033[34m=> %s\033[0m\n" "${1}"
+}
+
+# Define Function =p3= (gray version)
+p3 () {
+  printf "\033[90m=> %s\033[0m\n" "${1}"
 }
 
 # Define Function =run=

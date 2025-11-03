@@ -10,6 +10,7 @@ install () {
 
 # Define Function =install_xcode=
 install_xcode() {
+  p2 "Check xcode installation..."
   x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
   if test -n "${x}"; then
     # Set the correct path for xcode-select (needs to point to Contents/Developer)
@@ -18,35 +19,37 @@ install_xcode() {
     # Only change xcode-select if it's not already set to the correct path
     current_xcode_path=$(xcode-select -p 2>/dev/null || echo "")
     if [[ "${current_xcode_path}" != "${xcode_dev_path}" ]]; then
+      p3 "Switch xcode from ${current_xcode_path} to ${xcode_dev_path}"
       sudo xcode-select -s "${xcode_dev_path}"
     fi
 
     # Only run first launch setup if it hasn't been completed
     if ! xcodebuild -checkFirstLaunchStatus 2>/dev/null; then
+      p3 "Install xcode utils and accept license..."
       sudo xcodebuild -runFirstLaunch
     fi
   fi
+  p3 "XCode installation checked!"
 }
 
-# Install macOS Software with =brew=
+# Install macOS Software
 install_macos_sw () {
-
-  p1 "Installing macOS Software"
+  p1 "Installing macOS Software..."
 
   install_xcode
 
+  p2 "Check permissions and paths..."
   # Fix Homebrew permissions for fish directory
   if [ -d "/usr/local/share/fish" ]; then
     sudo chown -R "$(whoami):admin" /usr/local/share/fish
   fi
+  install_paths
 
   # Set librdkafka openssl build flags
   export CPPFLAGS=-I/usr/local/opt/openssl@3/include
   export LDFLAGS=-L/usr/local/opt/openssl@3/lib
 
-  install_paths
   install_brew
-  brew bundle --file="Brewfile"
 
   install_xcode
 
@@ -66,26 +69,34 @@ install_macos_sw () {
 # Add =/usr/local/bin/sbin= to Default Path
 install_paths () {
   if ! grep -Fq "/usr/local/sbin" /etc/paths; then
+    p2 "Add /usr/local/sbin to /etc/paths"
     sudo sed -i "" -e "/\/usr\/sbin/{x;s/$/\/usr\/local\/sbin/;G;}" /etc/paths
   fi
 }
 
-# Install Homebrew Package Manager
+# Install Software with Homebrew Package Manager
+# brew commands invalidate sudo timestamp in order to prevent builds from using sudo
+# if there is a need for sudo after brew installation, we'll just have to re-enter password
 install_brew () {
-  p1 "Installing and/or configuring brew"
+  p2 "Installing and/or configuring brew"
   if ! which brew > /dev/null; then
-	p1 "Installing brew..."
+	p2 "Installing brew..."
     ruby -e \
       "$(curl -Ls 'https://github.com/Homebrew/install/raw/master/install')" \
       < /dev/null > /dev/null 2>&1
   else
-	p1 "Brew already installed"
+	p3 "Brew already installed"
   fi
 
-  p1 "Update brew..."
+  p3 "Brew update and doctor..."
   brew analytics off
   brew update
   brew doctor
+
+  p3 "Install Brewfile..."
+  brew bundle --file="Brewfile"
+
+  p2 "Brew installation done!"
 }
 
 # Link System Utilities to Applications
@@ -96,17 +107,18 @@ _links='/System/Library/CoreServices/Applications
 /Applications/Xcode-beta.app/Contents/Developer/Applications'
 
 install_links () {
-  echo "Install links to System Utilities in Applications..."
+  p2 "Install links to System Utilities in Applications..."
   printf "%s\n" "${_links}" | \
   while IFS="$(printf '\t')" read link; do
     find "${link}" -maxdepth 1 -name "*.app" -type d -print0 2> /dev/null | \
     xargs -0 -I {} -L 1 ln -s "{}" "/Applications" 2> /dev/null
   done
+  p3 "Installed links!"
 }
 
 install_amphetamine_enhancer () {
-  if [ ! -f "/Applications/Amphetamine Enhancer.app" ]; then
-    echo "Install amphetamine enhancer through /tmp"
+  if [ ! -d "/Applications/Amphetamine Enhancer.app" ]; then
+    p2 "Install Amphetamine Enhancer through /tmp"
     goback_dir=$(pwd)
 
     cd /tmp
@@ -118,10 +130,15 @@ install_amphetamine_enhancer () {
     rm -rf Amphetamine\ Enhancer.dmg
 
     cd "$goback_dir"
+
+    p3 "Ampthetamine Enhancer installed!"
+    open "/Applications/Amphetamine Enhancer.app"
   fi
 }
 
 install_mise_runtimes () {
+  p2 "Installing language runtimes with mise..."
+
   # Check if brew is installed first
   if ! which brew > /dev/null; then
     p1 "ERROR: brew not found. Please install Homebrew first."
@@ -135,45 +152,44 @@ install_mise_runtimes () {
     return 1
   fi
 
-  p1 "Installing language runtimes with mise"
-
   # Ensure mise is activated in the current shell
   eval "$(mise activate bash)"
 
   # Install Node.js (LTS version)
-  p1 "Installing Node.js LTS"
+  p3 "Installing Node.js LTS..."
   mise use -g node@lts
 
   # Install uv (Python package manager)
-  p1 "Installing uv latest"
+  p3 "Installing uv latest..."
   mise use -g uv@latest
 
   # Install Python (latest LTS/stable, but now pinned to 3.13 for compatiblity)
-  p1 "Installing Python latest"
+  p3 "Installing Python latest..."
   mise use -g python@latest
 
   # Install Ruby (latest stable)
-  p1 "Installing Ruby latest"
+  p3 "Installing Ruby latest..."
   mise use -g ruby@latest
 
   # Install Go (latest stable)
-  p1 "Installing Go latest"
+  p3 "Installing Go latest..."
   mise use -g go@latest
 
   # Install Rust (latest stable)
-  p1 "Installing Rust latest"
+  p3 "Installing Rust latest..."
   mise use -g rust@latest
 
   # Install Zig (latest)
-  p1 "Installing Zig latest"
+  p3 "Installing Zig latest..."
   mise use -g zig@latest
 
-  p1 "Installing Python utilities aiven-client and crudini with uv"
+  p2 "Installing Python utilities aiven-client and crudini with uv"
   # Reference: https://github.com/pixelb/crudini
   uv tool install "crudini"
   # Reference: https://github.com/aiven/aiven-client
   uv tool install "aiven-client"
 
+  p2 "Configure gem"
   # Configure gem to not generate documentation to make it faster
   printf "%s\n" \
     "gem: --no-document" | \
@@ -183,12 +199,14 @@ install_mise_runtimes () {
   # yes | gem update --system > /dev/null
   # yes | gem update
   # yes | gem install bundler
+
+  p2 "Mise installations done!"
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
 install_dotfiles () {
-  p1 "Installing dotfiles"
-  sudo ./dotfiles/bootstrap.sh -f
+  p1 "Installing dotfiles..."
+  ./dotfiles/bootstrap.sh -f
 
   cp ./{.extra,.path} ~/
 }
