@@ -136,7 +136,6 @@ config_vlc () {
 # Customize Login Items
 
 _disableditems='/Applications/autoping.app
-/Applications/Bartender 4.app
 /Applications/Coffitivity.app
 /Applications/HardwareGrowler.app
 '
