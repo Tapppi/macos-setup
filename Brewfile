@@ -19,6 +19,7 @@ brew "grep"
 brew "gzip"
 brew "less"
 brew "make"
+brew "wget"
 
 # Execute commands in parallel
 brew "parallel"
@@ -43,7 +44,6 @@ brew "sponge"
 # brew "nano"
 # brew "bison"
 # brew "flex"
-# brew "wget"
 # brew "wdiff"
 
 ## Core programs and tooling
@@ -248,9 +248,8 @@ mas "stts", id: 1187772509
 
 ## Everyday commandline tools
 
-# Nice httpie client (wget etc. are for compatibility)
+# Nice httpie client
 brew "httpie"
-brew "wget"
 
 # Github CLI
 brew "gh"
@@ -297,6 +296,9 @@ brew "tmux"
 
 # View file/folder size and delete them, like `du` but with a UX
 brew "ncdu"
+
+# Terminal file manager - https://github.com/jarun/nnn
+brew "nnn"
 
 # Moves files or folders to trash
 brew "trash"

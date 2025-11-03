@@ -208,5 +208,5 @@ install_dotfiles () {
   p1 "Installing dotfiles..."
   ./dotfiles/bootstrap.sh -f
 
-  cp ./{.extra,.path} ~/
+  cp ./{.extra,.path} ~/.config/bash/
 }
