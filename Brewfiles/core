@@ -93,7 +93,7 @@ brew "hub"
 brew "mercurial"
 
 # Openss* since macos is really bad about providing them
-brew "openssl"
+brew "openssl@3"
 brew "openssh"
 
 # GnuPG to enable PGP-signing commits.

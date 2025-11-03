@@ -45,12 +45,6 @@ install_macos_sw () {
 
   install_xcode
 
-  # Set librdkafka openssl build flags
-  export CPPFLAGS=-I/usr/local/opt/openssl@1.1/include
-  export LDFLAGS=-L/usr/local/opt/openssl@1.1/lib
-
-  brew bundle --file="Brewfiles/languages"
-
   brew bundle --file="Brewfiles/software"
 
   BREW_PREFIX=$(brew --prefix)
