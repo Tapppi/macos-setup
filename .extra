@@ -23,7 +23,5 @@ export REMOTE_KAFKA_SERVER=
 alias psqd="psql -h localhost -p 5432 -U postgres"
 
 ## Kubectl shortcuts
-alias kl="/Applications/Docker.app/Contents/Resources/bin/kubectl --context local"
-alias kd="/Applications/Docker.app/Contents/Resources/bin/kubectl --context docker-for-desktop"
 alias ks="kubectl --context sb"
 alias kp="kubectl --context prd"
