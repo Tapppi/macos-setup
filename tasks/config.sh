@@ -1,25 +1,29 @@
 #!/bin/bash
 
-config () {
-  # Keep-alive: update existing `sudo` time stamp until `.macos` has finished
-  while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+config() {
+	# Keep-alive: update existing `sudo` time stamp until `.macos` has finished
+	while true; do
+		sudo -n true
+		sleep 60
+		kill -0 "$$" || exit
+	done 2>/dev/null &
 
-  p1 "Configuring software"
-  config_admin_req
-  config_vlc
-  config_istatmenus
-  config_alfred
-  config_stts
-  config_amphetamine
+	p1 "Configuring software"
+	config_admin_req
+	config_vlc
+	config_istatmenus
+	config_alfred
+	config_stts
+	config_amphetamine
 
-  p1 "Customising various launch options"
-  custom_loginitems
-  custom_terminal
-  custom_duti
+	p1 "Customising various launch options"
+	custom_loginitems
+	custom_terminal
+	custom_duti
 
-  p1 "Configuring macOS"
-  sudo ~/.macos
-  p1 "Done. Some changes require a reboot."
+	p1 "Configuring macOS"
+	sudo ~/.macos
+	p1 "Done. Some changes require a reboot."
 }
 
 # Mark Applications Requiring Administrator Account
@@ -28,80 +32,81 @@ _admin_req='Docker.app
 iStat Menus.app
 Wireshark.app'
 
-config_admin_req () {
-  printf "%s\n" "${_admin_req}" | \
-  while IFS="$(printf '\t')" read app; do
-    sudo tag -a "Red, admin" "/Applications/${app}"
-  done
+config_admin_req() {
+	printf "%s\n" "${_admin_req}" |
+		while IFS="$(printf '\t')" read app; do
+			sudo tag -a "Red, admin" "/Applications/${app}"
+		done
 }
 
 # Define Function =config_defaults=
 
-config_defaults () {
-  printf "%s\n" "${1}" | \
-  while IFS="$(printf '\t')" read domain key type value host; do
-    ${2} defaults ${host} write ${domain} "${key}" ${type} "${value}"
-  done
+config_defaults() {
+	printf "%s\n" "${1}" |
+		while IFS="$(printf '\t')" read domain key type value host; do
+			${2} defaults ${host} write ${domain} "${key}" ${type} "${value}"
+		done
 }
-
 
 # Define Function =config_plist=
 
 T="$(printf '\t')"
 
-config_plist () {
-  printf "%s\n" "$1" | \
-  while IFS="$T" read command entry type value; do
-    case "$value" in
-      (\$*)
-        $4 /usr/libexec/PlistBuddy "$2" \
-          -c "$command '${3}${entry}' $type '$(eval echo \"$value\")'" 2> /dev/null ;;
-      (*)
-        $4 /usr/libexec/PlistBuddy "$2" \
-          -c "$command '${3}${entry}' $type '$value'" 2> /dev/null ;;
-    esac
-  done
+config_plist() {
+	printf "%s\n" "$1" |
+		while IFS="$T" read command entry type value; do
+			case "$value" in
+			\$*)
+				$4 /usr/libexec/PlistBuddy "$2" \
+					-c "$command '${3}${entry}' $type '$(eval echo \"$value\")'" 2>/dev/null
+				;;
+			*)
+				$4 /usr/libexec/PlistBuddy "$2" \
+					-c "$command '${3}${entry}' $type '$value'" 2>/dev/null
+				;;
+			esac
+		done
 }
 
 # Define Function =config_launchd=
 
-config_launchd () {
-  test -d "$(dirname $1)" || \
-    $3 mkdir -p "$(dirname $1)"
+config_launchd() {
+	test -d "$(dirname $1)" ||
+		$3 mkdir -p "$(dirname $1)"
 
-  test -f "$1" && \
-    $3 launchctl unload "$1" && \
-    $3 rm -f "$1"
+	test -f "$1" &&
+		$3 launchctl unload "$1" &&
+		$3 rm -f "$1"
 
-  config_plist "$2" "$1" "$4" "$3" && \
-    $3 plutil -convert xml1 "$1" && \
-    $3 launchctl load "$1"
+	config_plist "$2" "$1" "$4" "$3" &&
+		$3 plutil -convert xml1 "$1" &&
+		$3 launchctl load "$1"
 }
 
 # Configure iStat Menus
-config_istatmenus () {
-  test -d "/Applications/iStat Menus.app" && \
-    open "/Applications/iStat Menus.app"
+config_istatmenus() {
+	test -d "/Applications/iStat Menus.app" &&
+		open "/Applications/iStat Menus.app"
 }
 
 # Configure Alfred
-config_alfred () {
-  test -d "/Applications/Alfred 5.app" && \
-    open "/Applications/Alfred 5.app"
+config_alfred() {
+	test -d "/Applications/Alfred 5.app" &&
+		open "/Applications/Alfred 5.app"
 }
 
 # Configure Amphetamine
-config_amphetamine () {
-  test -d "/Applications/Amphetamine.app" && \
-    open "/Applications/Amphetamine.app"
-  test -d "/Applications/Amphetamine Enhancer.app" && \
-    open "/Applications/Amphetamine Enhancer.app"
+config_amphetamine() {
+	test -d "/Applications/Amphetamine.app" &&
+		open "/Applications/Amphetamine.app"
+	test -d "/Applications/Amphetamine Enhancer.app" &&
+		open "/Applications/Amphetamine Enhancer.app"
 }
 
 # Configure stts
-config_stts () {
-  test -d "/Applications/stts.app" && \
-    open "/Applications/stts.app"
+config_stts() {
+	test -d "/Applications/stts.app" &&
+		open "/Applications/stts.app"
 }
 
 # Configure VLC
@@ -121,16 +126,16 @@ core	medium-jump-size	30
 subsdec	subsdec-encoding	UTF-8
 avcodec	avcodec-hw	vda'
 
-config_vlc () {
-  config_defaults "${_vlc_defaults}"
-  if which crudini > /dev/null; then
-    test -d "${HOME}/Library/Preferences/org.videolan.vlc" || \
-      mkdir -p "${HOME}/Library/Preferences/org.videolan.vlc"
-    printf "%s\n" "${_vlcrc}" | \
-    while IFS="$(printf '\t')" read section key value; do
-      crudini --set "${HOME}/Library/Preferences/org.videolan.vlc/vlcrc" "${section}" "${key}" "${value}"
-    done
-  fi
+config_vlc() {
+	config_defaults "${_vlc_defaults}"
+	if which crudini >/dev/null; then
+		test -d "${HOME}/Library/Preferences/org.videolan.vlc" ||
+			mkdir -p "${HOME}/Library/Preferences/org.videolan.vlc"
+		printf "%s\n" "${_vlcrc}" |
+			while IFS="$(printf '\t')" read section key value; do
+				crudini --set "${HOME}/Library/Preferences/org.videolan.vlc/vlcrc" "${section}" "${key}" "${value}"
+			done
+	fi
 }
 
 # Customize Login Items
@@ -153,19 +158,19 @@ _loginitems='/Applications/1Password.app
 /Applications/Spotify.app
 /Applications/stts.app
 /Applications/WhatsApp.app'
-custom_loginitems () {
-  printf "%s\n" "${_loginitems}" | \
-  while IFS="$(printf '\t')" read app; do
-    if test -e "$app"; then
-      osascript - "$app" << EOF > /dev/null
+custom_loginitems() {
+	printf "%s\n" "${_loginitems}" |
+		while IFS="$(printf '\t')" read app; do
+			if test -e "$app"; then
+				osascript - "$app" <<EOF >/dev/null
         on run { _app }
           tell app "System Events"
             make new login item with properties { hidden: true, path: _app }
           end tell
         end run
 EOF
-    fi
-  done
+			fi
+		done
 }
 
 # Customize Terminal
@@ -232,11 +237,11 @@ add	:EastAsianAmbiguousWide	bool	false'
 _term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani
 com.apple.Terminal	Default Window Settings	-string	tapani	'
 
-custom_terminal () {
-  config_plist "${_term_plist}" \
-    "${HOME}/Library/Preferences/com.apple.Terminal.plist" \
-    ":Window Settings:tapani"
-  config_defaults "${_term_defaults}"
+custom_terminal() {
+	config_plist "${_term_plist}" \
+		"${HOME}/Library/Preferences/com.apple.Terminal.plist" \
+		":Window Settings:tapani"
+	config_defaults "${_term_defaults}"
 }
 
 # Customize Default UTIs
@@ -473,22 +478,21 @@ org.videolan.vlc	public.movie	all
 org.videolan.vlc	public.mpeg	all
 org.videolan.vlc	public.mpeg-2-video	all
 org.videolan.vlc	public.mpeg-4	all'
-custom_duti () {
-  if test -x "/usr/local/bin/duti"; then
-    test -f "${HOME}/Library/Preferences/org.duti.plist" && \
-      rm "${HOME}/Library/Preferences/org.duti.plist"
+custom_duti() {
+	if test -x "/usr/local/bin/duti"; then
+		test -f "${HOME}/Library/Preferences/org.duti.plist" &&
+			rm "${HOME}/Library/Preferences/org.duti.plist"
 
-    printf "%s\n" "${_duti}" | \
-    while IFS="$(printf '\t')" read id uti role; do
-      defaults write org.duti DUTISettings -array-add \
-        "{
+		printf "%s\n" "${_duti}" |
+			while IFS="$(printf '\t')" read id uti role; do
+				defaults write org.duti DUTISettings -array-add \
+					"{
           DUTIBundleIdentifier = '$a';
           DUTIUniformTypeIdentifier = '$b';
           DUTIRole = '$c';
         }"
-    done
+			done
 
-    duti "${HOME}/Library/Preferences/org.duti.plist" 2> /dev/null
-  fi
+		duti "${HOME}/Library/Preferences/org.duti.plist" 2>/dev/null
+	fi
 }
-

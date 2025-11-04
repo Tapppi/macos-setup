@@ -11,42 +11,42 @@ backup_path_resolved=$(readlinkorreal "$backup_path")
 shift
 
 function doIt() {
-	echo "Restoring from ${backup_path_resolved} to $HOME...";
-	echo "";
+	echo "Restoring from ${backup_path_resolved} to $HOME..."
+	echo ""
 
 	mkdir .tmp-backup-dir
-	cd .tmp-backup-dir && tar -xzf ${backup_path_resolved};
+	cd .tmp-backup-dir && tar -xzf ${backup_path_resolved}
 	rsync \
-    --rsync-path="sudo rsync" \
-    --perms \
-    --recursive \
-    --compress \
-    --numeric-ids \
-    --links \
-    --hard-links \
-    --files-from="$files_from" \
-		-avh . ~;
+		--rsync-path="sudo rsync" \
+		--perms \
+		--recursive \
+		--compress \
+		--numeric-ids \
+		--links \
+		--hard-links \
+		--files-from="$files_from" \
+		-avh . ~
 
-	if which gpg > /dev/null && [ -f "./key_public.asc" ]; then
+	if which gpg >/dev/null && [ -f "./key_public.asc" ]; then
 		gpg --import --armor ./key_public.asc
 		rm ./key_public.asc
 	fi
-	if which gpg > /dev/null && [ -f "./key_secret.asc" ]; then
+	if which gpg >/dev/null && [ -f "./key_secret.asc" ]; then
 		gpg --import --armor ./key_secret.asc
 		rm ./key_secret.asc
 	fi
-  cd - && rm -rf .tmp-backup-dir;
+	cd - && rm -rf .tmp-backup-dir
 
-	echo "Restored";
+	echo "Restored"
 }
 
 if [ "$1" == "--force" ] || [ "$1" == "-f" ]; then
-	doIt;
+	doIt
 else
-	read -rp "Do you want to restore ${backup_path} to ~? (y/n) " -n 1;
-	echo "";
+	read -rp "Do you want to restore ${backup_path} to ~? (y/n) " -n 1
+	echo ""
 	if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-		doIt;
-	fi;
-fi;
-unset doIt;
+		doIt
+	fi
+fi
+unset doIt
