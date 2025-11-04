@@ -209,4 +209,9 @@ install_dotfiles() {
 	./dotfiles/bootstrap.sh -f
 
 	cp ./{.extra,.path} ~/.config/bash/
+
+	p2 "Installing nnn plugins..."
+	# Install official nnn plugins
+	sh -c "$(curl -Ls https://raw.githubusercontent.com/jarun/nnn/master/plugins/getplugs)"
+	p3 "nnn plugins installed!"
 }
