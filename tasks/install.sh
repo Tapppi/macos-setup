@@ -36,6 +36,15 @@ install_xcode() {
 install_macos_sw() {
 	p1 "Installing macOS Software..."
 
+	p2 "Check for system software updates..."
+	local to_update="$(softwareupdate --list)"
+	if echo "$to_update" | grep -q "Command Line Tools for Xcode"; then
+		p1 "Updates for Xcode Command Line Tools found. Install them with 'softwareupdate --install' to prevent Xcode update from hanging"
+	elif echo "$to_update" | grep -q "Label:"; then
+		p2 "Software updates found, install them with 'softwareupdate --install [-r]'"
+		echo "$to_update" | grep -A1 "Label:"
+	fi
+
 	install_xcode
 
 	p2 "Check permissions and paths..."
