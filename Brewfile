@@ -51,6 +51,9 @@ brew "sponge"
 # XCode
 mas "XCode", id: 497799835
 
+# Tailscale VPN for my personal network
+cask "tailscale-app"
+
 # Bash 5
 brew "bash"
 brew "bash-completion@2"
