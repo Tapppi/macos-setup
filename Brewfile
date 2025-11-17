@@ -192,7 +192,8 @@ cask "the-unarchiver"
 cask "ukelele"
 
 # File compression for gzip/deflate if tar isn't enough
-brew "zopfli"
+# DEPRECATED, could use zstd or brotli depending on use-case?
+# brew "zopfli"
 
 # Notification on long running tasks
 brew "noti"
@@ -396,6 +397,9 @@ brew "yt-dlp"
 
 # Let's encrypt tooling
 brew "certbot"
+
+# Create bootable flash media, especially for raspberry pis
+cask "raspberry-pi-imager"
 
 # Copy ssh public key to server
 brew "ssh-copy-id"
