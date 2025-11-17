@@ -97,9 +97,6 @@ cask "kdiff3"
 # Github support to git cli - https://hub.github.com/
 brew "hub"
 
-# Mercurial version control
-brew "mercurial"
-
 # Openss* since macos is really bad about providing them
 brew "openssl@3"
 brew "openssh"
