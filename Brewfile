@@ -338,6 +338,9 @@ cask "postico"
 
 ## Database tooling
 
+# DuckDB cli, which is not available through uv or such
+brew "duckdb"
+
 # Kafkacat for reading kafka data
 brew "kcat"
 
