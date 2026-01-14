@@ -79,6 +79,7 @@ brew "gcc"
 
 # Podman
 brew "podman"
+brew "podman-compose"
 cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
