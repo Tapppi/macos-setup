@@ -178,8 +178,12 @@ brew "neovim"
 cask "visual-studio-code"
 cask "cursor"
 
-# Terminal AI Agent
+# Terminal AI Agents
+cask "claude-code"
 brew "opencode"
+
+# Monitor for AI Agent subscription usage limits
+cask "claudebar"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
