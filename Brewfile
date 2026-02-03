@@ -172,6 +172,10 @@ cask "tor-browser"
 # GPG suite
 cask "gpg-suite"
 
+# Terminal emulators
+cask "iterm2"
+cask "alacritty"
+
 # Text editors
 brew "micro"
 brew "neovim"
@@ -204,15 +208,11 @@ cask "ukelele"
 brew "noti"
 
 ## Everyday apps
-cask "dropbox"
 cask "slack"
-cask "iterm2"
+cask "microsoft-teams"
 cask "vlc"
-cask "zoom"
 cask "whatsapp"
 cask "spotify"
-cask "notion"
-cask "obsidian"
 cask "google-drive-file-stream"
 cask "google-backup-and-sync"
 cask "1password"
@@ -224,9 +224,13 @@ mas "Wifi Explorer Lite", id: 1408727408
 # Pro, but it's expensive
 # mas "Wifi Explorer", id: 494803304
 
+# Notes
+cask "notion"
+cask "obsidian"
+
 # API testing
 cask "postman"
-cask "insomnia"
+cask "yaak"
 
 # The butler of your mac or the swiss army knife of searchbars - https://www.alfredapp.com/
 cask "alfred"
