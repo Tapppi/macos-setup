@@ -302,8 +302,9 @@ cask "ngrok"
 # Autocorrecting for the commandline
 brew "thefuck"
 
-# Terminal windows you know and love
+# Terminal windows you know and love, and a manager for sessions
 brew "tmux"
+brew "tmuxinator"
 
 # View file/folder size and delete them, like `du` but with a UX
 brew "ncdu"
