@@ -164,33 +164,9 @@ install_mise_runtimes() {
 	# Ensure mise is activated in the current shell
 	eval "$(mise activate bash)"
 
-	# Install Node.js (LTS version)
-	p3 "Installing Node.js LTS..."
-	mise use -g node@lts
-
-	# Install uv (Python package manager)
-	p3 "Installing uv latest..."
-	mise use -g uv@latest
-
-	# Install Python (latest LTS/stable, but now pinned to 3.13 for compatiblity)
-	p3 "Installing Python latest..."
-	mise use -g python@latest
-
-	# Install Ruby (latest stable)
-	p3 "Installing Ruby latest..."
-	mise use -g ruby@latest
-
-	# Install Go (latest stable)
-	p3 "Installing Go latest..."
-	mise use -g go@latest
-
-	# Install Rust (latest stable)
-	p3 "Installing Rust latest..."
-	mise use -g rust@latest
-
-	# Install Zig (latest)
-	p3 "Installing Zig latest..."
-	mise use -g zig@latest
+	# Install all runtimes defined in ~/.config/mise/config.toml
+	p3 "Installing runtimes from global mise config..."
+	mise install
 
 	p2 "Installing Python utilities aiven-client and crudini with uv"
 	# Reference: https://github.com/pixelb/crudini
