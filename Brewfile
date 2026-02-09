@@ -184,6 +184,8 @@ cask "cursor"
 
 # Terminal AI Agents
 cask "claude-code"
+cask "codex"
+brew "gemini-cli"
 brew "opencode"
 
 # Monitor for AI Agent subscription usage limits
