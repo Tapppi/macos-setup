@@ -325,6 +325,7 @@ brew "pigz"
 
 ## Infra tooling
 cask "gcloud-cli"
+brew "azure-cli"
 brew "terraform"
 brew "helm"
 

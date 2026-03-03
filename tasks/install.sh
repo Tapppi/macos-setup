@@ -168,7 +168,7 @@ install_mise_runtimes() {
 	p3 "Installing runtimes from global mise config..."
 	mise install
 
-	p2 "Installing Python utilities aiven-client and crudini with uv"
+	p2 "Installing Python utilities with uv"
 	# Reference: https://github.com/pixelb/crudini
 	uv tool install "crudini"
 	# Reference: https://github.com/aiven/aiven-client
