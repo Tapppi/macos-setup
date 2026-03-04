@@ -326,7 +326,8 @@ brew "pigz"
 ## Infra tooling
 cask "gcloud-cli"
 brew "azure-cli"
-brew "terraform"
+brew "hashicorp/tap/terraform"
+brew "hashicorp/tap/terraform-ls"
 brew "helm"
 
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
