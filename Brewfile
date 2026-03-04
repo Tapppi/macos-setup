@@ -267,6 +267,9 @@ brew "httpie"
 # Github CLI
 brew "gh"
 
+# Lazygit for Git TUI
+brew "lazygit"
+
 # Better cd - quick access to folders from anywhere - https://github.com/ajeetdsouza/zoxide
 brew "zoxide"
 
@@ -275,6 +278,9 @@ brew "ripgrep"
 
 # Simpler to use 'find'
 brew "fd"
+
+# Fuzzy matcher
+brew "fzf"
 
 # Cat with syntax highlighting etc.
 brew "bat"
@@ -322,6 +328,9 @@ brew "tag"
 
 # Parallel gzip
 brew "pigz"
+
+# Ghostscript for pdf utility scripts
+brew "ghostscript"
 
 ## Infra tooling
 cask "gcloud-cli"
