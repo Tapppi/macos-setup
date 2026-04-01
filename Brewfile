@@ -174,7 +174,7 @@ cask "gpg-suite"
 
 # Terminal emulators
 cask "iterm2"
-cask "alacritty"
+cask "ghostty"
 
 # Text editors
 brew "micro"
