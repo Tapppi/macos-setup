@@ -179,13 +179,12 @@ cask "alacritty"
 # Text editors
 brew "micro"
 brew "neovim"
-cask "visual-studio-code"
+# cask "visual-studio-code"
 cask "cursor"
 
 # Terminal AI Agents
 cask "claude-code"
 cask "codex"
-brew "gemini-cli"
 brew "opencode"
 
 # Monitor for AI Agent subscription usage limits
