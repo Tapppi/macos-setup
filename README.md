@@ -6,8 +6,8 @@
 
 1. Backup credentials and personal settings by running `backup.sh /path/to/backups backup-name`
 2. Copy backup and this repo to new mac
-3. Run `./setup.sh init`
-4. If no non-superadmin account exists yet, run `./setup.sh new_account` and log in with the new user
+3. Run `./setup.sh init` to set hostname, permissions, updates and disable guest
+4. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log in with it
 5. If you need local keys or credentials from backup for install, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
 6. Run `./setup.sh clean_account` to remove default dock icons
    - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
@@ -66,7 +66,7 @@ Available tasks:
 
 | Task | Description |
 |------|-------------|
-| `init` | System init: hostname, updates, xcode devtools, guest off (no account creation) |
+| `init` | System init: temporary sudo, hostname, permissions, updates, guest off (no account creation) |
 | `new_account` | Create a new macOS admin account (run separately if IT hasn't done an account split) |
 | `clean_account` | Wipe default dock icons from the new account's Dock |
 | `init_ssh_1password` | Write SSH config and interactive 1Password vault allowlist (standalone) |
@@ -77,14 +77,18 @@ Available tasks:
 
 #### init
 
-- Sets up and asks for basic info such as hostname
-- Installs system updates and Xcode devtools
+- Sets up temporary passwordless sudo for the setup duration
+- Asks for and sets hostname (ComputerName, HostName, LocalHostName)
+- Sets permissions on install destinations (supports Intel and Apple Silicon)
+- Installs macOS updates
 - Turns off guest account
+- Removes temporary sudo rule and prompts to log out
 - Does **not** create a new user account — run `new_account` separately if needed
 
 #### new_account
 
 - Creates a new macOS admin account to replace the default superadmin
+- Uses `sysadminctl -adminUser/-adminPassword` so the new account gets SecureToken for FileVault
 - Looks up avatar from Gravatar and name/username from GitHub by email
 - Run this when `init` has already been done but no account split has been set up yet
 - Skip it if company IT has already created a non-superadmin account for you
