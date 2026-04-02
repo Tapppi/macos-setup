@@ -10,6 +10,9 @@ Library/Preferences/com.runningwithcrayons.Alfred-Preferences-3.plist
 Library/Preferences/com.bjango.istatmenus.plist
 Library/Preferences/com.bjango.istatmenus6.extras.plist
 
+# iTerm2
+Library/Preferences/com.googlecode.iterm2.plist
+
 # Resolutionator
 Library/Preferences/com.manytricks.Resolutionator.plist
 
