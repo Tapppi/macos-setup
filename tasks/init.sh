@@ -3,7 +3,6 @@
 # Define Function =init=
 init() {
 	init_sudo
-	init_no_sleep
 	init_hostname
 	init_perms
 	init_updates
