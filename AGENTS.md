@@ -19,7 +19,6 @@ macos-setup/
   ai/
     prompts/            # AI agent prompt templates and references
     plans/              # Save in-progress plans and task breakdowns here
-  Finnish-prog.bundle/  # Custom macOS keyboard layout
   .extra                # Personal bash config (git author, extra aliases)
   .path                 # PATH extensions (GNU utils, Go, brew)
   .credentials.dist     # Template for secret env vars (DO NOT commit filled version)
@@ -37,7 +36,9 @@ See `dotfiles/README.md` for details. It contains configs like:
 - `.config/bash/.bash_prompt` - Solarized Dark prompt with git status
 - `.config/opencode/opencode.jsonc` - OpenCode AI agent config
 - `.config/ripgrep/ripgreprc` - Ripgrep defaults (smart-case, 120 cols)
-- `.macos` - macOS configuration script
+- `keyboard-layouts/Finnish-prog.bundle` - Custom Finnish Programmer keyboard layout (excluded from rsync, installed by bootstrap.sh)
+- `.hammerspoon/init.lua` - Hammerspoon config (per-app keyboard layout forcing)
+- `.macos` - macOS configuration script (installs keyboard layouts, enables input sources)
 - `bootstrap.sh` - Rsyncs dotfiles to ~, copies lazygit config
 
 ### Committing to the dotfiles submodule
