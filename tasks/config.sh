@@ -140,19 +140,12 @@ config_vlc() {
 
 # Customize Login Items
 
-_disableditems='/Applications/autoping.app
-/Applications/Coffitivity.app
-/Applications/HardwareGrowler.app
-'
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
 /Applications/Amphetamine.app
-/Applications/Docker.app
-/Applications/Google Drive File Stream.app
+/Applications/Google Drive.app
 /Applications/Ice.app
 /Applications/iStat Menus.app
-/Applications/iTunes.app/Contents/MacOS/iTunesHelper.app
-/Applications/Muzzle.app
 /Applications/Resolutionator.app
 /Applications/Slack.app
 /Applications/Spotify.app
@@ -160,7 +153,7 @@ _loginitems='/Applications/1Password.app
 /Applications/WhatsApp.app'
 custom_loginitems() {
 	printf "%s\n" "${_loginitems}" |
-		while IFS="$(printf '\t')" read app; do
+		while IFS=$'\t' read -r app; do
 			if test -e "$app"; then
 				osascript - "$app" <<EOF >/dev/null
         on run { _app }
@@ -258,101 +251,91 @@ com.apple.QuickTimePlayerX	public.audio	all
 com.apple.QuickTimePlayerX	public.mp3	all
 com.apple.Safari	com.compuserve.gif	all
 com.apple.Terminal	com.apple.terminal.shell-script	all
-com.apple.iTunes	com.apple.iTunes.audible	all
-com.apple.iTunes	com.apple.iTunes.ipg	all
-com.apple.iTunes	com.apple.iTunes.ipsw	all
-com.apple.iTunes	com.apple.iTunes.ite	all
-com.apple.iTunes	com.apple.iTunes.itlp	all
-com.apple.iTunes	com.apple.iTunes.itms	all
-com.apple.iTunes	com.apple.iTunes.podcast	all
-com.apple.iTunes	com.apple.m4a-audio	all
-com.apple.iTunes	com.apple.mpeg-4-ringtone	all
-com.apple.iTunes	com.apple.protected-mpeg-4-audio	all
-com.apple.iTunes	com.apple.protected-mpeg-4-video	all
-com.apple.iTunes	com.audible.aa-audio	all
-com.apple.iTunes	public.mpeg-4-audio	all
+com.apple.QuickTimePlayerX	com.apple.m4a-audio	all
+com.apple.QuickTimePlayerX	com.apple.protected-mpeg-4-audio	all
+com.apple.QuickTimePlayerX	public.mpeg-4-audio	all
 com.apple.installer	com.apple.installer-package-archive	all
-com.todesktop.230313mzl4w4u92	com.apple.binary-property-list	editor
-com.todesktop.230313mzl4w4u92	com.apple.crashreport	editor
-com.todesktop.230313mzl4w4u92	com.apple.dt.document.ascii-property-list	editor
-com.todesktop.230313mzl4w4u92	com.apple.dt.document.script-suite-property-list	editor
-com.todesktop.230313mzl4w4u92	com.apple.dt.document.script-terminology-property-list	editor
-com.todesktop.230313mzl4w4u92	com.apple.log	editor
-com.todesktop.230313mzl4w4u92	com.apple.property-list	editor
-com.todesktop.230313mzl4w4u92	com.apple.rez-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.symbol-export	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.ada-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.bash-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.configsettings	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.csh-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.fortran-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.ksh-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.lex-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.make-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.mig-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.pascal-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.strings-text	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.tcsh-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.yacc-source	editor
-com.todesktop.230313mzl4w4u92	com.apple.xcode.zsh-script	editor
-com.todesktop.230313mzl4w4u92	com.apple.xml-property-list	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.actionscript-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.erb-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.ini-configuration	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.javascript-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.json-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.jsp-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.lasso-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.lua-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.setext-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.sql-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.tcl-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.tex-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.textile-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vbscript-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vectorscript-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.verilog-hdl-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.vhdl-source	editor
-com.todesktop.230313mzl4w4u92	com.barebones.bbedit.yaml-source	editor
-com.todesktop.230313mzl4w4u92	com.netscape.javascript-source	editor
-com.todesktop.230313mzl4w4u92	com.sun.java-source	editor
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80255drq	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80g55gq3w0n	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80g55sq2	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge80y2xzrf0gk3pw	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81e3dtqq	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81e7k	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81g25xsq	all
-com.todesktop.230313mzl4w4u92	dyn.ah62d4rv4ge81g2pxsq	all
-com.todesktop.230313mzl4w4u92	net.daringfireball.markdown	editor
-com.todesktop.230313mzl4w4u92	public.assembly-source	editor
-com.todesktop.230313mzl4w4u92	public.c-header	editor
-com.todesktop.230313mzl4w4u92	public.c-plus-plus-source	editor
-com.todesktop.230313mzl4w4u92	public.c-source	editor
-com.todesktop.230313mzl4w4u92	public.csh-script	editor
-com.todesktop.230313mzl4w4u92	public.json	editor
-com.todesktop.230313mzl4w4u92	public.lex-source	editor
-com.todesktop.230313mzl4w4u92	public.log	editor
-com.todesktop.230313mzl4w4u92	public.mig-source	editor
-com.todesktop.230313mzl4w4u92	public.nasm-assembly-source	editor
-com.todesktop.230313mzl4w4u92	public.objective-c-plus-plus-source	editor
-com.todesktop.230313mzl4w4u92	public.objective-c-source	editor
-com.todesktop.230313mzl4w4u92	public.patch-file	editor
-com.todesktop.230313mzl4w4u92	public.perl-script	editor
-com.todesktop.230313mzl4w4u92	public.php-script	editor
-com.todesktop.230313mzl4w4u92	public.plain-text	editor
-com.todesktop.230313mzl4w4u92	public.precompiled-c-header	editor
-com.todesktop.230313mzl4w4u92	public.precompiled-c-plus-plus-header	editor
-com.todesktop.230313mzl4w4u92	public.python-script	editor
-com.todesktop.230313mzl4w4u92	public.ruby-script	editor
-com.todesktop.230313mzl4w4u92	public.script	editor
-com.todesktop.230313mzl4w4u92	public.shell-script	editor
-com.todesktop.230313mzl4w4u92	public.source-code	editor
-com.todesktop.230313mzl4w4u92	public.text	editor
-com.todesktop.230313mzl4w4u92	public.utf16-external-plain-text	editor
-com.todesktop.230313mzl4w4u92	public.utf16-plain-text	editor
-com.todesktop.230313mzl4w4u92	public.utf8-plain-text	editor
-com.todesktop.230313mzl4w4u92	public.xml	editor
+com.neovide.neovide	com.apple.binary-property-list	editor
+com.neovide.neovide	com.apple.crashreport	editor
+com.neovide.neovide	com.apple.dt.document.ascii-property-list	editor
+com.neovide.neovide	com.apple.dt.document.script-suite-property-list	editor
+com.neovide.neovide	com.apple.dt.document.script-terminology-property-list	editor
+com.neovide.neovide	com.apple.log	editor
+com.neovide.neovide	com.apple.property-list	editor
+com.neovide.neovide	com.apple.rez-source	editor
+com.neovide.neovide	com.apple.symbol-export	editor
+com.neovide.neovide	com.apple.xcode.ada-source	editor
+com.neovide.neovide	com.apple.xcode.bash-script	editor
+com.neovide.neovide	com.apple.xcode.configsettings	editor
+com.neovide.neovide	com.apple.xcode.csh-script	editor
+com.neovide.neovide	com.apple.xcode.fortran-source	editor
+com.neovide.neovide	com.apple.xcode.ksh-script	editor
+com.neovide.neovide	com.apple.xcode.lex-source	editor
+com.neovide.neovide	com.apple.xcode.make-script	editor
+com.neovide.neovide	com.apple.xcode.mig-source	editor
+com.neovide.neovide	com.apple.xcode.pascal-source	editor
+com.neovide.neovide	com.apple.xcode.strings-text	editor
+com.neovide.neovide	com.apple.xcode.tcsh-script	editor
+com.neovide.neovide	com.apple.xcode.yacc-source	editor
+com.neovide.neovide	com.apple.xcode.zsh-script	editor
+com.neovide.neovide	com.apple.xml-property-list	editor
+com.neovide.neovide	com.barebones.bbedit.actionscript-source	editor
+com.neovide.neovide	com.barebones.bbedit.erb-source	editor
+com.neovide.neovide	com.barebones.bbedit.ini-configuration	editor
+com.neovide.neovide	com.barebones.bbedit.javascript-source	editor
+com.neovide.neovide	com.barebones.bbedit.json-source	editor
+com.neovide.neovide	com.barebones.bbedit.jsp-source	editor
+com.neovide.neovide	com.barebones.bbedit.lasso-source	editor
+com.neovide.neovide	com.barebones.bbedit.lua-source	editor
+com.neovide.neovide	com.barebones.bbedit.setext-source	editor
+com.neovide.neovide	com.barebones.bbedit.sql-source	editor
+com.neovide.neovide	com.barebones.bbedit.tcl-source	editor
+com.neovide.neovide	com.barebones.bbedit.tex-source	editor
+com.neovide.neovide	com.barebones.bbedit.textile-source	editor
+com.neovide.neovide	com.barebones.bbedit.vbscript-source	editor
+com.neovide.neovide	com.barebones.bbedit.vectorscript-source	editor
+com.neovide.neovide	com.barebones.bbedit.verilog-hdl-source	editor
+com.neovide.neovide	com.barebones.bbedit.vhdl-source	editor
+com.neovide.neovide	com.barebones.bbedit.yaml-source	editor
+com.neovide.neovide	com.netscape.javascript-source	editor
+com.neovide.neovide	com.sun.java-source	editor
+com.neovide.neovide	dyn.ah62d4rv4ge80255drq	all
+com.neovide.neovide	dyn.ah62d4rv4ge80g55gq3w0n	all
+com.neovide.neovide	dyn.ah62d4rv4ge80g55sq2	all
+com.neovide.neovide	dyn.ah62d4rv4ge80y2xzrf0gk3pw	all
+com.neovide.neovide	dyn.ah62d4rv4ge81e3dtqq	all
+com.neovide.neovide	dyn.ah62d4rv4ge81e7k	all
+com.neovide.neovide	dyn.ah62d4rv4ge81g25xsq	all
+com.neovide.neovide	dyn.ah62d4rv4ge81g2pxsq	all
+com.neovide.neovide	net.daringfireball.markdown	editor
+com.neovide.neovide	public.assembly-source	editor
+com.neovide.neovide	public.c-header	editor
+com.neovide.neovide	public.c-plus-plus-source	editor
+com.neovide.neovide	public.c-source	editor
+com.neovide.neovide	public.csh-script	editor
+com.neovide.neovide	public.json	editor
+com.neovide.neovide	public.lex-source	editor
+com.neovide.neovide	public.log	editor
+com.neovide.neovide	public.mig-source	editor
+com.neovide.neovide	public.nasm-assembly-source	editor
+com.neovide.neovide	public.objective-c-plus-plus-source	editor
+com.neovide.neovide	public.objective-c-source	editor
+com.neovide.neovide	public.patch-file	editor
+com.neovide.neovide	public.perl-script	editor
+com.neovide.neovide	public.php-script	editor
+com.neovide.neovide	public.plain-text	editor
+com.neovide.neovide	public.precompiled-c-header	editor
+com.neovide.neovide	public.precompiled-c-plus-plus-header	editor
+com.neovide.neovide	public.python-script	editor
+com.neovide.neovide	public.ruby-script	editor
+com.neovide.neovide	public.script	editor
+com.neovide.neovide	public.shell-script	editor
+com.neovide.neovide	public.source-code	editor
+com.neovide.neovide	public.text	editor
+com.neovide.neovide	public.utf16-external-plain-text	editor
+com.neovide.neovide	public.utf16-plain-text	editor
+com.neovide.neovide	public.utf8-plain-text	editor
+com.neovide.neovide	public.xml	editor
 cx.c3.theunarchiver	com.alcohol-soft.mdf-image	all
 cx.c3.theunarchiver	com.allume.stuffit-archive	all
 cx.c3.theunarchiver	com.altools.alz-archive	all
@@ -479,20 +462,25 @@ org.videolan.vlc	public.mpeg	all
 org.videolan.vlc	public.mpeg-2-video	all
 org.videolan.vlc	public.mpeg-4	all'
 custom_duti() {
-	if test -x "/usr/local/bin/duti"; then
+	if command -v duti >/dev/null; then
 		test -f "${HOME}/Library/Preferences/org.duti.plist" &&
 			rm "${HOME}/Library/Preferences/org.duti.plist"
 
 		printf "%s\n" "${_duti}" |
-			while IFS="$(printf '\t')" read id uti role; do
+			while IFS=$'\t' read -r id uti role; do
 				defaults write org.duti DUTISettings -array-add \
 					"{
-          DUTIBundleIdentifier = '$a';
-          DUTIUniformTypeIdentifier = '$b';
-          DUTIRole = '$c';
+          DUTIBundleIdentifier = '${id}';
+          DUTIUniformTypeIdentifier = '${uti}';
+          DUTIRole = '${role}';
         }"
 			done
 
 		duti "${HOME}/Library/Preferences/org.duti.plist" 2>/dev/null
+
+		# Rebuild LaunchServices cache to ensure associations take effect
+		# (workaround for Sonoma/Sequoia duti cache staleness)
+		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -seed 2>/dev/null
+		p3 "duti: Verify associations via Finder Get Info → Open with"
 	fi
 }
