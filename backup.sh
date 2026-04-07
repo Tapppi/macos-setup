@@ -1,19 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 backup_path="${backup_path:=$1}"
 : "${backup_path:?Missing backup_path, provide as argument (relative to home dir)}"
 d=$(dirname "$0")
-files_from=$(greadlink -f "$d")/restore.bom
+files_from=$(readlink -f "$d")/restore.bom
 
 shift
 
-function doIt() {
+doIt() {
 	echo "Backing up $HOME to ${backup_path} as a gzipped tar ball..."
 	echo ""
 
-	# Run in home folder
+	# Run in home folder, return to original dir when done
 	CURR_DIR=$(pwd)
-	cd || exit
+	cd "$HOME" || exit
 
 	rsync \
 		--rsync-path="sudo rsync" \
@@ -25,16 +25,16 @@ function doIt() {
 		--hard-links \
 		--files-from="$files_from" \
 		-avh . ~/.tmp-backup-dir
-	cd ~/.tmp-backup-dir && tar -czf ../.tmp-backup-dir.tgz . && cd -
+	cd ~/.tmp-backup-dir && tar -czf ../.tmp-backup-dir.tgz . && cd - || exit
 
-	cd $CURR_DIR
-	mv ~/.tmp-backup-dir.tgz $backup_path
+	cd "$CURR_DIR" || exit
+	mv ~/.tmp-backup-dir.tgz "$backup_path"
 
 	echo "Backed up successfully"
 	rm -rf ~/.tmp-backup-dir
 }
 
-if [ "$1" == "--force" ] || [ "$1" == "-f" ]; then
+if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]]; then
 	doIt
 else
 	read -rp "Do you want to backup $(pwd) to ${backup_path}? (y/n) " -n 1
@@ -44,4 +44,3 @@ else
 	fi
 fi
 unset doIt
-cd -

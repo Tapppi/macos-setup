@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Ask for the administrator password upfront and keep-alive
 sudo -v
@@ -52,25 +52,25 @@ run() {
 EOF
 }
 
-if [ "${1}" = "init" ]; then
+if [[ "${1}" = "init" ]]; then
 	. tasks/init.sh
 	init
-elif [ "${1}" = "init_user" ]; then
+elif [[ "${1}" = "init_user" ]]; then
 	. tasks/init.sh
 	init_user
-elif [ "${1}" = "init_ssh_local" ]; then
+elif [[ "${1}" = "init_ssh_local" ]]; then
 	. tasks/init.sh
 	init_ssh_local
-elif [ "${1}" = "init_ssh_1password" ]; then
+elif [[ "${1}" = "init_ssh_1password" ]]; then
 	. tasks/init.sh
 	init_ssh_1password
-elif [ "${1}" = "install" ]; then
+elif [[ "${1}" = "install" ]]; then
 	. tasks/install.sh
 	install
-elif [ "${1}" = "dotfiles" ]; then
+elif [[ "${1}" = "dotfiles" ]]; then
 	. tasks/install.sh
 	install_dotfiles
-elif [ "${1}" = "config" ]; then
+elif [[ "${1}" = "config" ]]; then
 	. tasks/config.sh
 	config
 else

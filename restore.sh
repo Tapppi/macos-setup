@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 readlinkorreal() { readlink "$1" || echo "$1"; }
 
@@ -10,12 +10,12 @@ backup_path_resolved=$(readlinkorreal "$backup_path")
 
 shift
 
-function doIt() {
+doIt() {
 	echo "Restoring from ${backup_path_resolved} to $HOME..."
 	echo ""
 
 	mkdir .tmp-backup-dir
-	cd .tmp-backup-dir && tar -xzf ${backup_path_resolved}
+	cd .tmp-backup-dir && tar -xzf "${backup_path_resolved}" || exit
 	rsync \
 		--rsync-path="sudo rsync" \
 		--perms \
@@ -27,20 +27,18 @@ function doIt() {
 		--files-from="$files_from" \
 		-avh . ~
 
-	if which gpg >/dev/null && [ -f "./key_public.asc" ]; then
+	if command -v gpg >/dev/null && [[ -f "./key_public.asc" ]]; then
 		gpg --import --armor ./key_public.asc
 		rm ./key_public.asc
 	fi
-	if which gpg >/dev/null && [ -f "./key_secret.asc" ]; then
+	if command -v gpg >/dev/null && [[ -f "./key_secret.asc" ]]; then
 		gpg --import --armor ./key_secret.asc
 		rm ./key_secret.asc
 	fi
 	cd - && rm -rf .tmp-backup-dir
-
-	echo "Restored"
 }
 
-if [ "$1" == "--force" ] || [ "$1" == "-f" ]; then
+if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]]; then
 	doIt
 else
 	read -rp "Do you want to restore ${backup_path} to ~? (y/n) " -n 1

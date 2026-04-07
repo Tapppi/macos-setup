@@ -2,12 +2,12 @@
 export PATH="$XDG_BIN_HOME:$PATH"
 
 # Go bin (GOPATH/bin is still useful even with mise)
-if which go &> /dev/null; then
+if command -v go >/dev/null 2>&1; then
   export PATH="$(go env GOPATH)/bin:$PATH"
 fi;
 
 # Brew dependant paths
-if which brew &> /dev/null; then
+if command -v brew >/dev/null 2>&1; then
   # Get brew prefix once for efficiency
   brew_prefix=$(brew --prefix)
 
