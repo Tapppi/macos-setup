@@ -22,19 +22,18 @@ config() {
 	custom_duti
 
 	p1 "Configuring macOS"
-	sudo ~/.macos
+	~/.macos
 	p1 "Done. Some changes require a reboot."
 }
 
 # Mark Applications Requiring Administrator Account
 
-_admin_req='Docker.app
-iStat Menus.app
+_admin_req='iStat Menus.app
 Wireshark.app'
 
 config_admin_req() {
 	printf "%s\n" "${_admin_req}" |
-		while IFS="$(printf '\t')" read app; do
+		while IFS=$'\t' read -r app; do
 			sudo tag -a "Red, admin" "/Applications/${app}"
 		done
 }
@@ -43,20 +42,20 @@ config_admin_req() {
 
 config_defaults() {
 	printf "%s\n" "${1}" |
-		while IFS="$(printf '\t')" read domain key type value host; do
-			${2} defaults ${host} write ${domain} "${key}" ${type} "${value}"
+		while IFS=$'\t' read -r domain key type value host; do
+			# shellcheck disable=SC2086
+			${2} defaults ${host} write "${domain}" "${key}" ${type} "${value}"
 		done
 }
 
 # Define Function =config_plist=
 
-T="$(printf '\t')"
-
 config_plist() {
 	printf "%s\n" "$1" |
-		while IFS="$T" read command entry type value; do
+		while IFS=$'\t' read -r command entry type value; do
 			case "$value" in
 			\$*)
+				# shellcheck disable=SC2086
 				$4 /usr/libexec/PlistBuddy "$2" \
 					-c "$command '${3}${entry}' $type '$(eval echo \"$value\")'" 2>/dev/null
 				;;
@@ -70,9 +69,12 @@ config_plist() {
 
 # Define Function =config_launchd=
 
+# NOTE: launchctl load/unload are legacy on Sequoia; bootstrap/bootout are
+# the modern replacements, but require service labels and domain targets.
+# Keeping load/unload for now as they still function for user-level plists.
 config_launchd() {
-	test -d "$(dirname $1)" ||
-		$3 mkdir -p "$(dirname $1)"
+	test -d "$(dirname "$1")" ||
+		$3 mkdir -p "$(dirname "$1")"
 
 	test -f "$1" &&
 		$3 launchctl unload "$1" &&
@@ -124,15 +126,15 @@ core	spdif	1
 core	sub-language	English
 core	medium-jump-size	30
 subsdec	subsdec-encoding	UTF-8
-avcodec	avcodec-hw	vda'
+avcodec	avcodec-hw	videotoolbox'
 
 config_vlc() {
 	config_defaults "${_vlc_defaults}"
-	if which crudini >/dev/null; then
+	if command -v crudini >/dev/null; then
 		test -d "${HOME}/Library/Preferences/org.videolan.vlc" ||
 			mkdir -p "${HOME}/Library/Preferences/org.videolan.vlc"
 		printf "%s\n" "${_vlcrc}" |
-			while IFS="$(printf '\t')" read section key value; do
+			while IFS=$'\t' read -r section key value; do
 				crudini --set "${HOME}/Library/Preferences/org.videolan.vlc/vlcrc" "${section}" "${key}" "${value}"
 			done
 	fi
