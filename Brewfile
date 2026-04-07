@@ -434,9 +434,6 @@ brew "exiftool"
 # Rename files with GUI
 cask "namechanger"
 
-# Turn off notifications when screen sharing
-cask "muzzle"
-
 ## Random command-line utilities and tools
 
 # Do pretty much anything to images - https://www.imagemagick.org/
