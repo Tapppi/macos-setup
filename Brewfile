@@ -20,6 +20,7 @@ brew "gzip"
 brew "less"
 brew "make"
 brew "wget"
+brew "gnu-time"
 
 # Execute commands in parallel
 brew "parallel"
@@ -49,7 +50,7 @@ brew "sponge"
 ## Core programs and tooling
 
 # XCode
-mas "XCode", id: 497799835
+mas "Xcode", id: 497799835
 
 # Tailscale VPN for my personal network
 cask "tailscale-app"
@@ -106,6 +107,9 @@ brew "openssh"
 brew "gnupg"
 brew "pinentry-mac"
 
+# SSH key agent - persists ssh keys across reboots/logins
+brew "keychain"
+
 # Select default apps for documents and URL schemes
 brew "duti"
 
@@ -159,6 +163,7 @@ cask_args screen_saverdir: "/Library/Screen Savers"
 
 ## Taps
 tap "boz/repo"
+tap "github/gh"
 tap "sqitchers/sqitch"
 
 ## Basics
@@ -176,11 +181,14 @@ cask "gpg-suite"
 cask "iterm2"
 cask "ghostty"
 
+# Keyboard remapping
+cask "karabiner-elements"
+
 # Text editors
 brew "micro"
 brew "neovim"
-# cask "visual-studio-code"
 cask "cursor"
+cask "neovide-app"
 
 # Terminal AI Agents
 cask "claude-code"
@@ -214,14 +222,13 @@ cask "microsoft-teams"
 cask "vlc"
 cask "whatsapp"
 cask "spotify"
-cask "google-drive-file-stream"
-cask "google-backup-and-sync"
+cask "google-drive"
 cask "1password"
 cask "1password-cli"
 mas "Keynote", id: 409183694
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
-mas "Wifi Explorer Lite", id: 1408727408
+mas "WiFi Explorer Lite", id: 1408727408
 # Pro, but it's expensive
 # mas "Wifi Explorer", id: 494803304
 
@@ -284,6 +291,9 @@ brew "fzf"
 # Cat with syntax highlighting etc.
 brew "bat"
 
+# Modern ls replacement with colors, git status, icons
+brew "eza"
+
 # JSON and yaml query/mangling/cleanup/prettify tool
 brew "jq"
 brew "yq"
@@ -334,9 +344,16 @@ brew "ghostscript"
 ## Infra tooling
 cask "gcloud-cli"
 brew "azure-cli"
+brew "azcopy"
 brew "hashicorp/tap/terraform"
 brew "hashicorp/tap/terraform-ls"
 brew "helm"
+
+# Secrets file encryption (age, PGP, AWS KMS, GCP KMS, etc.)
+brew "sops"
+
+# TLS tunnel wrapper for adding TLS to non-TLS connections
+brew "stunnel"
 
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
 brew "k9s"
@@ -349,6 +366,12 @@ brew "boz/repo/kail"
 
 ## Databases, except it's just SQLITE because everything else is in containers now
 brew "sqlite"
+
+# PostgreSQL client only (psql, pg_dump etc.) - keg-only, no server daemon
+brew "libpq"
+
+# Redis client (redis-cli) - don't run 'brew services start redis'
+brew "redis"
 
 ## Database GUI
 
@@ -391,11 +414,12 @@ cask "wireshark-app"
 # Kapture your screen
 cask "kap"
 
-# Markdown presentation writer
+# Markdown presentation writer (requires node; opencode also depends on brew node)
+brew "node"
 brew "marp-cli"
 
 # Menubar countdown clock
-mas "Countdown Timer Pro", id: 6744842468
+mas "Countdown", id: 6744842468
 
 # Amphetamine to keep awake when wanted
 mas "Amphetamine", id: 937984704
@@ -410,7 +434,7 @@ brew "exiftool"
 # Rename files with GUI
 cask "namechanger"
 
-# Turn off notifications when screen sharing (in case I turn on notif center again)
+# Turn off notifications when screen sharing
 cask "muzzle"
 
 ## Random command-line utilities and tools
