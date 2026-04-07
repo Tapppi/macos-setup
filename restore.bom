@@ -3,12 +3,15 @@
 ## APPLICATIONS
 
 # Alfred
-Library/Preferences/com.runningwithcrayons.Alfred-3.plist
-Library/Preferences/com.runningwithcrayons.Alfred-Preferences-3.plist
+Library/Preferences/com.runningwithcrayons.Alfred.plist
+Library/Preferences/com.runningwithcrayons.Alfred-Preferences.plist
+Library/Application Support/Alfred/Alfred.alfredpreferences
+Library/Application Support/Alfred/Workflow Data
 
 # iStat Menus
 Library/Preferences/com.bjango.istatmenus.plist
-Library/Preferences/com.bjango.istatmenus6.extras.plist
+Library/Preferences/com.bjango.istatmenus.menubar.7.plist
+Library/Preferences/com.bjango.istatmenus.status.plist
 
 # iTerm2
 Library/Preferences/com.googlecode.iterm2.plist
@@ -17,11 +20,8 @@ Library/Preferences/com.googlecode.iterm2.plist
 Library/Preferences/com.manytricks.Resolutionator.plist
 
 # Postico
-Library/Preferences/com.psequel.PSequel.plist
-
-# Visual Studio Code
-Library/Preferences/com.microsoft.VSCode.helper.plist
-Library/Preferences/com.microsoft.VSCode.plist
+Library/Containers/at.eggerapps.Postico/Data/Library/Preferences/at.eggerapps.Postico.plist
+Library/Containers/at.eggerapps.Postico/Data/Library/Application Support/Postico
 
 ## KEYS
 
