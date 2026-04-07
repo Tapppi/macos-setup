@@ -17,6 +17,7 @@ brew "gnu-getopt"
 brew "gnu-tar"
 brew "grep"
 brew "gzip"
+brew "zstd"
 brew "less"
 brew "make"
 brew "wget"
@@ -96,9 +97,6 @@ brew "git-lfs"
 brew "diff-so-fancy"
 cask "kdiff3"
 
-# Github support to git cli - https://hub.github.com/
-brew "hub"
-
 # Openss* since macos is really bad about providing them
 brew "openssl@3"
 brew "openssh"
@@ -106,9 +104,6 @@ brew "openssh"
 # GnuPG to enable PGP-signing commits.
 brew "gnupg"
 brew "pinentry-mac"
-
-# SSH key agent - persists ssh keys across reboots/logins
-brew "keychain"
 
 # Select default apps for documents and URL schemes
 brew "duti"
@@ -146,7 +141,6 @@ brew "x265"
 brew "openh264"
 brew "wavpack"
 brew "fdk-aac"
-brew "schroedinger"
 brew "theora"
 
 ## ========================================================
@@ -157,14 +151,13 @@ cask_args appdir: "/Applications"
 cask_args colorpickerdir: "/Library/ColorPickers"
 cask_args fontdir: "/Library/Fonts"
 cask_args input_methoddir: "/Library/Input Methods"
-cask_args prefpanedir: "/Library/PreferencePanes"
 cask_args qlplugindir: "/Library/QuickLook"
 cask_args screen_saverdir: "/Library/Screen Savers"
 
 ## Taps
 tap "boz/repo"
-tap "github/gh"
 tap "sqitchers/sqitch"
+tap "teamookla/speedtest"
 
 ## Basics
 
@@ -382,7 +375,8 @@ brew "redis"
 mas "Medis", id: 1063631769
 
 # Postgres
-cask "postico"
+cask "postico@1"
+cask "datagrip"
 
 ## Database tooling
 
@@ -463,9 +457,6 @@ brew "aspell"
 # Utilities for ext2, ext3, ext4 fs
 brew "e2fsprogs"
 
-# Tool for downloading RTMP streaming media
-brew "rtmpdump"
-
 # Find duplicate files
 brew "fdupes"
 
@@ -473,7 +464,7 @@ brew "fdupes"
 brew "sleepwatcher"
 
 # Go fast
-brew "speedtest-cli"
+brew "teamookla/speedtest/speedtest"
 
 # Go ham
 brew "cmatrix"
