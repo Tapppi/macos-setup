@@ -1,9 +1,6 @@
 # Local bin folder for user tools (uv, etc.)
 export PATH="$XDG_BIN_HOME:$PATH"
 
-# Openssl bin
-export PATH="/usr/local/opt/openssl/bin:$PATH"
-
 # Go bin (GOPATH/bin is still useful even with mise)
 if which go &> /dev/null; then
   export PATH="$(go env GOPATH)/bin:$PATH"
@@ -13,6 +10,9 @@ fi;
 if which brew &> /dev/null; then
   # Get brew prefix once for efficiency
   brew_prefix=$(brew --prefix)
+
+  # Openssl bin
+  export PATH="$brew_prefix/opt/openssl/bin:$PATH"
   
   # Add GNU utilities to replace macOS tools
   export PATH="$brew_prefix/opt/coreutils/libexec/gnubin:$PATH"

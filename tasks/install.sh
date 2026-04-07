@@ -37,37 +37,35 @@ install_macos_sw() {
 	p1 "Installing macOS Software..."
 
 	p2 "Check for system software updates..."
-	local to_update="$(softwareupdate --list)"
-	if echo "$to_update" | grep -q "Command Line Tools for Xcode"; then
+	local to_update
+	to_update="$(softwareupdate --list)"
+	if echo "${to_update}" | grep -q "Command Line Tools for Xcode"; then
 		p1 "Updates for Xcode Command Line Tools found. Install them with 'softwareupdate --install' to prevent Xcode update from hanging"
-	elif echo "$to_update" | grep -q "Label:"; then
+	elif echo "${to_update}" | grep -q "Label:"; then
 		p2 "Software updates found, install them with 'softwareupdate --install [-r]'"
-		echo "$to_update" | grep -A1 "Label:"
+		echo "${to_update}" | grep -A1 "Label:"
 	fi
 
 	install_xcode
 
-	p2 "Check permissions and paths..."
-	# Fix Homebrew permissions for fish directory
-	if [ -d "/usr/local/share/fish" ]; then
-		sudo chown -R "$(whoami):admin" /usr/local/share/fish
-	fi
 	install_paths
-
-	# Set librdkafka openssl build flags
-	export CPPFLAGS=-I/usr/local/opt/openssl@3/include
-	export LDFLAGS=-L/usr/local/opt/openssl@3/lib
 
 	install_brew
 
 	install_xcode
 
-	# Switch to using brew-installed Bash 5 as default shell
-	BREW_PREFIX=$(brew --prefix)
+	BREW_PREFIX="$(brew --prefix)"
+
+	# Fix fish permissions for brew
+	# if [ -d "${BREW_PREFIX}/share/fish" ]; then
+	# 	sudo chown -R "$(whoami):admin" "${BREW_PREFIX}/share/fish"
+	# fi
+
+	# Set brew installed bash 5 as default shell
 	if ! grep -F -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
 		echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells
 	fi
-	if [ "$SHELL" != "${BREW_PREFIX}/bin/bash" ]; then
+	if [ "${SHELL}" != "${BREW_PREFIX}/bin/bash" ]; then
 		chsh -s "${BREW_PREFIX}/bin/bash"
 	fi
 
@@ -75,11 +73,16 @@ install_macos_sw() {
 	install_amphetamine_enhancer
 }
 
-# Add =/usr/local/bin/sbin= to Default Path
+# Add Homebrew sbin to Default Path
 install_paths() {
-	if ! grep -Fq "/usr/local/sbin" /etc/paths; then
-		p2 "Add /usr/local/sbin to /etc/paths"
-		sudo sed -i "" -e "/\/usr\/sbin/{x;s/$/\/usr\/local\/sbin/;G;}" /etc/paths
+	p2 "Ensure homebrew in path..."
+	local brew_sbin="/usr/local/sbin"
+	if [ "$(uname -m)" = "arm64" ]; then
+		brew_sbin="/opt/homebrew/sbin"
+	fi
+	if ! grep -Fq "${brew_sbin}" /etc/paths; then
+		p2 "Add ${brew_sbin} to /etc/paths"
+		echo "${brew_sbin}" | sudo tee -a /etc/paths >/dev/null
 	fi
 }
 
@@ -88,11 +91,16 @@ install_paths() {
 # if there is a need for sudo after brew installation, we'll just have to re-enter password
 install_brew() {
 	p2 "Installing and/or configuring brew"
-	if ! which brew >/dev/null; then
+	if ! command -v brew >/dev/null 2>&1; then
 		p2 "Installing brew..."
-		ruby -e \
-			"$(curl -Ls 'https://github.com/Homebrew/install/raw/master/install')" \
-			</dev/null >/dev/null 2>&1
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+		# Ensure brew is on PATH for the rest of this script
+		if [ -x "/opt/homebrew/bin/brew" ]; then
+			eval "$(/opt/homebrew/bin/brew shellenv)"
+		elif [ -x "/usr/local/bin/brew" ]; then
+			eval "$(/usr/local/bin/brew shellenv)"
+		fi
 	else
 		p3 "Brew already installed"
 	fi
@@ -101,6 +109,13 @@ install_brew() {
 	brew analytics off
 	brew update
 	brew doctor
+
+	p3 "Install openssl and set build flags..."
+	brew install openssl@3
+	local openssl_prefix
+	openssl_prefix="$(brew --prefix openssl@3)"
+	export CPPFLAGS="-I${openssl_prefix}/include"
+	export LDFLAGS="-L${openssl_prefix}/lib"
 
 	p3 "Install Brewfile..."
 	brew bundle --file="Brewfile"
@@ -118,7 +133,7 @@ _links='/System/Library/CoreServices/Applications
 install_links() {
 	p2 "Install links to System Utilities in Applications..."
 	printf "%s\n" "${_links}" |
-		while IFS="$(printf '\t')" read link; do
+		while IFS= read -r link; do
 			find "${link}" -maxdepth 1 -name "*.app" -type d -print0 2>/dev/null |
 				xargs -0 -I {} -L 1 ln -s "{}" "/Applications" 2>/dev/null
 		done
@@ -127,20 +142,17 @@ install_links() {
 
 install_amphetamine_enhancer() {
 	if [ ! -d "/Applications/Amphetamine Enhancer.app" ]; then
-		p2 "Install Amphetamine Enhancer through /tmp"
-		goback_dir=$(pwd)
-
-		cd /tmp
-
-		curl -sSL -o "Amphetamine Enhancer.dmg" https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
-		hdiutil attach -quiet Amphetamine\ Enhancer.dmg
-		cp -R /Volumes/Amphetamine\ Enhancer/Amphetamine\ Enhancer.app /Applications
-		hdiutil detach -quiet /Volumes/Amphetamine\ Enhancer
-		rm -rf Amphetamine\ Enhancer.dmg
-
-		cd "$goback_dir"
-
-		p3 "Ampthetamine Enhancer installed!"
+		p2 "Install Amphetamine Enhancer..."
+		(
+			cd /tmp || return
+			curl -sSL -o "Amphetamine Enhancer.dmg" \
+				https://github.com/x74353/Amphetamine-Enhancer/raw/master/Releases/Current/Amphetamine%20Enhancer.dmg
+			hdiutil attach -quiet "Amphetamine Enhancer.dmg"
+			cp -R "/Volumes/Amphetamine Enhancer/Amphetamine Enhancer.app" /Applications
+			hdiutil detach -quiet "/Volumes/Amphetamine Enhancer"
+			rm -f "Amphetamine Enhancer.dmg"
+		)
+		p3 "Amphetamine Enhancer installed!"
 		open "/Applications/Amphetamine Enhancer.app"
 	fi
 }
@@ -149,14 +161,14 @@ install_mise_runtimes() {
 	p2 "Installing language runtimes with mise..."
 
 	# Check if brew is installed first
-	if ! which brew >/dev/null; then
+	if ! command -v brew >/dev/null 2>&1; then
 		p1 "ERROR: brew not found. Please install Homebrew first."
 		return 1
 	fi
 
-	# Check if mise is installed via brew
-	MISE_PREFIX="$(brew --prefix mise 2>/dev/null)"
-	if [ -z "$MISE_PREFIX" ] || [ ! -f "$MISE_PREFIX/bin/mise" ]; then
+	local mise_prefix
+	mise_prefix="$(brew --prefix mise 2>/dev/null)"
+	if [ -z "${mise_prefix}" ] || [ ! -f "${mise_prefix}/bin/mise" ]; then
 		p1 "ERROR: mise not found. Please run 'brew install mise' first."
 		return 1
 	fi
@@ -197,6 +209,6 @@ install_dotfiles() {
 
 	p2 "Installing nnn plugins..."
 	# Install official nnn plugins
-	sh -c "$(curl -Ls https://raw.githubusercontent.com/jarun/nnn/master/plugins/getplugs)"
+	sh -c "$(curl -fsSL https://raw.githubusercontent.com/jarun/nnn/master/plugins/getplugs)"
 	p3 "nnn plugins installed!"
 }
