@@ -184,6 +184,9 @@ cask "ghostty"
 # Keyboard remapping
 cask "karabiner-elements"
 
+# macOS automation (per-app keyboard layout forcing, etc.)
+cask "hammerspoon"
+
 # Text editors
 brew "micro"
 brew "neovim"
