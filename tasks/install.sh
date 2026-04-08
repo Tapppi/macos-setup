@@ -203,9 +203,10 @@ install_mise_runtimes() {
 # Install dotfiles with =dotfiles/bootstrap.sh=
 install_dotfiles() {
 	p1 "Installing dotfiles..."
-	./dotfiles/bootstrap.sh -f
 
 	cp ./{.extra,.path} ~/.config/bash/
+
+	./dotfiles/bootstrap.sh -f
 
 	p2 "Installing nnn plugins..."
 	# Install official nnn plugins
