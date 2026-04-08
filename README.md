@@ -31,51 +31,68 @@ The scripts take the path of the backup tarball as an argument.
 
 ### Setup
 
-[`setup.sh`](/setup.sh) has three [`tasks/`](/tasks): `init`, `install` and
-`config`. To use, run `./setup.sh <task>` in the root folder of this repo.
+[`setup.sh`](/setup.sh) orchestrates [`tasks/`](/tasks) for setting up a new
+Mac. To use, run `./setup.sh <task>` in the root folder of this repo.
+
+Available tasks:
+
+| Task | Description |
+|------|-------------|
+| `init` | System init: hostname, updates, xcode devtools, new user account, guest off |
+| `init_user` | Wipe default dock icons, configure SSH via 1Password |
+| `init_ssh_1password` | Write SSH config to use 1Password agent (standalone) |
+| `init_ssh_local` | Generate a local SSH key if you don't have one from backup |
+| `install` | Install all software and runtimes (also works as update) |
+| `dotfiles` | Bootstrap dotfiles only (re-sync without full install) |
+| `config` | Apply macOS and application configuration |
 
 #### init
 
 - Sets up and asks for basic info such as hostname
-- Installs updates and xcode devtools
+- Installs system updates and Xcode devtools
 - Turns off guest account
-- Creates a new account to be used instead of the default macOS superadmin
-- `./setup.sh init_user` subtask removes dock icons and uses `init_ssh_1password`
-- `./setup.sh init_ssh_1password` writes ssh config to use 1password for ssh keys
-- `./setup.sh init_ssh_local` creates ssh key if you don't have one (from backup)
+- Creates a new admin account to replace the default macOS superadmin
 
 #### install
 
-Also works as update, just rerun it to update apps and node. Python and ruby
-versions are still manual in the script for now.
+Also works as update — rerun it to update apps and runtimes.
 
-- Installs Brew and libs, tools and software from Hombrew and Mac App Store
-  - See [`Brewfiles/`](/Brewfiles/) for commented lists of installed
-    applications in Homebrew bundle format
-  - Installed in order: `core, software`
+- Installs Brew and all packages from [`Brewfile`](/Brewfile) (Homebrew and
+  Mac App Store)
 - Sets default shell to Bash 5 instead of ancient Bash from macOS
 - Installs lots of GNU utils to supplement and overwrite macOS builtins
-- Installs language runtimes with Mise
-  - Latest or LTS version
-  - Node, Go, Rust, Zig, Ruby, Perl, Python (with uv)
+- Installs language runtimes with Mise (see
+  [`dotfiles/.config/mise/config.toml`](/dotfiles/.config/mise/config.toml)
+  for versions)
+  - Bun, Go, Node, Python, Ruby, Rust, uv, Zig
   - PHP is installed through Homebrew due to problems in mise install (see
-    Brewfiles/core comments)
+    Brewfile comments)
 - Installs crudini and aiven-client with uv tools
-- Bootstraps [_dotfiles_ subrepo](https://github.com/tapppi/dotfiles)
+- Installs Amphetamine Enhancer from GitHub
+- Bootstraps [_dotfiles_ subrepo](https://github.com/tapppi/dotfiles) and
+  installs nnn plugins
   - Core dotfiles are in the [`dotfiles` subrepo](https://github.com/tapppi/dotfiles)
   - Personal and extra configs are in this repo at [`.extra`](/.extra),
     [`.path`](/.path) and [`.credentials.dist`](/.credentials.dist)
 
 #### config
 
-- Applies some application settings and terminal/duti settings
-- Applies basic settings macos settings as defined in `.macos` dotfile
+- Configures application settings: VLC, iStat Menus, Alfred 5, stts,
+  Amphetamine
+- Sets up a custom Terminal.app profile (InconsolataLGC font, Solarized)
+- Sets default file associations via duti (Neovide for text/code, VLC for
+  media, The Unarchiver for archives)
+- Registers login items (1Password, Alfred, Amphetamine, Google Drive, Ice,
+  iStat Menus, Resolutionator, Slack, Spotify, stts, WhatsApp)
+- Applies macOS system settings as defined in the `.macos` dotfile
 
 ## Manual steps
 
 Not all steps have been automated:
 
-- set up iterm2 key binds if backups don't work correctly:
+- Disable startup sound: System Settings → Sound → uncheck "Play sound on
+  startup" (no scriptable method on Apple Silicon)
+- Set up iTerm2 key binds if backups don't restore correctly:
   https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
 ## Thanks to...
