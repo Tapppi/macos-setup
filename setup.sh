@@ -55,9 +55,12 @@ EOF
 if [[ "${1}" = "init" ]]; then
 	. tasks/init.sh
 	init
-elif [[ "${1}" = "init_user" ]]; then
+elif [[ "${1}" = "new_account" ]]; then
 	. tasks/init.sh
-	init_user
+	new_account
+elif [[ "${1}" = "clean_account" ]]; then
+	. tasks/init.sh
+	clean_account
 elif [[ "${1}" = "init_ssh_local" ]]; then
 	. tasks/init.sh
 	init_ssh_local
@@ -74,6 +77,6 @@ elif [[ "${1}" = "config" ]]; then
 	. tasks/config.sh
 	config
 else
-	echo "Usage: $0 [init | init_user | init_ssh_local | init_ssh_1password | install | dotfiles | config]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config]"
 	echo "See README.md for more information."
 fi

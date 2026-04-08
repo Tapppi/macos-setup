@@ -6,10 +6,12 @@
 
 1. Backup credentials and personal settings by running `backup.sh path/to/backup.tgz`
 2. Copy backup and this repo to new mac
-3. Run `./setup.sh init` and log in with your new non-superadmin user
-4. If need keys or creds from backup for install, use `restore.sh path/to/backup.tgz`
-5. Run `./setup.sh init_user` to remove dock icons and create ssh keys if needed
-6. Run `./setup.sh install && ./setup.sh config` and reboot your computer
+3. Run `./setup.sh init`
+4. If no non-superadmin account exists yet, run `./setup.sh new_account` and log in with the new user
+5. If need keys or creds from backup for install, use `restore.sh path/to/backup.tgz`
+6. Run `./setup.sh clean_account` to remove default dock icons
+   - Run `./setup.sh init_ssh_1password` or `./setup.sh init_ssh_local` to set up SSH
+7. Run `./setup.sh install && ./setup.sh config` and reboot your computer
 
 There are still rough edges and you will probably have to fix something by
 hand, but it should still be quicker than starting over or using time machine..
@@ -38,8 +40,9 @@ Available tasks:
 
 | Task | Description |
 |------|-------------|
-| `init` | System init: hostname, updates, xcode devtools, new user account, guest off |
-| `init_user` | Wipe default dock icons, configure SSH via 1Password |
+| `init` | System init: hostname, updates, xcode devtools, guest off (no account creation) |
+| `new_account` | Create a new macOS admin account (run separately if IT hasn't done an account split) |
+| `clean_account` | Wipe default dock icons from the new account's Dock |
 | `init_ssh_1password` | Write SSH config to use 1Password agent (standalone) |
 | `init_ssh_local` | Generate a local SSH key if you don't have one from backup |
 | `install` | Install all software and runtimes (also works as update) |
@@ -51,7 +54,14 @@ Available tasks:
 - Sets up and asks for basic info such as hostname
 - Installs system updates and Xcode devtools
 - Turns off guest account
-- Creates a new admin account to replace the default macOS superadmin
+- Does **not** create a new user account — run `new_account` separately if needed
+
+#### new_account
+
+- Creates a new macOS admin account to replace the default superadmin
+- Looks up avatar from Gravatar and name/username from GitHub by email
+- Run this when `init` has already been done but no account split has been set up yet
+- Skip it if company IT has already created a non-superadmin account for you
 
 #### install
 
@@ -77,14 +87,15 @@ Also works as update — rerun it to update apps and runtimes.
 
 #### config
 
-- Configures application settings: VLC, iStat Menus, Alfred 5, stts,
-  Amphetamine
-- Sets up a custom Terminal.app profile (InconsolataLGC font, Solarized)
+- Configures VLC (playback preferences, hardware acceleration, subtitle encoding)
+- Sets up a custom Terminal.app profile (InconsolataLGC font, Solarized, 121×35 window)
 - Sets default file associations via duti (Neovide for text/code, VLC for
   media, The Unarchiver for archives)
 - Registers login items (1Password, Alfred, Amphetamine, Google Drive, Ice,
   iStat Menus, Resolutionator, Slack, Spotify, stts, WhatsApp)
+- Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
 - Applies macOS system settings as defined in the `.macos` dotfile
+- Launches iStat Menus, Alfred, Amphetamine, and stts for first-run setup
 
 ## Manual steps
 

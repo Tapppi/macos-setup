@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Define Function =init=
 init() {
@@ -8,17 +8,19 @@ init() {
 	init_updates
 	init_devtools
 
-	init_new_account
 	init_guest
 	init_rm_sudoers
 }
 
-init_user() {
-	# Wipe all (default) app icons from the Dock
-	# This is only really useful when setting up a new Mac, or if you don’t use
-	# the Dock to launch apps.
+# Define Function =new_account=
+new_account() {
+	init_sudo
+	init_new_account
+	init_rm_sudoers
+}
+
+clean_account() {
 	defaults write com.apple.dock persistent-apps -array
-	init_ssh_1password
 }
 
 if test "${1}" = 0; then

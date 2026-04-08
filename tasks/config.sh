@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 config() {
 	# Keep-alive: update existing `sudo` time stamp until `.macos` has finished
