@@ -25,6 +25,15 @@ hand, but it should still be quicker than starting over or using time machine..
 and credentials. Other files, such as documents are expected to be backed up
 to file-sharing, e.g. google drive or dropbox.
 
+Backed up configs include:
+- **1Password SSH agent** (`~/.config/1Password/ssh/agent.toml`) — vault allowlist for the SSH agent (which vaults/items are offered to SSH servers)
+- **Alfred** — preferences, alfred preferences bundle, workflow data
+- **iStat Menus** — menubar and status plist preferences
+- **iTerm2** — preferences plist
+- **Resolutionator** — preferences plist
+- **Postico** — preferences and saved connections
+- **Keys/credentials** — `~/.ssl`, `~/.credentials`, `~/.pgpass`
+
 [`restore.sh`](/restore.sh) extracts the backup tarball back to home folder.
 To add gpg key to gpg suite, e.g. from 1Password, copy the gpg key to `key_public.asc`
 and `key_secret.asc` before running `restore.sh`.
