@@ -64,16 +64,6 @@ do_restore() {
 		--files-from="${files_from}" \
 		"${temp_root}/" "${HOME}"
 
-	if command -v gpg >/dev/null && [[ -f "${temp_root}/key_public.asc" ]]; then
-		gpg --import --armor "${temp_root}/key_public.asc"
-		rm "${temp_root}/key_public.asc"
-	fi
-
-	if command -v gpg >/dev/null && [[ -f "${temp_root}/key_secret.asc" ]]; then
-		gpg --import --armor "${temp_root}/key_secret.asc"
-		rm "${temp_root}/key_secret.asc"
-	fi
-
 	echo "Restored successfully from ${backup_path_resolved}"
 }
 

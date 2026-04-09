@@ -35,14 +35,26 @@ Backed up configs include:
 - **Keys/credentials** — `~/.ssl`, `~/.credentials`, `~/.pgpass`
 
 [`restore.sh`](/restore.sh) extracts the backup tarball back to home folder.
-To add gpg key to gpg suite, e.g. from 1Password, copy the gpg key to `key_public.asc`
-and `key_secret.asc` before running `restore.sh`.
 
 `backup.sh` takes an output directory and base name, then writes a timestamped
 gzip-compressed tar archive using the format `{path}/{name}.{timestamp}.tar.gz`.
 `restore.sh` takes the path to that archive and restores it back to the home
 folder. `restore.sh` restores gzip-compressed tar archives with `.tar.gz` or
 `.tgz` extensions.
+
+#### 1Password-managed signing keys
+
+This repo does not export or restore GPG private keys as part of the backup
+tarball. Signing keys are expected to stay in 1Password instead.
+
+On a fresh Mac:
+
+1. Sign in to 1Password and confirm your signing key is available in the vault.
+2. Run `./setup.sh init_ssh_1password` to point SSH at the 1Password agent.
+3. Bootstrap your dotfiles or run the full install so Git picks up the existing
+   1Password SSH signing configuration.
+4. If Git signing prompts appear, approve them in 1Password the first time you
+   sign or use the key.
 
 ### Setup
 
