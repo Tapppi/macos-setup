@@ -156,6 +156,7 @@ cask_args screen_saverdir: "/Library/Screen Savers"
 
 ## Taps
 tap "boz/repo"
+tap "anomalyco/tap"
 tap "sqitchers/sqitch"
 tap "teamookla/speedtest"
 
@@ -189,7 +190,7 @@ cask "neovide-app"
 # Terminal AI Agents
 cask "claude-code"
 cask "codex"
-brew "opencode"
+brew "anomalyco/tap/opencode"
 
 # Monitor for AI Agent subscription usage limits
 cask "claudebar"
