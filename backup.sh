@@ -1,46 +1,88 @@
 #!/usr/bin/env bash
 
-backup_path="${backup_path:=$1}"
-: "${backup_path:?Missing backup_path, provide as argument (relative to home dir)}"
-d=$(dirname "$0")
-files_from=$(readlink -f "$d")/restore.bom
+set -euo pipefail
 
-shift
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+files_from="${script_dir}/restore.bom"
 
-doIt() {
-	echo "Backing up $HOME to ${backup_path} as a gzipped tar ball..."
-	echo ""
+resolve_rsync_bin() {
+	if command -v brew >/dev/null 2>&1; then
+		local rsync_prefix
+		rsync_prefix=$(brew --prefix rsync 2>/dev/null || true)
+		if [[ -n "${rsync_prefix}" && -x "${rsync_prefix}/bin/rsync" ]]; then
+			printf '%s\n' "${rsync_prefix}/bin/rsync"
+			return
+		fi
+	fi
 
-	# Run in home folder, return to original dir when done
-	CURR_DIR=$(pwd)
-	cd "$HOME" || exit
-
-	rsync \
-		--rsync-path="sudo rsync" \
-		--perms \
-		--recursive \
-		--compress \
-		--numeric-ids \
-		--links \
-		--hard-links \
-		--files-from="$files_from" \
-		-avh . ~/.tmp-backup-dir
-	cd ~/.tmp-backup-dir && tar -czf ../.tmp-backup-dir.tgz . && cd - || exit
-
-	cd "$CURR_DIR" || exit
-	mv ~/.tmp-backup-dir.tgz "$backup_path"
-
-	echo "Backed up successfully"
-	rm -rf ~/.tmp-backup-dir
+	printf "Homebrew rsync is required. Install it with: brew install rsync\n" >&2
+	exit 1
 }
 
-if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]]; then
-	doIt
-else
-	read -rp "Do you want to backup $(pwd) to ${backup_path}? (y/n) " -n 1
+archive_dir="${1:-}"
+archive_name="${2:-}"
+force_flag="${3:-}"
+
+: "${archive_dir:?Missing archive directory, provide as first argument}"
+: "${archive_name:?Missing archive name, provide as second argument}"
+
+if [[ ! -d "${archive_dir}" ]]; then
+	printf "Archive directory does not exist: %s\n" "${archive_dir}" >&2
+	exit 1
+fi
+
+if [[ "${archive_name}" == */* ]]; then
+	printf "Archive name must not contain path separators: %s\n" "${archive_name}" >&2
+	exit 1
+fi
+
+archive_dir_resolved=$(cd "${archive_dir}" && pwd -P)
+timestamp=$(date +"%Y%m%d-%H%M%S")
+archive_file_name="${archive_name}.${timestamp}.tar.gz"
+archive_path="${archive_dir_resolved}/${archive_file_name}"
+rsync_bin=$(resolve_rsync_bin)
+temp_root=""
+
+cleanup() {
+	if [[ -n "${temp_root}" && -d "${temp_root}" ]]; then
+		rm -rf "${temp_root}"
+	fi
+}
+
+do_backup() {
+	local payload_dir
+
+	echo "Backing up ${HOME} to ${archive_path} as a gzip-compressed tar archive..."
 	echo ""
-	if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-		doIt
+
+	temp_root=$(mktemp -d "${TMPDIR:-/tmp}/macos-backup.XXXXXX")
+	payload_dir="${temp_root}/payload"
+	mkdir -p "${payload_dir}"
+
+	(
+		cd "${HOME}" || exit 1
+		"${rsync_bin}" \
+			--archive \
+			--human-readable \
+			--verbose \
+			--ignore-missing-args \
+			--files-from="${files_from}" \
+			./ "${payload_dir}"
+	)
+
+	tar -czf "${archive_path}" -C "${payload_dir}" .
+
+	echo "Backed up successfully to ${archive_path}"
+}
+
+trap cleanup EXIT
+
+if [[ "${force_flag}" == "--force" || "${force_flag}" == "-f" ]]; then
+	do_backup
+else
+	read -rp "Do you want to backup ${HOME} to ${archive_path}? (y/n) " -n 1
+	echo ""
+	if [[ "${REPLY}" =~ ^[Yy]$ ]]; then
+		do_backup
 	fi
 fi
-unset doIt

@@ -4,11 +4,11 @@
 
 ## Usage
 
-1. Backup credentials and personal settings by running `backup.sh path/to/backup.tgz`
+1. Backup credentials and personal settings by running `backup.sh /path/to/backups backup-name`
 2. Copy backup and this repo to new mac
 3. Run `./setup.sh init`
 4. If no non-superadmin account exists yet, run `./setup.sh new_account` and log in with the new user
-5. If need keys or creds from backup for install, use `restore.sh path/to/backup.tgz`
+5. If need keys or creds from backup for install, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
 6. Run `./setup.sh clean_account` to remove default dock icons
    - Run `./setup.sh init_ssh_1password` or `./setup.sh init_ssh_local` to set up SSH
 7. Run `./setup.sh install && ./setup.sh config` and reboot your computer
@@ -38,7 +38,11 @@ Backed up configs include:
 To add gpg key to gpg suite, e.g. from 1Password, copy the gpg key to `key_public.asc`
 and `key_secret.asc` before running `restore.sh`.
 
-The scripts take the path of the backup tarball as an argument.
+`backup.sh` takes an output directory and base name, then writes a timestamped
+gzip-compressed tar archive using the format `{path}/{name}.{timestamp}.tar.gz`.
+`restore.sh` takes the path to that archive and restores it back to the home
+folder. `restore.sh` restores gzip-compressed tar archives with `.tar.gz` or
+`.tgz` extensions.
 
 ### Setup
 
