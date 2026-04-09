@@ -79,6 +79,7 @@ brew "safe-rm"
 brew "autoconf"
 brew "cmake"
 brew "gcc"
+brew "pkgconf"
 
 # Podman
 brew "podman"
@@ -93,7 +94,6 @@ brew "php"
 
 # Git version control
 brew "git"
-brew "git-flow"
 brew "git-lfs"
 brew "diff-so-fancy"
 cask "kdiff3"
