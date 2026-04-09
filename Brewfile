@@ -109,40 +109,12 @@ brew "pinentry-mac"
 # Select default apps for documents and URL schemes
 brew "duti"
 
-## Core Libraries
-
-brew "snappy"
-brew "xz"
-brew "sdl2"
-brew "rubberband"
-brew "fontconfig"
-brew "mp4v2"
-
-cask "xquartz"
-brew "libcaca"
-brew "libbs2b"
-brew "libbluray"
-brew "libass"
-brew "libvorbis"
-brew "libvidstab"
-brew "libssh"
-brew "libsoxr"
-brew "libmodplug"
-brew "libgsm"
-
 # C++ kafka lib that works as basis for node-rdkafka etc.
 brew "librdkafka"
 
-## Codecs
-brew "opencore-amr"
-brew "opus"
-brew "speex"
-brew "webp"
-brew "x265"
-brew "openh264"
-brew "wavpack"
-brew "fdk-aac"
-brew "theora"
+## Media
+brew "ffmpeg"
+brew "mpv"
 
 ## ========================================================
 ## SOFTWARE
