@@ -171,9 +171,7 @@ EOF
 # Customize Terminal
 
 # shellcheck disable=SC2016
-_term_plist='delete
-add	:dict
-add	:name	string	tapani
+_term_plist='add	:name	string	tapani
 add	:type	string	Window Settings
 add	:ProfileCurrentVersion	real	2.05
 add	:BackgroundBlur	real	0
@@ -233,9 +231,15 @@ _term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani
 com.apple.Terminal	Default Window Settings	-string	tapani	'
 
 custom_terminal() {
+	local _term_plist_file="${HOME}/Library/Preferences/com.apple.Terminal.plist"
+	local _term_plist_key=":Window Settings:tapani"
+	/usr/libexec/PlistBuddy "${_term_plist_file}" \
+		-c "delete '${_term_plist_key}'" 2>/dev/null
+	/usr/libexec/PlistBuddy "${_term_plist_file}" \
+		-c "add '${_term_plist_key}' dict" 2>/dev/null
 	config_plist "${_term_plist}" \
-		"${HOME}/Library/Preferences/com.apple.Terminal.plist" \
-		":Window Settings:tapani"
+		"${_term_plist_file}" \
+		"${_term_plist_key}"
 	config_defaults "${_term_defaults}"
 }
 
