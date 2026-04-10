@@ -157,6 +157,12 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
   2. Note that these commits need `git rebase` / `git commit --amend` to
      restore the correct author before pushing to a shared remote.
 
+### Do Not Run Setup Scripts
+
+- **NEVER** run `setup.sh`, `tasks/*.sh`, `dotfiles/bootstrap.sh`, or
+  `dotfiles/.macos` automatically. These scripts modify system configuration,
+  install software, and require `sudo`. The user must always run them manually.
+
 ### Files to Never Commit
 
 - `.credentials` (use `.credentials.dist` as template)
