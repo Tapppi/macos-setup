@@ -22,7 +22,7 @@ config() {
 	custom_duti
 
 	p1 "Configuring macOS"
-	~/.macos
+	./dotfiles/.macos
 	p1 "Done. Some changes require a reboot."
 }
 
