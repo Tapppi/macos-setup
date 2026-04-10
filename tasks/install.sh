@@ -110,13 +110,6 @@ install_brew() {
 	brew update
 	brew doctor
 
-	p3 "Install openssl and set build flags..."
-	brew install openssl@3
-	local openssl_prefix
-	openssl_prefix="$(brew --prefix openssl@3)"
-	export CPPFLAGS="-I${openssl_prefix}/include"
-	export LDFLAGS="-L${openssl_prefix}/lib"
-
 	p3 "Install Brewfile..."
 	brew bundle --file="Brewfile"
 

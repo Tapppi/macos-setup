@@ -109,9 +109,6 @@ brew "pinentry-mac"
 # Select default apps for documents and URL schemes
 brew "duti"
 
-# C++ kafka lib that works as basis for node-rdkafka etc.
-brew "librdkafka"
-
 ## Media
 brew "ffmpeg"
 brew "mpv"
