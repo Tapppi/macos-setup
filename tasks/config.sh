@@ -242,6 +242,10 @@ custom_terminal() {
 # Customize Default UTIs
 # Uses duti -s directly; extensions (.ext) preferred over obsolete UTIs.
 # App-defined UTIs (com.barebones.bbedit.*) require the app to be installed.
+# NOTE: duti is unmaintained and uses deprecated LaunchServices C APIs.
+# Consider switching to dutix (https://github.com/jackchuka/dutix) which
+# uses the modern NSWorkspace API, once it matures (no batch mode or
+# bundle-ID input yet).
 
 _duti='com.apple.DiskImageMounter	com.apple.disk-image	all
 com.apple.DiskImageMounter	public.disk-image	all
