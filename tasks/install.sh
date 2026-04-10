@@ -113,6 +113,15 @@ install_brew() {
 	p3 "Install Brewfile..."
 	brew bundle --file="Brewfile"
 
+	# Bust cached kubectl completions so they regenerate on next shell startup
+	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
+	local kubectl_comp
+	kubectl_comp="$(brew --prefix)/share/bash-completion/completions/kubectl"
+	if [[ -f "${kubectl_comp}" ]]; then
+		p3 "Removing cached kubectl completions (will regenerate on next shell startup)..."
+		rm -f "${kubectl_comp}"
+	fi
+
 	p2 "Brew installation done!"
 }
 
