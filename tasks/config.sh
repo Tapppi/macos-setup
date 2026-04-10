@@ -240,6 +240,8 @@ custom_terminal() {
 }
 
 # Customize Default UTIs
+# Uses duti -s directly; extensions (.ext) preferred over obsolete UTIs.
+# App-defined UTIs (com.barebones.bbedit.*) require the app to be installed.
 
 _duti='com.apple.DiskImageMounter	com.apple.disk-image	all
 com.apple.DiskImageMounter	public.disk-image	all
@@ -266,26 +268,21 @@ com.neovide.neovide	com.apple.log	editor
 com.neovide.neovide	com.apple.property-list	editor
 com.neovide.neovide	com.apple.rez-source	editor
 com.neovide.neovide	com.apple.symbol-export	editor
-com.neovide.neovide	com.apple.xcode.ada-source	editor
-com.neovide.neovide	com.apple.xcode.bash-script	editor
-com.neovide.neovide	com.apple.xcode.configsettings	editor
-com.neovide.neovide	com.apple.xcode.csh-script	editor
-com.neovide.neovide	com.apple.xcode.fortran-source	editor
-com.neovide.neovide	com.apple.xcode.ksh-script	editor
-com.neovide.neovide	com.apple.xcode.lex-source	editor
-com.neovide.neovide	com.apple.xcode.make-script	editor
-com.neovide.neovide	com.apple.xcode.mig-source	editor
-com.neovide.neovide	com.apple.xcode.pascal-source	editor
-com.neovide.neovide	com.apple.xcode.strings-text	editor
-com.neovide.neovide	com.apple.xcode.tcsh-script	editor
-com.neovide.neovide	com.apple.xcode.yacc-source	editor
-com.neovide.neovide	com.apple.xcode.zsh-script	editor
+com.neovide.neovide	public.ada-source	editor
+com.neovide.neovide	public.bash-script	editor
+com.neovide.neovide	.xcconfig	editor
+com.neovide.neovide	public.fortran-source	editor
+com.neovide.neovide	public.ksh-script	editor
+com.neovide.neovide	public.make-source	editor
+com.neovide.neovide	public.pascal-source	editor
+com.neovide.neovide	.strings	editor
+com.neovide.neovide	public.tcsh-script	editor
+com.neovide.neovide	.y	editor
+com.neovide.neovide	public.zsh-script	editor
 com.neovide.neovide	com.apple.xml-property-list	editor
 com.neovide.neovide	com.barebones.bbedit.actionscript-source	editor
 com.neovide.neovide	com.barebones.bbedit.erb-source	editor
 com.neovide.neovide	com.barebones.bbedit.ini-configuration	editor
-com.neovide.neovide	com.barebones.bbedit.javascript-source	editor
-com.neovide.neovide	com.barebones.bbedit.json-source	editor
 com.neovide.neovide	com.barebones.bbedit.jsp-source	editor
 com.neovide.neovide	com.barebones.bbedit.lasso-source	editor
 com.neovide.neovide	com.barebones.bbedit.lua-source	editor
@@ -298,17 +295,17 @@ com.neovide.neovide	com.barebones.bbedit.vbscript-source	editor
 com.neovide.neovide	com.barebones.bbedit.vectorscript-source	editor
 com.neovide.neovide	com.barebones.bbedit.verilog-hdl-source	editor
 com.neovide.neovide	com.barebones.bbedit.vhdl-source	editor
-com.neovide.neovide	com.barebones.bbedit.yaml-source	editor
+com.neovide.neovide	.yaml	editor
 com.neovide.neovide	com.netscape.javascript-source	editor
 com.neovide.neovide	com.sun.java-source	editor
-com.neovide.neovide	dyn.ah62d4rv4ge80255drq	all
-com.neovide.neovide	dyn.ah62d4rv4ge80g55gq3w0n	all
-com.neovide.neovide	dyn.ah62d4rv4ge80g55sq2	all
-com.neovide.neovide	dyn.ah62d4rv4ge80y2xzrf0gk3pw	all
-com.neovide.neovide	dyn.ah62d4rv4ge81e3dtqq	all
-com.neovide.neovide	dyn.ah62d4rv4ge81e7k	all
-com.neovide.neovide	dyn.ah62d4rv4ge81g25xsq	all
-com.neovide.neovide	dyn.ah62d4rv4ge81g2pxsq	all
+com.neovide.neovide	.lock	all
+com.neovide.neovide	.coffee	all
+com.neovide.neovide	.conf	all
+com.neovide.neovide	.jbuilder	all
+com.neovide.neovide	.rdoc	all
+com.neovide.neovide	.ru	all
+com.neovide.neovide	.scss	all
+com.neovide.neovide	.sass	all
 com.neovide.neovide	net.daringfireball.markdown	editor
 com.neovide.neovide	public.assembly-source	editor
 com.neovide.neovide	public.c-header	editor
@@ -401,61 +398,55 @@ cx.c3.theunarchiver	public.zip-archive	all
 cx.c3.theunarchiver	public.zip-archive.first-part	all
 org.videolan.vlc	com.apple.m4v-video	all
 org.videolan.vlc	com.microsoft.windows-media-wmv	all
-org.videolan.vlc	org.videolan.3gp	all
-org.videolan.vlc	org.videolan.aac	all
-org.videolan.vlc	org.videolan.ac3	all
-org.videolan.vlc	org.videolan.aiff	all
-org.videolan.vlc	org.videolan.amr	all
-org.videolan.vlc	org.videolan.aob	all
-org.videolan.vlc	org.videolan.ape	all
-org.videolan.vlc	org.videolan.asf	all
-org.videolan.vlc	org.videolan.avi	all
-org.videolan.vlc	org.videolan.axa	all
-org.videolan.vlc	org.videolan.axv	all
-org.videolan.vlc	org.videolan.divx	all
-org.videolan.vlc	org.videolan.dts	all
-org.videolan.vlc	org.videolan.dv	all
-org.videolan.vlc	org.videolan.flac	all
-org.videolan.vlc	org.videolan.flash	all
-org.videolan.vlc	org.videolan.gxf	all
-org.videolan.vlc	org.videolan.it	all
-org.videolan.vlc	org.videolan.mid	all
-org.videolan.vlc	org.videolan.mka	all
-org.videolan.vlc	org.videolan.mkv	all
-org.videolan.vlc	org.videolan.mlp	all
-org.videolan.vlc	org.videolan.mod	all
-org.videolan.vlc	org.videolan.mpc	all
-org.videolan.vlc	org.videolan.mpeg-audio	all
-org.videolan.vlc	org.videolan.mpeg-stream	all
-org.videolan.vlc	org.videolan.mpeg-video	all
-org.videolan.vlc	org.videolan.mxf	all
-org.videolan.vlc	org.videolan.nsv	all
-org.videolan.vlc	org.videolan.nuv	all
-org.videolan.vlc	org.videolan.ogg-audio	all
-org.videolan.vlc	org.videolan.ogg-video	all
-org.videolan.vlc	org.videolan.oma	all
-org.videolan.vlc	org.videolan.opus	all
-org.videolan.vlc	org.videolan.quicktime	all
-org.videolan.vlc	org.videolan.realmedia	all
-org.videolan.vlc	org.videolan.rec	all
-org.videolan.vlc	org.videolan.rmi	all
-org.videolan.vlc	org.videolan.s3m	all
-org.videolan.vlc	org.videolan.spx	all
-org.videolan.vlc	org.videolan.tod	all
-org.videolan.vlc	org.videolan.tta	all
-org.videolan.vlc	org.videolan.vob	all
-org.videolan.vlc	org.videolan.voc	all
-org.videolan.vlc	org.videolan.vqf	all
-org.videolan.vlc	org.videolan.vro	all
-org.videolan.vlc	org.videolan.wav	all
-org.videolan.vlc	org.videolan.webm	all
-org.videolan.vlc	org.videolan.wma	all
-org.videolan.vlc	org.videolan.wmv	all
-org.videolan.vlc	org.videolan.wtv	all
-org.videolan.vlc	org.videolan.wv	all
-org.videolan.vlc	org.videolan.xa	all
-org.videolan.vlc	org.videolan.xesc	all
-org.videolan.vlc	org.videolan.xm	all
+org.videolan.vlc	.3gp	all
+org.videolan.vlc	.aac	all
+org.videolan.vlc	.aiff	all
+org.videolan.vlc	.amr	all
+org.videolan.vlc	.aob	all
+org.videolan.vlc	.ape	all
+org.videolan.vlc	.asf	all
+org.videolan.vlc	.axa	all
+org.videolan.vlc	.axv	all
+org.videolan.vlc	.divx	all
+org.videolan.vlc	.dts	all
+org.videolan.vlc	.dv	all
+org.videolan.vlc	.flac	all
+org.videolan.vlc	.flv	all
+org.videolan.vlc	.gxf	all
+org.videolan.vlc	.it	all
+org.videolan.vlc	.mid	all
+org.videolan.vlc	.mka	all
+org.videolan.vlc	.mkv	all
+org.videolan.vlc	.mlp	all
+org.videolan.vlc	.mod	all
+org.videolan.vlc	.mpc	all
+org.videolan.vlc	.mp2	all
+org.videolan.vlc	.mxf	all
+org.videolan.vlc	.nsv	all
+org.videolan.vlc	.nuv	all
+org.videolan.vlc	.oga	all
+org.videolan.vlc	.ogv	all
+org.videolan.vlc	.oma	all
+org.videolan.vlc	.opus	all
+org.videolan.vlc	.rm	all
+org.videolan.vlc	.rec	all
+org.videolan.vlc	.rmi	all
+org.videolan.vlc	.s3m	all
+org.videolan.vlc	.spx	all
+org.videolan.vlc	.tod	all
+org.videolan.vlc	.tta	all
+org.videolan.vlc	.vob	all
+org.videolan.vlc	.voc	all
+org.videolan.vlc	.vqf	all
+org.videolan.vlc	.vro	all
+org.videolan.vlc	.wav	all
+org.videolan.vlc	.webm	all
+org.videolan.vlc	.wma	all
+org.videolan.vlc	.wtv	all
+org.videolan.vlc	.wv	all
+org.videolan.vlc	.xa	all
+org.videolan.vlc	.xesc	all
+org.videolan.vlc	.xm	all
 org.videolan.vlc	public.ac3-audio	all
 org.videolan.vlc	public.audiovisual-content	all
 org.videolan.vlc	public.avi	all
@@ -465,24 +456,11 @@ org.videolan.vlc	public.mpeg-2-video	all
 org.videolan.vlc	public.mpeg-4	all'
 custom_duti() {
 	if command -v duti >/dev/null; then
-		test -f "${HOME}/Library/Preferences/org.duti.plist" &&
-			rm "${HOME}/Library/Preferences/org.duti.plist"
-
 		printf "%s\n" "${_duti}" |
 			while IFS=$'\t' read -r id uti role; do
-				defaults write org.duti DUTISettings -array-add \
-					"{
-          DUTIBundleIdentifier = '${id}';
-          DUTIUniformTypeIdentifier = '${uti}';
-          DUTIRole = '${role}';
-        }"
+				duti -s "${id}" "${uti}" "${role}" 2>/dev/null
 			done
 
-		duti "${HOME}/Library/Preferences/org.duti.plist" 2>/dev/null
-
-		# Rebuild LaunchServices cache to ensure associations take effect
-		# (workaround for Sonoma/Sequoia duti cache staleness)
-		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -seed 2>/dev/null
 		p3 "duti: Verify associations via Finder Get Info → Open with"
 	fi
 }
