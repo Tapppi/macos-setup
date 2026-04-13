@@ -309,10 +309,6 @@ com.apple.DiskImageMounter	public.disk-image	all
 com.apple.DiskImageMounter	public.iso-image	all
 com.apple.QuickTimePlayerX	com.apple.coreaudio-format	all
 com.apple.QuickTimePlayerX	com.apple.quicktime-movie	all
-com.apple.QuickTimePlayerX	com.microsoft.waveform-audio	all
-com.apple.QuickTimePlayerX	public.aifc-audio	all
-com.apple.QuickTimePlayerX	public.aiff-audio	all
-com.apple.QuickTimePlayerX	public.audio	all
 com.apple.QuickTimePlayerX	public.mp3	all
 com.apple.Preview	com.compuserve.gif	all
 com.apple.Preview	.gif	all
