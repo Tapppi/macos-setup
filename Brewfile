@@ -1,3 +1,14 @@
+cask_args appdir: "/Applications"
+cask_args colorpickerdir: "/Library/ColorPickers"
+cask_args fontdir: "/Library/Fonts"
+cask_args input_methoddir: "/Library/Input Methods"
+cask_args qlplugindir: "/Library/QuickLook"
+cask_args screen_saverdir: "/Library/Screen Savers"
+
+tap "anomalyco/tap"
+tap "hashicorp/tap"
+tap "teamookla/speedtest"
+
 ## ========================================================
 ## CORE
 ## ========================================================
@@ -54,26 +65,14 @@ brew "sponge"
 # XCode
 mas "Xcode", id: 497799835
 
-# Tailscale VPN for my personal network
-cask "tailscale-app"
-
 # Bash 5
 brew "bash"
 brew "bash-completion@2"
-
-# Fish shell
-brew "fish"
 
 # Oh my zsh - the Z-shell
 brew "zsh"
 brew "zsh-syntax-highlighting"
 brew "zsh-history-substring-search"
-
-# Watch something happen by running a command multiple times
-brew "watch"
-
-# Safe rm so I don't delete my laptop
-brew "safe-rm"
 
 # Compilers and helpers
 brew "autoconf"
@@ -92,54 +91,44 @@ brew "mise"
 # a ton of deps
 brew "php"
 
-# Git version control
-brew "git"
-brew "git-lfs"
-brew "diff-so-fancy"
-cask "kdiff3"
-
 # Openss* since macos is really bad about providing them
 brew "openssl@3"
 brew "openssh"
 
-# GnuPG to enable PGP-signing commits.
-brew "gnupg"
-brew "pinentry-mac"
-
 # Select default apps for documents and URL schemes
 brew "duti"
 
-## Media
-brew "ffmpeg"
-brew "mpv"
-
 ## ========================================================
-## SOFTWARE
+## AUTH
 ## ========================================================
 
-cask_args appdir: "/Applications"
-cask_args colorpickerdir: "/Library/ColorPickers"
-cask_args fontdir: "/Library/Fonts"
-cask_args input_methoddir: "/Library/Input Methods"
-cask_args qlplugindir: "/Library/QuickLook"
-cask_args screen_saverdir: "/Library/Screen Savers"
+# I mean, if you aren't using a password manager..
+cask "1password"
+cask "1password-cli"
+cask "bitwarden"
 
-## Taps
-tap "boz/repo"
-tap "anomalyco/tap"
-tap "sqitchers/sqitch"
-tap "teamookla/speedtest"
+# Keys and identities, although 1Password & Tailscale replace basically all of it
 
-## Basics
+# Copy ssh public key to server
+brew "ssh-copy-id"
+
+# GnuPG to enable PGP-signing commits
+# Not in use as SSH keys used for git signing and no other use right now
+# brew "gnupg"
+# brew "pinentry-mac"
+
+# GPG suite
+# cask "gpg-suite"
+
+## ========================================================
+## BASICS
+## ========================================================
 
 # Browsers
 cask "brave-browser"
 cask "google-chrome"
 cask "firefox"
 cask "tor-browser"
-
-# GPG suite
-cask "gpg-suite"
 
 # Terminal emulators
 cask "iterm2"
@@ -165,54 +154,35 @@ brew "anomalyco/tap/opencode"
 # Monitor for AI Agent subscription usage limits
 cask "claudebar"
 
+# Mac keyboard layout editor, no longer used as I use US layout for prog
+# cask "ukelele"
+
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
 brew "tlrc"
 
-# Archive extraction
-brew "p7zip"
-cask "the-unarchiver"
+## ========================================================
+## EVERYDAY APPS
+## ========================================================
 
-# Mac keyboard layout editor
-cask "ukelele"
-
-# File compression for gzip/deflate if tar isn't enough
-# DEPRECATED, could use zstd or brotli depending on use-case?
-# brew "zopfli"
-
-# Notification on long running tasks
-brew "noti"
-
-## Everyday apps
+# Comms are the foundation of teamwork
 cask "slack"
 cask "microsoft-teams"
-cask "vlc"
 cask "whatsapp"
 cask "spotify"
+
+# Office tooling and workspaces
 cask "google-drive"
-cask "1password"
-cask "1password-cli"
 mas "Keynote", id: 409183694
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
-mas "WiFi Explorer Lite", id: 1408727408
-# Pro, but it's expensive
-# mas "Wifi Explorer", id: 494803304
 
 # Notes
 cask "notion"
 cask "obsidian"
 
-# API testing
-cask "postman"
-cask "yaak"
-
 # The butler of your mac or the swiss army knife of searchbars - https://www.alfredapp.com/
 cask "alfred"
-
-# Background noise
-# Not available in the Finnish app store :(
-# mas "Coffitivity", id: 659901392
 
 # Manage resolutions
 cask "resolutionator"
@@ -223,65 +193,21 @@ cask "jordanbaird-ice"
 # Status bar stats and menus
 cask "istat-menus"
 
-# Torrent client
-cask "transmission"
-
-# GUI for open files and sockets
-cask "sloth"
-
-# Various cloud service statuses in the status bar
+# Cloud service statuses in the status bar
 mas "stts", id: 1187772509
 
-## Everyday commandline tools
+# Menubar countdown clock
+mas "Countdown", id: 6744842468
 
-# Nice httpie client
-brew "httpie"
+# Keep the Mac awake when wanted
+mas "Amphetamine", id: 937984704
 
-# Github CLI
-brew "gh"
+## ========================================================
+## CLI AND DEV WORKFLOW
+## ========================================================
 
-# Lazygit for Git TUI
-brew "lazygit"
-
-# Better cd - quick access to folders from anywhere - https://github.com/ajeetdsouza/zoxide
-brew "zoxide"
-
-# Grep but fast like a Ferrari
-brew "ripgrep"
-
-# Simpler to use 'find'
-brew "fd"
-
-# Fuzzy matcher
-brew "fzf"
-
-# Cat with syntax highlighting etc.
-brew "bat"
-
-# Modern ls replacement with colors, git status, icons
-brew "eza"
-
-# JSON and yaml query/mangling/cleanup/prettify tool
-brew "jq"
-brew "yq"
-
-# Count lines of code
-brew "cloc"
-
-# Shell script linter
-brew "shellcheck"
-
-# Monitor data passing through a pipe - pipeviewer - https://www.ivarch.com/programs/pv.shtml
-brew "pv"
-
-# Rename files with a bunch of helpers - http://plasmasturm.org/code/rename/
-brew "rename"
-
-# Display directories as trees
-brew "tree"
-
-# Expose local ports to the internet - https://ngrok.com/
-cask "ngrok"
+# Safe rm so I don't delete my laptop
+brew "safe-rm"
 
 # Autocorrecting for the commandline
 brew "thefuck"
@@ -290,152 +216,201 @@ brew "thefuck"
 brew "tmux"
 brew "tmuxinator"
 
-# View file/folder size and delete them, like `du` but with a UX
-brew "ncdu"
-
 # Terminal file manager - https://github.com/jarun/nnn
 brew "nnn"
 
+# View file/folder size and delete them, like `du` but with a UX
+brew "ncdu"
+# Better cd - quick access to folders from anywhere - https://github.com/ajeetdsouza/zoxide
+brew "zoxide"
+# Grep but fast like a Ferrari
+brew "ripgrep"
+# Simpler to use 'find'
+brew "fd"
+# Fuzzy matcher
+brew "fzf"
+# Cat with syntax highlighting etc.
+brew "bat"
+# Modern ls replacement with colors, git status, icons
+brew "eza"
+# Watch something happen by running a command multiple times
+brew "watch"
+
+# Git version control
+brew "git"
+brew "git-lfs"
+brew "diff-so-fancy"
+cask "kdiff3"
+# Lazygit for Git TUI
+brew "lazygit"
+# Github CLI
+brew "gh"
+
+# Nice httpie client
+brew "httpie"
+# API testing
+cask "yaak"
+
+# JSON and yaml query/mangling/cleanup/prettify tool
+brew "jq"
+brew "yq"
+
+# Monitor data passing through a pipe - pipeviewer - https://www.ivarch.com/programs/pv.shtml
+brew "pv"
+
+# Count lines of code
+brew "cloc"
+# Shell script linter
+brew "shellcheck"
+
+# Notification on long running tasks
+brew "noti"
+# Do something when mac goes to sleep/wakes up/etc.
+# brew "sleepwatcher"
+
+# Go ham
+brew "cmatrix"
+
+## ========================================================
+## FILE TOOLS
+## ========================================================
+
+# Rename files with a bunch of helpers - http://plasmasturm.org/code/rename/
+brew "rename"
+# Display directories as trees
+brew "tree"
 # Moves files or folders to trash
 brew "trash"
-
+# Find duplicate files
+brew "fdupes"
 # Manipulate macos file tags
 brew "tag"
+# The unix spell checker
+brew "aspell"
 
-# Parallel gzip
-brew "pigz"
-
+# Markdown presentation writer
+brew "marp-cli"
 # Ghostscript for pdf utility scripts
 brew "ghostscript"
 
-## Infra tooling
+## Archives and File Systems
+
+brew "p7zip"
+cask "the-unarchiver"
+# Parallel gzip
+brew "pigz"
+# Create bootable flash media, especially for raspberry pis
+cask "raspberry-pi-imager"
+# Utilities for ext2, ext3, ext4 fs
+brew "e2fsprogs"
+
+## ========================================================
+## INFRA AND PLATFORM TOOLING
+## ========================================================
+
+## It's just someone else's server
 cask "gcloud-cli"
 brew "azure-cli"
 brew "azcopy"
+
 brew "hashicorp/tap/terraform"
 brew "hashicorp/tap/terraform-ls"
-brew "helm"
+
+# Let's encrypt tooling
+brew "certbot"
 
 # Secrets file encryption (age, PGP, AWS KMS, GCP KMS, etc.)
 brew "sops"
 
-# TLS tunnel wrapper for adding TLS to non-TLS connections
-brew "stunnel"
-
+## Kubernetes
+brew "kubernetes-cli"
+brew "helm"
 # Overview of resources and exploratory UI - https://github.com/derailed/k9s
 brew "k9s"
-
 # Watch a resource (e.g. deployment being rolled out, pod status) - https://github.com/pulumi/kubespy
 brew "kubespy"
-
 # Tail the logs of some collection of resources
-brew "boz/repo/kail"
+brew "kail"
 
-## Databases, except it's just SQLITE because everything else is in containers now
+## ========================================================
+## DATABASES AND CLIENTS
+## ========================================================
+
+# Databases, except it's just SQLITE because everything else is in containers now
 brew "sqlite"
 
-# PostgreSQL client only (psql, pg_dump etc.) - keg-only, no server daemon
-brew "libpq"
-
-# Redis client (redis-cli) - don't run 'brew services start redis'
+# Redis client (redis-cli) and Medis GUI - don't run 'brew services start redis'
 brew "redis"
-
-## Database GUI
-
-# Redis
 mas "Medis", id: 1063631769
 
 # Postgres
 cask "postico@1"
 cask "datagrip"
+# PostgreSQL client only (psql, pg_dump etc.) - keg-only, no server daemon
+brew "libpq"
 
-## Database tooling
-
-# DuckDB cli, which is not available through uv or such
+# DuckDB cli
 brew "duckdb"
 
 # Kafkacat for reading kafka data
 brew "kcat"
 
-# Postgres schema management with sqitch
-brew "sqitchers/sqitch/sqitch", args: ["with-postgres-support"]
+## ========================================================
+## NETWORK
+## ========================================================
 
-## Debug and CTF tools; see https://github.com/ctfs/write-ups
+# See https://github.com/ctfs/write-ups for interesting CTF tooling
 
+# The Wire
+cask "wireshark-app"
+# GUI for open files and sockets
+cask "sloth"
+
+# Go fast
+brew "teamookla/speedtest/speedtest"
 # 'traceroute' and 'ping' in a single tool
 brew "mtr"
-
 # Network map, port scanning utility
 brew "nmap"
 
-cask "wireshark-app"
+# Tailscale VPN for my personal network
+cask "tailscale-app"
 
-## Font tools
-# tap "bramstein/webfonttools"
+# TLS tunnel wrapper for adding TLS to non-TLS connections
+brew "stunnel"
+# Expose local ports to the internet - https://ngrok.com/
+cask "ngrok"
 
-# brew "sfnt2woff"
-# brew "sfnt2woff-zopfli"
-# brew "woff2"
-
-## Random apps
+## ========================================================
+## AV, MEDIA, IMAGE UTILS
+## ========================================================
 
 # Kapture your screen
 cask "kap"
 
-# Markdown presentation writer (requires node; opencode also depends on brew node)
-brew "node"
-brew "marp-cli"
-
-# Menubar countdown clock
-mas "Countdown", id: 6744842468
-
-# Amphetamine to keep awake when wanted
-mas "Amphetamine", id: 937984704
-
-# Image transcoding etc.
+# Video transcoding etc.
 cask "handbrake-app"
 
-# Pls no exif
-cask "exifrenamer"
+# Pls no exif, tool also does renaming so no GUI right now
 brew "exiftool"
+# cask "exifrenamer"
 
-# Rename files with GUI
-cask "namechanger"
-
-## Random command-line utilities and tools
+cask "vlc"
+brew "ffmpeg"
+brew "mpv"
 
 # Do pretty much anything to images - https://www.imagemagick.org/
 brew "imagemagick"
-
 # Download YouTube videos from the command line
 brew "yt-dlp"
-
-# Let's encrypt tooling
-brew "certbot"
-
-# Create bootable flash media, especially for raspberry pis
-cask "raspberry-pi-imager"
-
-# Copy ssh public key to server
-brew "ssh-copy-id"
 
 # Optical character recognition tool
 brew "tesseract"
 
-# The unix spell checker
-brew "aspell"
-
-# Utilities for ext2, ext3, ext4 fs
-brew "e2fsprogs"
-
-# Find duplicate files
-brew "fdupes"
-
-# Do something when mac goes to sleep/wakes up/etc.
-brew "sleepwatcher"
-
-# Go fast
-brew "teamookla/speedtest/speedtest"
-
-# Go ham
-brew "cmatrix"
+## ========================================================
+## FONT TOOLS
+## ========================================================
+# tap "bramstein/webfonttools"
+# brew "sfnt2woff"
+# brew "sfnt2woff-zopfli"
+# brew "woff2"
