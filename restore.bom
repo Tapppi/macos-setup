@@ -23,6 +23,9 @@ Library/Preferences/com.manytricks.Resolutionator.plist
 Library/Containers/at.eggerapps.Postico/Data/Library/Preferences/at.eggerapps.Postico.plist
 Library/Containers/at.eggerapps.Postico/Data/Library/Application Support/Postico/
 
+# tmuxinator
+.config/tmuxinator/
+
 ## KEYS
 
 .ssl/
