@@ -28,6 +28,7 @@ to file-sharing, e.g. google drive or dropbox.
 Backed up configs include:
 - **Alfred** — preferences, alfred preferences bundle, workflow data
 - **iStat Menus** — menubar and status plist preferences
+- **Ice** — app preferences from `~/Library/Preferences/com.jordanbaird.Ice.plist`
 - **iTerm2** — preferences plist
 - **Resolutionator** — preferences plist
 - **Postico** — preferences and saved connections
@@ -152,6 +153,10 @@ Not all steps have been automated:
 - Sign in to Google Drive after `./setup.sh config` opens it, and use Ice if
   you want to hide the Google Drive menu bar icon (Google Drive does not
   expose a native setting for that).
+- If you restore Ice preferences, re-check Accessibility / Screen Recording
+  permissions and the Launch at Login toggle. The plist restores most Ice
+  settings, but some menu bar item positions still depend on the individual
+  apps being managed.
 - Launch Podman Desktop and configure the Podman machine plus Podman and
   Compose integrations if you use it for local container tooling.
 - Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
