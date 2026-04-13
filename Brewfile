@@ -373,13 +373,11 @@ brew "mtr"
 # Network map, port scanning utility
 brew "nmap"
 
-# Tailscale VPN for my personal network
+# Tailscale VPN for my personal overlay network & funnel for exposing ports to interwebs
 cask "tailscale-app"
 
 # TLS tunnel wrapper for adding TLS to non-TLS connections
 brew "stunnel"
-# Expose local ports to the internet - https://ngrok.com/
-cask "ngrok"
 
 ## ========================================================
 ## AV, MEDIA, IMAGE UTILS
