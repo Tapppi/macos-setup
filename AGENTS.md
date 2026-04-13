@@ -31,7 +31,7 @@ See `dotfiles/README.md` for details. It contains configs like:
 - `.config/bash/.functions` - Shell utility functions
 - `.config/bash/.bash_profile` - Main profile (sources all the above + activates mise, zoxide)
 - `.config/bash/.bash_prompt` - Solarized Dark prompt with git status
-- `.config/opencode/opencode.jsonc` - OpenCode AI agent config
+- `.config/opencode/opencode.json` - OpenCode AI agent config and `oh-my-openagent` plugin entrypoint
 - `.config/ripgrep/ripgreprc` - Ripgrep defaults (smart-case, 120 cols)
 - `keyboard-layouts/Finnish-prog.bundle` - Custom Finnish Programmer keyboard layout (excluded from rsync, installed by bootstrap.sh)
 - `.hammerspoon/init.lua` - Hammerspoon config (per-app keyboard layout forcing)
@@ -170,6 +170,6 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 | ripgrep (rg) | Fast search             | `dotfiles/.config/ripgrep/ripgreprc`       |
 | fd           | Fast find               | `dotfiles/.config/fd/ignore`               |
 | nvim         | Default editor          | Separate nix flake config                  |
-| opencode     | AI coding agent         | `dotfiles/.config/opencode/opencode.jsonc` |
+| opencode     | AI coding agent         | `dotfiles/.config/opencode/opencode.json` |
 | lazygit      | Git TUI                 | `dotfiles/.config/lazygit/config.yml`      |
 | tmux         | Terminal multiplexer    | `dotfiles/.tmux.conf` (prefix: Ctrl+A)     |
