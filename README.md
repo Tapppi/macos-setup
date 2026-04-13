@@ -165,6 +165,10 @@ Not all steps have been automated:
   apps being managed.
 - Launch Podman Desktop and configure the Podman machine plus Podman and
   Compose integrations if you use it for local container tooling.
+- If Podman Desktop on Apple Silicon still reports that `krunkit` is missing,
+  verify the Homebrew `krunkit` package is installed. If the warning still
+  persists and you specifically need `libkrun`, prefer the official Podman
+  installer path over forcing unsupported local overrides.
 - Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
   locally.
 - Set up iTerm2 key binds if backups don't restore correctly:

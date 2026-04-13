@@ -57,6 +57,8 @@ install_macos_sw() {
 
 	BREW_PREFIX="$(brew --prefix)"
 
+	install_podman_support
+
 	# Fix fish permissions for brew
 	# if [ -d "${BREW_PREFIX}/share/fish" ]; then
 	# 	sudo chown -R "$(whoami):admin" "${BREW_PREFIX}/share/fish"
@@ -72,6 +74,25 @@ install_macos_sw() {
 
 	install_links
 	install_amphetamine_enhancer
+}
+
+install_podman_support() {
+	if ! brew list podman >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if [[ "$(uname -m)" != "arm64" ]]; then
+		p3 "Skip krunkit install on non-Apple Silicon"
+		return 0
+	fi
+
+	if brew list krunkit >/dev/null 2>&1; then
+		p3 "krunkit already installed"
+		return 0
+	fi
+
+	p2 "Install krunkit for Podman on Apple Silicon..."
+	brew install krunkit
 }
 
 # Add Homebrew sbin to Default Path
