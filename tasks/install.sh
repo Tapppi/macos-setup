@@ -5,8 +5,8 @@ set -uo pipefail
 
 install() {
 	install_macos_sw
-	install_mise_runtimes
 	install_dotfiles
+	install_mise_runtimes
 }
 
 # Define Function =install_xcode=
@@ -207,6 +207,7 @@ install_mise_runtimes() {
 install_dotfiles() {
 	p1 "Installing dotfiles..."
 
+    mkdir -p ~/.config/bash/
 	cp ./{.extra,.path} ~/.config/bash/
 
 	./dotfiles/bootstrap.sh -f
