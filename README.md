@@ -8,9 +8,9 @@
 2. Copy backup and this repo to new mac
 3. Run `./setup.sh init`
 4. If no non-superadmin account exists yet, run `./setup.sh new_account` and log in with the new user
-5. If need keys or creds from backup for install, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
+5. If you need local keys or credentials from backup for install, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
 6. Run `./setup.sh clean_account` to remove default dock icons
-   - Run `./setup.sh init_ssh_1password` or `./setup.sh init_ssh_local` to set up SSH
+   - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
 7. Run `./setup.sh install && ./setup.sh config` and reboot your computer
 
 There are still rough edges and you will probably have to fix something by
@@ -26,7 +26,6 @@ and credentials. Other files, such as documents are expected to be backed up
 to file-sharing, e.g. google drive or dropbox.
 
 Backed up configs include:
-- **1Password SSH agent** (`~/.config/1Password/ssh/agent.toml`) — vault allowlist for the SSH agent (which vaults/items are offered to SSH servers)
 - **Alfred** — preferences, alfred preferences bundle, workflow data
 - **iStat Menus** — menubar and status plist preferences
 - **iTerm2** — preferences plist
@@ -45,7 +44,9 @@ folder. `restore.sh` restores gzip-compressed tar archives with `.tar.gz` or
 #### 1Password-managed signing keys
 
 This repo does not export or restore GPG private keys as part of the backup
-tarball. Signing keys are expected to stay in 1Password instead.
+tarball. Signing keys are expected to stay in 1Password instead, and the
+1Password SSH agent allowlist is recreated with `./setup.sh init_ssh_1password`
+instead of being restored from backup.
 
 On a fresh Mac:
 

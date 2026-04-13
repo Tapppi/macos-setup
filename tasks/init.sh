@@ -146,7 +146,7 @@ Host *
 
 EOF
 
-	p3 "Wrote ${onepassword_agent_toml}; lock and unlock 1Password if it does not pick up the new vault list immediately"
+	p3 "Wrote ${onepassword_agent_toml} and replaced ${HOME}/.ssh/config; lock and unlock 1Password if it does not pick up the new vault list immediately"
 }
 
 # Unused function due to switching to _1password variant,

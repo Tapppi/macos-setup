@@ -2,9 +2,6 @@
 
 ## APPLICATIONS
 
-# 1Password
-.config/1Password/ssh/agent.toml
-
 # Alfred
 Library/Preferences/com.runningwithcrayons.Alfred.plist
 Library/Preferences/com.runningwithcrayons.Alfred-Preferences.plist
