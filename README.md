@@ -178,6 +178,27 @@ Not all steps have been automated:
 - Set up iTerm2 key binds if backups don't restore correctly:
   https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
+## tmopro18 temporary always-on worker notes
+
+If `tmopro18` is temporarily acting as a lid-closed SSH worker while still
+remaining usable as a backup laptop, keep the setup reversible:
+
+- **Recommended now**
+  - Keep Remote Login limited to the users you actually need.
+  - Use the AC-only `pmset` override in `tasks/macos.sh` so the machine stays
+    awake on charger without changing battery behavior.
+  - Require the password immediately when the display sleeps or the screen
+    saver starts.
+- **Maybe later**
+  - Use `caffeinate` for short experiments before changing longer-lived power
+    settings again.
+  - Tighten SSH access further with host-specific `AllowUsers` / network
+    restrictions if this machine becomes more exposed.
+- **Avoid**
+  - Deep sleep / hibernate hacks that diverge from Apple’s default power model.
+  - Lid-sensor bypass tools or other unsupported tweaks that make the machine
+    harder to trust as a normal laptop afterward.
+
 ## Thanks to...
 
 - [Mathias Bynens](https://mths.be) for his [_dotfiles_ repository](https://github.com/mathiasbynens/dotfiles)
