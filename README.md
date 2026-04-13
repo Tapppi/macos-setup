@@ -50,7 +50,7 @@ tarball. Signing keys are expected to stay in 1Password instead.
 On a fresh Mac:
 
 1. Sign in to 1Password and confirm your signing key is available in the vault.
-2. Run `./setup.sh init_ssh_1password` to point SSH at the 1Password agent.
+2. Run `./setup.sh init_ssh_1password` to point SSH at the 1Password agent and write an `agent.toml` allowlist for the vaults you enter.
 3. Bootstrap your dotfiles or run the full install so Git picks up the existing
    1Password SSH signing configuration.
 4. If Git signing prompts appear, approve them in 1Password the first time you
@@ -68,7 +68,7 @@ Available tasks:
 | `init` | System init: hostname, updates, xcode devtools, guest off (no account creation) |
 | `new_account` | Create a new macOS admin account (run separately if IT hasn't done an account split) |
 | `clean_account` | Wipe default dock icons from the new account's Dock |
-| `init_ssh_1password` | Write SSH config to use 1Password agent (standalone) |
+| `init_ssh_1password` | Write SSH config and interactive 1Password vault allowlist (standalone) |
 | `init_ssh_local` | Generate a local SSH key if you don't have one from backup |
 | `install` | Install all software and runtimes (also works as update) |
 | `dotfiles` | Bootstrap dotfiles only (re-sync without full install) |

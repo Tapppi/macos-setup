@@ -91,9 +91,53 @@ init_updates() {
 }
 
 # Customize SSH
+trim_whitespace() {
+	local value="${1#"${1%%[![:space:]]*}"}"
+	value="${value%"${value##*[![:space:]]}"}"
+	printf "%s" "${value}"
+}
+
+toml_escape_string() {
+	local value="${1//\\/\\\\}"
+	value="${value//\"/\\\"}"
+	printf "%s" "${value}"
+}
+
 init_ssh_1password() {
+	local onepassword_config_root="${XDG_CONFIG_HOME:-${HOME}/.config}/1Password/ssh"
+	local onepassword_agent_toml="${onepassword_config_root}/agent.toml"
+	local vault_input
+	local raw_vault
+	local vault
+	local -a vaults
+
 	if ! test -d "${HOME}/.ssh"; then
 		mkdir -m go= "${HOME}/.ssh"
+	fi
+	if ! test -d "${onepassword_config_root}"; then
+		mkdir -p "${onepassword_config_root}"
+	fi
+
+	vault_input="$(ask '1Password SSH Agent: Vaults? (comma-separated)' 'OK' '')"
+	IFS=',' read -r -a vaults <<<"${vault_input}"
+
+	: >"${onepassword_agent_toml}"
+	for raw_vault in "${vaults[@]}"; do
+		vault="$(trim_whitespace "${raw_vault}")"
+		if [[ -n "${vault}" ]]; then
+			cat <<EOF >>"${onepassword_agent_toml}"
+[[ssh-keys]]
+account = "Tapani Moilanen"
+vault = "$(toml_escape_string "${vault}")"
+
+EOF
+		fi
+	done
+
+	if ! test -s "${onepassword_agent_toml}"; then
+		rm -f "${onepassword_agent_toml}"
+		p3 '1Password SSH agent config not written: no vaults provided'
+		return 1
 	fi
 
 	cat <<EOF >"${HOME}/.ssh/config"
@@ -101,6 +145,8 @@ Host *
   IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
 EOF
+
+	p3 "Wrote ${onepassword_agent_toml}; lock and unlock 1Password if it does not pick up the new vault list immediately"
 }
 
 # Unused function due to switching to _1password variant,
