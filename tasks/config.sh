@@ -314,7 +314,8 @@ com.apple.QuickTimePlayerX	public.aifc-audio	all
 com.apple.QuickTimePlayerX	public.aiff-audio	all
 com.apple.QuickTimePlayerX	public.audio	all
 com.apple.QuickTimePlayerX	public.mp3	all
-com.apple.Safari	com.compuserve.gif	all
+com.apple.Preview	com.compuserve.gif	all
+com.apple.Preview	.gif	all
 com.apple.Terminal	com.apple.terminal.shell-script	all
 com.apple.QuickTimePlayerX	com.apple.m4a-audio	all
 com.apple.QuickTimePlayerX	com.apple.protected-mpeg-4-audio	all
