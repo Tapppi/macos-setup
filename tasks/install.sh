@@ -58,6 +58,7 @@ install_macos_sw() {
 	BREW_PREFIX="$(brew --prefix)"
 
 	install_podman_support
+	install_podman_machine
 
 	# Fix fish permissions for brew
 	# if [ -d "${BREW_PREFIX}/share/fish" ]; then
@@ -93,6 +94,52 @@ install_podman_support() {
 
 	p2 "Install krunkit for Podman on Apple Silicon..."
 	brew install krunkit
+}
+
+install_podman_machine() {
+	local host_name cpus memory_mib disk_gib machine_name machine_info created_machine
+	host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
+	machine_name="podman-machine-default"
+	created_machine=0
+
+	if ! command -v podman >/dev/null 2>&1; then
+		return 0
+	fi
+
+	case "${host_name}" in
+	bellona)
+		cpus=8
+		memory_mib=16384
+		disk_gib=150
+		;;
+	tmopro18)
+		cpus=6
+		memory_mib=6144
+		disk_gib=100
+		;;
+	*)
+		p3 "Skip host-specific Podman machine setup on ${host_name}"
+		return 0
+		;;
+	esac
+
+	if ! podman machine inspect "${machine_name}" >/dev/null 2>&1; then
+		p2 "Initialize Podman machine for ${host_name}..."
+		podman machine init --cpus "${cpus}" --memory "${memory_mib}" --disk-size "${disk_gib}" --rootful
+		created_machine=1
+	else
+		p3 "Podman machine already exists; keeping current configuration"
+	fi
+
+	machine_info="$(podman machine inspect "${machine_name}" 2>/dev/null || true)"
+	if [[ -n "${machine_info}" ]] && command -v jq >/dev/null 2>&1; then
+		p3 "$(printf '%s' "${machine_info}" | jq -r '.[0] | "Podman machine: cpus=\(.Resources.CPUs) memoryMiB=\(.Resources.Memory) diskGiB=\(.Resources.DiskSize) rootful=\(.Rootful)"')"
+	fi
+
+	if [[ "${created_machine}" -eq 1 ]]; then
+		p2 "Start Podman machine..."
+		podman machine start "${machine_name}"
+	fi
 }
 
 # Add Homebrew sbin to Default Path
