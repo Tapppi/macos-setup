@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 
 # Ask for the administrator password upfront and keep-alive
 sudo -v

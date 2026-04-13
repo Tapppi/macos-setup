@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 
 config() {
 	# Keep-alive: update existing `sudo` time stamp until `.macos` has finished
