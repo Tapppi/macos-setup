@@ -1,9 +1,12 @@
+# shellcheck shell=bash
+
 # Local bin folder for user tools (uv, etc.)
 export PATH="$XDG_BIN_HOME:$PATH"
 
 # Go bin (GOPATH/bin is still useful even with mise)
 if command -v go >/dev/null 2>&1; then
-  export PATH="$(go env GOPATH)/bin:$PATH"
+  go_bin_path="$(go env GOPATH)/bin"
+  export PATH="$go_bin_path:$PATH"
 fi;
 
 # Brew dependant paths
@@ -26,3 +29,12 @@ if command -v brew >/dev/null 2>&1; then
   export PATH="$brew_prefix/opt/gnu-getopt/bin:$PATH"
 fi
 
+# Use the active Podman machine as the Docker-compatible socket when available.
+# This keeps docker/compose clients on the Podman socket without requiring the
+# global podman-mac-helper /var/run/docker.sock override.
+if command -v podman >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  podman_socket=$(podman machine inspect podman-machine-default 2>/dev/null | jq -r '.[0].ConnectionInfo.PodmanSocket.Path // empty')
+  if [ -n "$podman_socket" ]; then
+    export DOCKER_HOST="unix://$podman_socket"
+  fi
+fi

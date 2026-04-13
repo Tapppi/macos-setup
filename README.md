@@ -163,8 +163,12 @@ Not all steps have been automated:
   permissions and the Launch at Login toggle. The plist restores most Ice
   settings, but some menu bar item positions still depend on the individual
   apps being managed.
-- Launch Podman Desktop and configure the Podman machine plus Podman and
-  Compose integrations if you use it for local container tooling.
+- Launch Podman Desktop and verify the `podman-machine-default` machine is
+  running if you use it for local container tooling. Shells from these
+  dotfiles export `DOCKER_HOST` from `podman machine inspect`, so Docker and
+  Compose clients follow the active Podman socket automatically. If you need
+  the global `/var/run/docker.sock` path instead, install `podman-mac-helper`
+  manually and restart the Podman machine afterward.
 - If Podman Desktop on Apple Silicon still reports that `krunkit` is missing,
   verify the Homebrew `krunkit` package is installed. If the warning still
   persists and you specifically need `libkrun`, prefer the official Podman
