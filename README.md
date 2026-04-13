@@ -126,6 +126,9 @@ Also works as update — rerun it to update apps and runtimes.
 - Registers login items (1Password, Alfred, Amphetamine, ClaudeBar, Google
   Drive, Hammerspoon, Ice, iStat Menus, Karabiner-Elements, Resolutionator,
   Slack, Spotify, stts, WhatsApp)
+- Registers the Obsidian CLI at `/usr/local/bin/obsidian` when the app bundle
+  is present, and removes stale `# Added by Obsidian` PATH lines from
+  `~/.zprofile`
 - Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
 - Applies macOS system settings as defined in `tasks/macos.sh`
 - Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,

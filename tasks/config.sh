@@ -21,6 +21,7 @@ config() {
 	config_hammerspoon
 	config_ice
 	config_karabiner_elements
+	config_obsidian
 	config_resolutionator
 	config_spotify
 
@@ -141,6 +142,49 @@ config_ice() {
 config_karabiner_elements() {
 	test -d "/Applications/Karabiner-Elements.app" &&
 		open "/Applications/Karabiner-Elements.app"
+}
+
+# Configure Obsidian CLI
+config_obsidian() {
+	local obsidian_app="/Applications/Obsidian.app"
+	local obsidian_cli="${obsidian_app}/Contents/MacOS/obsidian-cli"
+	local obsidian_link="/usr/local/bin/obsidian"
+	local zprofile_file="${HOME}/.zprofile"
+
+	if [[ -x "${obsidian_cli}" ]]; then
+		test -d "/usr/local/bin" ||
+			sudo mkdir -p "/usr/local/bin"
+
+		if [[ ! -L "${obsidian_link}" ]] || [[ "$(readlink "${obsidian_link}" 2>/dev/null)" != "${obsidian_cli}" ]]; then
+			sudo ln -sf "${obsidian_cli}" "${obsidian_link}"
+		fi
+	fi
+
+	if [[ -f "${zprofile_file}" ]]; then
+		python3 - "${zprofile_file}" <<'PYEOF'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+lines = path.read_text().splitlines()
+filtered = []
+skip_next_blank = False
+
+for line in lines:
+	if line == "# Added by Obsidian" or "/Applications/Obsidian.app/Contents/MacOS" in line:
+		skip_next_blank = True
+		continue
+
+	if skip_next_blank and line == "":
+		skip_next_blank = False
+		continue
+
+	skip_next_blank = False
+	filtered.append(line)
+
+path.write_text("\n".join(filtered) + ("\n" if filtered else ""))
+PYEOF
+	fi
 }
 
 # Configure Resolutionator
