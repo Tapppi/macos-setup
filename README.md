@@ -152,6 +152,8 @@ Not all steps have been automated:
 - Sign in to Google Drive after `./setup.sh config` opens it, and use Ice if
   you want to hide the Google Drive menu bar icon (Google Drive does not
   expose a native setting for that).
+- Launch Podman Desktop and configure the Podman machine plus Podman and
+  Compose integrations if you use it for local container tooling.
 - Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
   locally.
 - Set up iTerm2 key binds if backups don't restore correctly:
