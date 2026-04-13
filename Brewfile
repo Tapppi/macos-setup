@@ -87,9 +87,9 @@ cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
 brew "mise"
-# Install php through brew as the mise install requires 3rd party sources or a rebuild of 10m with
-# a ton of deps
-brew "php"
+# Install php through brew if needed as the mise install requires 3rd party sources or a rebuild
+# of 10m with a ton of deps
+# brew "php"
 
 # Openss* since macos is really bad about providing them
 brew "openssl@3"
