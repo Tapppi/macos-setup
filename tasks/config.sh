@@ -16,6 +16,13 @@ config() {
 	config_alfred
 	config_stts
 	config_amphetamine
+	config_claudebar
+	config_google_drive
+	config_hammerspoon
+	config_ice
+	config_karabiner_elements
+	config_resolutionator
+	config_spotify
 
 	p1 "Customising various launch options"
 	custom_loginitems
@@ -106,6 +113,48 @@ config_amphetamine() {
 		open "/Applications/Amphetamine Enhancer.app"
 }
 
+# Configure ClaudeBar
+config_claudebar() {
+	test -d "/Applications/ClaudeBar.app" &&
+		open "/Applications/ClaudeBar.app"
+}
+
+# Configure Google Drive
+config_google_drive() {
+	test -d "/Applications/Google Drive.app" &&
+		open "/Applications/Google Drive.app"
+}
+
+# Configure Hammerspoon
+config_hammerspoon() {
+	test -d "/Applications/Hammerspoon.app" &&
+		open "/Applications/Hammerspoon.app"
+}
+
+# Configure Ice
+config_ice() {
+	test -d "/Applications/Ice.app" &&
+		open "/Applications/Ice.app"
+}
+
+# Configure Karabiner-Elements
+config_karabiner_elements() {
+	test -d "/Applications/Karabiner-Elements.app" &&
+		open "/Applications/Karabiner-Elements.app"
+}
+
+# Configure Resolutionator
+config_resolutionator() {
+	test -d "/Applications/Resolutionator.app" &&
+		open "/Applications/Resolutionator.app"
+}
+
+# Configure Spotify
+config_spotify() {
+	test -d "/Applications/Spotify.app" &&
+		open "/Applications/Spotify.app"
+}
+
 # Configure stts
 config_stts() {
 	test -d "/Applications/stts.app" &&
@@ -146,9 +195,12 @@ config_vlc() {
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
 /Applications/Amphetamine.app
+/Applications/ClaudeBar.app
 /Applications/Google Drive.app
+/Applications/Hammerspoon.app
 /Applications/Ice.app
 /Applications/iStat Menus.app
+/Applications/Karabiner-Elements.app
 /Applications/Resolutionator.app
 /Applications/Slack.app
 /Applications/Spotify.app

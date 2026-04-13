@@ -31,6 +31,7 @@ Backed up configs include:
 - **iTerm2** — preferences plist
 - **Resolutionator** — preferences plist
 - **Postico** — preferences and saved connections
+- **Tmuxinator** — session/project configs from `~/.config/tmuxinator`
 - **Keys/credentials** — `~/.ssl`, `~/.credentials`, `~/.pgpass`
 
 [`restore.sh`](/restore.sh) extracts the backup tarball back to home folder.
@@ -121,11 +122,14 @@ Also works as update — rerun it to update apps and runtimes.
 - Sets up a custom Terminal.app profile (InconsolataLGC font, Solarized, 121×35 window)
 - Sets default file associations via duti (Neovide for text/code, VLC for
   media, The Unarchiver for archives)
-- Registers login items (1Password, Alfred, Amphetamine, Google Drive, Ice,
-  iStat Menus, Resolutionator, Slack, Spotify, stts, WhatsApp)
+- Registers login items (1Password, Alfred, Amphetamine, ClaudeBar, Google
+  Drive, Hammerspoon, Ice, iStat Menus, Karabiner-Elements, Resolutionator,
+  Slack, Spotify, stts, WhatsApp)
 - Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
 - Applies macOS system settings as defined in the `.macos` dotfile
-- Launches iStat Menus, Alfred, Amphetamine, and stts for first-run setup
+- Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,
+  Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
+  Spotify, and stts for first-run setup
 
 ## Manual steps
 
@@ -133,6 +137,23 @@ Not all steps have been automated:
 
 - Disable startup sound: System Settings → Sound → uncheck "Play sound on
   startup" (no scriptable method on Apple Silicon)
+- Review 1Password security settings and unlock behavior after sign-in. This
+  repo configures SSH/signing integration, but app-level security preferences
+  still need to be confirmed manually.
+- Sign in to Bitwarden and verify any required vault logins or browser/app
+  integrations are available on the new machine.
+- Set up Brave Sync Chain so browser state can sync back to the new machine.
+- Check Alfred preferences and confirm the required macOS permissions are still
+  granted after setup.
+- Finish the Amphetamine Enhancer helper installation in the GUI after
+  `./setup.sh config` opens the app.
+- Sign in to Google in macOS Settings so Calendar, Mail, Notes, and Contacts
+  sync to the new machine.
+- Sign in to Google Drive after `./setup.sh config` opens it, and use Ice if
+  you want to hide the Google Drive menu bar icon (Google Drive does not
+  expose a native setting for that).
+- Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
+  locally.
 - Set up iTerm2 key binds if backups don't restore correctly:
   https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
