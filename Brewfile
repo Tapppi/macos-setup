@@ -246,9 +246,10 @@ brew "lazygit"
 # Github CLI
 brew "gh"
 
+# API Clients
+brew "curl"
 # Nice httpie client
 brew "httpie"
-# API testing
 cask "yaak"
 
 # JSON and yaml query/mangling/cleanup/prettify tool
