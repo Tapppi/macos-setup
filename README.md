@@ -43,6 +43,12 @@ gzip-compressed tar archive using the format `{path}/{name}.{timestamp}.tar.gz`.
 folder. `restore.sh` restores gzip-compressed tar archives with `.tar.gz` or
 `.tgz` extensions.
 
+For Resolutionator specifically, restoring
+`~/Library/Preferences/com.manytricks.Resolutionator.plist` is the durable path
+for carrying over preferences such as faceless/stealth mode and other saved
+app settings between Macs. Host-specific default resolutions still need to be
+confirmed on the target machine before treating them as shared defaults.
+
 #### 1Password-managed signing keys
 
 This repo does not export or restore GPG private keys as part of the backup
