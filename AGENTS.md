@@ -16,9 +16,6 @@ macos-setup/
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
-  ai/
-    prompts/            # AI agent prompt templates and references
-    plans/              # Save in-progress plans and task breakdowns here
   .extra                # Personal bash config (git author, extra aliases)
   .path                 # PATH extensions (GNU utils, Go, brew)
   .credentials.dist     # Template for secret env vars (DO NOT commit filled version)
@@ -80,13 +77,6 @@ shellcheck dotfiles/bootstrap.sh dotfiles/.config/bash/.functions
 ```
 
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
-
-## ai/ Directory
-
-- `ai/prompts/` - Store reusable AI agent prompt templates here
-- `ai/plans/` - Save plans for work that is currently under way here.
-  When starting a multi-step task, write a plan file (e.g. `ai/plans/feature-name.md`)
-  describing the goal, steps, and current progress. Remove or archive when done.
 
 ## Code Style
 
