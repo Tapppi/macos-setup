@@ -156,6 +156,9 @@ Not all steps have been automated:
 - Sign in to Google Drive after `./setup.sh config` opens it, and use Ice if
   you want to hide the Google Drive menu bar icon (Google Drive does not
   expose a native setting for that).
+- If you use Microsoft Teams, open Settings → General and turn off Menu bar
+  extension. The current Teams build exposes this as an app setting, but there
+  is no documented durable config key in this repo to script it safely.
 - If you restore Ice preferences, re-check Accessibility / Screen Recording
   permissions and the Launch at Login toggle. The plist restores most Ice
   settings, but some menu bar item positions still depend on the individual
