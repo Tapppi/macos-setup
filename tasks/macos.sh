@@ -35,6 +35,12 @@ sudo defaults write com.apple.universalaccess reduceTransparency -bool true
 # Set highlight color to green
 defaults write NSGlobalDomain AppleHighlightColor -string "0.764700 0.976500 0.568600"
 
+# Hide Control Center menu bar items that should stay out of the menu bar by
+# default on a fresh machine. Apple documents the GUI toggles, but these keys
+# are implementation details in com.apple.controlcenter.
+defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 0
+defaults write com.apple.controlcenter "NSStatusItem Visible WiFi" -int 0
+
 # Set sidebar icon size to medium
 defaults write NSGlobalDomain NSTableViewDefaultSizeMode -int 2
 
@@ -665,7 +671,7 @@ defaults write com.apple.mail SpellCheckingBehavior -string "NoSpellCheckingEnab
 ###############################################################################
 
 # Hide Spotlight tray-icon (and subsequent helper)
-#sudo chmod 600 /System/Library/CoreServices/Search.bundle/Contents/MacOS/Search
+defaults -currentHost write com.apple.Spotlight MenuItemHidden -int 1
 # Disable Spotlight indexing for any volume that gets mounted and has not yet
 # been indexed before.
 # Use `sudo mdutil -i off "/Volumes/foo"` to stop indexing any volume.
@@ -954,7 +960,9 @@ for app in "Activity Monitor" \
 	"Mail" \
 	"Messages" \
 	"NotificationCenter" \
+	"ControlCenter" \
 	"Photos" \
+	"Spotlight" \
 	"usernoted" \
 	"Safari" \
 	"SystemUIServer" \
