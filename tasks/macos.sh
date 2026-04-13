@@ -9,6 +9,8 @@ osascript -e 'tell application "System Settings" to quit'
 # Ask for the administrator password upfront
 sudo -v
 
+host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
+
 # Keep-alive: update existing `sudo` time stamp until macOS configuration has finished
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
@@ -324,6 +326,15 @@ if [[ "$(uname -m)" == "x86_64" ]]; then
 	sudo pmset -a hibernatemode 0
 fi
 
+# Keep tmopro18 awake on charger while it is being used as a temporary SSH
+# worker. Battery behavior stays on the normal defaults above.
+if [[ "${host_name}" == "tmopro18" ]]; then
+	sudo pmset -c sleep 0
+	sudo pmset -c displaysleep 5
+	sudo pmset -c autorestart 1
+	sudo pmset -c womp 1
+fi
+
 ###############################################################################
 # Screen                                                                      #
 ###############################################################################
@@ -331,6 +342,10 @@ fi
 # Require password immediately after sleep or screen saver begins
 defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 15
+
+if [[ "${host_name}" == "tmopro18" ]]; then
+	defaults write com.apple.screensaver askForPasswordDelay -int 0
+fi
 
 # Save screenshots to the Screenshots directory
 mkdir -p "${HOME}/Screenshots"
