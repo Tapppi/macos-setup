@@ -16,4 +16,5 @@ Thumbs.db
 # Local AI files
 .sisyphus
 .copilot
+.claude
 /.ai/
