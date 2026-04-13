@@ -30,6 +30,7 @@ brew bundle check                  # Verify all packages installed
 - **`tasks/init.sh`** — System init: hostname, permissions, macOS updates, guest account, SSH/1Password setup, new account creation.
 - **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins.
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup.
+- **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Rsynced to `~` via `bootstrap.sh`. Has its own git history on `master` branch. After changing dotfiles, commit inside `dotfiles/` then `git add dotfiles` in the parent repo.
 - **`.extra`** — Git identity, personal aliases. **`.path`** — PATH extensions (GNU utils, Go, brew). **`.credentials.dist`** — Template for secrets.
@@ -37,7 +38,7 @@ brew bundle check                  # Verify all packages installed
 ## Rules
 
 ### Do Not Run Setup Scripts
-**NEVER** run `setup.sh`, `tasks/*.sh`, `dotfiles/bootstrap.sh`, or `dotfiles/.macos` automatically.
+**NEVER** run `setup.sh`, `tasks/*.sh`, or `dotfiles/bootstrap.sh` automatically.
 These modify system configuration, install software, and require `sudo`.
 
 ### Git Identity and Attribution

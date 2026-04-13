@@ -2,7 +2,7 @@
 set -uo pipefail
 
 config() {
-	# Keep-alive: update existing `sudo` time stamp until `.macos` has finished
+	# Keep-alive: update existing `sudo` time stamp until macOS config has finished
 	while true; do
 		sudo -n true
 		sleep 60
@@ -30,7 +30,7 @@ config() {
 	custom_duti
 
 	p1 "Configuring macOS"
-	./dotfiles/.macos
+	./tasks/macos.sh
 	p1 "Done. Some changes require a reboot."
 }
 

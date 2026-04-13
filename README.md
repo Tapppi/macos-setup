@@ -126,7 +126,7 @@ Also works as update — rerun it to update apps and runtimes.
   Drive, Hammerspoon, Ice, iStat Menus, Karabiner-Elements, Resolutionator,
   Slack, Spotify, stts, WhatsApp)
 - Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
-- Applies macOS system settings as defined in the `.macos` dotfile
+- Applies macOS system settings as defined in `tasks/macos.sh`
 - Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,
   Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
   Spotify, and stts for first-run setup

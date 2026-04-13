@@ -13,6 +13,7 @@ macos-setup/
     init.sh             # System init (hostname, users, SSH, Xcode)
     install.sh          # Software install (brew, mise runtimes, dotfiles)
     config.sh           # App/macOS configuration (defaults, duti, login items)
+    macos.sh            # macOS defaults and power-management configuration
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
@@ -35,7 +36,6 @@ See `dotfiles/README.md` for details. It contains configs like:
 - `.config/ripgrep/ripgreprc` - Ripgrep defaults (smart-case, 120 cols)
 - `keyboard-layouts/Finnish-prog.bundle` - Custom Finnish Programmer keyboard layout (excluded from rsync, installed by bootstrap.sh)
 - `.hammerspoon/init.lua` - Hammerspoon config (per-app keyboard layout forcing)
-- `.macos` - macOS configuration script (installs keyboard layouts, enables input sources)
 - `bootstrap.sh` - Rsyncs dotfiles to ~, copies lazygit config
 
 ### Committing to the dotfiles submodule
@@ -149,8 +149,8 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 
 ### Do Not Run Setup Scripts
 
-- **NEVER** run `setup.sh`, `tasks/*.sh`, `dotfiles/bootstrap.sh`, or
-  `dotfiles/.macos` automatically. These scripts modify system configuration,
+- **NEVER** run `setup.sh`, `tasks/*.sh`, or `dotfiles/bootstrap.sh`
+  automatically. These scripts modify system configuration,
   install software, and require `sudo`. The user must always run them manually.
 
 ### Files to Never Commit
