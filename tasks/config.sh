@@ -264,11 +264,15 @@ PY
 	esac
 }
 
-# Configure Claude Code MCP servers
+# Configure Claude Code MCP servers and plugins
 config_claude_code() {
 	if command -v claude >/dev/null; then
 		# context7: library/framework documentation lookup (not built into Claude Code)
 		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
+		# chrome-devtools: browser debugging, Lighthouse audits, performance tracing
+		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
+		# playwright: browser testing and UX automation (via official plugin)
+		claude plugin install playwright
 	fi
 }
 
