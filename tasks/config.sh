@@ -163,29 +163,10 @@ config_obsidian() {
 	fi
 
 	if [[ -f "${zprofile_file}" ]]; then
-		python3 - "${zprofile_file}" <<'PYEOF'
-import pathlib
-import sys
-
-path = pathlib.Path(sys.argv[1])
-lines = path.read_text().splitlines()
-filtered = []
-skip_next_blank = False
-
-for line in lines:
-	if line == "# Added by Obsidian" or "/Applications/Obsidian.app/Contents/MacOS" in line:
-		skip_next_blank = True
-		continue
-
-	if skip_next_blank and line == "":
-		skip_next_blank = False
-		continue
-
-	skip_next_blank = False
-	filtered.append(line)
-
-path.write_text("\n".join(filtered) + ("\n" if filtered else ""))
-PYEOF
+		sed -i '' \
+			-e '/# Added by Obsidian/d' \
+			-e '/\/Applications\/Obsidian\.app\/Contents\/MacOS/d' \
+			"${zprofile_file}"
 	fi
 }
 
