@@ -23,6 +23,7 @@ config() {
 	config_karabiner_elements
 	config_obsidian
 	config_resolutionator
+	config_claude_code
 	config_spotify
 
 	p1 "Customising various launch options"
@@ -261,6 +262,14 @@ PY
 		p3 "Resolutionator default resolution still needs a tmopro18-specific value"
 		;;
 	esac
+}
+
+# Configure Claude Code MCP servers
+config_claude_code() {
+	if command -v claude >/dev/null; then
+		# context7: library/framework documentation lookup (not built into Claude Code)
+		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
+	fi
 }
 
 # Configure Spotify
