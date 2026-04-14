@@ -25,11 +25,8 @@ while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 #sudo defaults write /Library/Preferences/SystemConfiguration/com.appl.smb.server NetBIOSName -string "0x6D746873"
 
 # Disable the sound effects on boot
-# NOTE: NVRAM control of boot chime is Intel-only. Apple Silicon uses a
-# different boot sound mechanism and may ignore this setting.
-if [[ "$(uname -m)" == "x86_64" ]]; then
-	sudo nvram SystemAudioVolume=" "
-fi
+# NOTE: nvram is Intel-only; Apple Silicon ignores this. Harmless no-op.
+sudo nvram SystemAudioVolume=" " 2>/dev/null || true
 
 # Disable transparency in the menu bar and elsewhere on Yosemite
 sudo defaults write com.apple.universalaccess reduceTransparency -bool true
@@ -42,6 +39,14 @@ defaults write NSGlobalDomain AppleHighlightColor -string "0.764700 0.976500 0.5
 # are implementation details in com.apple.controlcenter.
 defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 0
 defaults write com.apple.controlcenter "NSStatusItem Visible WiFi" -int 0
+
+# Configure Control Center module visibility (ByHost defaults).
+# 8 = show in Control Center, 24 = hidden from Control Center.
+defaults -currentHost write com.apple.controlcenter Battery -int 8
+defaults -currentHost write com.apple.controlcenter NowPlaying -int 8
+defaults -currentHost write com.apple.controlcenter WiFi -int 24
+defaults -currentHost write com.apple.controlcenter Bluetooth -int 24
+defaults -currentHost write com.apple.controlcenter Sound -int 24
 
 # Set sidebar icon size to medium
 defaults write NSGlobalDomain NSTableViewDefaultSizeMode -int 2
@@ -320,11 +325,8 @@ sudo pmset -u displaysleep 2
 sudo pmset -a standbydelayhigh 14400
 sudo pmset -a standbydelaylow 7200
 
-# Disable hibernation on Intel (speeds up entering sleep mode)
-# Apple Silicon manages sleep/hibernate internally
-if [[ "$(uname -m)" == "x86_64" ]]; then
-	sudo pmset -a hibernatemode 0
-fi
+# Disable hibernation (speeds up entering sleep mode on Intel; no-op on AS)
+sudo pmset -a hibernatemode 0 2>/dev/null || true
 
 # Keep tmopro18 awake on charger while it is being used as a temporary SSH
 # worker. Battery behavior stays on the normal defaults above.
