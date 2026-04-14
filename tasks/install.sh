@@ -13,6 +13,13 @@ install() {
 # Define Function =install_xcode=
 install_xcode() {
 	p2 "Check xcode installation..."
+
+	# Skip inside nix shell — nix injects /nix/store paths that confuse xcode-select
+	if [[ "${PATH}" == *"/nix/store/"* ]]; then
+		p3 "Inside nix shell, skipping xcode-select"
+		return 0
+	fi
+
 	x="$(find '/Applications' -maxdepth 1 -regex '.*/Xcode[^ ]*.app' -print -quit)"
 	if test -n "${x}"; then
 		# Set the correct path for xcode-select (needs to point to Contents/Developer)
