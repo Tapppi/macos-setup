@@ -76,6 +76,7 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 ```
 
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
+**Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing.
 
 ## Code Style
 

@@ -70,6 +70,7 @@ Tabs (width 2), UTF-8, LF line endings, trim trailing whitespace, insert final n
 - Prefer `command -v` over `which`
 - Keep scripts idempotent: check before installing/configuring
 - Use `return 1` in functions (not `exit 1`)
+- **Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing
 
 ### Brewfile
 Group by category with comments, `brew`/`cask`/`mas` syntax, keep sorted within groups.
