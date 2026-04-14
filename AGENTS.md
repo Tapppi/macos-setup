@@ -12,8 +12,8 @@ macos-setup/
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
     install.sh          # Software install (brew, mise runtimes, dotfiles)
-    config.sh           # App/macOS configuration (defaults, duti, login items)
-    macos.sh            # macOS defaults and power-management configuration
+    config.sh           # App configuration (defaults, duti, login items)
+    macos.sh            # macOS system defaults and power-management (separate task)
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
@@ -59,7 +59,8 @@ This is a shell-script-based repo with no formal build system or test suite.
 ./setup.sh init     # System initialization
 ./setup.sh install  # Install all software
 ./setup.sh dotfiles # Bootstrap dotfiles only
-./setup.sh config   # Apply macOS/app configuration
+./setup.sh config   # Apply app configuration
+./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 reload              # Reloads all shell configurations
 
 # Homebrew

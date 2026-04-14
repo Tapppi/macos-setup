@@ -19,7 +19,7 @@ brew bundle --file=Brewfile        # Install all packages
 brew bundle check                  # Verify all packages installed
 
 # Setup tasks (NEVER run these automatically — see rules below)
-./setup.sh init|install|dotfiles|config|new_account|clean_account|init_ssh_1password|init_ssh_local
+./setup.sh init|install|dotfiles|config|macos|new_account|clean_account|init_ssh_1password|init_ssh_local
 ```
 
 ## Architecture
@@ -29,8 +29,8 @@ brew bundle check                  # Verify all packages installed
   keep-alive pattern.
 - **`tasks/init.sh`** — System init: hostname, permissions, macOS updates, guest account, SSH/1Password setup, new account creation.
 - **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins.
-- **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup.
-- **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings.
+- **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup. Does not apply macOS system defaults (use `./setup.sh macos` separately).
+- **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
   `home/` rsynced to `~/` (non-XDG files) and `config/` rsynced to `~/.config/` (XDG config).

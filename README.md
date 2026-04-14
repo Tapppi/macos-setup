@@ -12,7 +12,8 @@
    - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
 6. Run `./setup.sh install` to install all software and runtimes
 7. If you need app configs or credentials from backup, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
-8. Run `./setup.sh config` and reboot your computer
+8. Run `./setup.sh config` to configure apps and file associations
+9. Run `./setup.sh macos` to apply macOS system defaults, then reboot
 
 There are still rough edges and you will probably have to fix something by
 hand, but it should still be quicker than starting over or using time machine..
@@ -83,7 +84,8 @@ Available tasks:
 | `init_ssh_local` | Generate a local SSH key if you don't have one from backup |
 | `install` | Install all software and runtimes (also works as update) |
 | `dotfiles` | Bootstrap dotfiles only (re-sync without full install) |
-| `config` | Apply macOS and application configuration |
+| `config` | Apply application configuration (VLC, duti, login items, etc.) |
+| `macos` | Apply macOS system defaults (Finder, Dock, keyboard, power, etc.) |
 
 #### init
 
@@ -138,10 +140,25 @@ Also works as update — rerun it to update apps and runtimes.
   is present, and removes stale `# Added by Obsidian` PATH lines from
   `~/.zprofile`
 - Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
-- Applies macOS system settings as defined in `tasks/macos.sh`
 - Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,
   Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
   Spotify, and stts for first-run setup
+
+#### macos
+
+Applies macOS system defaults from `tasks/macos.sh`. Run separately from
+`config` because it kills UI processes (Finder, Dock, ControlCenter,
+NotificationCenter) that can disrupt permissions dialogs during app config.
+
+- General UI/UX: transparency, highlight color, save/print panels, auto-correct off
+- Keyboard/input: function keys as standard, fast key repeat, input sources
+- Trackpad/mouse: natural scrolling off, Magic Mouse gestures
+- Energy: display/disk/machine sleep timers, host-specific overrides for tmopro18
+- Screen: password on wake, screenshots to ~/Screenshots
+- Notifications: suppress when mirroring/sharing
+- Finder: show hidden files, path bar, list view, spring loading
+- Dock: autohide, no recents, hot corners, Mission Control speed
+- Safari, Mail, Terminal, Time Machine, Activity Monitor, and more
 
 ## Manual steps
 

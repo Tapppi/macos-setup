@@ -7,6 +7,7 @@ install() {
 	install_macos_sw
 	install_dotfiles
 	install_mise_runtimes
+	install_claude_code
 }
 
 # Define Function =install_xcode=
@@ -205,6 +206,26 @@ install_mise_runtimes() {
 	# yes | gem install bundler
 
 	p2 "Mise installations done!"
+}
+
+# Install Claude Code MCP servers and plugins
+install_claude_code() {
+	p2 "Configuring Claude Code MCP servers and plugins..."
+	if ! command -v claude >/dev/null 2>&1; then
+		p3 "Claude Code not installed, skipping"
+		return 0
+	fi
+
+	# context7: library/framework documentation lookup (not built into Claude Code)
+	if ! claude mcp list 2>/dev/null | grep -q context7; then
+		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
+	fi
+	# chrome-devtools: browser debugging, Lighthouse audits, performance tracing
+	if ! claude mcp list 2>/dev/null | grep -q chrome-devtools; then
+		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
+	fi
+	# playwright: browser testing and UX automation (via official plugin)
+	claude plugin install playwright
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=

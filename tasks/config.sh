@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+HOST_NAME="$(hostname -s 2>/dev/null || printf '%s' unknown)"
+
 config() {
 	# Keep-alive: update existing `sudo` time stamp until macOS config has finished
 	while true; do
@@ -24,7 +26,6 @@ config() {
 	config_obsidian
 	config_podman
 	config_resolutionator
-	config_claude_code
 	config_spotify
 
 	p1 "Customising various launch options"
@@ -32,9 +33,7 @@ config() {
 	custom_terminal
 	custom_duti
 
-	p1 "Configuring macOS"
-	./tasks/macos.sh
-	p1 "Done. Some changes require a reboot."
+	p1 "Done. Run './setup.sh macos' separately to apply macOS system defaults."
 }
 
 # Mark Applications Requiring Administrator Account
@@ -56,7 +55,7 @@ config_defaults() {
 	printf "%s\n" "${1}" |
 		while IFS=$'\t' read -r domain key type value host; do
 			# shellcheck disable=SC2086
-			${2} defaults ${host} write "${domain}" "${key}" ${type} "${value}"
+			${2-} defaults ${host} write "${domain}" "${key}" ${type} "${value}"
 		done
 }
 
@@ -68,12 +67,12 @@ config_plist() {
 			case "$value" in
 			\$*)
 				# shellcheck disable=SC2086
-				$4 /usr/libexec/PlistBuddy "$2" \
-					-c "$command '${3}${entry}' $type '$(eval echo \"$value\")'" 2>/dev/null
+				${4-} /usr/libexec/PlistBuddy "$2" \
+					-c "$command '${3-}${entry}' $type '$(eval echo \"$value\")'" 2>/dev/null
 				;;
 			*)
-				$4 /usr/libexec/PlistBuddy "$2" \
-					-c "$command '${3}${entry}' $type '$value'" 2>/dev/null
+				${4-} /usr/libexec/PlistBuddy "$2" \
+					-c "$command '${3-}${entry}' $type '$value'" 2>/dev/null
 				;;
 			esac
 		done
@@ -183,17 +182,16 @@ config_obsidian() {
 # Configure Podman machine and Docker compatibility socket
 config_podman() {
 	p2 "Configuring Podman..."
-	local host_name cpus memory_mib disk_gib machine_name
+	local cpus memory_mib disk_gib machine_name
 
 	if ! command -v podman >/dev/null 2>&1; then
 		p3 "Podman not installed, skipping"
 		return 0
 	fi
 
-	host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 	machine_name="podman-machine-default"
 
-	case "${host_name}" in
+	case "${HOST_NAME}" in
 	bellona)
 		cpus=8
 		memory_mib=16384
@@ -205,13 +203,13 @@ config_podman() {
 		disk_gib=100
 		;;
 	*)
-		p3 "Skip host-specific Podman machine setup on ${host_name}"
+		p3 "Skip host-specific Podman machine setup on ${HOST_NAME}"
 		return 0
 		;;
 	esac
 
 	if ! podman machine inspect "${machine_name}" >/dev/null 2>&1; then
-		p2 "Initialize Podman machine for ${host_name}..."
+		p2 "Initialize Podman machine for ${HOST_NAME}..."
 		podman machine init --cpus "${cpus}" --memory "${memory_mib}" --disk-size "${disk_gib}" --rootful
 		p2 "Start Podman machine..."
 		podman machine start "${machine_name}"
@@ -231,7 +229,6 @@ config_resolutionator() {
 	p2 "Configuring Resolutionator..."
 	local resolutionator_app="/Applications/Resolutionator.app"
 	local resolutionator_domain="com.manytricks.Resolutionator"
-	local host_name
 
 	if [[ ! -d "${resolutionator_app}" ]]; then
 		p3 "Resolutionator not installed, skipping"
@@ -245,30 +242,16 @@ config_resolutionator() {
 		modifierFlags -int 1966080
 
 	if command -v displayplacer >/dev/null 2>&1; then
-		host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
-		case "${host_name}" in
+		case "${HOST_NAME}" in
 		bellona)
-			p3 "Setting resolution 1800x1169 for ${host_name}..."
+			p3 "Setting resolution 1800x1169 for ${HOST_NAME}..."
 			displayplacer "id:s0 res:1800x1169 scaling:on"
 			;;
 		tmopro18)
-			p3 "Setting resolution 1680x1050 for ${host_name}..."
+			p3 "Setting resolution 1680x1050 for ${HOST_NAME}..."
 			displayplacer "id:s0 res:1680x1050 scaling:on"
 			;;
 		esac
-	fi
-}
-
-# Configure Claude Code MCP servers and plugins
-config_claude_code() {
-	p2 "Configuring Claude Code MCP servers and plugins..."
-	if command -v claude >/dev/null; then
-		# context7: library/framework documentation lookup (not built into Claude Code)
-		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
-		# chrome-devtools: browser debugging, Lighthouse audits, performance tracing
-		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
-		# playwright: browser testing and UX automation (via official plugin)
-		claude plugin install playwright
 	fi
 }
 

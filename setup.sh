@@ -77,7 +77,9 @@ elif [[ "${1}" = "dotfiles" ]]; then
 elif [[ "${1}" = "config" ]]; then
 	. tasks/config.sh
 	config
+elif [[ "${1}" = "macos" ]]; then
+	./tasks/macos.sh
 else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config | macos]"
 	echo "See README.md for more information."
 fi
