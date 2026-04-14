@@ -19,9 +19,6 @@ Library/Preferences/com.jordanbaird.Ice.plist
 # iTerm2
 Library/Preferences/com.googlecode.iterm2.plist
 
-# Resolutionator
-Library/Preferences/com.manytricks.Resolutionator.plist
-
 # Postico
 Library/Containers/at.eggerapps.Postico/Data/Library/Preferences/at.eggerapps.Postico.plist
 Library/Containers/at.eggerapps.Postico/Data/Library/Application Support/Postico/

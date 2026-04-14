@@ -32,7 +32,6 @@ Backed up configs include:
 - **iStat Menus** — menubar and status plist preferences
 - **Ice** — app preferences from `~/Library/Preferences/com.jordanbaird.Ice.plist`
 - **iTerm2** — preferences plist
-- **Resolutionator** — preferences plist
 - **Postico** — preferences and saved connections
 - **Tmuxinator** — session/project configs from `~/.config/tmuxinator`
 - **Keys/credentials** — `~/.ssl`, `~/.credentials`, `~/.pgpass`
@@ -44,13 +43,6 @@ gzip-compressed tar archive using the format `{path}/{name}.{timestamp}.tar.gz`.
 `restore.sh` takes the path to that archive and restores it back to the home
 folder. `restore.sh` restores gzip-compressed tar archives with `.tar.gz` or
 `.tgz` extensions.
-
-For Resolutionator specifically, restoring
-`~/Library/Preferences/com.manytricks.Resolutionator.plist` is the durable path
-for carrying over preferences such as faceless/stealth mode and other saved
-app settings between Macs. `./setup.sh config` also reinforces Resolutionator's
-faceless mode and sets its keyboard trigger to `Hyper+P`, in addition to setting
-the resolution per-host to one step less scaling than default.
 
 #### 1Password-managed signing keys
 
@@ -140,6 +132,9 @@ Also works as update — rerun it to update apps and runtimes.
   is present, and removes stale `# Added by Obsidian` PATH lines from
   `~/.zprofile`
 - Tags apps requiring admin rights with a Finder tag (iStat Menus, Wireshark)
+- Configures Resolutionator: enables stealth/faceless mode, sets keyboard
+  trigger to `Hyper+P`, and sets per-host display resolution via displayplacer
+  (one step less scaling than default)
 - Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,
   Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
   Spotify, and stts for first-run setup
