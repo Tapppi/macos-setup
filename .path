@@ -28,13 +28,3 @@ if command -v brew >/dev/null 2>&1; then
   # Add gnu-getopt to path
   export PATH="$brew_prefix/opt/gnu-getopt/bin:$PATH"
 fi
-
-# Use the active Podman machine as the Docker-compatible socket when available.
-# This keeps docker/compose clients on the Podman socket without requiring the
-# global podman-mac-helper /var/run/docker.sock override.
-if command -v podman >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-  podman_socket=$(podman machine inspect podman-machine-default 2>/dev/null | jq -r '.[0].ConnectionInfo.PodmanSocket.Path // empty')
-  if [ -n "$podman_socket" ]; then
-    export DOCKER_HOST="unix://$podman_socket"
-  fi
-fi

@@ -22,6 +22,7 @@ config() {
 	config_ice
 	config_karabiner_elements
 	config_obsidian
+	config_podman
 	config_resolutionator
 	config_claude_code
 	config_spotify
@@ -185,6 +186,50 @@ for line in lines:
 
 path.write_text("\n".join(filtered) + ("\n" if filtered else ""))
 PYEOF
+	fi
+}
+
+# Configure Podman machine and Docker compatibility socket
+config_podman() {
+	local host_name cpus memory_mib disk_gib machine_name
+
+	if ! command -v podman >/dev/null 2>&1; then
+		return 0
+	fi
+
+	host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
+	machine_name="podman-machine-default"
+
+	case "${host_name}" in
+	bellona)
+		cpus=8
+		memory_mib=16384
+		disk_gib=150
+		;;
+	tmopro18)
+		cpus=6
+		memory_mib=6144
+		disk_gib=100
+		;;
+	*)
+		p3 "Skip host-specific Podman machine setup on ${host_name}"
+		return 0
+		;;
+	esac
+
+	if ! podman machine inspect "${machine_name}" >/dev/null 2>&1; then
+		p2 "Initialize Podman machine for ${host_name}..."
+		podman machine init --cpus "${cpus}" --memory "${memory_mib}" --disk-size "${disk_gib}" --rootful
+		p2 "Start Podman machine..."
+		podman machine start "${machine_name}"
+	else
+		p3 "Podman machine already exists; keeping current configuration"
+	fi
+
+	# Set up global /var/run/docker.sock via podman-mac-helper
+	if command -v podman-mac-helper >/dev/null 2>&1; then
+		p2 "Configure podman-mac-helper for Docker compatibility socket..."
+		sudo podman-mac-helper install
 	fi
 }
 
