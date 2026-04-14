@@ -25,18 +25,16 @@ macos-setup/
 ## dotfiles/ Submodule
 
 `dotfiles/` is a **separate git submodule** at `git@github.com:tapppi/dotfiles.git`.
-See `dotfiles/README.md` for details. It contains configs like:
+See `dotfiles/README.md` for details. It has two sync directories:
 
-- `.config/bash/.aliases` - Shell aliases (g=git)
-- `.config/bash/.exports` - Environment variables (EDITOR=nvim)
-- `.config/bash/.functions` - Shell utility functions
-- `.config/bash/.bash_profile` - Main profile (sources all the above + activates mise, zoxide)
-- `.config/bash/.bash_prompt` - Solarized Dark prompt with git status
-- `.config/opencode/opencode.json` - OpenCode AI agent config and `oh-my-openagent` plugin entrypoint
-- `.config/ripgrep/ripgreprc` - Ripgrep defaults (smart-case, 120 cols)
-- `keyboard-layouts/Finnish-prog.bundle` - Custom Finnish Programmer keyboard layout (excluded from rsync, installed by bootstrap.sh)
-- `.hammerspoon/init.lua` - Hammerspoon config (per-app keyboard layout forcing)
-- `bootstrap.sh` - Rsyncs dotfiles to ~, copies lazygit config
+- `home/` — rsynced to `~/` (files without XDG support):
+  `.bash_profile`, `.bashrc`, `.claude/`, `.hammerspoon/`, `.hushlogin`, `.parallel/`
+- `config/` — rsynced to `~/.config/` (XDG-compliant config):
+  `bash/` (aliases, exports, functions, prompt), `git/` (config + global ignore),
+  `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`, `ghostty/`, `karabiner/`,
+  `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `ripgrep/`, `fd/`, `terminal/`
+- `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
+- `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
 ### Committing to the dotfiles submodule
 
@@ -73,7 +71,7 @@ brew bundle check           # Verify all packages installed
 
 # Lint shell scripts
 shellcheck setup.sh tasks/*.sh backup.sh restore.sh
-shellcheck dotfiles/bootstrap.sh dotfiles/.config/bash/.functions
+shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 ```
 
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
@@ -117,7 +115,7 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 
 ### Git Conventions
 
-- GPG signing is enabled (`commit.gpgsign = true` in dotfiles/.gitconfig)
+- GPG signing is enabled (`commit.gpgsign = true` in dotfiles/config/git/config)
 - Default branch: `main` for new repos (set in gitconfig)
 - This repo and dotfiles use `master` branch
 - Commit messages: imperative mood, concise (e.g. "Add podman", "Update dotfiles")
@@ -131,6 +129,9 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 - Use `brew "name"` for formulae, `cask "name"` for GUI apps, `mas "name", id:` for App Store
 - Keep sorted within each category group
 - Comment out temporarily unavailable or problematic packages
+- `Brewfile` is the primary manifest (Apple Silicon). `intel.Brewfile` is a copy minus
+  ARM-only packages (e.g. `krunkit`). Always edit `Brewfile` first, then replicate
+  applicable changes to `intel.Brewfile`
 
 ### Git Identity and Attribution
 
@@ -167,9 +168,9 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 | mise         | Runtime version manager | `~/.config/mise/` (activated in bash)      |
 | Homebrew     | Package manager         | `Brewfile`                                 |
 | shellcheck   | Shell script linter     | (installed via brew)                       |
-| ripgrep (rg) | Fast search             | `dotfiles/.config/ripgrep/ripgreprc`       |
-| fd           | Fast find               | `dotfiles/.config/fd/ignore`               |
+| ripgrep (rg) | Fast search             | `dotfiles/config/ripgrep/ripgreprc`        |
+| fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
-| opencode     | AI coding agent         | `dotfiles/.config/opencode/opencode.json` |
-| lazygit      | Git TUI                 | `dotfiles/.config/lazygit/config.yml`      |
-| tmux         | Terminal multiplexer    | `dotfiles/.tmux.conf` (prefix: Ctrl+A)     |
+| opencode     | AI coding agent         | `dotfiles/config/opencode/opencode.json`   |
+| lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
+| tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |

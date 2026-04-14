@@ -112,7 +112,7 @@ Also works as update — rerun it to update apps and runtimes.
 - Sets default shell to Bash 5 instead of ancient Bash from macOS
 - Installs lots of GNU utils to supplement and overwrite macOS builtins
 - Installs language runtimes with Mise (see
-  [`dotfiles/.config/mise/config.toml`](/dotfiles/.config/mise/config.toml)
+  [`dotfiles/config/mise/config.toml`](/dotfiles/config/mise/config.toml)
   for versions)
   - Bun, Go, Node, Python, Ruby, Rust, uv, Zig
   - PHP is installed through Homebrew due to problems in mise install (see

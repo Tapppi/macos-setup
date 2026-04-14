@@ -12,7 +12,7 @@ tooling for bootstrapping a fresh Mac. Shell-script-based with no formal build s
 ```sh
 # Lint (the only validation available — run before committing)
 shellcheck setup.sh tasks/*.sh backup.sh restore.sh
-shellcheck dotfiles/bootstrap.sh dotfiles/.config/bash/.functions
+shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 
 # Homebrew
 brew bundle --file=Brewfile        # Install all packages
@@ -32,7 +32,10 @@ brew bundle check                  # Verify all packages installed
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup.
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
-- **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Rsynced to `~` via `bootstrap.sh`. Has its own git history on `master` branch. After changing dotfiles, commit inside `dotfiles/` then `git add dotfiles` in the parent repo.
+- **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
+  `home/` rsynced to `~/` (non-XDG files) and `config/` rsynced to `~/.config/` (XDG config).
+  Has its own git history on `master` branch. After changing dotfiles, commit inside `dotfiles/`
+  then `git add dotfiles` in the parent repo.
 - **`.extra`** — Git identity, personal aliases. **`.path`** — PATH extensions (GNU utils, Go, brew). **`.credentials.dist`** — Template for secrets.
 
 ## Rules
@@ -70,6 +73,9 @@ Tabs (width 2), UTF-8, LF line endings, trim trailing whitespace, insert final n
 
 ### Brewfile
 Group by category with comments, `brew`/`cask`/`mas` syntax, keep sorted within groups.
+`Brewfile` is the primary manifest (Apple Silicon). `intel.Brewfile` is a copy minus ARM-only
+packages (e.g. `krunkit`). Always edit `Brewfile` first, then replicate applicable changes to
+`intel.Brewfile`.
 
 ### Git Conventions
 - Both repos use `master` branch (not `main`)
@@ -84,3 +90,8 @@ git push origin master
 cd ..
 git add dotfiles && git commit -m "Update dotfiles"
 ```
+
+### XDG Base Directory
+`XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`. Tools that support XDG read
+config from `~/.config/`. Env var overrides (`INPUTRC`, `WGETRC`, `KUBECONFIG`, `PGPASSFILE`, etc.)
+are also set there for tools that need explicit paths.
