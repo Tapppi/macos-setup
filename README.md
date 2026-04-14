@@ -48,10 +48,8 @@ For Resolutionator specifically, restoring
 `~/Library/Preferences/com.manytricks.Resolutionator.plist` is the durable path
 for carrying over preferences such as faceless/stealth mode and other saved
 app settings between Macs. `./setup.sh config` also reinforces Resolutionator's
-faceless mode and sets its keyboard trigger to `Hyper+P`. On `bellona`, the
-config step captures the current Resolutionator-visible built-in resolution and
-reapplies it through Resolutionator. `tmopro18` still intentionally needs its
-own host-specific default resolution to be decided before automating that part.
+faceless mode and sets its keyboard trigger to `Hyper+P`, in addition to setting
+the resolution per-host to one step less scaling than default.
 
 #### 1Password-managed signing keys
 

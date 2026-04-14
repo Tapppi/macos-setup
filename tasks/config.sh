@@ -218,7 +218,7 @@ config_podman() {
 config_resolutionator() {
 	local resolutionator_app="/Applications/Resolutionator.app"
 	local resolutionator_domain="com.manytricks.Resolutionator"
-	local host_name current_resolution width height
+	local host_name
 
 	if [[ ! -d "${resolutionator_app}" ]]; then
 		return 0
@@ -233,59 +233,10 @@ config_resolutionator() {
 	host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 	case "${host_name}" in
 	bellona)
-		current_resolution="$(python3 - <<'PY'
-import re
-import subprocess
-
-try:
-	result = subprocess.run(
-		[
-			'osascript',
-			'-e', 'tell application "Resolutionator" to activate',
-			'-e', 'delay 1',
-			'-e', 'tell application "System Events" to tell process "Resolutionator" to get name of every menu item of menu 1 of menu bar item 3 of menu bar 1'
-		],
-		capture_output=True,
-		text=True,
-		check=True,
-		timeout=10,
-	)
-except Exception:
-	print('')
-	raise SystemExit(0)
-
-match = re.search(r'(\d+)\s*[×x]\s*(\d+)', result.stdout)
-if match:
-	print(f"{match.group(1)} {match.group(2)}")
-else:
-	print('')
-PY
-		)"
-
-		if [[ -n "${current_resolution}" ]]; then
-			read -r width height <<<"${current_resolution}"
-			python3 - "${width}" "${height}" <<'PY'
-import subprocess
-import sys
-
-width, height = sys.argv[1:3]
-try:
-	subprocess.run(
-		['osascript', '-e', f'tell application "Resolutionator" to set resolution {width} x {height} for display 1'],
-		check=True,
-		timeout=10,
-	)
-except subprocess.TimeoutExpired:
-	pass
-except subprocess.CalledProcessError:
-	pass
-PY
-		else
-			p3 "Could not capture the current bellona Resolutionator resolution"
-		fi
+		osascript -e 'tell application "Resolutionator" to set resolution 1800 x 1169 for display 1' 2>/dev/null || true
 		;;
 	tmopro18)
-		p3 "Resolutionator default resolution still needs a tmopro18-specific value"
+		osascript -e 'tell application "Resolutionator" to set resolution 1680 x 1050 for display 1' 2>/dev/null || true
 		;;
 	esac
 }
