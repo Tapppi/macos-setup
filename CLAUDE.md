@@ -44,6 +44,12 @@ brew bundle check                  # Verify all packages installed
 **NEVER** run `setup.sh`, `tasks/*.sh`, or `dotfiles/bootstrap.sh` automatically.
 These modify system configuration, install software, and require `sudo`.
 
+### Edit Dotfiles in the Submodule, Not in `~/`
+**NEVER** edit files directly in `~/`, `~/.claude/`, or `~/.config/`. Always edit the source in the
+`dotfiles/` submodule (`home/` or `config/` directories) and then copy the changed file to its
+destination (e.g., `cp dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
+deployment targets — the dotfiles repo is the source of truth.
+
 ### Git Identity and Attribution
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no agent signatures).
   Commits must look like normal developer commits.
