@@ -225,6 +225,8 @@ brew "nnn"
 
 # View file/folder size and delete them, like `du` but with a UX
 brew "ncdu"
+# System resource monitor TUI - https://github.com/aristocratos/btop
+brew "btop"
 # Better cd - quick access to folders from anywhere - https://github.com/ajeetdsouza/zoxide
 brew "zoxide"
 # Grep but fast like a Ferrari

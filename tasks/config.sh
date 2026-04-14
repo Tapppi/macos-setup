@@ -18,6 +18,7 @@ config() {
 	config_alfred
 	config_stts
 	config_amphetamine
+	config_btop
 	config_claudebar
 	config_google_drive
 	config_hammerspoon
@@ -117,6 +118,26 @@ config_amphetamine() {
 		open "/Applications/Amphetamine.app"
 	test -d "/Applications/Amphetamine Enhancer.app" &&
 		open "/Applications/Amphetamine Enhancer.app"
+}
+
+# Configure btop CPU watts (setuid for SMC/IOReport power metrics access)
+config_btop() {
+	p2 "Configuring btop..."
+	local btop_bin
+	btop_bin="$(brew --prefix)/bin/btop"
+
+	if [[ ! -x "${btop_bin}" ]]; then
+		p3 "btop not installed, skipping"
+		return 0
+	fi
+
+	if [[ ! -u "${btop_bin}" ]]; then
+		p2 "Enable btop CPU watts (setuid)..."
+		sudo chown root:wheel "${btop_bin}"
+		sudo chmod u+s "${btop_bin}"
+	else
+		p3 "btop already setuid, skipping"
+	fi
 }
 
 # Configure ClaudeBar
