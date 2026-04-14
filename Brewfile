@@ -147,6 +147,9 @@ brew "neovim"
 cask "cursor"
 cask "neovide-app"
 
+# Claude desktop app
+cask "claude"
+
 # Terminal AI Agents
 cask "claude-code"
 cask "codex"
