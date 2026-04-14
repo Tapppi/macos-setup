@@ -183,6 +183,8 @@ Not all steps have been automated:
   permissions and the Launch at Login toggle. The plist restores most Ice
   settings, but some menu bar item positions still depend on the individual
   apps being managed.
+- Authenticate the GitHub CLI with `gh auth login` so that `gh` commands,
+  Claude Code GitHub integration, and Git credential helpers work.
 - Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
   locally.
 - Set up iTerm2 key binds if backups don't restore correctly:
