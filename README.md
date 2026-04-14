@@ -185,8 +185,8 @@ Not all steps have been automated:
   apps being managed.
 - Authenticate the GitHub CLI with `gh auth login` so that `gh` commands,
   Claude Code GitHub integration, and Git credential helpers work.
-- Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
-  locally.
+- Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the Personal
+  Knowledge Base repo locally.
 - Set up iTerm2 key binds if backups don't restore correctly:
   https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
 
