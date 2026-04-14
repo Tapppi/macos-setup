@@ -83,7 +83,6 @@ brew "pkgconf"
 # Podman
 brew "podman"
 brew "podman-compose"
-brew "krunkit"
 cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.

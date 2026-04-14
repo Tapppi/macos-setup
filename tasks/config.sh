@@ -43,6 +43,7 @@ _admin_req='iStat Menus.app
 Wireshark.app'
 
 config_admin_req() {
+	p2 "Tagging apps requiring admin rights..."
 	printf "%s\n" "${_admin_req}" |
 		while IFS=$'\t' read -r app; do
 			sudo tag -a "Red, admin" "/Applications/${app}"
@@ -98,18 +99,21 @@ config_launchd() {
 
 # Configure iStat Menus
 config_istatmenus() {
+	p2 "Launching iStat Menus for first-run setup..."
 	test -d "/Applications/iStat Menus.app" &&
 		open "/Applications/iStat Menus.app"
 }
 
 # Configure Alfred
 config_alfred() {
+	p2 "Launching Alfred for first-run setup..."
 	test -d "/Applications/Alfred 5.app" &&
 		open "/Applications/Alfred 5.app"
 }
 
 # Configure Amphetamine
 config_amphetamine() {
+	p2 "Launching Amphetamine for first-run setup..."
 	test -d "/Applications/Amphetamine.app" &&
 		open "/Applications/Amphetamine.app"
 	test -d "/Applications/Amphetamine Enhancer.app" &&
@@ -118,36 +122,42 @@ config_amphetamine() {
 
 # Configure ClaudeBar
 config_claudebar() {
+	p2 "Launching ClaudeBar for first-run setup..."
 	test -d "/Applications/ClaudeBar.app" &&
 		open "/Applications/ClaudeBar.app"
 }
 
 # Configure Google Drive
 config_google_drive() {
+	p2 "Launching Google Drive for first-run setup..."
 	test -d "/Applications/Google Drive.app" &&
 		open "/Applications/Google Drive.app"
 }
 
 # Configure Hammerspoon
 config_hammerspoon() {
+	p2 "Launching Hammerspoon for first-run setup..."
 	test -d "/Applications/Hammerspoon.app" &&
 		open "/Applications/Hammerspoon.app"
 }
 
 # Configure Ice
 config_ice() {
+	p2 "Launching Ice for first-run setup..."
 	test -d "/Applications/Ice.app" &&
 		open "/Applications/Ice.app"
 }
 
 # Configure Karabiner-Elements
 config_karabiner_elements() {
+	p2 "Launching Karabiner-Elements for first-run setup..."
 	test -d "/Applications/Karabiner-Elements.app" &&
 		open "/Applications/Karabiner-Elements.app"
 }
 
 # Configure Obsidian CLI
 config_obsidian() {
+	p2 "Configuring Obsidian CLI..."
 	local obsidian_app="/Applications/Obsidian.app"
 	local obsidian_cli="${obsidian_app}/Contents/MacOS/obsidian-cli"
 	local obsidian_link="/usr/local/bin/obsidian"
@@ -172,9 +182,11 @@ config_obsidian() {
 
 # Configure Podman machine and Docker compatibility socket
 config_podman() {
+	p2 "Configuring Podman..."
 	local host_name cpus memory_mib disk_gib machine_name
 
 	if ! command -v podman >/dev/null 2>&1; then
+		p3 "Podman not installed, skipping"
 		return 0
 	fi
 
@@ -216,11 +228,13 @@ config_podman() {
 
 # Configure Resolutionator
 config_resolutionator() {
+	p2 "Configuring Resolutionator..."
 	local resolutionator_app="/Applications/Resolutionator.app"
 	local resolutionator_domain="com.manytricks.Resolutionator"
 	local host_name
 
 	if [[ ! -d "${resolutionator_app}" ]]; then
+		p3 "Resolutionator not installed, skipping"
 		return 0
 	fi
 
@@ -230,19 +244,24 @@ config_resolutionator() {
 		keyCode -int 35 \
 		modifierFlags -int 1966080
 
-	host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
-	case "${host_name}" in
-	bellona)
-		osascript -e 'tell application "Resolutionator" to set resolution 1800 x 1169 for display 1' 2>/dev/null || true
-		;;
-	tmopro18)
-		osascript -e 'tell application "Resolutionator" to set resolution 1680 x 1050 for display 1' 2>/dev/null || true
-		;;
-	esac
+	if command -v displayplacer >/dev/null 2>&1; then
+		host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
+		case "${host_name}" in
+		bellona)
+			p3 "Setting resolution 1800x1169 for ${host_name}..."
+			displayplacer "id:s0 res:1800x1169 scaling:on"
+			;;
+		tmopro18)
+			p3 "Setting resolution 1680x1050 for ${host_name}..."
+			displayplacer "id:s0 res:1680x1050 scaling:on"
+			;;
+		esac
+	fi
 }
 
 # Configure Claude Code MCP servers and plugins
 config_claude_code() {
+	p2 "Configuring Claude Code MCP servers and plugins..."
 	if command -v claude >/dev/null; then
 		# context7: library/framework documentation lookup (not built into Claude Code)
 		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
@@ -255,12 +274,14 @@ config_claude_code() {
 
 # Configure Spotify
 config_spotify() {
+	p2 "Launching Spotify for first-run setup..."
 	test -d "/Applications/Spotify.app" &&
 		open "/Applications/Spotify.app"
 }
 
 # Configure stts
 config_stts() {
+	p2 "Launching stts for first-run setup..."
 	test -d "/Applications/stts.app" &&
 		open "/Applications/stts.app"
 }
@@ -283,6 +304,7 @@ subsdec	subsdec-encoding	UTF-8
 avcodec	avcodec-hw	videotoolbox'
 
 config_vlc() {
+	p2 "Configuring VLC..."
 	config_defaults "${_vlc_defaults}"
 	if command -v crudini >/dev/null; then
 		test -d "${HOME}/Library/Preferences/org.videolan.vlc" ||
@@ -311,6 +333,7 @@ _loginitems='/Applications/1Password.app
 /Applications/stts.app
 /Applications/WhatsApp.app'
 custom_loginitems() {
+	p2 "Registering login items..."
 	printf "%s\n" "${_loginitems}" |
 		while IFS=$'\t' read -r app; do
 			if test -e "$app"; then
@@ -388,6 +411,7 @@ _term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani
 com.apple.Terminal	Default Window Settings	-string	tapani	'
 
 custom_terminal() {
+	p2 "Configuring Terminal.app profile..."
 	local _term_plist_file="${HOME}/Library/Preferences/com.apple.Terminal.plist"
 	local _term_plist_key=":Window Settings:tapani"
 	/usr/libexec/PlistBuddy "${_term_plist_file}" \
@@ -617,6 +641,7 @@ org.videolan.vlc	public.mpeg	all
 org.videolan.vlc	public.mpeg-2-video	all
 org.videolan.vlc	public.mpeg-4	all'
 custom_duti() {
+	p2 "Setting default file associations with duti..."
 	if command -v duti >/dev/null; then
 		printf "%s\n" "${_duti}" |
 			while IFS=$'\t' read -r id uti role; do

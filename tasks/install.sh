@@ -112,7 +112,11 @@ install_brew() {
 	brew doctor
 
 	p3 "Install Brewfile..."
-	brew bundle --file="Brewfile"
+	if [[ "$(uname -m)" == "arm64" ]]; then
+		brew bundle --file="Brewfile"
+	else
+		brew bundle --file="intel.Brewfile"
+	fi
 
 	# Bust cached kubectl completions so they regenerate on next shell startup
 	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
