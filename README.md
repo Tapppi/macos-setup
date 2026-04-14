@@ -8,10 +8,11 @@
 2. Copy backup and this repo to new mac
 3. Run `./setup.sh init` to set hostname, permissions, updates and disable guest
 4. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log in with it
-5. If you need local keys or credentials from backup for install, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
-6. Run `./setup.sh clean_account` to remove default dock icons
+5. Run `./setup.sh clean_account` to remove default dock icons
    - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
-7. Run `./setup.sh install && ./setup.sh config` and reboot your computer
+6. Run `./setup.sh install` to install all software and runtimes
+7. If you need app configs or credentials from backup, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
+8. Run `./setup.sh config` and reboot your computer
 
 There are still rough edges and you will probably have to fix something by
 hand, but it should still be quicker than starting over or using time machine..
@@ -172,16 +173,6 @@ Not all steps have been automated:
   permissions and the Launch at Login toggle. The plist restores most Ice
   settings, but some menu bar item positions still depend on the individual
   apps being managed.
-- Launch Podman Desktop and verify the `podman-machine-default` machine is
-  running if you use it for local container tooling. Shells from these
-  dotfiles export `DOCKER_HOST` from `podman machine inspect`, so Docker and
-  Compose clients follow the active Podman socket automatically. If you need
-  the global `/var/run/docker.sock` path instead, install `podman-mac-helper`
-  manually and restart the Podman machine afterward.
-- If Podman Desktop on Apple Silicon still reports that `krunkit` is missing,
-  verify the Homebrew `krunkit` package is installed. If the warning still
-  persists and you specifically need `libkrun`, prefer the official Podman
-  installer path over forcing unsupported local overrides.
 - Clone `gh:tapppi/tieto` into `~/tieto` if this machine needs the work repo
   locally.
 - Set up iTerm2 key binds if backups don't restore correctly:
