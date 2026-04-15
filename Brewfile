@@ -106,6 +106,7 @@ brew "duti"
 # I mean, if you aren't using a password manager..
 cask "1password"
 cask "1password-cli"
+mas "1Password for Safari", id: 1569813296
 cask "bitwarden"
 
 # Keys and identities, although 1Password & Tailscale replace basically all of it
