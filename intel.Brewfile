@@ -152,6 +152,7 @@ cask "claude"
 # Terminal AI Agents
 cask "claude-code"
 cask "codex"
+cask "cursor-cli"
 brew "anomalyco/tap/opencode"
 
 # Monitor for AI Agent subscription usage limits
