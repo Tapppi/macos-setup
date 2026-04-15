@@ -303,11 +303,11 @@ sudo systemsetup -setrestartfreeze on > /dev/null 2>&1
 sudo pmset -b displaysleep 10
 sudo pmset -c displaysleep 20
 
-# Disable machine disksleep while charging and sleep the disk after 15 min on battery
+# Disksleep after 90 min while charging and after 15 min on battery
 sudo pmset -b disksleep 15
-sudo pmset -c disksleep 45
+sudo pmset -c disksleep 90
 
-# Disable machine sleep while charging and sleep after 30 on battery
+# Sleep after 90 minutes when charging and after 30 on battery
 sudo pmset -b sleep 30
 sudo pmset -c sleep 90
 
@@ -315,14 +315,16 @@ sudo pmset -c sleep 90
 sudo pmset -b powernap 0
 sudo pmset -c powernap 1
 
-# Wake on ethernetpackets always
-sudo pmset -a womp 1
+# Wake on ethernetpackets only when on charger
+sudo pmset -b womp 0
+sudo pmset -c womp 1
 
 # UPS settings :D
 sudo pmset -u lessbright 1
 sudo pmset -u displaysleep 2
 
 # Set standby delay (high = above 50% battery, low = below 50%)
+sudo pmset -a standby 1
 sudo pmset -a standbydelayhigh 14400
 sudo pmset -a standbydelaylow 7200
 
@@ -333,6 +335,10 @@ sudo pmset -a hibernatemode 0 2>/dev/null || true
 # worker. Battery behavior stays on the normal defaults above.
 if [[ "${host_name}" == "tmopro18" ]]; then
 	sudo pmset -c sleep 0
+	sudo pmset -c disksleep 0
+	sudo pmset -c powernap 1
+	sudo pmset -c standby 0
+	sudo pmset -a acwake 1
 	sudo pmset -c displaysleep 5
 	sudo pmset -c autorestart 1
 	sudo pmset -c womp 1
@@ -342,9 +348,9 @@ fi
 # Screen                                                                      #
 ###############################################################################
 
-# Require password immediately after sleep or screen saver begins
+# Require password 5 min after sleep or screen saver begins
 defaults write com.apple.screensaver askForPassword -int 1
-defaults write com.apple.screensaver askForPasswordDelay -int 15
+defaults write com.apple.screensaver askForPasswordDelay -int 300
 
 if [[ "${host_name}" == "tmopro18" ]]; then
 	defaults write com.apple.screensaver askForPasswordDelay -int 0
