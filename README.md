@@ -161,6 +161,9 @@ Not all steps have been automated:
 
 - Disable startup sound: System Settings → Sound → uncheck "Play sound on
   startup" (no scriptable method on Apple Silicon)
+- Control Center grid changes (not scriptable — stored in a binary blob):
+  remove Stage Manager, Screenshot, and Screen Recording; add Battery and
+  Night Shift
 - Review 1Password security settings and unlock behavior after sign-in. This
   repo configures SSH/signing integration, but app-level security preferences
   still need to be confirmed manually.

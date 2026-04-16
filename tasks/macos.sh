@@ -35,19 +35,19 @@ sudo defaults write com.apple.universalaccess reduceTransparency -bool true
 # Set highlight color to green
 defaults write NSGlobalDomain AppleHighlightColor -string "0.764700 0.976500 0.568600"
 
-# Hide Control Center menu bar items that should stay out of the menu bar by
-# default on a fresh machine. Apple documents the GUI toggles, but these keys
-# are implementation details in com.apple.controlcenter.
-defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 0
-defaults write com.apple.controlcenter "NSStatusItem Visible WiFi" -int 0
-
-# Configure Control Center module visibility (ByHost defaults).
-# 8 = show in Control Center, 24 = hidden from Control Center.
+# Configure Control Center module menu bar visibility (ByHost defaults).
+# These control the "Show in Menu Bar" dropdown in System Settings → Control
+# Center. Items remain in Control Center regardless — CC grid contents
+# (add/remove modules) are stored in a BentoBox binary blob, not scriptable.
+# Values: 2 = show when active, 8 = don't show in menu bar, 18 = always show.
 defaults -currentHost write com.apple.controlcenter Battery -int 8
-defaults -currentHost write com.apple.controlcenter NowPlaying -int 8
-defaults -currentHost write com.apple.controlcenter WiFi -int 24
-defaults -currentHost write com.apple.controlcenter Bluetooth -int 24
-defaults -currentHost write com.apple.controlcenter Sound -int 24
+defaults -currentHost write com.apple.controlcenter WiFi -int 8
+defaults -currentHost write com.apple.controlcenter NowPlaying -int 2
+defaults -currentHost write com.apple.controlcenter Display -int 8
+defaults -currentHost write com.apple.controlcenter ScreenMirroring -int 8
+defaults -currentHost write com.apple.controlcenter Spotlight -int 8
+defaults -currentHost write com.apple.controlcenter Bluetooth -int 8
+defaults -currentHost write com.apple.controlcenter Sound -int 8
 
 # Set sidebar icon size to medium
 defaults write NSGlobalDomain NSTableViewDefaultSizeMode -int 2
