@@ -8,6 +8,7 @@ cask_args screen_saverdir: "/Library/Screen Savers"
 tap "anomalyco/tap"
 tap "hashicorp/tap"
 tap "teamookla/speedtest"
+tap "slp/krun"
 
 ## ========================================================
 ## CORE
