@@ -8,6 +8,7 @@ install() {
 	install_dotfiles
 	install_mise_runtimes
 	install_claude_code
+	install_cursor_agent
 }
 
 # Define Function =install_xcode=
@@ -233,6 +234,33 @@ install_claude_code() {
 	fi
 	# playwright: browser testing and UX automation (via official plugin)
 	claude plugin install playwright
+}
+
+# Clear macOS quarantine from cursor-cli cask
+# Upstream issue: bundled node binary triggers Gatekeeper
+# https://github.com/Homebrew/homebrew-cask/issues/246786
+install_cursor_agent() {
+	p2 "Configuring Cursor Agent CLI..."
+
+	if ! command -v cursor-agent >/dev/null 2>&1; then
+		p3 "cursor-agent not installed, skipping"
+		return 0
+	fi
+
+	local caskroom
+	caskroom="$(brew --prefix)/Caskroom/cursor-cli"
+
+	if [[ ! -d "${caskroom}" ]]; then
+		p3 "cursor-cli cask directory not found, skipping quarantine fix"
+		return 0
+	fi
+
+	if xattr -l "${caskroom}"/*/dist-package/node 2>/dev/null | grep -q com.apple.quarantine; then
+		p2 "Clear quarantine from cursor-cli cask..."
+		xattr -dr com.apple.quarantine "${caskroom}"/*/dist-package
+	else
+		p3 "cursor-cli quarantine already cleared"
+	fi
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=

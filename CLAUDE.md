@@ -33,7 +33,8 @@ brew bundle check                  # Verify all packages installed
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
-  `home/` rsynced to `~/` (non-XDG files) and `config/` rsynced to `~/.config/` (XDG config).
+  `home/` rsynced to `~/` (non-XDG files: `.claude/`, `.cursor/`, `.hammerspoon/`, etc.) and
+  `config/` rsynced to `~/.config/` (XDG config: `btop/`, `git/`, `opencode/`, `tmux/`, etc.).
   Has its own git history on `master` branch. After changing dotfiles, commit inside `dotfiles/`
   then `git add dotfiles` in the parent repo.
 - **`.extra`** — Git identity, personal aliases. **`.path`** — PATH extensions (GNU utils, Go, brew). **`.credentials.dist`** — Template for secrets.
@@ -45,7 +46,7 @@ brew bundle check                  # Verify all packages installed
 These modify system configuration, install software, and require `sudo`.
 
 ### Edit Dotfiles in the Submodule, Not in `~/`
-**NEVER** edit files directly in `~/`, `~/.claude/`, or `~/.config/`. Always edit the source in the
+**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.cursor/`, or `~/.config/`. Always edit the source in the
 `dotfiles/` submodule (`home/` or `config/` directories) and then copy the changed file to its
 destination (e.g., `cp dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.

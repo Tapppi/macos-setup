@@ -28,11 +28,12 @@ macos-setup/
 See `dotfiles/README.md` for details. It has two sync directories:
 
 - `home/` — rsynced to `~/` (files without XDG support):
-  `.bash_profile`, `.bashrc`, `.claude/`, `.hammerspoon/`, `.hushlogin`, `.parallel/`
+  `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hammerspoon/`, `.hushlogin`, `.parallel/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
-  `bash/` (aliases, exports, functions, prompt), `git/` (config + global ignore),
-  `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`, `ghostty/`, `karabiner/`,
-  `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `ripgrep/`, `fd/`, `terminal/`
+  `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
+  `git/` (config + global ignore), `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`,
+  `ghostty/`, `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `ripgrep/`,
+  `fd/`, `terminal/`
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
@@ -174,5 +175,7 @@ There is no test suite. Use `shellcheck` to validate shell scripts before commit
 | fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
 | opencode     | AI coding agent         | `dotfiles/config/opencode/opencode.json`   |
+| cursor-agent | AI coding agent (CLI)   | `dotfiles/home/.cursor/cli-config.json`    |
+| btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
 | lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
 | tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |
