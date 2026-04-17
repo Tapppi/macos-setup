@@ -163,6 +163,8 @@ cask "claudebar"
 
 # Mac keyboard layout editor, no longer used as I use US layout for prog
 # cask "ukelele"
+# Configuration application for my Keyboard
+cask "uhk-agent"
 
 # Documentation finders (dash for API/libs and tldr for short man)
 cask "dash"
