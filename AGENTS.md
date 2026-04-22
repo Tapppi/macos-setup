@@ -56,6 +56,9 @@ git add dotfiles && git commit -m "Update dotfiles"
 This is a shell-script-based repo with no formal build system or test suite.
 
 ```sh
+# Git hooks (run once after cloning — sets core.hooksPath to hooks/)
+bash hooks/install.sh
+
 # Full setup (requires sudo, interactive dialogs)
 ./setup.sh init     # System initialization
 ./setup.sh install  # Install all software

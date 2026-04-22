@@ -6,14 +6,15 @@
 
 1. Backup credentials and personal settings by running `backup.sh /path/to/backups backup-name`
 2. Copy backup and this repo to new mac
-3. Run `./setup.sh init` to set hostname, permissions, updates and disable guest
-4. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log in with it
-5. Run `./setup.sh clean_account` to remove default dock icons
+3. Run `bash hooks/install.sh` to set up git hooks (submodule init on checkout/worktree)
+4. Run `./setup.sh init` to set hostname, permissions, updates and disable guest
+5. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log in with it
+6. Run `./setup.sh clean_account` to remove default dock icons
    - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
-6. Run `./setup.sh install` to install all software and runtimes
-7. If you need app configs or credentials from backup, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
-8. Run `./setup.sh config` to configure apps and file associations
-9. Run `./setup.sh macos` to apply macOS system defaults, then reboot
+7. Run `./setup.sh install` to install all software and runtimes
+8. If you need app configs or credentials from backup, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
+9. Run `./setup.sh config` to configure apps and file associations
+10. Run `./setup.sh macos` to apply macOS system defaults, then reboot
 
 There are still rough edges and you will probably have to fix something by
 hand, but it should still be quicker than starting over or using time machine..

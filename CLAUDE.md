@@ -18,6 +18,9 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 brew bundle --file=Brewfile        # Install all packages
 brew bundle check                  # Verify all packages installed
 
+# Git hooks (run once after cloning — sets core.hooksPath to hooks/)
+bash hooks/install.sh
+
 # Setup tasks (NEVER run these automatically — see rules below)
 ./setup.sh init|install|dotfiles|config|macos|new_account|clean_account|init_ssh_1password|init_ssh_local
 ```
