@@ -139,6 +139,11 @@ Also works as update — rerun it to update apps and runtimes.
   Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
   Spotify, and stts for first-run setup
 
+#### Application hotkeys
+
+See the [dotfiles readme](dotfiles/README.md#application-hotkeys) for the full
+hotkey table. Managed via Hammerspoon and Karabiner Tab→Hyper.
+
 #### macos
 
 Applies macOS system defaults from `tasks/macos.sh`. Run separately from
