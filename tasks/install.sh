@@ -234,6 +234,16 @@ install_claude_code() {
 	fi
 	# playwright: browser testing and UX automation (via official plugin)
 	claude plugin install playwright
+
+	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
+	# Set vim mode so it persists across dotfile syncs.
+	local claude_json="${HOME}/.claude.json"
+	if [[ -f "${claude_json}" ]]; then
+		local tmp
+		tmp="$(jq '.editorMode = "vim"' "${claude_json}")" && printf '%s\n' "${tmp}" > "${claude_json}"
+	else
+		printf '%s\n' '{"editorMode":"vim"}' > "${claude_json}"
+	fi
 }
 
 # Clear macOS quarantine from cursor-cli cask
