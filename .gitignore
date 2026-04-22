@@ -13,6 +13,9 @@ Thumbs.db
 .Spotlight-V100
 .Trashes
 
+# Local overrides
+*.local.*
+
 # Local AI files
 .sisyphus
 .copilot
