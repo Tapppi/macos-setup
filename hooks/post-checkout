@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# post-checkout hook — initialise submodules after branch checkout.
+# Runs after `git checkout`, `git switch`, and `git worktree add`.
+#
+# Parameters: $1=prev_HEAD  $2=new_HEAD  $3=checkout_type (1=branch, 0=file)
+
+# Only act on branch checkouts (includes worktree add).
+[[ "$3" == "1" ]] || exit 0
+
+# Nothing to do if the repo has no submodules.
+[[ -f .gitmodules ]] || exit 0
+
+git submodule update --init
