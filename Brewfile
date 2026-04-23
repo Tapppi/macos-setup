@@ -153,7 +153,7 @@ cask "neovide-app"
 cask "claude"
 
 # Terminal AI Agents
-cask "claude-code"
+cask "claude-code@latest"
 cask "codex"
 cask "cursor-cli"
 brew "anomalyco/tap/opencode"
