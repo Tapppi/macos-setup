@@ -178,6 +178,7 @@ brew "tlrc"
 cask "slack"
 cask "microsoft-teams"
 cask "whatsapp"
+cask "discord"
 cask "spotify"
 
 # Office tooling and workspaces
