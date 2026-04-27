@@ -41,14 +41,17 @@ See `dotfiles/README.md` for details. It has two sync directories:
 
 The submodule has its own git history. Both repos use `master` branch. The parent repo tracks the
 submodule commit pointer. After changing dotfiles, always update the parent repo reference with `git
-add dotfiles`. Commit changes inside `dotfiles/`.
+add dotfiles`.
+
+Run from the macos-setup repo root — never `cd` into the submodule, and never `git add -A`. Stage
+the specific files you changed so unrelated work in the submodule's working tree isn't swept up.
 
 ```sh
-cd dotfiles
-git add -A && git commit -m "Description of change"
-git push origin master
-cd ..
-git add dotfiles && git commit -m "Update dotfiles"
+git -C dotfiles add <specific paths>
+git -C dotfiles commit -m "Description of change"
+git -C dotfiles push origin master
+git add dotfiles
+git commit -m "Update dotfiles"
 ```
 
 ## Build / Run / Test Commands

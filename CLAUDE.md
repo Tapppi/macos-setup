@@ -94,12 +94,16 @@ packages (e.g. `krunkit`). Always edit `Brewfile` first, then replicate applicab
 - GPG signing enabled via 1Password SSH agent
 
 ### Dotfiles Submodule Workflow
+Run from the macos-setup repo root — never `cd` into the submodule, and never
+`git add -A`. Stage the specific files you changed so unrelated work in the
+submodule's working tree isn't swept up.
+
 ```sh
-cd dotfiles
-git add -A && git commit -m "Description"
-git push origin master
-cd ..
-git add dotfiles && git commit -m "Update dotfiles"
+git -C dotfiles add <specific paths>
+git -C dotfiles commit -m "Description"
+git -C dotfiles push origin master
+git add dotfiles
+git commit -m "Update dotfiles"
 ```
 
 ### XDG Base Directory
