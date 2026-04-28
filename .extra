@@ -1,12 +1,11 @@
 #!/bin/bash
 
-## Git credentials
-export GIT_AUTHOR_NAME="Tapani Moilanen"
-export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
-git config --global user.name "$GIT_AUTHOR_NAME"
-export GIT_AUTHOR_EMAIL="moilanen.tapani@gmail.com"
-export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-git config --global user.email "$GIT_AUTHOR_EMAIL"
+## Git credentials — write to global config only.
+## Do NOT export GIT_{AUTHOR,COMMITTER}_{NAME,EMAIL}: env vars sit above
+## repo-local in git's config hierarchy and would override per-repo
+## user.email overrides (e.g. work identities set via post-checkout hooks).
+git config --global user.name "Tapani Moilanen"
+git config --global user.email "moilanen.tapani@gmail.com"
 
 GIT_HOSTNAME="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 case "$GIT_HOSTNAME" in
