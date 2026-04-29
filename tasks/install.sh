@@ -7,6 +7,7 @@ install() {
 	install_macos_sw
 	install_dotfiles
 	install_mise_runtimes
+	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
 }
@@ -214,6 +215,39 @@ install_mise_runtimes() {
 	# yes | gem install bundler
 
 	p2 "Mise installations done!"
+}
+
+# Define Function =install_agent_skills_venv=
+# Creates a shared uv venv at ~/.local/share/agent-skills/venv/ used by
+# agent skills that need Python libraries (anthropics pdf/pptx/docx/xlsx etc.).
+# Per-skill dependencies are appended below as skills are adopted.
+install_agent_skills_venv() {
+	p2 "Setting up agent-skills uv venv..."
+
+	if ! command -v uv >/dev/null 2>&1; then
+		p1 "ERROR: uv not found. Brewfile should provide it."
+		return 1
+	fi
+
+	local venv_dir="${HOME}/.local/share/agent-skills/venv"
+	if [[ ! -d "${venv_dir}" ]]; then
+		mkdir -p "$(dirname "${venv_dir}")"
+		uv venv "${venv_dir}"
+	else
+		p3 "Venv already exists at ${venv_dir}"
+	fi
+
+	# Per-skill Python dependencies.
+	# uv pip install --python is idempotent — safe to re-run.
+	# Add deps here as skills are adopted; document each one's purpose.
+	local venv_python="${venv_dir}/bin/python"
+	p3 "Installing Python deps for adopted anthropics doc skills..."
+	uv pip install --python "${venv_python}" --quiet \
+		pypdf pdf2image pillow reportlab numpy \
+		defusedxml lxml \
+		openpyxl pandas
+
+	p2 "Agent-skills venv ready at ${venv_dir}"
 }
 
 # Install Claude Code MCP servers and plugins
