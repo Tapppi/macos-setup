@@ -76,10 +76,13 @@ elif [[ "${1}" = "dotfiles" ]]; then
 	install_dotfiles
 elif [[ "${1}" = "config" ]]; then
 	. tasks/config.sh
-	config
+	shift
+	config "$@"
 elif [[ "${1}" = "macos" ]]; then
 	./tasks/macos.sh
 else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config | macos]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config [name...] | macos]"
+	echo "  config without args runs all config_* and custom_* steps."
+	echo "  config with names runs only those (e.g. 'config podman spotify')."
 	echo "See README.md for more information."
 fi

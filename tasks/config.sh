@@ -3,6 +3,26 @@ set -uo pipefail
 
 HOST_NAME="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 
+_config_all_steps='admin_req
+vlc
+istatmenus
+alfred
+stts
+amphetamine
+btop
+claudebar
+google_drive
+hammerspoon
+ice
+karabiner_elements
+obsidian
+podman
+resolutionator
+spotify
+loginitems
+terminal
+duti'
+
 config() {
 	# Keep-alive: update existing `sudo` time stamp until macOS config has finished
 	while true; do
@@ -11,30 +31,29 @@ config() {
 		kill -0 "$$" || exit
 	done 2>/dev/null &
 
-	p1 "Configuring software"
-	config_admin_req
-	config_vlc
-	config_istatmenus
-	config_alfred
-	config_stts
-	config_amphetamine
-	config_btop
-	config_claudebar
-	config_google_drive
-	config_hammerspoon
-	config_ice
-	config_karabiner_elements
-	config_obsidian
-	config_podman
-	config_resolutionator
-	config_spotify
+	if (($# == 0)); then
+		p1 "Configuring software"
+		while IFS= read -r step; do
+			"config_${step}"
+		done <<<"${_config_all_steps}"
 
-	p1 "Customising various launch options"
-	custom_loginitems
-	custom_terminal
-	custom_duti
+		p1 "Done. Run './setup.sh macos' separately to apply macOS system defaults."
+		return 0
+	fi
 
-	p1 "Done. Run './setup.sh macos' separately to apply macOS system defaults."
+	local name missing=0
+	for name in "$@"; do
+		if ! declare -F "config_${name}" >/dev/null; then
+			p2 "Unknown config target: ${name}"
+			p3 "Available targets: $(printf '%s' "${_config_all_steps}" | tr '\n' ' ')"
+			missing=1
+			continue
+		fi
+		p1 "Configuring ${name}"
+		"config_${name}"
+	done
+
+	return "${missing}"
 }
 
 # Mark Applications Requiring Administrator Account
@@ -359,7 +378,7 @@ config_vlc() {
 	fi
 }
 
-# Customize Login Items
+# Configure Login Items
 
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
@@ -375,7 +394,7 @@ _loginitems='/Applications/1Password.app
 /Applications/Spotify.app
 /Applications/stts.app
 /Applications/WhatsApp.app'
-custom_loginitems() {
+config_loginitems() {
 	p2 "Registering login items..."
 	printf "%s\n" "${_loginitems}" |
 		while IFS=$'\t' read -r app; do
@@ -391,7 +410,7 @@ EOF
 		done
 }
 
-# Customize Terminal
+# Configure Terminal
 
 # shellcheck disable=SC2016
 _term_plist='add	:name	string	tapani
@@ -453,7 +472,7 @@ add	:EastAsianAmbiguousWide	bool	false'
 _term_defaults='com.apple.Terminal	Startup Window Settings	-string	tapani
 com.apple.Terminal	Default Window Settings	-string	tapani	'
 
-custom_terminal() {
+config_terminal() {
 	p2 "Configuring Terminal.app profile..."
 	local _term_plist_file="${HOME}/Library/Preferences/com.apple.Terminal.plist"
 	local _term_plist_key=":Window Settings:tapani"
@@ -467,7 +486,7 @@ custom_terminal() {
 	config_defaults "${_term_defaults}"
 }
 
-# Customize Default UTIs
+# Configure Default UTIs
 # Uses duti -s directly; extensions (.ext) preferred over obsolete UTIs.
 # App-defined UTIs (com.barebones.bbedit.*) require the app to be installed.
 # NOTE: duti is unmaintained and uses deprecated LaunchServices C APIs.
@@ -683,7 +702,7 @@ org.videolan.vlc	public.movie	all
 org.videolan.vlc	public.mpeg	all
 org.videolan.vlc	public.mpeg-2-video	all
 org.videolan.vlc	public.mpeg-4	all'
-custom_duti() {
+config_duti() {
 	p2 "Setting default file associations with duti..."
 	if command -v duti >/dev/null; then
 		printf "%s\n" "${_duti}" |
