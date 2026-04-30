@@ -225,7 +225,7 @@ install_agent_skills_venv() {
 	p2 "Setting up agent-skills uv venv..."
 
 	if ! command -v uv >/dev/null 2>&1; then
-		p1 "ERROR: uv not found. Brewfile should provide it."
+		p1 "ERROR: uv not found. Mise should provide it."
 		return 1
 	fi
 
