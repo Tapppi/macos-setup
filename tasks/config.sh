@@ -215,13 +215,13 @@ config_podman() {
 	case "${HOST_NAME}" in
 	bellona)
 		cpus=8
-		memory_mib=16384
-		disk_gib=150
+		memory_mib=16000
+		disk_gib=160
 		;;
 	tmopro18)
 		cpus=6
-		memory_mib=6144
-		disk_gib=100
+		memory_mib=8000
+		disk_gib=120
 		;;
 	*)
 		p3 "Skip host-specific Podman machine setup on ${HOST_NAME}"
@@ -231,11 +231,50 @@ config_podman() {
 
 	if ! podman machine inspect "${machine_name}" >/dev/null 2>&1; then
 		p2 "Initialize Podman machine for ${HOST_NAME}..."
-		podman machine init --cpus "${cpus}" --memory "${memory_mib}" --disk-size "${disk_gib}" --rootful
+		# No --rootless flag exists; rootless is the default. Use --rootful to opt in.
+		podman machine init --cpus "${cpus}" --memory "${memory_mib}" --disk-size "${disk_gib}" "${machine_name}"
 		p2 "Start Podman machine..."
 		podman machine start "${machine_name}"
 	else
-		p3 "Podman machine already exists; keeping current configuration"
+		local current_cpus current_memory current_disk current_state current_rootful
+		IFS=$'\t' read -r current_cpus current_memory current_disk current_state current_rootful < <(
+			podman machine inspect "${machine_name}" --format \
+				'{{.Resources.CPUs}}{{"\t"}}{{.Resources.Memory}}{{"\t"}}{{.Resources.DiskSize}}{{"\t"}}{{.State}}{{"\t"}}{{.Rootful}}'
+		)
+		current_state="$(printf '%s' "${current_state}" | tr '[:upper:]' '[:lower:]')"
+
+		if [[ "${current_rootful}" == "true" ]]; then
+			p2 "WARNING: Podman machine ${machine_name} is rootful. Recreate as rootless with:"
+			p3 "  podman machine stop ${machine_name} && podman machine rm -f ${machine_name}"
+			p3 "  (this destroys the VM, including all images, containers, and volumes inside it)"
+			p3 "  Then re-run this task to init a fresh rootless machine."
+		fi
+
+		local -a set_args=()
+		[[ "${current_cpus}" != "${cpus}" ]] && set_args+=(--cpus "${cpus}")
+		[[ "${current_memory}" != "${memory_mib}" ]] && set_args+=(--memory "${memory_mib}")
+		if [[ "${current_disk}" != "${disk_gib}" ]]; then
+			if ((disk_gib > current_disk)); then
+				set_args+=(--disk-size "${disk_gib}")
+			else
+				p3 "Requested disk ${disk_gib}GiB <= current ${current_disk}GiB; skipping (podman cannot shrink)"
+			fi
+		fi
+
+		if ((${#set_args[@]} > 0)); then
+			p2 "Reconfigure Podman machine: cpus ${current_cpus}->${cpus}, mem ${current_memory}->${memory_mib} MiB, disk ${current_disk}->${disk_gib} GiB"
+			if [[ "${current_state}" == "running" ]]; then
+				p3 "Stopping ${machine_name} to apply changes..."
+				podman machine stop "${machine_name}"
+			fi
+			podman machine set "${set_args[@]}" "${machine_name}"
+			if [[ "${current_state}" == "running" ]]; then
+				p3 "Restarting ${machine_name}..."
+				podman machine start "${machine_name}"
+			fi
+		else
+			p3 "Podman machine resources match requested values; no changes"
+		fi
 	fi
 
 	# Set up global /var/run/docker.sock via podman-mac-helper
