@@ -252,12 +252,29 @@ install_agent_skills_venv() {
 
 # Install Claude Code MCP servers and plugins
 install_claude_code() {
-	p2 "Configuring Claude Code MCP servers and plugins..."
+	p2 "Install Claude Code specifics..."
 	if ! command -v claude >/dev/null 2>&1; then
 		p3 "Claude Code not installed, skipping"
 		return 0
 	fi
 
+	# Clear macOS quarantine from claude-code@latest cask.
+	# Anthropic ships a bare Mach-O binary (no .app bundle); on macOS 15.7+
+	# Gatekeeper stalls dyld at startup on a quarantined non-app binary,
+	# causing `claude` to hang indefinitely before any user code runs.
+	# Must run before any `claude` invocation below.
+	local claude_caskroom
+	claude_caskroom="$(brew --prefix)/Caskroom/claude-code@latest"
+	if [[ -d "${claude_caskroom}" ]]; then
+		if xattr -l "${claude_caskroom}"/*/claude 2>/dev/null | grep -q com.apple.quarantine; then
+			p3 "Clear quarantine from claude-code@latest cask..."
+			xattr -dr com.apple.quarantine "${claude_caskroom}"/*/claude
+		else
+			p3 "claude-code@latest quarantine already cleared"
+		fi
+	fi
+
+	p3 "Claude Code MCP servers and plugins..."
 	# context7: library/framework documentation lookup (not built into Claude Code)
 	if ! claude mcp list 2>/dev/null | grep -q context7; then
 		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
@@ -269,6 +286,7 @@ install_claude_code() {
 	# playwright: browser testing and UX automation (via official plugin)
 	claude plugin install playwright
 
+	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
 	# Set vim mode so it persists across dotfile syncs.
 	local claude_json="${HOME}/.claude.json"
@@ -278,6 +296,7 @@ install_claude_code() {
 	else
 		printf '%s\n' '{"editorMode":"vim"}' > "${claude_json}"
 	fi
+	p3 "Claude Code configured..."
 }
 
 # Clear macOS quarantine from cursor-cli cask

@@ -21,3 +21,4 @@ Thumbs.db
 .copilot
 /.ai/
 /.claude/worktrees/
+/.claude/scheduled_tasks.lock
