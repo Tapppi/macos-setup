@@ -9,7 +9,7 @@ git config --global user.email "moilanen.tapani@gmail.com"
 
 GIT_HOSTNAME="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 case "$GIT_HOSTNAME" in
-	bellona)
+	asterix)
 		GIT_SIGNING_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPmW/hRTl+o67Er8TD0EMhwtlwGElnKNBUxdnpi3bsc6"
 		;;
 	*)

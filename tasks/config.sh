@@ -232,10 +232,10 @@ config_podman() {
 	machine_name="podman-machine-default"
 
 	case "${HOST_NAME}" in
-	bellona)
+	asterix)
 		cpus=8
-		memory_mib=16000
-		disk_gib=160
+		memory_mib=20000
+		disk_gib=200
 		;;
 	tmopro18)
 		cpus=6
@@ -322,7 +322,7 @@ config_resolutionator() {
 
 	if command -v displayplacer >/dev/null 2>&1; then
 		case "${HOST_NAME}" in
-		bellona)
+		asterix)
 			p3 "Setting resolution 1800x1169 for ${HOST_NAME}..."
 			displayplacer "id:s0 res:1800x1169 scaling:on"
 			;;
