@@ -63,9 +63,17 @@ Wireshark.app'
 
 config_admin_req() {
 	p2 "Tagging apps requiring admin rights..."
+	local tag_bin
+	tag_bin="$(command -v tag)"
+	if [[ -z "${tag_bin}" ]]; then
+		p3 "tag not installed (brew install tag), skipping"
+		return 0
+	fi
+	# sudo wipes PATH to secure_path (/usr/bin:/bin:/usr/sbin:/sbin), so we
+	# pass the absolute path to the brew-installed tag binary.
 	printf "%s\n" "${_admin_req}" |
 		while IFS=$'\t' read -r app; do
-			sudo tag -a "Red, admin" "/Applications/${app}"
+			sudo "${tag_bin}" -a "Red, admin" "/Applications/${app}"
 		done
 }
 
