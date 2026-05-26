@@ -345,7 +345,7 @@ brew "k9s"
 # Watch a resource (e.g. deployment being rolled out, pod status) - https://github.com/pulumi/kubespy
 brew "kubespy"
 # Tail the logs of some collection of resources
-brew "kail"
+brew "stern"
 
 ## ========================================================
 ## DATABASES AND CLIENTS
