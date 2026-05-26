@@ -130,6 +130,9 @@ cask "google-chrome"
 cask "firefox"
 cask "tor-browser"
 
+# Safari extensions
+mas "uBlock Origin Lite", id: 6745342698
+
 # Terminal emulators
 cask "iterm2"
 cask "ghostty"
