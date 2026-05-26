@@ -63,8 +63,8 @@ brew "sponge"
 
 ## Core programs and tooling
 
-# XCode
-mas "Xcode", id: 497799835
+# XCode, install from app store directly, as it is buggy in brewfile
+# mas "Xcode", id: 497799835
 
 # Bash 5
 brew "bash"
