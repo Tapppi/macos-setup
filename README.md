@@ -173,8 +173,14 @@ Not all steps have been automated:
 - Review 1Password security settings and unlock behavior after sign-in. This
   repo configures SSH/signing integration, but app-level security preferences
   still need to be confirmed manually.
+- Enable the 1Password Safari extension: Safari → Settings → Extensions →
+  check "1Password" (the MAS-installed `1Password for Safari` registers it but
+  enabling is per-user).
 - Sign in to Bitwarden and verify any required vault logins or browser/app
   integrations are available on the new machine.
+- Enable the Bitwarden Safari extension: Safari → Settings → Extensions →
+  check "Bitwarden". The extension ships bundled with the Bitwarden cask;
+  there is no separate MAS SKU for it.
 - Set up Brave Sync Chain so browser state can sync back to the new machine.
 - Check Alfred preferences and confirm the required macOS permissions are still
   granted after setup.
