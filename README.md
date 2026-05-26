@@ -165,6 +165,12 @@ NotificationCenter) that can disrupt permissions dialogs during app config.
 
 Not all steps have been automated:
 
+- **Grant Full Disk Access to your terminal before running `./setup.sh
+  macos`**: System Settings → Privacy & Security → Full Disk Access →
+  add iTerm2 (or Terminal.app, whichever you run setup from). Without this
+  the `macos` task hits `tmutil: disable requires Full Disk Access`,
+  cannot write `com.apple.Safari` / `com.apple.ncprefs.plist`, and skips
+  several Safari/Notification Center defaults silently.
 - Disable startup sound: System Settings → Sound → uncheck "Play sound on
   startup" (no scriptable method on Apple Silicon)
 - Control Center grid changes (not scriptable — stored in a binary blob):
