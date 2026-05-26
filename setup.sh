@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+# Bootstrap Homebrew on PATH. The dotfile-installed shell rc files only set
+# brew paths in interactive shells (`[ -n "$PS1" ]`), so subscripts started
+# from a non-interactive context would otherwise fail with `brew: command
+# not found` and `sudo: tag: command not found`.
+if [[ -x /opt/homebrew/bin/brew ]]; then
+	eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [[ -x /usr/local/bin/brew ]]; then
+	eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+# Add mise shims directory so tools installed via `mise install` (uv, etc.)
+# are on PATH. mise's standard `activate` hook only fires on PROMPT_COMMAND
+# and so does nothing in a non-interactive script.
+export PATH="${HOME}/.local/share/mise/shims:${PATH}"
+
 # Ask for the administrator password upfront and keep-alive
 sudo -v
 
