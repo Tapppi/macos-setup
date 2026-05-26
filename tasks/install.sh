@@ -283,8 +283,10 @@ install_claude_code() {
 	if ! claude mcp list 2>/dev/null | grep -q chrome-devtools; then
 		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
 	fi
-	# playwright: browser testing and UX automation (via official plugin)
-	claude plugin install playwright
+	# playwright: browser testing and UX automation (via official plugin).
+	# The catalog can be stale on a fresh machine, so refresh before install.
+	claude plugin marketplace update claude-plugins-official
+	claude plugin install playwright@claude-plugins-official
 
 	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
