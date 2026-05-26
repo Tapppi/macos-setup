@@ -56,8 +56,12 @@ do_restore() {
 	temp_root=$(mktemp -d "${TMPDIR:-/tmp}/macos-restore.XXXXXX")
 	tar -xzf "${backup_path_resolved}" -C "${temp_root}"
 
+	# --recursive is NOT implied by --archive when --files-from is in use;
+	# without it, directory entries in restore.bom would be created empty
+	# at the destination. See rsync(1) under --files-from.
 	"${rsync_bin}" \
 		--archive \
+		--recursive \
 		--human-readable \
 		--verbose \
 		--ignore-missing-args \

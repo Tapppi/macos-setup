@@ -61,8 +61,12 @@ do_backup() {
 
 	(
 		cd "${HOME}" || exit 1
+		# --recursive is NOT implied by --archive when --files-from is in
+		# use; without it, directory entries in restore.bom would be
+		# created empty at the destination. See rsync(1) under --files-from.
 		"${rsync_bin}" \
 			--archive \
+			--recursive \
 			--human-readable \
 			--verbose \
 			--ignore-missing-args \
