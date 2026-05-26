@@ -356,7 +356,7 @@ brew "sqlite"
 
 # Redis client (redis-cli) and Medis GUI - don't run 'brew services start redis'
 brew "redis"
-mas "Medis", id: 1063631769
+mas "Medis 2", id: 1579200037
 
 # Postgres
 cask "postico@1"
