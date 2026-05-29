@@ -400,6 +400,9 @@ cask "tailscale-app"
 # Microsoft Windows App for RDP into Windows machines
 cask "windows-app"
 
+# Remote desktop access and support across platforms
+cask "teamviewer"
+
 # TLS tunnel wrapper for adding TLS to non-TLS connections
 brew "stunnel"
 

@@ -391,6 +391,9 @@ brew "nmap"
 # Tailscale VPN for my personal overlay network & funnel for exposing ports to interwebs
 cask "tailscale-app"
 
+# Remote desktop access and support across platforms
+cask "teamviewer"
+
 # TLS tunnel wrapper for adding TLS to non-TLS connections
 brew "stunnel"
 
