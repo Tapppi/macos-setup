@@ -1,3 +1,3 @@
 [submodule "dotfiles"]
 	path = dotfiles
-	url = git@github.com:tapppi/dotfiles.git
+	url = git@github.com:Tapppi/dotfiles.git
