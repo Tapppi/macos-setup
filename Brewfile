@@ -157,7 +157,13 @@ cask "claude"
 
 # Terminal AI Agents
 cask "claude-code@latest"
-cask "codex"
+# no_quarantine: the codex cask runs the binary during install to generate shell
+# completions; a quarantined bare binary makes Gatekeeper stall dyld, hanging
+# `brew bundle` indefinitely (no GUI to approve over SSH). Skip quarantine so the
+# completion step runs unblocked.
+cask "codex", args: { no_quarantine: true }
+# Codex desktop app (GUI for managing coding agents) — companion to the CLI above
+cask "codex-app"
 cask "cursor-cli"
 brew "anomalyco/tap/opencode"
 
