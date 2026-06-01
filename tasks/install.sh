@@ -100,8 +100,17 @@ install_macos_sw() {
 	if ! grep -F -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
 		echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells
 	fi
-	if [ "${SHELL}" != "${BREW_PREFIX}/bin/bash" ]; then
+	# Compare against the Directory Services login shell, not $SHELL: $SHELL
+	# reflects the shell at login time and stays stale until the next login, so
+	# using it would re-run chsh (and re-prompt for the password) on every
+	# install even when the login shell is already correct.
+	local login_shell
+	login_shell="$(dscl . -read "/Users/$(id -un)" UserShell 2>/dev/null | awk '{print $2}')"
+	if [ "${login_shell}" != "${BREW_PREFIX}/bin/bash" ]; then
+		p3 "Set login shell to ${BREW_PREFIX}/bin/bash"
 		chsh -s "${BREW_PREFIX}/bin/bash"
+	else
+		p3 "Login shell already ${BREW_PREFIX}/bin/bash"
 	fi
 
 	install_links
