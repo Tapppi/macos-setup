@@ -5,11 +5,35 @@ set -uo pipefail
 
 install() {
 	install_macos_sw
+	link_terraform_to_tofu
 	install_dotfiles
 	install_mise_runtimes
 	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
+}
+
+# Define Function =link_terraform_to_tofu=
+# Terraform's CLI is BUSL-licensed and not in homebrew-core, so the Brewfile
+# installs OpenTofu (tofu) instead. Symlink `terraform` -> `tofu` in the user
+# bin dir (on PATH ahead of brew) so scripts/CI that invoke `terraform` keep
+# working. Must be a real symlink, not a shell alias, so non-interactive
+# scripts resolve it too. Idempotent.
+link_terraform_to_tofu() {
+	local tofu_bin link
+	tofu_bin="$(brew --prefix)/bin/tofu"
+	link="${XDG_BIN_HOME:-${HOME}/.local/bin}/terraform"
+	if [[ ! -x "${tofu_bin}" ]]; then
+		p3 "tofu not installed, skipping terraform->tofu symlink"
+		return 0
+	fi
+	if [[ "$(readlink "${link}" 2>/dev/null)" == "${tofu_bin}" ]]; then
+		p3 "terraform already symlinked to tofu"
+		return 0
+	fi
+	p2 "Symlink terraform -> tofu (${tofu_bin})..."
+	mkdir -p "$(dirname "${link}")"
+	ln -sf "${tofu_bin}" "${link}"
 }
 
 # Define Function =install_xcode=

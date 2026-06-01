@@ -6,7 +6,6 @@ cask_args qlplugindir: "/Library/QuickLook"
 cask_args screen_saverdir: "/Library/Screen Savers"
 
 tap "anomalyco/tap"
-tap "hashicorp/tap"
 tap "teamookla/speedtest"
 
 ## ========================================================
@@ -336,8 +335,12 @@ cask "gcloud-cli"
 brew "azure-cli"
 brew "azcopy"
 
-brew "hashicorp/tap/terraform"
-brew "hashicorp/tap/terraform-ls"
+# OpenTofu replaces Terraform: Terraform's CLI is BUSL-licensed and not in
+# homebrew-core (only hashicorp/tap, whose vagrant.rb is a Linux-only formula
+# that breaks `brew doctor` on macOS). tofu-ls is OpenTofu's language server.
+# install.sh symlinks `terraform` -> `tofu` so scripts calling terraform work.
+brew "opentofu"
+brew "tofu-ls"
 
 # Let's encrypt tooling
 brew "certbot"
