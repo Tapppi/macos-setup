@@ -176,6 +176,13 @@ install_brew() {
 	trust_brew_taps "${brewfile}"
 	brew bundle --file="${brewfile}"
 
+	# Clear quarantine from CLI casks that ship bare Mach-O binaries, before
+	# anything execs them. A quarantined first launch wedges syspolicyd for that
+	# path permanently (only a syspolicyd restart / reboot clears it), so this
+	# must happen here, right after install. See clear_cask_quarantine.
+	# (claude-code@latest and cursor-cli are cleared in their own install steps.)
+	clear_cask_quarantine 1password-cli
+
 	# Bust cached kubectl completions so they regenerate on next shell startup
 	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
 	local kubectl_comp
@@ -298,6 +305,32 @@ install_agent_skills_venv() {
 	p2 "Agent-skills venv ready at ${venv_dir}"
 }
 
+# Define Function =clear_cask_quarantine=
+# Clear macOS quarantine from a CLI cask's entire Caskroom subtree.
+# CLI casks ship bare Mach-O binaries (no .app bundle); on macOS 15.7+ Gatekeeper
+# stalls dyld at process startup when the binary OR any parent directory carries
+# com.apple.quarantine, so the tool hangs indefinitely before main() runs.
+# Worse: if the binary is exec'd while still quarantined, the first-launch
+# assessment can wedge in syspolicyd permanently. That stuck verdict is keyed to
+# the file PATH — it survives clearing the xattr, replacing the inode, and
+# symlinks — and only clears by restarting syspolicyd or rebooting. So clear the
+# whole subtree (dir + files) right after install, BEFORE the binary is ever run.
+clear_cask_quarantine() {
+	local cask="${1}"
+	local caskroom
+	caskroom="$(brew --prefix)/Caskroom/${cask}"
+	if [[ ! -d "${caskroom}" ]]; then
+		p3 "${cask} cask directory not found, skipping quarantine fix"
+		return 0
+	fi
+	if xattr -r -l "${caskroom}" 2>/dev/null | grep -q com.apple.quarantine; then
+		p3 "Clear quarantine from ${cask} cask..."
+		xattr -dr com.apple.quarantine "${caskroom}"
+	else
+		p3 "${cask} quarantine already cleared"
+	fi
+}
+
 # Install Claude Code MCP servers and plugins
 install_claude_code() {
 	p2 "Install Claude Code specifics..."
@@ -306,21 +339,10 @@ install_claude_code() {
 		return 0
 	fi
 
-	# Clear macOS quarantine from claude-code@latest cask.
-	# Anthropic ships a bare Mach-O binary (no .app bundle); on macOS 15.7+
-	# Gatekeeper stalls dyld at startup on a quarantined non-app binary,
-	# causing `claude` to hang indefinitely before any user code runs.
-	# Must run before any `claude` invocation below.
-	local claude_caskroom
-	claude_caskroom="$(brew --prefix)/Caskroom/claude-code@latest"
-	if [[ -d "${claude_caskroom}" ]]; then
-		if xattr -l "${claude_caskroom}"/*/claude 2>/dev/null | grep -q com.apple.quarantine; then
-			p3 "Clear quarantine from claude-code@latest cask..."
-			xattr -dr com.apple.quarantine "${claude_caskroom}"/*/claude
-		else
-			p3 "claude-code@latest quarantine already cleared"
-		fi
-	fi
+	# Clear quarantine from the claude-code@latest cask before any `claude`
+	# invocation below (Anthropic ships a bare Mach-O binary — see
+	# clear_cask_quarantine for why this must run before first exec).
+	clear_cask_quarantine claude-code@latest
 
 	p3 "Claude Code MCP servers and plugins..."
 	# context7: library/framework documentation lookup (not built into Claude Code)
@@ -360,20 +382,7 @@ install_cursor_agent() {
 		return 0
 	fi
 
-	local caskroom
-	caskroom="$(brew --prefix)/Caskroom/cursor-cli"
-
-	if [[ ! -d "${caskroom}" ]]; then
-		p3 "cursor-cli cask directory not found, skipping quarantine fix"
-		return 0
-	fi
-
-	if xattr -l "${caskroom}"/*/dist-package/node 2>/dev/null | grep -q com.apple.quarantine; then
-		p2 "Clear quarantine from cursor-cli cask..."
-		xattr -dr com.apple.quarantine "${caskroom}"/*/dist-package
-	else
-		p3 "cursor-cli quarantine already cleared"
-	fi
+	clear_cask_quarantine cursor-cli
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
