@@ -100,6 +100,20 @@ install_paths() {
 # Install Software with Homebrew Package Manager
 # brew commands invalidate sudo timestamp in order to prevent builds from using sudo
 # if there is a need for sudo after brew installation, we'll just have to re-enter password
+# Define Function =trust_brew_taps=
+# Explicitly trust the non-official taps declared in the given Brewfile so they
+# load under HOMEBREW_REQUIRE_TAP_TRUST=1 (set in setup.sh and ~/.config/bash/.exports).
+# Derived from the Brewfile itself so the trust list never drifts from the manifest.
+trust_brew_taps() {
+	local brewfile="${1}"
+	local tap
+	while IFS= read -r tap; do
+		[[ -z "${tap}" ]] && continue
+		p3 "Trusting tap ${tap}..."
+		brew trust --tap "${tap}" >/dev/null 2>&1 || p3 "  could not trust ${tap}"
+	done < <(grep -E '^tap "' "${brewfile}" | sed -E 's/^tap "([^"]+)".*/\1/')
+}
+
 install_brew() {
 	p2 "Installing and/or configuring brew"
 	if ! command -v brew >/dev/null 2>&1; then
@@ -122,11 +136,12 @@ install_brew() {
 	brew doctor
 
 	p3 "Install Brewfile..."
-	if [[ "$(uname -m)" == "arm64" ]]; then
-		brew bundle --file="Brewfile"
-	else
-		brew bundle --file="intel.Brewfile"
-	fi
+	local brewfile="Brewfile"
+	[[ "$(uname -m)" != "arm64" ]] && brewfile="intel.Brewfile"
+	# Trust declared taps before bundling so they load under
+	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
+	trust_brew_taps "${brewfile}"
+	brew bundle --file="${brewfile}"
 
 	# Bust cached kubectl completions so they regenerate on next shell startup
 	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
