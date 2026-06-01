@@ -11,6 +11,11 @@ elif [[ -x /usr/local/bin/brew ]]; then
 	eval "$(/usr/local/bin/brew shellenv)"
 fi
 
+# Keep allowing non-official taps by default (mirrors .exports). Non-interactive
+# setup runs don't source the shell rc files, so set it here too so brew bundle
+# doesn't warn about future per-tap trust requirements.
+export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+
 # Add mise shims directory so tools installed via `mise install` (uv, etc.)
 # are on PATH. mise's standard `activate` hook only fires on PROMPT_COMMAND
 # and so does nothing in a non-interactive script.
