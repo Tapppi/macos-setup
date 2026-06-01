@@ -271,6 +271,8 @@ cask "kdiff3"
 brew "lazygit"
 # Github CLI
 brew "gh"
+# Jira CLI - https://github.com/ankitpokhrel/jira-cli (drives the repo-level jira agent skill)
+brew "jira-cli"
 
 # API Clients
 brew "curl"

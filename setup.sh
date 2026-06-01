@@ -95,9 +95,13 @@ elif [[ "${1}" = "config" ]]; then
 	config "$@"
 elif [[ "${1}" = "macos" ]]; then
 	./tasks/macos.sh
+elif [[ "${1}" = "skills" ]]; then
+	. tasks/skills.sh
+	skills
 else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config [name...] | macos]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config [name...] | macos | skills]"
 	echo "  config without args runs all config_* and custom_* steps."
+	echo "  skills links repo-level agent skills declared in per-repo .local-skills manifests."
 	echo "  config with names runs only those (e.g. 'config podman spotify')."
 	echo "See README.md for more information."
 fi
