@@ -7,8 +7,11 @@
 # ${HOME}/project for such manifests and, for each repo:
 #   1. symlinks the named skills into the repo's `.claude/skills/`, and
 #   2. provisions per-repo auth env from an optional `auth` block by rendering
-#      a gitignored `mise.local.toml` (secrets stay off disk as `op read`
-#      templates, fetched at shell activation via 1Password CLI).
+#      a gitignored `mise.local.toml` [env]: non-secret `config` verbatim, plus
+#      `token_files` that load a secret into an env var by `cat`-ing a local
+#      0600 file (instant, so it never blocks the shell — unlike `op read`).
+#      The secret files are written once from 1Password via the commands the
+#      jira hint prints; the secret value never lands in mise.local.toml.
 #
 # Both the manifest and the generated/linked files are kept out of the target
 # repo's git index (manifest via the global gitignore; symlinks and mise file
@@ -18,9 +21,11 @@
 #   {
 #     "skills": ["jira", "bigquery-basics"],
 #     "auth": {
-#       "config":  { "JIRA_AUTH_TYPE": "bearer" },
-#       "secrets": { "JIRA_API_TOKEN": "op://Vault/Item/field" }
-#     }
+#       "config":      { "JIRA_CONFIG_FILE": "{{config_root}}/.jira-config.yml",
+#                        "JIRA_AUTH_TYPE": "bearer" },
+#       "token_files": { "JIRA_API_TOKEN": "~/.config/project/jira_pat.txt" }
+#     },
+#     "jira": { "...": "...", "token_op_ref": "op://Vault/Item/field" }
 #   }
 #
 # Idempotent: safe to re-run after editing any manifest. Run via:
@@ -112,36 +117,52 @@ skills_toml_escape() {
 }
 
 # Define Function =skills_render_auth= — render mise.local.toml [env] from the
-# manifest's `auth.config` block. ONLY non-secret env vars go here (e.g.
-# JIRA_CONFIG_FILE, JIRA_AUTH_TYPE); values are written verbatim so mise tera
-# template vars such as {{config_root}} are allowed.
+# manifest's `auth` block:
+#   * auth.config      — non-secret vars (e.g. JIRA_CONFIG_FILE, JIRA_AUTH_TYPE),
+#                        written verbatim so mise tera vars like {{config_root}}
+#                        still work.
+#   * auth.token_files — map of ENV_VAR -> path to a local 0600 file holding a
+#                        secret; rendered as a tera `exec` that `cat`s the file.
 #
-# Secrets are deliberately NOT rendered here. mise evaluates [env]
-# synchronously on every cd / shell prompt, so a blocking command (e.g.
-# `op read` when 1Password is not unlocked non-interactively) would freeze the
-# shell. Tokens are loaded into the macOS Keychain instead — see skills_jira_hint.
+# mise evaluates [env] synchronously on every cd / shell prompt, so whatever
+# runs here must be instant and non-blocking. `cat` of a local file is — unlike
+# `op read`, which makes a network/unlock call and froze the shell in the
+# original design. Only the PATH to the secret lives here, never the secret
+# itself; a missing file yields an empty var (no error) thanks to `|| true`.
+# The files are written once from 1Password — see skills_jira_hint.
 skills_render_auth() {
 	local repo="${1}" json="${2}"
 	local out="${repo}/mise.local.toml"
 
-	local config_entries
+	local config_entries token_files
 	config_entries="$(printf '%s' "${json}" | jq -r '.auth.config // {} | to_entries[] | "\(.key)\t\(.value)"')"
-	if [[ -z "${config_entries}" ]]; then
+	token_files="$(printf '%s' "${json}" | jq -r '.auth.token_files // {} | to_entries[] | "\(.key)\t\(.value)"')"
+	if [[ -z "${config_entries}" && -z "${token_files}" ]]; then
 		return 0
 	fi
 
+	local sq="'"
 	{
 		printf '# Managed by macos-setup tasks/skills.sh — generated from .local-skills.json\n'
 		printf '# Do not edit by hand; re-run ./setup.sh skills after editing the manifest.\n'
-		printf '# Non-secret env only. Tokens live in the macOS Keychain, never here.\n'
+		printf '# Non-secret config below. Token vars are loaded by cat-ing a local 0600\n'
+		printf '# file (instant, never blocks the shell); write those files with the\n'
+		printf '# commands ./setup.sh skills prints. The secret never lives in this file.\n'
 		printf '[env]\n'
 
-		local key value esc
+		local key value esc path
 		while IFS=$'\t' read -r key value; do
 			[[ -z "${key}" ]] && continue
 			esc="$(skills_toml_escape "${value}")"
 			printf '%s = "%s"\n' "${key}" "${esc}"
 		done <<< "${config_entries}"
+
+		while IFS=$'\t' read -r key value; do
+			[[ -z "${key}" ]] && continue
+			path="${value/#\~/${HOME}}"
+			printf '%s = "{{ exec(command=%scat %s 2>/dev/null || true%s) }}"\n' \
+				"${key}" "${sq}" "${path}" "${sq}"
+		done <<< "${token_files}"
 	} > "${out}"
 
 	p2 "rendered ${out}"
@@ -155,14 +176,14 @@ skills_render_auth() {
 }
 
 # Define Function =skills_jira_hint= — if the manifest has a `jira` block, print
-# the one-time setup steps (these need an interactive 1Password unlock and hit
-# the Jira server, so we print rather than run them):
-#   1. Load the API token into the macOS Keychain from 1Password. jira-cli reads
-#      it from the keyring (service "jira-cli", account = login) at runtime, so
-#      no env var is needed and nothing blocks the shell.
-#   2. `jira init` to write the server/board/project config (reads the token
-#      from the Keychain populated in step 1).
-# Each step is skipped when already done (token present / config file exists).
+# the one-time setup steps (these need 1Password and hit the Jira server, so we
+# print rather than run them):
+#   1. Write the API token to its local 0600 file from 1Password (the same path
+#      auth.token_files maps JIRA_API_TOKEN to). mise then injects JIRA_API_TOKEN
+#      from it; jira-cli reads that env var (lookup order env -> config -> .netrc
+#      -> keychain, so env wins).
+#   2. `jira init` to write the server/board/project config.
+# Each step is skipped when already done (token file present / config exists).
 skills_jira_hint() {
 	local repo="${1}" json="${2}"
 
@@ -170,7 +191,7 @@ skills_jira_hint() {
 		return 0
 	fi
 
-	local installation server login authtype project board token_ref
+	local installation server login authtype project board token_ref token_file path
 	installation="$(printf '%s' "${json}" | jq -r '.jira.installation // empty')"
 	server="$(printf '%s' "${json}" | jq -r '.jira.server // empty')"
 	login="$(printf '%s' "${json}" | jq -r '.jira.login // empty')"
@@ -178,14 +199,23 @@ skills_jira_hint() {
 	project="$(printf '%s' "${json}" | jq -r '.jira.project // empty')"
 	board="$(printf '%s' "${json}" | jq -r '.jira.board // empty')"
 	token_ref="$(printf '%s' "${json}" | jq -r '.jira.token_op_ref // empty')"
+	token_file="$(printf '%s' "${json}" | jq -r '.auth.token_files.JIRA_API_TOKEN // .jira.token_file // empty')"
 
-	# 1) API token → macOS Keychain (sourced once from 1Password).
-	if [[ -n "${login}" ]] && ! security find-generic-password -s jira-cli -a "${login}" >/dev/null 2>&1; then
-		p2 "Jira API token not in Keychain. Load it once from 1Password:"
-		if [[ -n "${token_ref}" ]]; then
-			p3 "security add-generic-password -U -s jira-cli -a \"${login}\" -w \"\$(op read \"${token_ref}\")\""
+	# 1) API token → local 0600 file (sourced once from 1Password; mise loads it).
+	if [[ -n "${token_file}" ]]; then
+		path="${token_file/#\~/${HOME}}"
+		if [[ ! -s "${path}" ]]; then
+			local dir
+			dir="$(dirname "${path}")"
+			p2 "Jira API token file missing. Sign in to op if needed, then write it once:"
+			p3 "eval \"\$(op signin)\"   # only if op is locked (e.g. over SSH)"
+			if [[ -n "${token_ref}" ]]; then
+				p3 "mkdir -p \"${dir}\" && chmod 700 \"${dir}\" && ( umask 077; op read \"${token_ref}\" > \"${path}\" )"
+			else
+				p3 "mkdir -p \"${dir}\" && chmod 700 \"${dir}\" && ( umask 077; printf %s '<api-token>' > \"${path}\" )  # set jira.token_op_ref to fetch from 1Password"
+			fi
 		else
-			p3 "security add-generic-password -U -s jira-cli -a \"${login}\" -w '<api-token>'  # set jira.token_op_ref to automate from 1Password"
+			p3 "Jira API token file present: ${path}"
 		fi
 	fi
 
@@ -204,7 +234,7 @@ skills_jira_hint() {
 	[[ -n "${project}" ]] && cmd+=" --project ${project}"
 	[[ -n "${board}" ]] && cmd+=" --board \"${board}\""
 
-	p2 "Initialise jira-cli (run once from inside ${repo}; reads the Keychain token):"
+	p2 "Initialise jira-cli (run once from inside ${repo}; uses JIRA_API_TOKEN from mise):"
 	p3 "${cmd}"
 }
 
