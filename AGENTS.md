@@ -14,7 +14,7 @@ macos-setup/
     install.sh          # Software install (brew, mise runtimes, dotfiles)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
-    skills.sh           # Repo-level agent-skill linking from .local-skills manifests
+    projects.sh         # Per-project tooling + agent skills from .tapppi-project manifests
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
@@ -69,7 +69,7 @@ bash hooks/install.sh
 ./setup.sh dotfiles # Bootstrap dotfiles only
 ./setup.sh config   # Apply app configuration
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
-./setup.sh skills   # Link repo-level agent skills from .local-skills manifests
+./setup.sh projects # Per-project tooling + skills from .tapppi-project manifests
 reload              # Reloads all shell configurations
 
 # Homebrew

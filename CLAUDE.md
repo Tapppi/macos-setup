@@ -22,7 +22,7 @@ brew bundle check                  # Verify all packages installed
 bash hooks/install.sh
 
 # Setup tasks (NEVER run these automatically — see rules below)
-./setup.sh init|install|dotfiles|config|macos|new_account|clean_account|init_ssh_1password|init_ssh_local|skills
+./setup.sh init|install|dotfiles|config|macos|new_account|clean_account|init_ssh_1password|init_ssh_local|projects
 ```
 
 ## Architecture
@@ -34,7 +34,7 @@ bash hooks/install.sh
 - **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins.
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup. Does not apply macOS system defaults (use `./setup.sh macos` separately).
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
-- **`tasks/skills.sh`** — Repo-level agent-skill linking. Scans `~/project` for gitignored `.local-skills.{json,yml,yaml}` manifests and, per repo, symlinks the named skills (resolved from `~/.config/agent-skills/`) into `<repo>/.claude/skills/` and renders a gitignored `mise.local.toml` from the manifest's `auth` block: non-secret `config` verbatim (e.g. `JIRA_CONFIG_FILE`, `JIRA_AUTH_TYPE`) plus `token_files`, which load a secret into an env var by `cat`-ing a local `0600` file — instant, so it never blocks the shell (a blocking `op read` in mise's per-`cd` `[env]` eval would hang it). For a `jira` block it prints one-time setup commands: write the API token to that file from 1Password (`op read "op://…" > ~/.config/project/jira_pat.txt`, which mise then exposes as `JIRA_API_TOKEN` for jira-cli) and `jira init`. Used to scope skills that should not be globally active (`jira`, Google Cloud skills). Idempotent; never auto-run.
+- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) symlinks each repo's named skills (resolved from `~/.config/agent-skills/`) into that repo's `.claude/skills/` — per-repo because Claude Code only discovers skills up to a repo's git root, so a workspace-level link is invisible inside a repo; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Used to scope skills/tooling to specific projects rather than globally. Idempotent; never auto-run.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
   `home/` rsynced to `~/` (non-XDG files: `.claude/`, `.cursor/`, `.hammerspoon/`, etc.) and
