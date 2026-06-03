@@ -290,6 +290,9 @@ brew "pv"
 brew "cloc"
 # Shell script linter
 brew "shellcheck"
+# PowerShell for testing/linting PowerShell scripts (PSScriptAnalyzer module
+# installed by tasks/install.sh via `pwsh`)
+cask "powershell"
 
 # Notification on long running tasks
 brew "noti"

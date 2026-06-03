@@ -8,6 +8,7 @@ install() {
 	link_terraform_to_tofu
 	install_dotfiles
 	install_mise_runtimes
+	install_powershell_modules
 	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
@@ -270,6 +271,24 @@ install_mise_runtimes() {
 	# yes | gem install bundler
 
 	p2 "Mise installations done!"
+}
+
+# Define Function =install_powershell_modules=
+# Installs PSScriptAnalyzer (the PowerShell linter) into the current user's
+# module path via the `pwsh` provided by the powershell cask. Idempotent:
+# Install-Module is skipped when the module is already available.
+install_powershell_modules() {
+	p2 "Installing PowerShell modules..."
+
+	if ! command -v pwsh >/dev/null 2>&1; then
+		p3 "pwsh not installed, skipping PowerShell module install"
+		return 0
+	fi
+
+	p3 "Ensure PSScriptAnalyzer (PowerShell linter)..."
+	pwsh -NoProfile -Command "if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) { Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force }"
+
+	p2 "PowerShell modules installed!"
 }
 
 # Define Function =install_agent_skills_venv=
