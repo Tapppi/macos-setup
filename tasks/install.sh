@@ -12,6 +12,7 @@ install() {
 	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
+	install_codex
 }
 
 # Define Function =link_terraform_to_tofu=
@@ -402,6 +403,55 @@ install_cursor_agent() {
 	fi
 
 	clear_cask_quarantine cursor-cli
+}
+
+# Define Function =install_codex=
+# Install/upgrade the OpenAI Codex CLI (`codex`) OUTSIDE `brew bundle`.
+#
+# The codex cask ships a bare Mach-O binary and uses
+# `generate_completions_from_executable`, i.e. Homebrew EXECS the binary during
+# install to generate shell completions. On macOS 15.7+ a quarantined bare
+# binary stalls dyld at process startup (Gatekeeper), so that completion step
+# hangs `brew bundle` indefinitely and a half-done upgrade leaves a stale
+# `<version>.upgrading` stub in the Caskroom. The Brewfile `no_quarantine: true`
+# arg is honored on a fresh `brew install` but NOT on the upgrade path that
+# `brew bundle` takes for an already-installed cask, so upgrades re-quarantine
+# and hang. Post-install `clear_cask_quarantine` (the claude-code/cursor-cli
+# pattern) can't help here because those casks don't exec during install but
+# codex does. So we keep codex out of the Brewfile and install/upgrade it here
+# with an explicit `--no-quarantine`, which IS reliably honored, so the binary
+# is never quarantined and the completion step runs unblocked. Idempotent.
+install_codex() {
+	p2 "Install/upgrade Codex CLI..."
+
+	if ! command -v brew >/dev/null 2>&1; then
+		p3 "brew not found, skipping codex install"
+		return 0
+	fi
+
+	# Remove stale `<version>.upgrading` stubs left by previously hung upgrades;
+	# they confuse brew's cask version bookkeeping.
+	local caskroom
+	caskroom="$(brew --prefix)/Caskroom/codex"
+	if compgen -G "${caskroom}/"*.upgrading >/dev/null 2>&1; then
+		p3 "Removing stale codex *.upgrading leftovers..."
+		rm -rf "${caskroom}/"*.upgrading
+	fi
+
+	if ! brew list --cask codex >/dev/null 2>&1; then
+		p3 "Installing codex (--no-quarantine)..."
+		brew install --cask --no-quarantine codex
+	elif brew outdated --cask --quiet codex 2>/dev/null | grep -qx codex; then
+		p3 "Upgrading codex (--no-quarantine)..."
+		brew upgrade --cask --no-quarantine codex
+	else
+		p3 "codex already current"
+	fi
+
+	# Belt and suspenders: clear quarantine from whatever is now staged, in case
+	# a `brew upgrade` run outside setup re-quarantined the binary. (Won't unhang
+	# such an external upgrade, but keeps `codex` runnable afterwards.)
+	clear_cask_quarantine codex
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=

@@ -156,12 +156,15 @@ cask "claude"
 
 # Terminal AI Agents
 cask "claude-code@latest"
-# no_quarantine: the codex cask runs the binary during install to generate shell
-# completions; a quarantined bare binary makes Gatekeeper stall dyld, hanging
-# `brew bundle` indefinitely (no GUI to approve over SSH). Skip quarantine so the
-# completion step runs unblocked.
-cask "codex", args: { no_quarantine: true }
-# Codex desktop app (GUI for managing coding agents) — companion to the CLI above
+# codex (OpenAI Codex CLI) is intentionally NOT installed here. Its cask execs a
+# bare Mach-O binary during install (generate_completions_from_executable) to
+# build shell completions; on macOS 15.7+ a quarantined bare binary stalls
+# Gatekeeper/dyld and hangs `brew bundle`, leaving a `<version>.upgrading` stub.
+# The `no_quarantine: true` arg is honored on a fresh install but NOT on the
+# upgrade path bundle takes once codex exists, so upgrades re-quarantine and
+# hang. Installed/upgraded via install_codex() in tasks/install.sh with an
+# explicit --no-quarantine instead.
+# Codex desktop app (GUI for managing coding agents) — companion to the CLI
 cask "codex-app"
 cask "cursor-cli"
 brew "anomalyco/tap/opencode"
