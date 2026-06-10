@@ -285,8 +285,9 @@ brew "cloc"
 # Shell script linter
 brew "shellcheck"
 # PowerShell for testing/linting PowerShell scripts (PSScriptAnalyzer module
-# installed by tasks/install.sh via `pwsh`)
-cask "powershell"
+# installed by tasks/install.sh via `pwsh`). Stable PowerShell migrated from a
+# cask to a homebrew-core formula; only `powershell@preview` remains a cask.
+brew "powershell"
 
 # Notification on long running tasks
 brew "noti"
