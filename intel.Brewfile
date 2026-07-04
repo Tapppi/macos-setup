@@ -153,14 +153,7 @@ cask "claude"
 
 # Terminal AI Agents
 cask "claude-code@latest"
-# codex (OpenAI Codex CLI) is intentionally NOT installed here. Its cask execs a
-# bare Mach-O binary during install (generate_completions_from_executable) to
-# build shell completions; on macOS 15.7+ a quarantined bare binary stalls
-# Gatekeeper/dyld and hangs `brew bundle`, leaving a `<version>.upgrading` stub.
-# The `no_quarantine: true` arg is honored on a fresh install but NOT on the
-# upgrade path bundle takes once codex exists, so upgrades re-quarantine and
-# hang. Installed/upgraded via install_codex() in tasks/install.sh with an
-# explicit --no-quarantine instead.
+cask "codex"
 # Codex desktop app (GUI for managing coding agents) — companion to the CLI
 cask "codex-app"
 cask "cursor-cli"

@@ -12,7 +12,6 @@ install() {
 	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
-	install_codex
 }
 
 # Define Function =link_terraform_to_tofu=
@@ -149,6 +148,83 @@ trust_brew_taps() {
 	done < <(grep -E '^tap "' "${brewfile}" | sed -E 's/^tap "([^"]+)".*/\1/')
 }
 
+# Define Function =_kill_tree=
+# Recursively SIGTERM a process and all its descendants (children first). Used
+# by run_with_timeout so a timed-out `brew` AND any grandchild it spawned (e.g.
+# a cask's `op completion` wedged on a Gatekeeper assessment) are torn down —
+# killing brew alone would orphan the grandchild.
+_kill_tree() {
+	local pid="${1}" child
+	while IFS= read -r child; do
+		[[ -n "${child}" ]] && _kill_tree "${child}"
+	done < <(pgrep -P "${pid}" 2>/dev/null)
+	kill -TERM "${pid}" 2>/dev/null
+}
+
+# Define Function =run_with_timeout=
+# Run a command with a wall-clock timeout; return its exit code, or 124 if it
+# timed out. Deliberately avoids GNU coreutils' `timeout` because on a fresh
+# machine the Brewfile that installs coreutils is the very thing we wrap. Polls
+# (rather than SIGALRM) so it can tear down the whole process tree on timeout.
+run_with_timeout() {
+	local secs="${1}"
+	shift
+	"${@}" &
+	local pid=$! waited=0
+	while kill -0 "${pid}" 2>/dev/null; do
+		if [[ "${waited}" -ge "${secs}" ]]; then
+			p1 "Timed out after ${secs}s; terminating: ${*}"
+			_kill_tree "${pid}"
+			sleep 5
+			kill -KILL "${pid}" 2>/dev/null
+			wait "${pid}" 2>/dev/null
+			return 124
+		fi
+		sleep 5
+		waited=$((waited + 5))
+	done
+	wait "${pid}"
+}
+
+# Define Function =preflight_gatekeeper_network=
+# Bare CLI binaries shipped in casks can't carry a stapled notarization ticket,
+# so on first exec (e.g. a cask generating shell completions) syspolicyd does an
+# ONLINE lookup to api.apple-cloudkit.com. If that path stalls the exec hangs
+# forever and wedges `brew bundle`. This can't fix the network, but it flags the
+# usual causes (full-tunnel VPN, slow/custom primary DNS) up front so a hang
+# isn't a mystery. Warn-only — never blocks the install.
+preflight_gatekeeper_network() {
+	p2 "Checking Gatekeeper notarization network path (warn-only)..."
+	local host t bad=0
+	for host in api.apple-cloudkit.com ocsp.apple.com; do
+		t="$(curl -s -o /dev/null -w '%{time_total}' --max-time 6 "https://${host}/" 2>/dev/null)"
+		if [[ -z "${t}" ]]; then
+			p1 "  ${host}: unreachable within 6s"
+			bad=1
+		elif awk -v t="${t}" 'BEGIN { exit !(t > 2.0) }'; then
+			p1 "  ${host}: slow response (${t}s)"
+			bad=1
+		else
+			p3 "  ${host}: reachable (${t}s)"
+		fi
+	done
+
+	local primary_dns
+	primary_dns="$(scutil --dns 2>/dev/null | awk '/nameserver\[0\]/{print $3; exit}')"
+	if [[ "${primary_dns}" == "100.100.100.100" ]]; then
+		p2 "  Primary DNS is Tailscale MagicDNS (100.100.100.100); slow resolution of Apple hosts can stall Gatekeeper."
+		p3 "    Temporarily bypass with: tailscale set --accept-dns=false   (restore: --accept-dns=true)"
+		bad=1
+	fi
+
+	if [[ "${bad}" -ne 0 ]]; then
+		p1 "  Notarization path looks risky. If a cask install hangs, fix the network then:"
+		p1 "    sudo killall syspolicyd   # clear the wedge, then re-run ./setup.sh install"
+	else
+		p3 "Gatekeeper notarization path looks healthy."
+	fi
+}
+
 install_brew() {
 	p2 "Installing and/or configuring brew"
 	if ! command -v brew >/dev/null 2>&1; then
@@ -176,14 +252,24 @@ install_brew() {
 	# Trust declared taps before bundling so they load under
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"
-	brew bundle --file="${brewfile}"
 
-	# Clear quarantine from CLI casks that ship bare Mach-O binaries, before
-	# anything execs them. A quarantined first launch wedges syspolicyd for that
-	# path permanently (only a syspolicyd restart / reboot clears it), so this
-	# must happen here, right after install. See clear_cask_quarantine.
+	# Casks that ship a bare CLI binary (1password-cli's `op`, codex) generate
+	# shell completions at install time, which execs the freshly-quarantined
+	# binary. That first exec makes syspolicyd do an ONLINE notarization lookup
+	# (bare binaries can't carry a stapled ticket); if the path to Apple stalls
+	# — a full-tunnel VPN or a slow primary DNS resolver — the exec hangs forever
+	# and would wedge the whole bundle. Warn about that likely cause up front,
+	# and cap the bundle with a generous wall-clock timeout so a stall can't hang
+	# setup indefinitely (override with BREW_BUNDLE_TIMEOUT, in seconds).
+	preflight_gatekeeper_network
+	run_with_timeout "${BREW_BUNDLE_TIMEOUT:-5400}" brew bundle --file="${brewfile}" ||
+		p1 "brew bundle exited non-zero (timeout or a package failure); setup continues — re-run './setup.sh install' after resolving."
+
+	# Strip com.apple.quarantine from the bare-binary casks after install so a
+	# later exec doesn't trigger another online Gatekeeper assessment.
 	# (claude-code@latest and cursor-cli are cleared in their own install steps.)
 	clear_cask_quarantine 1password-cli
+	clear_cask_quarantine codex
 
 	# Bust cached kubectl completions so they regenerate on next shell startup
 	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
@@ -403,55 +489,6 @@ install_cursor_agent() {
 	fi
 
 	clear_cask_quarantine cursor-cli
-}
-
-# Define Function =install_codex=
-# Install/upgrade the OpenAI Codex CLI (`codex`) OUTSIDE `brew bundle`.
-#
-# The codex cask ships a bare Mach-O binary and uses
-# `generate_completions_from_executable`, i.e. Homebrew EXECS the binary during
-# install to generate shell completions. On macOS 15.7+ a quarantined bare
-# binary stalls dyld at process startup (Gatekeeper), so that completion step
-# hangs `brew bundle` indefinitely and a half-done upgrade leaves a stale
-# `<version>.upgrading` stub in the Caskroom. The Brewfile `no_quarantine: true`
-# arg is honored on a fresh `brew install` but NOT on the upgrade path that
-# `brew bundle` takes for an already-installed cask, so upgrades re-quarantine
-# and hang. Post-install `clear_cask_quarantine` (the claude-code/cursor-cli
-# pattern) can't help here because those casks don't exec during install but
-# codex does. So we keep codex out of the Brewfile and install/upgrade it here
-# with an explicit `--no-quarantine`, which IS reliably honored, so the binary
-# is never quarantined and the completion step runs unblocked. Idempotent.
-install_codex() {
-	p2 "Install/upgrade Codex CLI..."
-
-	if ! command -v brew >/dev/null 2>&1; then
-		p3 "brew not found, skipping codex install"
-		return 0
-	fi
-
-	# Remove stale `<version>.upgrading` stubs left by previously hung upgrades;
-	# they confuse brew's cask version bookkeeping.
-	local caskroom
-	caskroom="$(brew --prefix)/Caskroom/codex"
-	if compgen -G "${caskroom}/"*.upgrading >/dev/null 2>&1; then
-		p3 "Removing stale codex *.upgrading leftovers..."
-		rm -rf "${caskroom}/"*.upgrading
-	fi
-
-	if ! brew list --cask codex >/dev/null 2>&1; then
-		p3 "Installing codex (--no-quarantine)..."
-		brew install --cask --no-quarantine codex
-	elif brew outdated --cask --quiet codex 2>/dev/null | grep -qx codex; then
-		p3 "Upgrading codex (--no-quarantine)..."
-		brew upgrade --cask --no-quarantine codex
-	else
-		p3 "codex already current"
-	fi
-
-	# Belt and suspenders: clear quarantine from whatever is now staged, in case
-	# a `brew upgrade` run outside setup re-quarantined the binary. (Won't unhang
-	# such an external upgrade, but keeps `codex` runnable afterwards.)
-	clear_cask_quarantine codex
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
