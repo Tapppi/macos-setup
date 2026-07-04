@@ -6,6 +6,7 @@ set -uo pipefail
 install() {
 	install_macos_sw
 	link_terraform_to_tofu
+	install_podman_intel
 	install_dotfiles
 	install_mise_runtimes
 	install_powershell_modules
@@ -35,6 +36,58 @@ link_terraform_to_tofu() {
 	p2 "Symlink terraform -> tofu (${tofu_bin})..."
 	mkdir -p "$(dirname "${link}")"
 	ln -sf "${tofu_bin}" "${link}"
+}
+
+# Define Function =install_podman_intel=
+# homebrew-core only carries podman 6.x, which dropped Intel-mac support, and
+# never shipped the 5.8.3/5.8.4 security fixes over 5.8.2 — so on Intel the
+# newest 5.x comes from the official upstream installer pkg (signed, bundles
+# the gvproxy/vfkit helpers, adds /opt/podman/bin to PATH via /etc/paths.d).
+# Intel stays on the default applehv/vfkit backend; see docs/podman-vm-backend.md.
+# To bump: update both vars below — the sha256 comes from the release's
+# `shasums` asset (gh release download v<ver> --repo containers/podman --pattern shasums).
+install_podman_intel() {
+	if [[ "$(uname -m)" != "x86_64" ]]; then
+		return 0
+	fi
+
+	local version="5.8.4"
+	local pkg_sha256="6773f3ac414e7963a77ea9d0904839e4dd71197359007f3c6a972f2ef1462c95"
+	p2 "Install podman ${version} from upstream pkg (Intel)..."
+
+	if command -v podman >/dev/null 2>&1 &&
+		[[ "$(podman --version 2>/dev/null | awk '{print $3}')" == "${version}" ]]; then
+		p3 "podman ${version} already installed, skipping"
+		return 0
+	fi
+
+	# Replace the brew formula (frozen at vulnerable 5.8.2 by the pin) if present
+	if brew list podman >/dev/null 2>&1; then
+		p3 "Removing brew podman (superseded by upstream pkg)..."
+		podman machine stop >/dev/null 2>&1
+		brew unpin podman >/dev/null 2>&1
+		brew uninstall podman
+	fi
+
+	local pkg="/tmp/podman-installer-macos-amd64-${version}.pkg"
+	if ! curl --fail --location --silent --show-error --output "${pkg}" \
+		"https://github.com/containers/podman/releases/download/v${version}/podman-installer-macos-amd64.pkg"; then
+		p3 "ERROR: download failed for podman ${version} pkg"
+		return 1
+	fi
+	if ! printf '%s  %s\n' "${pkg_sha256}" "${pkg}" | shasum -a 256 -c - >/dev/null 2>&1; then
+		p3 "ERROR: checksum mismatch for ${pkg}; aborting podman install"
+		rm -f "${pkg}"
+		return 1
+	fi
+	if ! sudo installer -pkg "${pkg}" -target /; then
+		rm -f "${pkg}"
+		return 1
+	fi
+	rm -f "${pkg}"
+
+	p3 "Installed $(/opt/podman/bin/podman --version 2>/dev/null || echo 'podman (version check failed)')"
+	p3 "Existing 5.x podman machines keep working on the applehv/vfkit backend"
 }
 
 # Define Function =install_xcode=

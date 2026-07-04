@@ -49,14 +49,19 @@ The kokoro TTS container is unrelated to this backend work and will be automated
 separately once the server architecture (always-on host vs. Mac-local fallback)
 is settled.
 
-## `intel.Brewfile` — pin to 5.x (the hard part, TODO)
+## Intel — newest 5.x from the upstream pkg (DONE, automated)
 
-Currently `brew "podman"`, which now resolves to 6.x. Must pin newest 5.x.
-Homebrew has no `podman@5` formula, so options (pick one):
-- `brew extract podman <yourtap> --version=5.<latest>` then
-  `brew "yourtap/podman@5.<latest>"` in `intel.Brewfile`; or
-- install 5.x and `brew pin podman` (blocks the 6.x upgrade), documented in a
-  `tasks/` step rather than the Brewfile.
+Neither original option works: `brew pin` freezes the vulnerable 5.8.2
+(homebrew-core never shipped the 5.8.3/5.8.4 security fixes — it jumped
+5.8.2 → 6.0.0), and `brew extract` can only pull formulae that existed in
+core history, so 5.8.4 isn't extractable either. Decision:
+
+- `install_podman_intel` in `tasks/install.sh` installs the official
+  `podman-installer-macos-amd64.pkg` (sha256-verified) — signed, bundles
+  gvproxy/vfkit, adds `/opt/podman/bin` to PATH via `/etc/paths.d`. It
+  removes the brew formula/pin on first run; existing 5.x machines keep
+  working. Bump the version + sha vars in the function for future 5.x.
+- `intel.Brewfile` has `brew "podman"` commented out with the rationale.
 
 Leave Intel on the default **applehv/vfkit** backend (no krunkit, no libepoxy).
 libkrun is Apple-Silicon-only; applehv is the correct and best Intel option
