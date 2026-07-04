@@ -186,45 +186,6 @@ run_with_timeout() {
 	wait "${pid}"
 }
 
-# Define Function =preflight_gatekeeper_network=
-# Bare CLI binaries shipped in casks can't carry a stapled notarization ticket,
-# so on first exec (e.g. a cask generating shell completions) syspolicyd does an
-# ONLINE lookup to api.apple-cloudkit.com. If that path stalls the exec hangs
-# forever and wedges `brew bundle`. This can't fix the network, but it flags the
-# usual causes (full-tunnel VPN, slow/custom primary DNS) up front so a hang
-# isn't a mystery. Warn-only — never blocks the install.
-preflight_gatekeeper_network() {
-	p2 "Checking Gatekeeper notarization network path (warn-only)..."
-	local host t bad=0
-	for host in api.apple-cloudkit.com ocsp.apple.com; do
-		t="$(curl -s -o /dev/null -w '%{time_total}' --max-time 6 "https://${host}/" 2>/dev/null)"
-		if [[ -z "${t}" ]]; then
-			p1 "  ${host}: unreachable within 6s"
-			bad=1
-		elif awk -v t="${t}" 'BEGIN { exit !(t > 2.0) }'; then
-			p1 "  ${host}: slow response (${t}s)"
-			bad=1
-		else
-			p3 "  ${host}: reachable (${t}s)"
-		fi
-	done
-
-	local primary_dns
-	primary_dns="$(scutil --dns 2>/dev/null | awk '/nameserver\[0\]/{print $3; exit}')"
-	if [[ "${primary_dns}" == "100.100.100.100" ]]; then
-		p2 "  Primary DNS is Tailscale MagicDNS (100.100.100.100); slow resolution of Apple hosts can stall Gatekeeper."
-		p3 "    Temporarily bypass with: tailscale set --accept-dns=false   (restore: --accept-dns=true)"
-		bad=1
-	fi
-
-	if [[ "${bad}" -ne 0 ]]; then
-		p1 "  Notarization path looks risky. If a cask install hangs, fix the network then:"
-		p1 "    sudo killall syspolicyd   # clear the wedge, then re-run ./setup.sh install"
-	else
-		p3 "Gatekeeper notarization path looks healthy."
-	fi
-}
-
 install_brew() {
 	p2 "Installing and/or configuring brew"
 	if ! command -v brew >/dev/null 2>&1; then
@@ -253,10 +214,11 @@ install_brew() {
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"
 
-	# op/codex run their binary at install to build completions, triggering an
-	# online Gatekeeper check that hangs if the path to Apple stalls (VPN/slow
-	# DNS). Warn up front and cap the bundle so a stall can't hang setup forever.
-	preflight_gatekeeper_network
+	# op/codex run their binary at install to build completions. A quarantined
+	# binary's first exec needs Gatekeeper's consent dialog, which renders on the
+	# local console — on a headless/remote box nobody can click it, so the exec
+	# stays suspended forever (it's the dialog, not the network). Cap the bundle
+	# so that hang can't wedge setup indefinitely (override BREW_BUNDLE_TIMEOUT).
 	run_with_timeout "${BREW_BUNDLE_TIMEOUT:-5400}" brew bundle --file="${brewfile}" ||
 		p1 "brew bundle exited non-zero (timeout or package failure); re-run './setup.sh install' after resolving."
 
