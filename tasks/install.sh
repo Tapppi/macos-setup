@@ -253,21 +253,19 @@ install_brew() {
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"
 
-	# Casks that ship a bare CLI binary (1password-cli's `op`, codex) generate
-	# shell completions at install time, which execs the freshly-quarantined
-	# binary. That first exec makes syspolicyd do an ONLINE notarization lookup
-	# (bare binaries can't carry a stapled ticket); if the path to Apple stalls
-	# — a full-tunnel VPN or a slow primary DNS resolver — the exec hangs forever
-	# and would wedge the whole bundle. Warn about that likely cause up front,
-	# and cap the bundle with a generous wall-clock timeout so a stall can't hang
-	# setup indefinitely (override with BREW_BUNDLE_TIMEOUT, in seconds).
+	# op/codex run their binary at install to build completions, triggering an
+	# online Gatekeeper check that hangs if the path to Apple stalls (VPN/slow
+	# DNS). Warn up front and cap the bundle so a stall can't hang setup forever.
 	preflight_gatekeeper_network
 	run_with_timeout "${BREW_BUNDLE_TIMEOUT:-5400}" brew bundle --file="${brewfile}" ||
-		p1 "brew bundle exited non-zero (timeout or a package failure); setup continues — re-run './setup.sh install' after resolving."
+		p1 "brew bundle exited non-zero (timeout or package failure); re-run './setup.sh install' after resolving."
 
-	# Strip com.apple.quarantine from the bare-binary casks after install so a
-	# later exec doesn't trigger another online Gatekeeper assessment.
-	# (claude-code@latest and cursor-cli are cleared in their own install steps.)
+	# Homebrew 6.0 dropped --no-quarantine, so casks are always quarantined.
+	# Clearing it post-install kills the first-launch "unverified app" popup for
+	# GUI apps (and re-assessment for the op/codex CLIs). It can NOT stop the
+	# quarantine popups/hangs during install itself (op/codex above) — those fire
+	# mid-bundle, before this runs, and have no fix now (accept them, or move off).
+	xattr -dr com.apple.quarantine /Applications/*.app 2>/dev/null || true
 	clear_cask_quarantine 1password-cli
 	clear_cask_quarantine codex
 
