@@ -80,10 +80,11 @@ brew "cmake"
 brew "gcc"
 brew "pkgconf"
 
-# Podman
+# Podman (Apple Silicon: libkrun/krunkit VM backend, podman 6.x default)
 brew "podman"
 brew "podman-compose"
 brew "krunkit"
+brew "libepoxy" # libkrun runtime dep — krunkit abort-traps at launch without it
 cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.
