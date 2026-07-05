@@ -80,10 +80,11 @@ brew "gcc"
 brew "pkgconf"
 
 # Podman
-# Installed outside brew: homebrew-core only carries 6.x (drops Intel macs),
-# and 5.8.3/5.8.4 security fixes are needed — newest 5.x comes from upstream.
+# Installed outside brew (tasks/install.sh install_podman_intel): homebrew-core
+# only carries 6.x, which drops Intel macs, and newest 5.x has needed security
+# fixes. podman-compose comes via uv tool — its brew formula depends on podman 6.x.
 # brew "podman"
-brew "podman-compose"
+# brew "podman-compose"
 cask "podman-desktop"
 
 # Mise for installing languages and runtimes, e.g. Node, go, rust, etc.

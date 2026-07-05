@@ -39,55 +39,77 @@ link_terraform_to_tofu() {
 }
 
 # Define Function =install_podman_intel=
-# homebrew-core only carries podman 6.x, which dropped Intel-mac support, and
+# homebrew-core only carries podman 6.x, which dropped Intel-mac support and
 # never shipped the 5.8.3/5.8.4 security fixes over 5.8.2 — so on Intel the
 # newest 5.x comes from the official upstream installer pkg (signed, bundles
 # the gvproxy/vfkit helpers, adds /opt/podman/bin to PATH via /etc/paths.d).
-# Intel stays on the default applehv/vfkit backend; see docs/podman-vm-backend.md.
-# To bump: update both vars below — the sha256 comes from the release's
-# `shasums` asset (gh release download v<ver> --repo containers/podman --pattern shasums).
+# The newest 5.x tag and its pkg checksum are resolved from GitHub at run
+# time, so 5.x patch releases are followed without editing this file.
+# brew's podman-compose formula depends on the podman formula (which would
+# pull 6.x back in on any upgrade), so podman-compose moves to a uv tool
+# install. Intel stays on the default applehv/vfkit VM backend — libkrun/
+# krunkit is Apple-Silicon-only; existing 5.x machines keep working.
 install_podman_intel() {
 	if [[ "$(uname -m)" != "x86_64" ]]; then
 		return 0
 	fi
 
-	local version="5.8.4"
-	local pkg_sha256="6773f3ac414e7963a77ea9d0904839e4dd71197359007f3c6a972f2ef1462c95"
+	local tag version pkg_sha256
+	tag="$(curl -fsSL --max-time 15 \
+		'https://api.github.com/repos/containers/podman/releases?per_page=100' |
+		jq -r '.[].tag_name' | grep -E '^v5\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+	if [[ -z "${tag}" ]]; then
+		p3 "ERROR: could not resolve newest podman 5.x release from GitHub"
+		return 1
+	fi
+	version="${tag#v}"
 	p2 "Install podman ${version} from upstream pkg (Intel)..."
 
 	if command -v podman >/dev/null 2>&1 &&
 		[[ "$(podman --version 2>/dev/null | awk '{print $3}')" == "${version}" ]]; then
 		p3 "podman ${version} already installed, skipping"
-		return 0
-	fi
+	else
+		pkg_sha256="$(curl -fsSL --max-time 15 \
+			"https://github.com/containers/podman/releases/download/${tag}/shasums" |
+			awk '/ podman-installer-macos-amd64\.pkg$/{print $1}')"
+		if [[ -z "${pkg_sha256}" ]]; then
+			p3 "ERROR: could not fetch shasums for podman ${version}"
+			return 1
+		fi
 
-	# Replace the brew formula (frozen at vulnerable 5.8.2 by the pin) if present
-	if brew list podman >/dev/null 2>&1; then
-		p3 "Removing brew podman (superseded by upstream pkg)..."
-		podman machine stop >/dev/null 2>&1
-		brew unpin podman >/dev/null 2>&1
-		brew uninstall podman
-	fi
+		# Replace the brew formulae if present. podman-compose goes first so
+		# podman itself uninstalls cleanly (no --ignore-dependencies needed).
+		if brew list podman >/dev/null 2>&1 || brew list podman-compose >/dev/null 2>&1; then
+			p3 "Removing brew podman formulae (superseded by upstream pkg + uv)..."
+			podman machine stop >/dev/null 2>&1
+			brew list podman-compose >/dev/null 2>&1 && brew uninstall podman-compose
+			brew unpin podman >/dev/null 2>&1
+			brew list podman >/dev/null 2>&1 && brew uninstall podman
+		fi
 
-	local pkg="/tmp/podman-installer-macos-amd64-${version}.pkg"
-	if ! curl --fail --location --silent --show-error --output "${pkg}" \
-		"https://github.com/containers/podman/releases/download/v${version}/podman-installer-macos-amd64.pkg"; then
-		p3 "ERROR: download failed for podman ${version} pkg"
-		return 1
-	fi
-	if ! printf '%s  %s\n' "${pkg_sha256}" "${pkg}" | shasum -a 256 -c - >/dev/null 2>&1; then
-		p3 "ERROR: checksum mismatch for ${pkg}; aborting podman install"
+		local pkg="/tmp/podman-installer-macos-amd64-${version}.pkg"
+		if ! curl --fail --location --silent --show-error --output "${pkg}" \
+			"https://github.com/containers/podman/releases/download/${tag}/podman-installer-macos-amd64.pkg"; then
+			p3 "ERROR: download failed for podman ${version} pkg"
+			return 1
+		fi
+		if ! printf '%s  %s\n' "${pkg_sha256}" "${pkg}" | shasum -a 256 -c - >/dev/null 2>&1; then
+			p3 "ERROR: checksum mismatch for ${pkg}; aborting podman install"
+			rm -f "${pkg}"
+			return 1
+		fi
+		if ! sudo installer -pkg "${pkg}" -target /; then
+			rm -f "${pkg}"
+			return 1
+		fi
 		rm -f "${pkg}"
-		return 1
+		p3 "Installed $(/opt/podman/bin/podman --version 2>/dev/null || echo 'podman (version check failed)')"
 	fi
-	if ! sudo installer -pkg "${pkg}" -target /; then
-		rm -f "${pkg}"
-		return 1
-	fi
-	rm -f "${pkg}"
 
-	p3 "Installed $(/opt/podman/bin/podman --version 2>/dev/null || echo 'podman (version check failed)')"
-	p3 "Existing 5.x podman machines keep working on the applehv/vfkit backend"
+	# podman-compose via uv (pure-python CLI; brew formula is entangled with 6.x)
+	if ! command -v podman-compose >/dev/null 2>&1; then
+		uv tool install podman-compose
+	fi
 }
 
 # Define Function =install_xcode=
