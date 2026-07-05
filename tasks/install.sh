@@ -6,9 +6,10 @@ set -uo pipefail
 install() {
 	install_macos_sw
 	link_terraform_to_tofu
-	install_podman_intel
 	install_dotfiles
 	install_mise_runtimes
+	# After mise runtimes: podman-compose is installed via the mise-managed uv
+	install_podman_intel
 	install_powershell_modules
 	install_agent_skills_venv
 	install_claude_code
@@ -106,8 +107,13 @@ install_podman_intel() {
 		p3 "Installed $(/opt/podman/bin/podman --version 2>/dev/null || echo 'podman (version check failed)')"
 	fi
 
-	# podman-compose via uv (pure-python CLI; brew formula is entangled with 6.x)
+	# podman-compose via uv (pure-python CLI; brew formula is entangled with 6.x).
+	# uv is mise-managed, so this task must run after install_mise_runtimes.
 	if ! command -v podman-compose >/dev/null 2>&1; then
+		if ! command -v uv >/dev/null 2>&1; then
+			p3 "ERROR: uv not found (mise runtimes not installed yet?) — re-run this task after install_mise_runtimes to get podman-compose"
+			return 1
+		fi
 		uv tool install podman-compose
 	fi
 }
