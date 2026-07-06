@@ -519,8 +519,10 @@ install_claude_code() {
 }
 
 # Clear macOS quarantine from cursor-cli cask
-# Upstream issue: bundled node binary triggers Gatekeeper
-# https://github.com/Homebrew/homebrew-cask/issues/246786
+# cursor-cli ships a standalone (non-app-bundle) Node.js binary that Gatekeeper
+# won't accept once quarantined. This is a permanent upstream packaging
+# limitation, not a bug awaiting a fix: homebrew-cask#246786 was closed
+# NOT_PLANNED ("upstream distribution issue, not a Homebrew problem").
 install_cursor_agent() {
 	p2 "Configuring Cursor Agent CLI..."
 
