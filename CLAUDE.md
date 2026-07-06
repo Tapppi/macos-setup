@@ -49,6 +49,16 @@ bash hooks/install.sh
 **NEVER** run `setup.sh`, `tasks/*.sh`, or `dotfiles/bootstrap.sh` automatically.
 These modify system configuration, install software, and require `sudo`.
 
+**Narrow exception**: the `tool-update-review` skill's apply step may run
+`./setup.sh projects` (and *only* that subcommand — never `install`, `macos`,
+`init`, or bare `setup.sh`) when an accepted suggestion edits a file that
+`tasks/projects.sh` manages (workspace `.tapppi-project.json` manifests,
+rendered `mise.local.toml`, per-repo skill symlinks). That task is idempotent,
+requires no `sudo`, and touches no system-wide state — it only re-links
+skills and re-renders workspace-local env config. This exception is scoped
+to that one skill and that one subcommand; it does not loosen the rule for
+any other automation.
+
 ### Edit Dotfiles in the Submodule, Not in `~/`
 **NEVER** edit files directly in `~/`, `~/.claude/`, `~/.cursor/`, or `~/.config/`. Always edit the source in the
 `dotfiles/` submodule (`home/` or `config/` directories) and then copy the changed file to its
