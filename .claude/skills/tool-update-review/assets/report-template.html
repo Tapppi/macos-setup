@@ -1,0 +1,2429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="report-id" content="__REPORT_ID__">
+	<meta name="generated-at" content="__GENERATED_AT__">
+	<title>Tool Update Review</title>
+	<style>
+		/* ── Solarized Dark palette ─────────────────────────────────────── */
+		:root {
+			--base03: #002b36;
+			--base02: #073642;
+			--base01: #586e75;
+			--base00: #657b83;
+			--base0:  #839496;
+			--base1:  #93a1a1;
+			--base2:  #eee8d5;
+			--yellow: #b58900;
+			--orange: #cb4b16;
+			--red:    #dc322f;
+			--blue:   #268bd2;
+			--cyan:   #2aa198;
+			--green:  #859900;
+			--violet: #6c71c4;
+			--magenta:#d33682;
+		}
+
+		/* ── Reset / base ──────────────────────────────────────────────── */
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+		body {
+			background: var(--base03);
+			color: var(--base0);
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+				"Helvetica Neue", Arial, sans-serif;
+			font-size: 14px;
+			line-height: 1.6;
+		}
+
+		a { color: var(--blue); text-decoration: none; }
+		a:hover { text-decoration: underline; }
+
+		/* ── Page header ───────────────────────────────────────────────── */
+		#page-header {
+			background: var(--base02);
+			border-bottom: 1px solid var(--base01);
+			padding: 16px 24px;
+		}
+
+		#page-header h1 {
+			color: var(--base2);
+			font-size: 20px;
+			font-weight: 600;
+			margin-bottom: 8px;
+		}
+
+		.header-meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 16px;
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		.arch-intel {
+			color: var(--red);
+			font-weight: 700;
+		}
+
+		.counts-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			margin-top: 12px;
+		}
+
+		/* ── Repo freshness note (repo_context, A.1/C.5) ───────────────────── */
+		#header-repo-note {
+			margin-top: 6px;
+			font-size: 12px;
+			color: var(--yellow);
+		}
+
+		#header-repo-note:empty { display: none; }
+
+		.count-badge {
+			padding: 2px 10px;
+			border-radius: 3px;
+			font-size: 12px;
+			font-weight: 600;
+			background: var(--base01);
+			color: var(--base2);
+		}
+
+		.count-badge.incompatible { background: var(--red);    color: #fff; }
+		.count-badge.warning      { background: var(--yellow); color: #000; }
+		.count-badge.suggestions  { background: var(--base02); border: 1px solid var(--base01); }
+
+		/* ── Filter bar ────────────────────────────────────────────────── */
+		#filter-bar {
+			background: var(--base02);
+			border-bottom: 1px solid var(--base01);
+			padding: 8px 24px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 14px;
+			align-items: center;
+		}
+
+		#filter-bar label {
+			display: flex;
+			align-items: center;
+			gap: 5px;
+			font-size: 12px;
+			color: var(--base1);
+			cursor: pointer;
+		}
+
+		#filter-bar select {
+			background: var(--base03);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			color: var(--base0);
+			padding: 3px 6px;
+			font-size: 12px;
+			cursor: pointer;
+		}
+
+		#filter-bar input[type="checkbox"] {
+			cursor: pointer;
+			accent-color: var(--cyan);
+		}
+
+		/* ── Sticky progress bar ────────────────────────────────────────── */
+		#progress-bar-container {
+			position: sticky;
+			top: 0;
+			z-index: 100;
+			background: var(--base02);
+			border-bottom: 1px solid var(--base01);
+			padding: 8px 24px;
+			display: flex;
+			align-items: center;
+			gap: 14px;
+		}
+
+		#progress-track {
+			flex: 1;
+			height: 4px;
+			background: var(--base01);
+			border-radius: 2px;
+			overflow: hidden;
+		}
+
+		#progress-fill {
+			height: 100%;
+			background: var(--cyan);
+			width: 0%;
+			transition: width 0.25s ease;
+		}
+
+		#progress-text {
+			font-size: 12px;
+			color: var(--base1);
+			white-space: nowrap;
+			min-width: 220px;
+		}
+
+		#progress-text.has-incompatible {
+			color: var(--red);
+			font-weight: 600;
+		}
+
+		/* ── Auto-run-upgrades toggle (near Submit, A.2/C.4) ──────────────── */
+		#auto-run-toggle {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 12px;
+			color: var(--base1);
+			cursor: pointer;
+			white-space: nowrap;
+		}
+
+		#auto-run-toggle input[type="checkbox"] {
+			cursor: pointer;
+			accent-color: var(--cyan);
+		}
+
+		#submit-btn {
+			padding: 6px 18px;
+			border-radius: 3px;
+			border: 1px solid var(--base01);
+			background: var(--base01);
+			color: var(--base00);
+			font-size: 12px;
+			font-weight: 600;
+			cursor: not-allowed;
+			white-space: nowrap;
+		}
+
+		#submit-btn:not(:disabled) {
+			background: var(--cyan);
+			border-color: var(--cyan);
+			color: #fff;
+			cursor: pointer;
+		}
+
+		#submit-btn:not(:disabled):hover { background: #1d8a80; }
+
+		/* ── Main content area ──────────────────────────────────────────── */
+		#main {
+			max-width: 960px;
+			margin: 0 auto;
+			padding: 24px;
+		}
+
+		/* ── Empty state ────────────────────────────────────────────────── */
+		#empty-state {
+			text-align: center;
+			padding: 80px 24px;
+		}
+
+		#empty-state .es-icon { font-size: 56px; margin-bottom: 16px; }
+
+		#empty-state h2 {
+			color: var(--base2);
+			font-size: 22px;
+			margin-bottom: 10px;
+		}
+
+		#empty-state p { color: var(--base1); font-size: 15px; }
+
+		/* ── Tool section ───────────────────────────────────────────────── */
+		.tool-section {
+			margin-bottom: 20px;
+			border: 1px solid var(--base01);
+			border-radius: 6px;
+			background: var(--base02);
+			overflow: hidden;
+		}
+
+		.tool-section:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+		.tool-section[data-focused] { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+		.tool-section[data-hidden] { display: none; }
+
+		/* ── Tool header (collapsible) ──────────────────────────────────── */
+		.tool-header {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 13px 16px;
+			cursor: pointer;
+			user-select: none;
+		}
+
+		.tool-header:hover { background: rgba(255,255,255,0.03); }
+
+		.tool-name {
+			color: var(--base2);
+			font-size: 16px;
+			font-weight: 600;
+		}
+
+		.version-delta {
+			font-size: 13px;
+			color: var(--base00);
+		}
+
+		.version-delta .v-new { color: var(--green); font-weight: 600; }
+
+		.source-badge {
+			padding: 1px 7px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.03em;
+		}
+
+		.source-badge.brew       { background: var(--blue);    color: #fff; }
+		.source-badge.cask       { background: var(--orange);  color: #fff; }
+		.source-badge.mise       { background: var(--violet);  color: #fff; }
+		.source-badge.standalone { background: var(--magenta); color: #fff; }
+		.source-badge.macos      { background: var(--base00);  color: var(--base2); }
+
+		.pin-badge {
+			padding: 1px 7px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 700;
+			background: var(--yellow);
+			color: #000;
+		}
+
+		/* ── config_status badge (B.2 / C.5) ──────────────────────────────── */
+		.config-status-badge {
+			padding: 1px 7px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 700;
+			white-space: nowrap;
+		}
+
+		.config-status-badge.ok {
+			background: transparent;
+			border: 1px solid rgba(133,153,0,0.45);
+			color: var(--green);
+			cursor: help;
+			font-weight: 600;
+		}
+
+		.config-status-badge.warn {
+			background: var(--orange);
+			color: #fff;
+		}
+
+		/* Visible warning banner, placed under the tool header before any
+		 * content group — this is a review-the-review flag, not a subtle one. */
+		.config-status-banner {
+			margin-bottom: 12px;
+			padding: 8px 10px;
+			border: 1px solid var(--red);
+			border-left: 4px solid var(--red);
+			border-radius: 4px;
+			background: rgba(220,50,47,0.10);
+			color: var(--base2);
+			font-size: 13px;
+		}
+
+		.config-status-banner .item-evidence { margin-top: 6px; }
+
+		.collapse-icon {
+			margin-left: auto;
+			color: var(--base01);
+			font-size: 11px;
+			transition: transform 0.15s;
+		}
+
+		.tool-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+		.tool-section.collapsed .tool-body     { display: none; }
+
+		/* ── Tool body ──────────────────────────────────────────────────── */
+		.tool-body {
+			border-top: 1px solid var(--base01);
+			padding: 14px 16px 16px;
+		}
+
+		/* ── Section labels (generic small uppercase headers) ────────────── */
+		.section-label {
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: var(--base01);
+			margin-bottom: 6px;
+		}
+
+		/* ── Grouped content: Security / Fixes / Features / Notes ────────── */
+		.content-group { margin-top: 12px; }
+		.content-group:first-child { margin-top: 0; }
+
+		.content-group-title {
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			padding-bottom: 3px;
+			margin-bottom: 4px;
+			border-bottom: 1px solid var(--base01);
+			color: var(--base01);
+		}
+
+		.content-group-count {
+			font-weight: 400;
+			text-transform: none;
+			letter-spacing: normal;
+			color: var(--base01);
+			font-size: 10px;
+		}
+
+		.content-group.cat-security .content-group-title { color: var(--red); border-color: rgba(220,50,47,0.35); }
+		.content-group.cat-fixes    .content-group-title { color: var(--yellow); border-color: rgba(181,137,0,0.35); }
+		.content-group.cat-features .content-group-title { color: var(--blue); border-color: rgba(38,139,210,0.35); }
+		.content-group.cat-notes   .content-group-title { color: var(--base00); border-color: var(--base01); }
+
+		.content-item {
+			padding: 4px 0 4px 10px;
+			border-left: 2px solid var(--base01);
+			margin-bottom: 3px;
+		}
+
+		.content-group.cat-security .content-item { border-left-color: var(--red); }
+		.content-group.cat-fixes    .content-item { border-left-color: var(--yellow); }
+		.content-group.cat-features .content-item { border-left-color: var(--blue); }
+		.content-group.cat-notes   .content-item { border-left-color: var(--base01); }
+
+		.content-item-title {
+			font-size: 13px;
+			color: var(--base2);
+			font-weight: 600;
+		}
+
+		.content-group.cat-notes .content-item-title {
+			color: var(--base1);
+			font-weight: 400;
+		}
+
+		.content-item-desc {
+			font-size: 12px;
+			color: var(--base00);
+			margin-top: 2px;
+		}
+
+		.item-evidence {
+			margin-top: 4px;
+			font-size: 12px;
+			color: var(--base01);
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+			align-items: center;
+		}
+
+		.item-evidence .ev-label { color: var(--base01); }
+
+		.evidence-path {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 11px;
+			background: var(--base03);
+			color: var(--base00);
+			padding: 0 5px;
+			border-radius: 2px;
+		}
+
+		.item-motivating {
+			margin-top: 4px;
+			font-size: 12px;
+			font-style: italic;
+			color: var(--base01);
+		}
+
+		.item-ref {
+			margin-top: 3px;
+			font-size: 11px;
+		}
+
+		.item-ref a { color: var(--base01); }
+		.item-ref a:hover { color: var(--blue); }
+
+		/* ── Research error note ────────────────────────────────────────── */
+		.research-error-note {
+			margin-top: 12px;
+			padding: 8px 12px;
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			font-size: 12px;
+			color: var(--base01);
+			font-style: italic;
+		}
+
+		/* ── Suggestion cards ───────────────────────────────────────────── */
+		.suggestions-section { margin-top: 18px; }
+
+		.suggestion-card {
+			border: 1px solid var(--base01);
+			border-left: 1px solid var(--base01);
+			border-radius: 4px;
+			padding: 12px;
+			margin-top: 10px;
+			background: var(--base03);
+			transition: border-color 0.15s, opacity 0.15s;
+		}
+
+		/* Decision state via data-decision CSS attribute selectors */
+		.suggestion-card[data-decision="accept"] {
+			border-left: 3px solid var(--cyan);
+		}
+
+		.suggestion-card[data-decision="reject"] {
+			border-left: 3px solid var(--base01);
+			opacity: 0.6;
+		}
+
+		.suggestion-card[data-decision="discuss"] {
+			border-left: 3px solid var(--yellow);
+		}
+
+		.card-header {
+			display: flex;
+			align-items: flex-start;
+			gap: 8px;
+			margin-bottom: 8px;
+		}
+
+		.card-title {
+			flex: 1;
+			color: var(--base2);
+			font-weight: 600;
+			font-size: 14px;
+		}
+
+		.card-state-label {
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			padding: 2px 7px;
+			border-radius: 3px;
+			display: none;
+			flex-shrink: 0;
+		}
+
+		.suggestion-card[data-decision="accept"] .card-state-label {
+			display: inline-block;
+			background: var(--cyan);
+			color: #fff;
+		}
+
+		.suggestion-card[data-decision="reject"] .card-state-label {
+			display: inline-block;
+			background: var(--base01);
+			color: var(--base2);
+		}
+
+		.suggestion-card[data-decision="discuss"] .card-state-label {
+			display: inline-block;
+			background: var(--yellow);
+			color: #000;
+		}
+
+		.card-targets {
+			font-size: 12px;
+			color: var(--base00);
+			margin-bottom: 6px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 5px;
+			align-items: center;
+		}
+
+		.card-targets .target-label { color: var(--base01); }
+
+		.target-path {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 11px;
+			background: var(--base02);
+			color: var(--base0);
+			padding: 0 5px;
+			border-radius: 2px;
+		}
+
+		.card-rationale {
+			font-size: 13px;
+			color: var(--base1);
+			margin-bottom: 8px;
+		}
+
+		.card-motlink {
+			font-size: 12px;
+			margin-bottom: 8px;
+		}
+
+		/* ── Diff preview ───────────────────────────────────────────────── */
+		.diff-preview {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 12px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			padding: 8px 10px;
+			overflow-x: auto;
+			margin-bottom: 10px;
+		}
+
+		.diff-line { display: block; white-space: pre; }
+		.diff-add  { color: var(--green); }
+		.diff-rem  { color: var(--red); }
+		.diff-ctx  { color: var(--base00); }
+
+		/* ── Command chip (kind: "upgrade" suggestions) ───────────────────── */
+		.cmd-chip-row {
+			display: flex;
+			align-items: stretch;
+			gap: 6px;
+			margin-bottom: 4px;
+		}
+
+		.cmd-chip {
+			flex: 1;
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 12px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			padding: 8px 10px;
+			color: var(--green);
+			overflow-x: auto;
+			white-space: pre;
+			cursor: text;
+			margin: 0;
+		}
+
+		.cmd-chip:focus { outline: none; border-color: var(--blue); }
+
+		.btn-copy-cmd {
+			padding: 0 12px;
+			border-radius: 3px;
+			border: 1px solid var(--base01);
+			background: var(--base02);
+			color: var(--base1);
+			font-size: 11px;
+			font-weight: 600;
+			cursor: pointer;
+			white-space: nowrap;
+			transition: background 0.1s, border-color 0.1s, color 0.1s;
+		}
+
+		.btn-copy-cmd:hover  { background: var(--base01); color: var(--base2); }
+		.btn-copy-cmd.copied { border-color: var(--cyan); color: var(--cyan); }
+
+		.cmd-hint {
+			font-size: 11px;
+			color: var(--base01);
+			font-style: italic;
+			margin-bottom: 10px;
+		}
+
+		/* ── Manual-only / needs-sudo hints (kind: "upgrade", A.1) ────────── */
+		.manual-only-badge {
+			display: inline-block;
+			padding: 2px 8px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			background: var(--orange);
+			color: #fff;
+			margin-bottom: 6px;
+		}
+
+		.manual-reason {
+			font-size: 12px;
+			color: var(--base1);
+			margin-bottom: 8px;
+		}
+
+		.needs-sudo-note {
+			font-size: 11px;
+			color: var(--yellow);
+			margin-bottom: 10px;
+		}
+
+		/* ── Decision buttons ───────────────────────────────────────────── */
+		.card-actions {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+			margin-bottom: 8px;
+			flex-wrap: wrap;
+		}
+
+		.btn-decision {
+			padding: 5px 13px;
+			border-radius: 3px;
+			border: 1px solid;
+			font-size: 12px;
+			font-weight: 600;
+			cursor: pointer;
+			background: transparent;
+			transition: background 0.1s, color 0.1s;
+		}
+
+		.btn-accept  { border-color: var(--cyan);   color: var(--cyan); }
+		.btn-reject  { border-color: var(--base01); color: var(--base00); }
+		.btn-discuss { border-color: var(--yellow);  color: var(--yellow); }
+
+		.btn-decision:disabled { cursor: not-allowed; opacity: 0.45; }
+
+		/* Active (selected) state */
+		[data-decision="accept"]  .btn-accept  { background: var(--cyan);   color: #fff; }
+		[data-decision="reject"]  .btn-reject  { background: var(--base01); color: var(--base2); }
+		[data-decision="discuss"] .btn-discuss { background: var(--yellow);  color: #000; }
+
+		/* ── Comment / note textareas ───────────────────────────────────── */
+		.card-comment,
+		.tool-note-textarea {
+			width: 100%;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			color: var(--base0);
+			font-size: 12px;
+			font-family: inherit;
+			padding: 6px 8px;
+			resize: vertical;
+		}
+
+		.card-comment {
+			min-height: 28px;
+			transition: min-height 0.15s;
+		}
+
+		.card-comment:focus { min-height: 58px; }
+
+		.card-comment:focus,
+		.tool-note-textarea:focus {
+			outline: none;
+			border-color: var(--blue);
+		}
+
+		/* ── Per-tool note (collapsible) ──────────────────────────────────── */
+		.tool-note-area { margin-top: 18px; }
+
+		.tool-note-area .section-label { margin-bottom: 0; }
+
+		.tool-note-textarea { min-height: 32px; }
+
+		.tool-note-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 4px;
+		}
+
+		.tool-note-close {
+			background: none;
+			border: none;
+			color: var(--base01);
+			font-size: 13px;
+			line-height: 1;
+			padding: 2px 6px;
+			cursor: pointer;
+		}
+
+		.tool-note-close:hover { color: var(--base1); }
+
+		.tool-note-collapsed-label {
+			display: none;
+			font-size: 12px;
+			color: var(--base01);
+			cursor: pointer;
+			padding: 3px 0;
+		}
+
+		.tool-note-collapsed-label:hover { color: var(--base1); }
+		.tool-note-collapsed-label::before { content: "Note ▸ "; }
+
+		.tool-note-area[data-collapsed] .tool-note-header,
+		.tool-note-area[data-collapsed] .tool-note-textarea {
+			display: none;
+		}
+
+		.tool-note-area[data-collapsed] .tool-note-collapsed-label {
+			display: block;
+		}
+
+		/* ── Overall comment ────────────────────────────────────────────── */
+		#overall-section {
+			margin-top: 24px;
+			padding: 16px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 6px;
+		}
+
+		#overall-section label {
+			display: block;
+			font-size: 13px;
+			font-weight: 600;
+			color: var(--base1);
+			margin-bottom: 8px;
+		}
+
+		#overall-comment {
+			width: 100%;
+			min-height: 64px;
+			background: var(--base03);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			color: var(--base0);
+			font-size: 13px;
+			font-family: inherit;
+			padding: 8px 10px;
+			resize: vertical;
+		}
+
+		#overall-comment:focus {
+			outline: none;
+			border-color: var(--blue);
+		}
+
+		/* ── Closing splash ─────────────────────────────────────────────── */
+		#closing-splash {
+			display: none;
+			position: fixed;
+			inset: 0;
+			background: rgba(0,43,54,0.92);
+			z-index: 200;
+			justify-content: center;
+			align-items: center;
+		}
+
+		#closing-splash.visible { display: flex; }
+
+		.overlay-box {
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 8px;
+			padding: 36px 40px;
+			max-width: 460px;
+			text-align: center;
+		}
+
+		.overlay-box .ov-icon { font-size: 40px; margin-bottom: 12px; }
+
+		.overlay-box h2 {
+			color: var(--base2);
+			font-size: 20px;
+			margin-bottom: 10px;
+		}
+
+		.overlay-box p { color: var(--base1); font-size: 14px; margin-top: 6px; }
+
+		/* ── Help overlay ───────────────────────────────────────────────── */
+		#help-overlay {
+			display: none;
+			position: fixed;
+			inset: 0;
+			background: rgba(0,43,54,0.88);
+			z-index: 200;
+			justify-content: center;
+			align-items: center;
+		}
+
+		#help-overlay.visible { display: flex; }
+
+		.key-table {
+			width: 100%;
+			border-collapse: collapse;
+			margin: 14px 0;
+			text-align: left;
+		}
+
+		.key-table td {
+			padding: 5px 8px;
+			font-size: 13px;
+			color: var(--base1);
+		}
+
+		.key-table td:first-child {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			color: var(--cyan);
+			font-weight: 600;
+			white-space: nowrap;
+		}
+
+		.btn-close-help {
+			margin-top: 6px;
+			padding: 7px 18px;
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			background: var(--base01);
+			color: var(--base2);
+			font-size: 13px;
+			cursor: pointer;
+		}
+
+		.btn-close-help:hover { background: var(--base00); }
+
+		/* ── Error toast ────────────────────────────────────────────────── */
+		#error-toast {
+			display: none;
+			position: fixed;
+			bottom: 24px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: var(--red);
+			color: #fff;
+			padding: 10px 20px;
+			border-radius: 4px;
+			font-size: 13px;
+			z-index: 300;
+			max-width: 88vw;
+			text-align: center;
+			box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+		}
+
+		#error-toast.visible { display: block; }
+
+		/* ── Tab strip (replaces progress-bar-container contents) ────────── */
+		#tab-strip {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.tab-btn {
+			padding: 4px 12px;
+			border-radius: 3px;
+			border: 1px solid var(--base01);
+			background: transparent;
+			color: var(--base01);
+			font-size: 12px;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.1s, color 0.1s;
+		}
+
+		.tab-btn.active {
+			background: var(--cyan);
+			border-color: var(--cyan);
+			color: #fff;
+		}
+
+		.tab-btn:not(.active):hover { background: rgba(255,255,255,0.04); }
+
+		#tab-status {
+			margin-left: auto;
+			font-size: 12px;
+			color: var(--base1);
+			white-space: nowrap;
+		}
+
+		#tab-status.stale { color: var(--yellow); }
+
+		/* ── Results panel ──────────────────────────────────────────────── */
+		#results-panel {
+			max-width: 960px;
+			margin: 0 auto;
+			padding: 24px;
+		}
+
+		#results-status-bar {
+			padding: 10px 14px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			margin-bottom: 16px;
+			font-size: 14px;
+			font-weight: 600;
+			color: var(--base2);
+		}
+
+		#results-status-bar.failed     { color: var(--red); }
+		#results-status-bar.discussing { color: var(--yellow); }
+
+		/* ── Action list ────────────────────────────────────────────────── */
+		#action-list { margin-bottom: 16px; }
+
+		.action-row { border-bottom: 1px solid rgba(88,110,117,0.2); }
+
+		.action-main-line {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 8px 10px;
+			cursor: pointer;
+			user-select: none;
+		}
+
+		.action-main-line:hover { background: rgba(255,255,255,0.02); }
+
+		.action-icon {
+			width: 18px;
+			text-align: center;
+			font-size: 13px;
+			flex-shrink: 0;
+		}
+
+		.action-icon.state-pending { color: var(--base01); }
+		.action-icon.state-running { color: var(--cyan); }
+		.action-icon.state-done    { color: var(--green); }
+		.action-icon.state-failed  { color: var(--red); }
+		.action-icon.state-skipped { color: var(--base01); }
+
+		.action-label {
+			flex: 1;
+			font-size: 13px;
+			color: var(--base1);
+		}
+
+		.action-note {
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		.action-detail-pre {
+			display: none;
+			margin: 0 10px 8px 38px;
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 11px;
+			background: var(--base03);
+			color: var(--base00);
+			padding: 6px 8px;
+			border-radius: 3px;
+			overflow-x: auto;
+			white-space: pre;
+		}
+
+		.action-detail-pre.expanded { display: block; }
+
+		/* ── Follow-on suggestions (surfaced mid-apply from tool_comments) ── */
+		#followups-section {
+			margin-top: 16px;
+			padding: 14px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+		}
+
+		#followup-cards .suggestion-card { background: var(--base03); }
+
+		/* ── Recap / changelog sections ──────────────────────────────────── */
+		#results-recap,
+		#results-changelog {
+			margin-top: 16px;
+			padding: 14px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+		}
+
+		#results-recap pre,
+		#results-changelog pre {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			font-size: 12px;
+			color: var(--base1);
+			white-space: pre-wrap;
+			word-break: break-word;
+			margin-top: 8px;
+		}
+
+		.changelog-entry-sep {
+			border: none;
+			border-top: 1px solid var(--base01);
+			margin: 10px 0;
+		}
+
+		/* ── Finish button row ───────────────────────────────────────────── */
+		#finish-row {
+			display: flex;
+			justify-content: flex-end;
+			margin-top: 20px;
+		}
+
+		#finish-btn {
+			padding: 7px 20px;
+			border-radius: 3px;
+			border: 1px solid var(--base01);
+			background: var(--base01);
+			color: var(--base00);
+			font-size: 13px;
+			font-weight: 600;
+			cursor: not-allowed;
+		}
+
+		#finish-btn:not(:disabled) {
+			background: var(--cyan);
+			border-color: var(--cyan);
+			color: #fff;
+			cursor: pointer;
+		}
+
+		#finish-btn:not(:disabled):hover { background: #1d8a80; }
+
+		/* ── Frozen report (read-only after submit) ──────────────────────── */
+		.report-frozen { opacity: 0.5; pointer-events: none; }
+	</style>
+</head>
+<body>
+
+	<!-- ── Page header ─────────────────────────────────────────────────── -->
+	<header id="page-header">
+		<h1>Tool Update Review</h1>
+		<div id="header-meta" class="header-meta"></div>
+		<div id="header-counts" class="counts-row"></div>
+		<div id="header-repo-note"></div>
+	</header>
+
+	<!-- ── Filter bar ──────────────────────────────────────────────────── -->
+	<div id="filter-bar">
+		<label>
+			Source:
+			<select id="filter-source">
+				<option value="">All</option>
+				<option value="brew">brew</option>
+				<option value="cask">cask</option>
+				<option value="mise">mise</option>
+				<option value="standalone">standalone</option>
+				<option value="macos">macos</option>
+			</select>
+		</label>
+		<label>
+			Severity:
+			<select id="filter-severity">
+				<option value="">All</option>
+				<option value="incompatible">Incompatible</option>
+				<option value="warning">Warning</option>
+				<option value="notable">Notable</option>
+				<option value="info">Info</option>
+			</select>
+		</label>
+		<label>
+			<input type="checkbox" id="filter-relevant">
+			Only relevant to me
+		</label>
+		<label>
+			Sort:
+			<select id="filter-sort">
+				<option value="needs-decision" selected>Needs decision first</option>
+				<option value="incompatible">Incompatible first</option>
+				<option value="name">Name</option>
+				<option value="source">Source</option>
+				<option value="major">Major delta first</option>
+			</select>
+		</label>
+	</div>
+
+	<!-- ── Sticky progress bar ─────────────────────────────────────────── -->
+	<div id="progress-bar-container">
+		<div id="progress-track">
+			<div id="progress-fill"></div>
+		</div>
+		<span id="progress-text">Loading…</span>
+		<label id="auto-run-toggle" title="If off, every accepted upgrade becomes manual-only for this session, regardless of auto_runnable.">
+			<input type="checkbox" id="auto-run-upgrades" checked>
+			Auto-run accepted upgrades (I'll approve any admin prompts)
+		</label>
+		<button id="submit-btn" disabled title="Decide all suggestions on incompatible-severity tools first">Submit</button>
+	</div>
+
+	<!-- ── Main content: tool sections injected by JS ──────────────────── -->
+	<main id="main"></main>
+
+	<!-- ── Closing splash (shown after Finish is clicked) ──────────────── -->
+	<div id="closing-splash" role="dialog" aria-modal="true" aria-label="Session complete">
+		<div class="overlay-box">
+			<div class="ov-icon">✓</div>
+			<h2>Session complete</h2>
+			<p>This window can be closed.</p>
+		</div>
+	</div>
+
+	<!-- ── Keyboard help overlay ───────────────────────────────────────── -->
+	<div id="help-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+		<div class="overlay-box">
+			<h2>Keyboard shortcuts</h2>
+			<table class="key-table">
+				<tbody>
+					<tr><td>j / k</td><td>Next / previous tool section</td></tr>
+					<tr><td>a</td><td>Accept first undecided suggestion in focused tool</td></tr>
+					<tr><td>r</td><td>Reject first undecided suggestion in focused tool</td></tr>
+					<tr><td>c</td><td>Discuss first undecided suggestion in focused tool</td></tr>
+					<tr><td>s</td><td>Submit (when ready)</td></tr>
+					<tr><td>f</td><td>Cycle filter: All → Incompatible → Relevant</td></tr>
+					<tr><td>?</td><td>Toggle this help overlay</td></tr>
+				</tbody>
+			</table>
+			<button class="btn-close-help" id="btn-close-help">Close</button>
+		</div>
+	</div>
+
+	<!-- ── Error toast ─────────────────────────────────────────────────── -->
+	<div id="error-toast" role="alert" aria-live="assertive"></div>
+
+	<script>
+		const REPORT = __REPORT_DATA__;
+		const base = location.pathname.replace(/\/+$/, '');
+
+		/* ── Severity ordering (lower = worse) ─────────────────────────── */
+		const SEV_ORDER = { incompatible: 0, warning: 1, notable: 2, info: 3 };
+
+		/* ── HTML escape ────────────────────────────────────────────────── */
+		function esc(s) {
+			return String(s == null ? '' : s)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;');
+		}
+
+		/* ── Compute max severity for a tool ────────────────────────────── */
+		function maxSeverity(tool) {
+			if (!tool.relevancy || tool.relevancy.length === 0) return '';
+			let best = 99;
+			let bestSev = '';
+			for (const r of tool.relevancy) {
+				const o = SEV_ORDER[r.severity] ?? 99;
+				if (o < best) { best = o; bestSev = r.severity; }
+			}
+			return bestSev;
+		}
+
+		/* ── Render: page header ────────────────────────────────────────── */
+		function renderHeader() {
+			const m = REPORT.machine || {};
+			const archHtml = m.arch === 'x86_64'
+				? `<span class="arch-intel" title="Intel — ARM-only deps are incompatibilities here">${esc(m.arch)}</span>`
+				: esc(m.arch || '');
+
+			document.getElementById('header-meta').innerHTML =
+				`<span>${esc(m.hostname)}</span>` +
+				`<span>arch: ${archHtml}</span>` +
+				`<span>${esc(m.os)}</span>` +
+				`<span>Generated: ${esc(REPORT.generated_at)}</span>`;
+
+			const s = REPORT.summary || {};
+			const badges = [];
+			badges.push(`<span class="count-badge">${esc(s.total_outdated ?? 0)} outdated</span>`);
+			if (s.incompatible_count > 0) {
+				badges.push(`<span class="count-badge incompatible">${esc(s.incompatible_count)} incompatible</span>`);
+			}
+			if (s.warning_count > 0) {
+				badges.push(`<span class="count-badge warning">${esc(s.warning_count)} warnings</span>`);
+			}
+			badges.push(`<span class="count-badge suggestions">${esc(s.suggestions_count ?? 0)} suggestions</span>`);
+			document.getElementById('header-counts').innerHTML = badges.join('');
+
+			/* Repo freshness (repo_context, A.1/C.5) — only surfaced when a
+			 * repo is behind; recent_commits[] is research context only and
+			 * is never rendered here. */
+			const repoContext = REPORT.repo_context || {};
+			const repoNotes = Object.entries(repoContext)
+				.filter(([, info]) => info && info.up_to_date === false)
+				.map(([name, info]) => {
+					const behind = info.behind || 0;
+					return `<div>⚠ ${esc(name)} is ${behind} commit${behind === 1 ? '' : 's'} behind origin — recommendations may be based on a stale checkout</div>`;
+				});
+			document.getElementById('header-repo-note').innerHTML = repoNotes.join('');
+		}
+
+		/* ── Render: diff preview ───────────────────────────────────────── */
+		function renderDiff(diff) {
+			if (!diff) return '';
+			const lines = diff.split('\n').map(line => {
+				let cls = 'diff-ctx';
+				if (line.startsWith('+')) cls = 'diff-add';
+				else if (line.startsWith('-')) cls = 'diff-rem';
+				return `<span class="diff-line ${cls}">${esc(line)}</span>`;
+			});
+			return `<div class="diff-preview">${lines.join('')}</div>`;
+		}
+
+		/* ── Render: copyable command chip (kind: "upgrade" suggestions) ─── */
+		function renderCommandChip(command, hint) {
+			if (!command) return '';
+			return `
+			<div class="cmd-chip-row">
+				<pre class="cmd-chip" tabindex="0" title="Click to select the command">${esc(command)}</pre>
+				<button type="button" class="btn-copy-cmd" data-copy-text="${esc(command)}">Copy</button>
+			</div>
+			<div class="cmd-hint">${esc(hint)}</div>`;
+		}
+
+		/* ── Render: body of a kind:"upgrade" card — reflects auto_runnable /
+		 * needs_sudo / manual_reason (A.1). auto_runnable defaults true,
+		 * needs_sudo defaults false when absent. */
+		function renderUpgradeBody(sug) {
+			const autoRunnable = sug.auto_runnable !== false;
+			const needsSudo = sug.needs_sudo === true;
+			let html = '';
+			if (!autoRunnable) {
+				html += `<div class="manual-only-badge">⚠ Manual only</div>`;
+				if (sug.manual_reason) {
+					html += `<div class="manual-reason">${esc(sug.manual_reason)}</div>`;
+				}
+				html += renderCommandChip(sug.command, 'Always manual — copy and run this yourself.');
+			} else {
+				html += renderCommandChip(
+					sug.command,
+					'If accepted, runs automatically when auto-run is enabled — or copy and run it yourself.'
+				);
+				if (needsSudo) {
+					html += `<div class="needs-sudo-note">🔒 May prompt for an admin password during apply.</div>`;
+				}
+			}
+			return html;
+		}
+
+		/* ── Render: one suggestion card ─────────────────────────────────
+		 * opts.followup marks a card surfaced mid-apply (Results view, from
+		 * a tool_comments investigation) so it can be styled/wired the same
+		 * way as any other card while its Accept/Reject/Discuss buttons post
+		 * to /followup instead of just toggling local state (see the click
+		 * delegate below). */
+		function renderCard(sug, opts) {
+			opts = opts || {};
+			const kind = sug.kind || 'edit'; /* defensive default for older fixtures */
+			const followup = !!opts.followup;
+
+			const targets = (sug.target_files || []).map(f =>
+				`<span class="target-path" title="${esc(f.description || '')}">${esc(f.path)}</span>`
+			);
+			const targetsHtml = targets.length
+				? `<div class="card-targets"><span class="target-label">Files:</span> ${targets.join(' ')}</div>`
+				: '';
+
+			const motLink = sug.motivating_link
+				? `<div class="card-motlink">→ <a href="${esc(sug.motivating_link.url)}" target="_blank" rel="noopener noreferrer">${esc(sug.motivating_link.label)} ↗</a></div>`
+				: '';
+
+			const bodyHtml = kind === 'upgrade'
+				? renderUpgradeBody(sug)
+				: renderDiff(sug.diff_preview);
+
+			return `
+			<div class="suggestion-card" data-suggestion-id="${esc(sug.id)}" data-kind="${esc(kind)}" data-decision="" data-followup="${followup ? '1' : '0'}">
+				<div class="card-header">
+					<div class="card-title">${esc(sug.title)}</div>
+					<span class="card-state-label"></span>
+				</div>
+				${targetsHtml}
+				<div class="card-rationale">${esc(sug.rationale || '')}</div>
+				${motLink}
+				${bodyHtml}
+				<div class="card-actions">
+					<button class="btn-decision btn-accept" data-action="accept">Accept</button>
+					<button class="btn-decision btn-reject" data-action="reject">Reject</button>
+					<button class="btn-decision btn-discuss" data-action="discuss">Discuss</button>
+				</div>
+				<textarea class="card-comment" placeholder="Optional comment…" rows="1"></textarea>
+			</div>`;
+		}
+
+		/* ── Content classification: headliners[] + relevancy[] → 4 groups ─
+		 * Security / Fixes / Features / Notes. Simple keyword heuristics —
+		 * no LLM call available at render time. "Notes" is the catch-all:
+		 * relevancy `info` items and any headliner/finding with no sharper
+		 * keyword match land there. Nothing is rendered twice: each item is
+		 * classified into exactly one group. */
+		const CATEGORY_ORDER = ['security', 'fixes', 'features', 'notes'];
+		const CATEGORY_META = {
+			security: { label: 'Security' },
+			fixes:    { label: 'Fixes' },
+			features: { label: 'Features' },
+			notes:    { label: 'Notes' },
+		};
+
+		const CATEGORY_KEYWORDS = {
+			security: [
+				'cve', 'security', 'vulnerab', 'exploit', 'advisory', 'malicious',
+				'gatekeeper', 'quarantine', 'privilege escalat', 'sandbox escape',
+				'unsafe', 'attacker',
+			],
+			fixes: [
+				'fix', 'bug', 'crash', 'patch', 'regression', 'resolv', 'leak',
+				'deprecat', 'broken', 'incompatib', 'not supported', 'no longer support',
+				'drop support', 'dropped support', 'requires apple silicon',
+				'requires arm', 'removed', 'breaking change', 'stopped working',
+			],
+			features: [
+				'new ', 'add ', 'added', 'adds ', 'stabiliz', 'introduc',
+				'support for', 'now support', 'feature',
+			],
+		};
+
+		function classifyText(text) {
+			const t = (text || '').toLowerCase();
+			for (const cat of ['security', 'fixes', 'features']) {
+				if (CATEGORY_KEYWORDS[cat].some(k => t.includes(k))) return cat;
+			}
+			return 'notes';
+		}
+
+		/* Relevancy items get a second chance: incompatible/warning findings
+		 * with no keyword hit still land in Fixes rather than being buried
+		 * in Notes — a compatibility break is never "just a note". */
+		function classifyRelevancyItem(r) {
+			const text = [r.severity, r.summary, r.detail, r.motivating_change]
+				.filter(Boolean).join(' ');
+			let cat = classifyText(text);
+			if (cat === 'notes' && (r.severity === 'incompatible' || r.severity === 'warning')) {
+				cat = 'fixes';
+			}
+			return cat;
+		}
+
+		/* Best-effort per-item reference link: prefer a tool link whose
+		 * label/url mentions a version number found in the item text, else
+		 * fall back to a sensible link type for the category. Never
+		 * fabricates a link or a deep-link anchor that isn't already there. */
+		function pickLinkForCategory(links, category, itemText) {
+			if (!links || !links.length) return null;
+			const lower = (itemText || '').toLowerCase();
+			const verMatch = lower.match(/\bv?(\d+\.\d+(?:\.\d+)?)\b/);
+			if (verMatch) {
+				const v = verMatch[1];
+				const hit = links.find(l => `${l.label} ${l.url}`.toLowerCase().includes(v));
+				if (hit) return hit;
+			}
+			const typePriority = {
+				security: ['blog', 'release', 'changelog'],
+				fixes:    ['changelog', 'release', 'blog'],
+				features: ['release', 'changelog', 'blog'],
+				notes:    ['blog', 'changelog', 'release'],
+			}[category] || ['changelog', 'release', 'blog'];
+			for (const t of typePriority) {
+				const hit = links.find(l => l.type === t);
+				if (hit) return hit;
+			}
+			return links[0];
+		}
+
+		function buildContentGroups(tool) {
+			const groups = { security: [], fixes: [], features: [], notes: [] };
+
+			(tool.relevancy || []).forEach(r => {
+				const cat = classifyRelevancyItem(r);
+				groups[cat].push({
+					title: r.summary,
+					desc: r.detail || '',
+					evidence: r.evidence || [],
+					motivating: r.motivating_change || '',
+					sevRank: SEV_ORDER[r.severity] ?? 90,
+				});
+			});
+
+			(tool.headliners || []).forEach(h => {
+				const cat = classifyText(h);
+				groups[cat].push({
+					title: h,
+					desc: '',
+					evidence: [],
+					motivating: '',
+					sevRank: 95, /* headliners settle below relevancy findings within a group */
+				});
+			});
+
+			CATEGORY_ORDER.forEach(cat => groups[cat].sort((a, b) => a.sevRank - b.sevRank));
+			return groups;
+		}
+
+		/* Shared "Evidence: file:line file:line" markup — used by both
+		 * content-item rendering and the config_status banner below, so a
+		 * tweak to the evidence-list markup only needs to happen once. */
+		function renderEvidenceHtml(evidence) {
+			if (!evidence || !evidence.length) return '';
+			return `<div class="item-evidence"><span class="ev-label">Evidence:</span> ${
+				evidence.map(e => `<span class="evidence-path">${esc(e)}</span>`).join(' ')
+			}</div>`;
+		}
+
+		function renderContentItem(item, cat, links) {
+			const evidenceHtml = renderEvidenceHtml(item.evidence);
+			const motivatingHtml = item.motivating
+				? `<div class="item-motivating">${esc(item.motivating)}</div>`
+				: '';
+			const link = pickLinkForCategory(links, cat, `${item.title} ${item.desc}`);
+			const refHtml = link
+				? `<div class="item-ref">→ <a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.type)}: ${esc(link.label)} ↗</a></div>`
+				: '';
+			return `
+			<div class="content-item">
+				<div class="content-item-title">${esc(item.title)}</div>
+				${item.desc ? `<div class="content-item-desc">${esc(item.desc)}</div>` : ''}
+				${evidenceHtml}
+				${motivatingHtml}
+				${refHtml}
+			</div>`;
+		}
+
+		function renderContentGroups(tool) {
+			const groups = buildContentGroups(tool);
+			const links = tool.links || [];
+			return CATEGORY_ORDER.map(cat => {
+				const items = groups[cat];
+				if (!items.length) return '';
+				return `
+			<div class="content-group cat-${cat}">
+				<div class="content-group-title">${CATEGORY_META[cat].label} <span class="content-group-count">${items.length}</span></div>
+				${items.map(item => renderContentItem(item, cat, links)).join('')}
+			</div>`;
+			}).join('');
+		}
+
+		/* ── config_status badge + banner (B.2 / C.5) ────────────────────── */
+		function renderConfigStatusBadge(tool) {
+			const cs = tool.config_status;
+			if (!cs || !cs.state || cs.state === 'unknown') return '';
+			if (cs.state === 'up_to_date') {
+				const title = [cs.detail, ...(cs.evidence || [])].filter(Boolean).join(' — ');
+				return `<span class="config-status-badge ok" title="${esc(title)}">✓ config current</span>`;
+			}
+			if (cs.state === 'needs_attention') {
+				return `<span class="config-status-badge warn" title="See banner below for details">⚠ config attention</span>`;
+			}
+			return '';
+		}
+
+		function renderConfigStatusBanner(tool) {
+			const cs = tool.config_status;
+			if (!cs || cs.state !== 'needs_attention') return '';
+			const evidenceHtml = renderEvidenceHtml(cs.evidence);
+			return `
+			<div class="config-status-banner">
+				<div>⚠ config may be stale — ${esc(cs.detail || '')}</div>
+				${evidenceHtml}
+			</div>`;
+		}
+
+		/* ── Render: one tool section ───────────────────────────────────── */
+		function renderTool(tool) {
+			const sev = maxSeverity(tool);
+
+			const groupsHtml = renderContentGroups(tool);
+			const configBannerHtml = renderConfigStatusBanner(tool);
+
+			/* Research error note */
+			const researchErrorHtml = tool.research_error
+				? `<div class="research-error-note">Research unavailable: ${esc(tool.research_error)}</div>`
+				: '';
+
+			/* Suggestion cards */
+			const suggestionsHtml = (tool.suggestions && tool.suggestions.length)
+				? `<div class="suggestions-section">
+				<div class="section-label">Suggestions</div>
+				${tool.suggestions.map(sug => renderCard(sug)).join('')}
+			</div>`
+				: '';
+
+			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
+
+			return `
+		<section
+			class="tool-section"
+			data-tool-id="${esc(tool.id)}"
+			data-name="${esc(tool.name)}"
+			data-source="${esc(tool.source)}"
+			data-max-severity="${esc(sev)}"
+			tabindex="0"
+		>
+			<div class="tool-header" role="button" aria-expanded="true">
+				<span class="tool-name">${esc(tool.name)}</span>
+				<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>
+				<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
+				${pinnedHtml}
+				${renderConfigStatusBadge(tool)}
+				<span class="collapse-icon">▼</span>
+			</div>
+			<div class="tool-body">
+				${configBannerHtml}
+				${groupsHtml}
+				${researchErrorHtml}
+				${suggestionsHtml}
+				<div class="tool-note-area">
+					<div class="tool-note-header">
+						<span class="section-label">Note for this tool</span>
+						<button type="button" class="tool-note-close" title="Collapse note">✕</button>
+					</div>
+					<textarea class="tool-note-textarea" placeholder="Optional note…" data-tool-id="${esc(tool.id)}"></textarea>
+					<div class="tool-note-collapsed-label"></div>
+				</div>
+			</div>
+		</section>`;
+		}
+
+		/* ── Render: all tools + overall comment ────────────────────────── */
+		function renderTools() {
+			const mainEl = document.getElementById('main');
+			const tools = REPORT.tools || [];
+
+			if (tools.length === 0) {
+				mainEl.innerHTML = `
+			<div id="empty-state">
+				<div class="es-icon">🎉</div>
+				<h2>Everything is up to date!</h2>
+				<p>No tool updates were found. All good — come back later.</p>
+			</div>`;
+				return;
+			}
+
+			const toolsHtml = tools.map(renderTool).join('');
+			const overallHtml = `
+		<div id="overall-section">
+			<label for="overall-comment">Overall comment (optional)</label>
+			<textarea id="overall-comment" placeholder="Any overall thoughts, context, or instructions for the session…"></textarea>
+		</div>`;
+			mainEl.innerHTML = toolsHtml + overallHtml;
+		}
+
+		/* ── Collapse / expand tool section ─────────────────────────────── */
+		function toggleCollapse(headerEl) {
+			const section = headerEl.closest('.tool-section');
+			const expanded = !section.classList.contains('collapsed');
+			section.classList.toggle('collapsed', expanded);
+			headerEl.setAttribute('aria-expanded', String(!expanded));
+		}
+
+		/* ── Update state label text for a card ─────────────────────────── */
+		function updateStateLabel(card) {
+			const label = card.querySelector('.card-state-label');
+			const map = { accept: 'ACCEPTED', reject: 'REJECTED', discuss: 'DISCUSS' };
+			label.textContent = map[card.dataset.decision] || '';
+		}
+
+		/* ── Copy-to-clipboard for "upgrade" command chips ───────────────── */
+		function selectChipText(chip) {
+			const range = document.createRange();
+			range.selectNodeContents(chip);
+			const sel = window.getSelection();
+			sel.removeAllRanges();
+			sel.addRange(range);
+		}
+
+		function fallbackCopy(text) {
+			const ta = document.createElement('textarea');
+			ta.value = text;
+			ta.style.position = 'fixed';
+			ta.style.opacity = '0';
+			document.body.appendChild(ta);
+			ta.select();
+			try { document.execCommand('copy'); } catch (_) { /* best effort */ }
+			document.body.removeChild(ta);
+		}
+
+		function flashCopied(btn) {
+			const orig = btn.textContent;
+			btn.textContent = 'Copied ✓';
+			btn.classList.add('copied');
+			setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+		}
+
+		function copyCommand(text, btn) {
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(text).then(
+					() => flashCopied(btn),
+					() => { fallbackCopy(text); flashCopied(btn); }
+				);
+			} else {
+				fallbackCopy(text);
+				flashCopied(btn);
+			}
+		}
+
+		/* ── Decision button clicks + misc delegated actions ─────────────── */
+		document.addEventListener('click', e => {
+			/* Decision buttons */
+			const btn = e.target.closest('.btn-decision');
+			if (btn) {
+				const card = btn.closest('.suggestion-card');
+				const action = btn.dataset.action;
+				if (card.dataset.followup === '1') {
+					/* Follow-on suggestion (Results view): posts to /followup,
+					 * one decision only, no toggle-back — handled separately
+					 * since it's a per-id server round trip, not local state. */
+					handleFollowupDecision(card, action);
+				} else {
+					card.dataset.decision = card.dataset.decision === action ? '' : action;
+					updateStateLabel(card);
+					updateProgress();
+				}
+				return;
+			}
+
+			/* Copy command chip */
+			const copyBtn = e.target.closest('.btn-copy-cmd');
+			if (copyBtn) {
+				copyCommand(copyBtn.dataset.copyText || '', copyBtn);
+				return;
+			}
+
+			/* Click-to-select command chip text */
+			const chip = e.target.closest('.cmd-chip');
+			if (chip) {
+				selectChipText(chip);
+				return;
+			}
+
+			/* Collapse per-tool note */
+			const noteClose = e.target.closest('.tool-note-close');
+			if (noteClose) {
+				noteClose.closest('.tool-note-area').setAttribute('data-collapsed', '');
+				return;
+			}
+
+			/* Re-expand collapsed per-tool note */
+			const noteReopen = e.target.closest('.tool-note-collapsed-label');
+			if (noteReopen) {
+				const area = noteReopen.closest('.tool-note-area');
+				area.removeAttribute('data-collapsed');
+				const ta = area.querySelector('.tool-note-textarea');
+				if (ta) ta.focus();
+				return;
+			}
+
+			/* Tool header collapse */
+			const header = e.target.closest('.tool-header');
+			if (header) {
+				toggleCollapse(header);
+			}
+		});
+
+		/* ── Progress bar + submit gating ────────────────────────────────── */
+		function updateProgress() {
+			const allCards = Array.from(document.querySelectorAll('.suggestion-card'));
+			const total = allCards.length;
+			const decided = allCards.filter(c => c.dataset.decision !== '').length;
+
+			/* Count undecided suggestions specifically on incompatible tools */
+			let incompatibleUndecided = 0;
+			document.querySelectorAll('.tool-section[data-max-severity="incompatible"]').forEach(section => {
+				section.querySelectorAll('.suggestion-card').forEach(card => {
+					if (card.dataset.decision === '') incompatibleUndecided++;
+				});
+			});
+
+			const pct = total > 0 ? (decided / total) * 100 : 100;
+			document.getElementById('progress-fill').style.width = pct + '%';
+
+			const progressText = document.getElementById('progress-text');
+			progressText.textContent = `${decided} of ${total} decided · ${incompatibleUndecided} incompatible undecided`;
+			progressText.className = incompatibleUndecided > 0 ? 'has-incompatible' : '';
+
+			const submitBtn = document.getElementById('submit-btn');
+			submitBtn.disabled = incompatibleUndecided > 0;
+			submitBtn.title = incompatibleUndecided > 0
+				? `Decide all ${incompatibleUndecided} suggestion(s) on incompatible-severity tools first`
+				: '';
+		}
+
+		/* ── Submit feedback ─────────────────────────────────────────────── */
+		document.getElementById('submit-btn').addEventListener('click', submitFeedback);
+
+		async function submitFeedback() {
+			const reportId = document.querySelector('meta[name="report-id"]').content;
+
+			const decisions = {};
+			document.querySelectorAll('.suggestion-card[data-suggestion-id]').forEach(card => {
+				const decision = card.dataset.decision;
+				if (decision) {
+					decisions[card.dataset.suggestionId] = {
+						decision,
+						comment: card.querySelector('.card-comment')?.value || '',
+					};
+				}
+			});
+
+			const toolComments = {};
+			document.querySelectorAll('.tool-note-textarea[data-tool-id]').forEach(ta => {
+				if (ta.value.trim()) {
+					toolComments[ta.dataset.toolId] = ta.value.trim();
+				}
+			});
+
+			const payload = {
+				report_id: reportId,
+				submitted_at: new Date().toISOString(),
+				auto_run_upgrades: document.getElementById('auto-run-upgrades')?.checked !== false,
+				decisions,
+				tool_comments: toolComments,
+				overall_comment: (document.getElementById('overall-comment')?.value || ''),
+			};
+
+			try {
+				// base is set at top of script; works at / and under a proxy
+				// mount like /updates, with or without a trailing slash.
+				const resp = await fetch(base + '/feedback', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload),
+				});
+				if (resp.ok) {
+					transitionToResults(null);
+					startPolling();
+				} else if (resp.status === 409) {
+					showError('Feedback already submitted.');
+				} else {
+					const body = await resp.text().catch(() => resp.status);
+					showError(`Server error ${resp.status}: ${body}`);
+				}
+			} catch (err) {
+				showError(`Network error: ${err.message} — your decisions are intact, please retry.`);
+			}
+		}
+
+		function showError(msg) {
+			const toast = document.getElementById('error-toast');
+			toast.textContent = msg;
+			toast.classList.add('visible');
+			setTimeout(() => toast.classList.remove('visible'), 9000);
+		}
+
+		/* ── Filters and sorting ─────────────────────────────────────────── */
+		/* A tool "needs a decision" if any of its suggestion cards (including
+		 * the synthesized baseline "upgrade" one — nearly every tool has it)
+		 * is still undecided. */
+		function sectionNeedsDecision(section) {
+			return Array.from(section.querySelectorAll('.suggestion-card'))
+				.some(c => c.dataset.decision === '');
+		}
+
+		function applyFilters() {
+			const srcFilter = document.getElementById('filter-source').value;
+			const sevFilter = document.getElementById('filter-severity').value;
+			const relevantOnly = document.getElementById('filter-relevant').checked;
+			const sortBy = document.getElementById('filter-sort').value;
+
+			const mainEl = document.getElementById('main');
+			const overall = document.getElementById('overall-section');
+			const sections = Array.from(mainEl.querySelectorAll(':scope > .tool-section'));
+
+			/* Determine visibility */
+			sections.forEach(s => {
+				let hide = false;
+				if (srcFilter && s.dataset.source !== srcFilter) hide = true;
+				if (sevFilter && s.dataset.maxSeverity !== sevFilter) hide = true;
+				if (relevantOnly && !s.dataset.maxSeverity) hide = true;
+				if (hide) s.setAttribute('data-hidden', '');
+				else s.removeAttribute('data-hidden');
+			});
+
+			/* Sort visible sections */
+			const visible = sections.filter(s => !s.hasAttribute('data-hidden'));
+			const hidden  = sections.filter(s =>  s.hasAttribute('data-hidden'));
+
+			visible.sort((a, b) => {
+				switch (sortBy) {
+					case 'needs-decision': {
+						const na = sectionNeedsDecision(a) ? 0 : 1;
+						const nb = sectionNeedsDecision(b) ? 0 : 1;
+						if (na !== nb) return na - nb;
+						const sa = SEV_ORDER[a.dataset.maxSeverity] ?? 99;
+						const sb = SEV_ORDER[b.dataset.maxSeverity] ?? 99;
+						if (sa !== sb) return sa - sb;
+						return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+					}
+					case 'incompatible': {
+						const sa = SEV_ORDER[a.dataset.maxSeverity] ?? 99;
+						const sb = SEV_ORDER[b.dataset.maxSeverity] ?? 99;
+						if (sa !== sb) return sa - sb;
+						return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+					}
+					case 'name':
+						return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+					case 'source': {
+						const sc = (a.dataset.source || '').localeCompare(b.dataset.source || '');
+						return sc !== 0 ? sc : (a.dataset.name || '').localeCompare(b.dataset.name || '');
+					}
+					case 'major': {
+						const getMajorDelta = el => {
+							const tool = (REPORT.tools || []).find(t => t.id === el.getAttribute('data-tool-id'));
+							if (!tool) return 0;
+							const cur = parseInt(tool.current_version);
+							const lat = parseInt(tool.latest_version);
+							return (isNaN(cur) || isNaN(lat)) ? 0 : lat - cur;
+						};
+						return getMajorDelta(b) - getMajorDelta(a);
+					}
+					default: return 0;
+				}
+			});
+
+			/* Re-order DOM: visible sorted, then hidden, all before overall-section */
+			const anchor = overall || null;
+			[...visible, ...hidden].forEach(s => mainEl.insertBefore(s, anchor));
+		}
+
+		['filter-source', 'filter-severity', 'filter-sort'].forEach(id => {
+			document.getElementById(id).addEventListener('change', applyFilters);
+		});
+		document.getElementById('filter-relevant').addEventListener('change', applyFilters);
+
+		/* ── Keyboard navigation ─────────────────────────────────────────── */
+		let focusedIdx = -1;
+		const FILTER_PRESETS = [
+			{ severity: '', relevant: false },        /* All */
+			{ severity: 'incompatible', relevant: false }, /* Incompatible */
+			{ severity: '', relevant: true },         /* Relevant */
+		];
+		let filterPresetIdx = 0;
+
+		function getVisibleSections() {
+			return Array.from(document.querySelectorAll('.tool-section:not([data-hidden])'));
+		}
+
+		function focusSection(idx) {
+			const sections = getVisibleSections();
+			if (!sections.length) return;
+			focusedIdx = Math.max(0, Math.min(idx, sections.length - 1));
+			sections.forEach((s, i) => {
+				if (i === focusedIdx) {
+					s.setAttribute('data-focused', '');
+					s.focus({ preventScroll: true });
+					s.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				} else {
+					s.removeAttribute('data-focused');
+				}
+			});
+		}
+
+		function actOnFocused(action) {
+			const sections = getVisibleSections();
+			const section = sections[focusedIdx];
+			if (!section) return;
+			const card = Array.from(section.querySelectorAll('.suggestion-card'))
+				.find(c => c.dataset.decision === '');
+			if (!card) return;
+			card.dataset.decision = action;
+			updateStateLabel(card);
+			updateProgress();
+		}
+
+		document.addEventListener('keydown', e => {
+			/* Suppress when typing */
+			if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+			if (e.ctrlKey || e.metaKey || e.altKey) return;
+			if (resultsActive) return; /* results view handles its own keys */
+
+			switch (e.key) {
+				case 'j': {
+					const secs = getVisibleSections();
+					focusSection(focusedIdx + 1 < secs.length ? focusedIdx + 1 : 0);
+					e.preventDefault();
+					break;
+				}
+				case 'k': {
+					const secs = getVisibleSections();
+					focusSection(focusedIdx - 1 >= 0 ? focusedIdx - 1 : secs.length - 1);
+					e.preventDefault();
+					break;
+				}
+				case 'a': actOnFocused('accept');  e.preventDefault(); break;
+				case 'r': actOnFocused('reject');  e.preventDefault(); break;
+				case 'c': actOnFocused('discuss'); e.preventDefault(); break;
+				case 's':
+					if (!document.getElementById('submit-btn').disabled) submitFeedback();
+					e.preventDefault();
+					break;
+				case 'f': {
+					filterPresetIdx = (filterPresetIdx + 1) % FILTER_PRESETS.length;
+					const preset = FILTER_PRESETS[filterPresetIdx];
+					document.getElementById('filter-severity').value = preset.severity;
+					document.getElementById('filter-relevant').checked = preset.relevant;
+					if (!preset.relevant && !preset.severity) {
+						document.getElementById('filter-source').value = '';
+					}
+					applyFilters();
+					e.preventDefault();
+					break;
+				}
+				case '?':
+					document.getElementById('help-overlay').classList.toggle('visible');
+					e.preventDefault();
+					break;
+			}
+		});
+
+		document.getElementById('btn-close-help').addEventListener('click', () => {
+			document.getElementById('help-overlay').classList.remove('visible');
+		});
+
+		/* ── Results view state ──────────────────────────────────────────── */
+		let resultsActive = false;
+		let pollTimer = null;
+		let pollBackoff = 2000;
+		let sessionEnded = false;
+		let spinInterval = null;
+		let spinIdx = 0;
+		const SPIN_FRAMES = ['⠇','⠏','⠋','⠙','⠸','⠴','⠦','⠧'];
+
+		/* Client-side record of follow-on suggestion decisions (id → decision)
+		 * so an optimistic UI update survives a status.json poll that hasn't
+		 * caught up yet with the server's followup_decisions.json write. */
+		const decidedFollowups = new Map();
+
+		/* ── Initial-load status probe ───────────────────────────────────── */
+		async function probeStatus() {
+			try {
+				const r = await fetch(base + '/status', { cache: 'no-store' });
+				if (r.ok) {
+					const data = await r.json();
+					// Feedback already submitted (e.g. page refresh mid-apply)
+					transitionToResults(data);
+					startPolling();
+					return;
+				}
+			} catch (_) { /* server not yet written status, or network error */ }
+			// Normal path: render the report review view
+			renderHeader();
+			renderTools();
+			updateProgress();
+			applyFilters();
+		}
+
+		/* ── Transition to Results view ──────────────────────────────────── */
+		function transitionToResults(initialData) {
+			if (resultsActive) return;
+			resultsActive = true;
+
+			const mainEl = document.getElementById('main');
+
+			// Ensure report is rendered so the frozen Report tab has content
+			if (!mainEl.hasChildNodes()) {
+				renderHeader();
+				renderTools();
+				applyFilters();
+			}
+
+			// 1. Filter bar stays visible and interactive — it's a read-only
+			// navigation aid over the now-frozen Report tab, not a decision
+			// control, so a filter applied before Submit can still be
+			// cleared/inspected afterward instead of leaving the user stuck
+			// looking at a filtered-empty report.
+
+			// 2. Replace progress-bar-container contents with tab strip
+			const pbc = document.getElementById('progress-bar-container');
+			pbc.innerHTML =
+				'<div id="tab-strip">' +
+					'<button class="tab-btn active" id="tab-results">Results</button>' +
+					'<button class="tab-btn" id="tab-report">Report</button>' +
+					'<span id="tab-status">Applying…</span>' +
+				'</div>';
+
+			// 3. Freeze only the decision controls: Accept/Reject/Discuss,
+			// per-suggestion comments, per-tool notes, and the overall
+			// comment — not collapse toggles, not the command-chip copy
+			// button (still useful post-submit while an "upgrade" polls),
+			// and not the filter/sort controls (outside #main already).
+			mainEl.classList.add('report-frozen');
+			mainEl.querySelectorAll('.btn-decision, .card-comment, .tool-note-textarea, #overall-comment')
+				.forEach(el => { el.disabled = true; });
+
+			// 4. Create and insert results panel. Show an immediate loading
+			// placeholder — there is real network + apply latency before the
+			// first /status fetch resolves, and a blank panel during that
+			// gap reads as broken.
+			const panel = document.createElement('div');
+			panel.id = 'results-panel';
+			const loadingRowHtml = initialData ? '' :
+				'<div class="action-row" id="loading-placeholder-row">' +
+					'<div class="action-main-line">' +
+						'<span class="action-icon state-running">' + SPIN_FRAMES[0] + '</span>' +
+						'<span class="action-label">Waiting for the apply pass to start…</span>' +
+						'<span class="action-note">Connecting…</span>' +
+					'</div>' +
+				'</div>';
+			panel.innerHTML =
+				'<div id="results-status-bar">Applying changes…</div>' +
+				'<div id="action-list">' +
+					'<div class="section-label">ACTIONS</div>' +
+					'<div id="action-rows">' + loadingRowHtml + '</div>' +
+				'</div>' +
+				'<div id="followups-section" style="display:none">' +
+					'<div class="section-label">FOLLOW-ON SUGGESTIONS</div>' +
+					'<div id="followup-cards"></div>' +
+				'</div>' +
+				'<div id="results-recap" style="display:none">' +
+					'<div class="section-label">NOTES / RECAP</div>' +
+					'<pre id="recap-text"></pre>' +
+				'</div>' +
+				'<div id="results-changelog" style="display:none">' +
+					'<div class="section-label">CHANGELOG ENTRIES</div>' +
+					'<div id="changelog-entries"></div>' +
+				'</div>' +
+				'<div id="finish-row">' +
+					'<button id="finish-btn" disabled>Finish ↗</button>' +
+				'</div>';
+
+			// 5. Insert after progress-bar-container; show panel, hide report
+			pbc.insertAdjacentElement('afterend', panel);
+			mainEl.style.display = 'none';
+
+			// Animate the placeholder spinner immediately, before renderResults()
+			// (which normally owns spinInterval) ever runs.
+			if (!initialData && !spinInterval) {
+				spinInterval = setInterval(() => {
+					spinIdx++;
+					document.querySelectorAll('.action-icon.state-running').forEach(el => {
+						el.textContent = SPIN_FRAMES[spinIdx % SPIN_FRAMES.length];
+					});
+				}, 120);
+			}
+
+			// Tab switching
+			document.getElementById('tab-results').addEventListener('click', () => {
+				document.getElementById('tab-results').classList.add('active');
+				document.getElementById('tab-report').classList.remove('active');
+				panel.style.display = 'block';
+				mainEl.style.display = 'none';
+			});
+
+			document.getElementById('tab-report').addEventListener('click', () => {
+				document.getElementById('tab-report').classList.add('active');
+				document.getElementById('tab-results').classList.remove('active');
+				panel.style.display = 'none';
+				mainEl.style.display = 'block';
+			});
+
+			// Finish button
+			document.getElementById('finish-btn').addEventListener('click', async () => {
+				const lastData = window._lastStatusData;
+				const hasRunning = (lastData && lastData.actions || []).some(a => a.state === 'running');
+				if (hasRunning) {
+					if (!confirm('Session may still be running. Finish anyway?')) return;
+				}
+				try {
+					const r = await fetch(base + '/shutdown', { method: 'POST' });
+					if (r.ok) {
+						sessionEnded = true;
+						if (spinInterval) { clearInterval(spinInterval); spinInterval = null; }
+						document.getElementById('closing-splash').classList.add('visible');
+					} else {
+						showError('Shutdown failed — the session may have already ended. Safe to close this window.');
+					}
+				} catch (_) {
+					showError('Shutdown failed — the session may have already ended. Safe to close this window.');
+				}
+			});
+
+			if (initialData) renderResults(initialData);
+		}
+
+		/* ── Render results (idempotent) ─────────────────────────────────── */
+		function renderResults(data) {
+			window._lastStatusData = data;
+
+			// Real data has arrived — drop the immediate loading placeholder
+			// row inserted by transitionToResults(), if it's still there.
+			const placeholder = document.getElementById('loading-placeholder-row');
+			if (placeholder) placeholder.remove();
+
+			// 1. Tab status text
+			updateTabStatus(data);
+
+			// 2. Results status bar
+			const statusBar = document.getElementById('results-status-bar');
+			if (data.done) {
+				const s = data.summary || {};
+				statusBar.textContent =
+					'Complete — ' + (s.applied ?? 0) + ' applied · ' +
+					(s.rejected ?? 0) + ' rejected · ' +
+					(s.discussed ?? 0) + ' discuss · ' +
+					(s.failed ?? 0) + ' failed';
+				statusBar.className = (s.failed > 0) ? 'failed' : '';
+			} else if (data.phase === 'discussing') {
+				statusBar.textContent = 'In discussion — apply pass complete';
+				statusBar.className = 'discussing';
+			} else {
+				const actions = data.actions || [];
+				const doneCount = actions.filter(
+					a => a.state === 'done' || a.state === 'failed' || a.state === 'skipped'
+				).length;
+				const failedCount = actions.filter(a => a.state === 'failed').length;
+				statusBar.textContent =
+					'Applying changes — ' + doneCount + ' of ' + actions.length +
+					' done · ' + failedCount + ' failed';
+				statusBar.className = failedCount > 0 ? 'failed' : '';
+			}
+
+			// 3. Action list (find-or-create rows by action id)
+			const rowsContainer = document.getElementById('action-rows');
+			(data.actions || []).forEach(action => {
+				let row = null;
+				for (const child of rowsContainer.children) {
+					if (child.dataset.actionId === action.id) { row = child; break; }
+				}
+				if (!row) {
+					row = document.createElement('div');
+					row.className = 'action-row';
+					row.dataset.actionId = action.id;
+					const mainLine = document.createElement('div');
+					mainLine.className = 'action-main-line';
+					mainLine.innerHTML =
+						'<span class="action-icon"></span>' +
+						'<span class="action-label"></span>' +
+						'<span class="action-note"></span>';
+					const detailPre = document.createElement('pre');
+					detailPre.className = 'action-detail-pre';
+					row.appendChild(mainLine);
+					row.appendChild(detailPre);
+					mainLine.addEventListener('click', () => {
+						if (detailPre.textContent) detailPre.classList.toggle('expanded');
+					});
+					rowsContainer.appendChild(row);
+				}
+
+				const icon    = row.querySelector('.action-icon');
+				const label   = row.querySelector('.action-label');
+				const note    = row.querySelector('.action-note');
+				const detail  = row.querySelector('.action-detail-pre');
+
+				const icons = { pending: '○', running: SPIN_FRAMES[spinIdx % SPIN_FRAMES.length],
+					done: '✓', failed: '✗', skipped: '—' };
+				icon.textContent = icons[action.state] ?? '○';
+				icon.className = 'action-icon state-' + action.state;
+				label.textContent = action.label || action.id;
+				note.textContent  = action.note || '';
+
+				if (action.detail && action.detail.length > 0) {
+					detail.textContent = action.detail.join('\n');
+					row.querySelector('.action-main-line').style.cursor = 'pointer';
+				} else {
+					detail.textContent = '';
+					row.querySelector('.action-main-line').style.cursor = 'default';
+				}
+			});
+
+			// 3b. Follow-on suggestions surfaced mid-apply from tool_comments
+			// (A.2 / C.2 step 7) — pending_followups in status.json.
+			renderFollowups(data.pending_followups || []);
+
+			// 4. Recap section
+			const recapEl = document.getElementById('results-recap');
+			const recapText = document.getElementById('recap-text');
+			if (data.recap) {
+				recapText.textContent = data.recap;
+				recapEl.style.display = 'block';
+			} else {
+				recapEl.style.display = 'none';
+			}
+
+			// 5. Changelog section
+			const changelogEl  = document.getElementById('results-changelog');
+			const entriesEl    = document.getElementById('changelog-entries');
+			if (data.changelog_entries && data.changelog_entries.length > 0) {
+				entriesEl.innerHTML = data.changelog_entries.map((entry, i) => {
+					const pre = document.createElement('pre');
+					pre.textContent = entry;
+					return pre.outerHTML +
+						(i < data.changelog_entries.length - 1
+							? '<hr class="changelog-entry-sep">' : '');
+				}).join('');
+				changelogEl.style.display = 'block';
+			} else {
+				changelogEl.style.display = 'none';
+			}
+
+			// 6. Finish button
+			const finishBtn = document.getElementById('finish-btn');
+			if (finishBtn) finishBtn.disabled = !data.done;
+
+			// Spinner: tick interval while any action is running
+			const hasRunning = (data.actions || []).some(a => a.state === 'running');
+			if (hasRunning && !spinInterval) {
+				spinInterval = setInterval(() => {
+					spinIdx++;
+					document.querySelectorAll('.action-icon.state-running').forEach(el => {
+						el.textContent = SPIN_FRAMES[spinIdx % SPIN_FRAMES.length];
+					});
+				}, 120);
+			} else if (!hasRunning && spinInterval) {
+				clearInterval(spinInterval);
+				spinInterval = null;
+			}
+		}
+
+		/* ── Follow-on suggestions (Results view, A.2 / C.2 step 7) ───────
+		 * These are surfaced live, mid-apply, when investigating a
+		 * tool_comments entry (or a "discuss" comment) concludes a concrete
+		 * change is warranted. They are never auto-applied on the strength
+		 * of a comment alone — each needs its own fresh accept/reject/discuss
+		 * here, posted individually to POST /followup (not folded into the
+		 * one-shot /feedback payload, which already has a whole-session
+		 * duplicate-submit guard that doesn't fit this repeating case).
+		 *
+		 * Contract with status.json (chosen here; the session/orchestrator
+		 * that writes status.json must match this shape):
+		 *   status.pending_followups: Array<Suggestion & {
+		 *     tool_id?: string,        // originating tool, e.g. "mise:node"
+		 *     tool_name?: string,      // display name for the tool, e.g. "node"
+		 *     origin_comment?: string, // the tool_comments/discuss text that triggered it
+		 *   }>
+		 * Each element has the same shape as any report suggestion object
+		 * (id, kind, title, rationale, target_files/diff_preview or command,
+		 * auto_runnable/needs_sudo/manual_reason, motivating_link) so
+		 * renderCard() can be reused unmodified for the card body. Once a
+		 * decision is POSTed and accepted (200), the id is expected to
+		 * disappear from pending_followups on the *next* status.json write
+		 * (the server's source of truth is followup_decisions.json) — but
+		 * this code tolerates a stale poll that still includes an
+		 * already-decided id via the decidedFollowups map below, so a
+		 * lagging status.json can never "undecide" a card the user already
+		 * acted on. */
+		function renderFollowups(list) {
+			const section = document.getElementById('followups-section');
+			const container = document.getElementById('followup-cards');
+			if (!section || !container) return;
+
+			if (!list.length) {
+				section.style.display = 'none';
+				return;
+			}
+			section.style.display = 'block';
+
+			list.forEach(sug => {
+				if (!sug || !sug.id) return;
+				let card = container.querySelector(`[data-suggestion-id="${CSS.escape(sug.id)}"]`);
+				if (!card) {
+					const wrapper = document.createElement('div');
+					wrapper.innerHTML = renderCard(sug, { followup: true });
+					card = wrapper.firstElementChild;
+					if (sug.tool_name || sug.origin_comment) {
+						const originHtml =
+							(sug.tool_name ? `<span class="target-label">From:</span> <span class="target-path">${esc(sug.tool_name)}</span> ` : '') +
+							(sug.origin_comment ? `<span class="item-motivating">“${esc(sug.origin_comment)}”</span>` : '');
+						card.querySelector('.card-header')
+							.insertAdjacentHTML('afterend', `<div class="card-targets">${originHtml}</div>`);
+					}
+					container.appendChild(card);
+				}
+
+				// Optimistic local decision (this session already POSTed and
+				// got a 200) always wins over whatever the poll just said —
+				// no undo for follow-ons, so once decided, stay decided.
+				if (decidedFollowups.has(sug.id) && card.dataset.decided !== '1') {
+					applyFollowupDecidedState(card, decidedFollowups.get(sug.id));
+				}
+			});
+		}
+
+		function applyFollowupDecidedState(card, decision) {
+			card.dataset.decision = decision;
+			card.dataset.decided = '1';
+			updateStateLabel(card);
+			card.querySelectorAll('.btn-decision').forEach(b => { b.disabled = true; });
+			const ta = card.querySelector('.card-comment');
+			if (ta) ta.disabled = true;
+		}
+
+		async function handleFollowupDecision(card, action) {
+			if (card.dataset.decided === '1') return; /* no undo, ignore repeat clicks */
+
+			const sid = card.dataset.suggestionId;
+			const comment = card.querySelector('.card-comment')?.value || '';
+			const buttons = card.querySelectorAll('.btn-decision');
+			buttons.forEach(b => { b.disabled = true; }); /* prevent double-submit while in flight */
+
+			try {
+				const resp = await fetch(base + '/followup', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ suggestion_id: sid, decision: action, comment }),
+				});
+				if (resp.ok) {
+					decidedFollowups.set(sid, action);
+					applyFollowupDecidedState(card, action);
+				} else if (resp.status === 409) {
+					/* Already decided (e.g. duplicate click race) — reflect as
+					 * locked without knowing which decision won; refresh will
+					 * pick up the true state on the next status.json poll. */
+					card.dataset.decided = '1';
+					showError('This suggestion was already decided.');
+				} else {
+					const body = await resp.text().catch(() => resp.status);
+					buttons.forEach(b => { b.disabled = false; });
+					showError(`Server error ${resp.status}: ${body}`);
+				}
+			} catch (err) {
+				buttons.forEach(b => { b.disabled = false; });
+				showError(`Network error: ${err.message} — please retry.`);
+			}
+		}
+
+		/* ── Tab status text ─────────────────────────────────────────────── */
+		function updateTabStatus(data) {
+			const tabStatus = document.getElementById('tab-status');
+			if (!tabStatus) return;
+
+			if (data.done) {
+				const d = new Date(data.written_at);
+				const utc = d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+				tabStatus.textContent = 'Done · ' + utc;
+				tabStatus.className = '';
+				return;
+			}
+
+			const labels = { applying: 'Applying…', discussing: 'In discussion…' };
+			let text = labels[data.phase] || data.phase;
+
+			if (data.written_at) {
+				const delta = Math.round((Date.now() - new Date(data.written_at).getTime()) / 1000);
+				text += ' · updated ' + delta + 's ago';
+			}
+
+			const isStale = data.written_at && !data.done &&
+				(Date.now() - new Date(data.written_at).getTime()) > 120000;
+			if (isStale) text += ' · session may have stopped';
+
+			tabStatus.textContent = text;
+			tabStatus.className = isStale ? 'stale' : '';
+		}
+
+		/* ── Polling lifecycle ───────────────────────────────────────────── */
+		function startPolling() {
+			if (pollTimer) return;
+			schedulePoll();
+		}
+
+		function schedulePoll() {
+			pollTimer = setTimeout(poll, pollBackoff);
+		}
+
+		async function poll() {
+			pollTimer = null;
+			if (sessionEnded) return;
+			try {
+				const r = await fetch(base + '/status', { cache: 'no-store' });
+				if (r.ok) {
+					const data = await r.json();
+					pollBackoff = 2000;
+					renderResults(data);
+					if (data.done) return; /* stop polling; Finish button enabled */
+				} else if (r.status === 404) {
+					/* Server up but status.json not yet written; back off */
+					pollBackoff = Math.min(pollBackoff * 1.5, 10000);
+				} else {
+					pollBackoff = 5000;
+				}
+			} catch (_) {
+				/* Network error: server may have gone away prematurely */
+				pollBackoff = Math.min(pollBackoff * 1.5, 15000);
+				const ts = document.getElementById('tab-status');
+				if (ts) { ts.textContent = 'Connection lost — retrying…'; ts.className = 'stale'; }
+			}
+			schedulePoll();
+		}
+
+		/* ── Initialise ──────────────────────────────────────────────────── */
+		probeStatus();
+	</script>
+</body>
+</html>
