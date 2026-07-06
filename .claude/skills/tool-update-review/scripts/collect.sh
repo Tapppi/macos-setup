@@ -76,14 +76,48 @@ if [[ -n "${pinned_names}" ]]; then
 	done <<< "${pinned_names}" | jq -s .)"
 fi
 
-# mise runtimes
-mise_json="$(mise outdated --json 2>/dev/null | jq '
-	[ to_entries[] | {
-			id: ("mise:" + .key), name: .key, source: "mise",
-			current_version: .value.current,
-			latest_version: .value.latest,
-			pinned: false
-		} ]' || echo '[]')"
+# mise runtimes. `mise outdated --json` reports current:null for
+# alias-pinned runtimes (e.g. node pinned to "lts") even though the actually
+# resolved version is available via `mise current <tool>` — fall back to
+# that per-entry instead of shipping a null current_version for them (only
+# alias-pinned tools hit this; version-pinned ones like go/python/rust/uv
+# already report a real current from `mise outdated` itself).
+# Field separator is \x01 (not tab): bash `read` collapses consecutive
+# *whitespace-class* IFS delimiters (space/tab/newline) even when IFS is
+# set explicitly to just one of them, which silently drops the empty
+# `current` field for exactly the alias-pinned tools this block exists to
+# fix (rediscovered by hand this way once already — see git history).
+# A non-whitespace delimiter like \x01 doesn't get that collapsing
+# treatment, so the three fields — one jq call instead of three per entry —
+# read back correctly even when the middle one is empty.
+mise_json="$(mise outdated --json 2>/dev/null | jq -r '
+	to_entries[] | [.key, (.value.current // ""), .value.latest] | join("\u0001")' 2>/dev/null \
+	| while IFS=$'\x01' read -r name current latest; do
+		[[ -z "${name}" ]] && continue
+		if [[ -z "${current}" ]]; then
+			current="$(mise current "${name}" 2>/dev/null | head -n1 || true)"
+		fi
+		jq -n --arg id "mise:${name}" --arg name "${name}" \
+			--arg cur "${current}" --arg lat "${latest}" '
+			{ id: $id, name: $name, source: "mise",
+				current_version: (if $cur == "" then null else $cur end),
+				latest_version: $lat, pinned: false }'
+	done | jq -s . 2>/dev/null)" || true
+# Validate post-hoc rather than `|| echo '[]'` directly on the assignment:
+# under `set -o pipefail`, a mid-pipeline failure (e.g. a stray non-JSON
+# line from `mise outdated`) makes the *pipeline's* exit status non-zero
+# even when a later stage already printed valid output — `|| echo '[]'`
+# right there would then fire *in addition to* that valid output, making
+# `mise_json` the two concatenated strings `[]\n[]` instead of one valid
+# array. The `|| true` above exists for a second, sharper reason: under
+# `set -e`, that same pipefail-driven non-zero status would abort the
+# script at the assignment itself, before this validation check below
+# ever runs at all — `|| true` absorbs it so the check is reachable, and
+# the check itself is what actually decides whether `mise_json` needs to
+# fall back to `[]`.
+if ! printf '%s' "${mise_json}" | jq -e . >/dev/null 2>&1; then
+	mise_json='[]'
+fi
 
 # Standalone CLIs installed outside brew. Both `claude-code@latest` and
 # `codex` used to need this (they predate their Brewfile cask entries — see

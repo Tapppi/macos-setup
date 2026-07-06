@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""
+assemble.py — merge collect.sh + research/*.json into report.json.
+Usage: assemble.py <session_dir> [--macos-setup-root PATH] [--dotfiles-root PATH]
+
+Reads {session_dir}/collect.json (collect.sh's saved stdout, SKILL.md step 1)
+and every {session_dir}/research/*.json file (SKILL.md step 3 — each one a
+JSON array of partial Tool objects, one per tool, each carrying its own "id"),
+merges them into the full report object (design.md A.1), and writes
+{session_dir}/report.json.
+
+This replaces the ad hoc hand-assembly used before this script existed,
+which silently skipped two documented rules: it blanket-set needs_sudo:false
+on every synthesized upgrade suggestion (design.md A.1 says default true
+when unsure) and never checked that cited evidence paths actually exist.
+Both are enforced here in code instead of being re-derived — and re-skipped
+— by hand each run.
+"""
+from __future__ import annotations  # keeps `X | None` annotations legal on
+                                     # Python 3.9 (macOS's bundled python3,
+                                     # before mise provisions a newer one —
+                                     # same constraint as server.py)
+
+import argparse
+import json
+import os
+import re
+import sys
+
+
+# ── needs_sudo heuristic (design.md A.1, C.4) ──────────────────────────────
+# brew formulae, mise, and standalone CLIs never invoke a privileged
+# installer themselves — only some casks (pkg-shipping installers) do, and
+# Homebrew handles the internal `sudo` call itself. Default a cask to
+# needs_sudo:true (design.md: "default to true when genuinely unsure") and
+# only trust false when research explicitly confirmed it via
+# "cask_sudo_hint": false on its returned Tool object — never assume.
+def needs_sudo_for(source: str, research_obj: dict) -> bool:
+	if source in ("brew", "mise", "standalone"):
+		return False
+	if source == "cask":
+		return research_obj.get("cask_sudo_hint") is not False
+	if source == "macos":
+		return True
+	return True
+
+
+# ── auto_runnable / command per source (design.md A.1) ────────────────────
+def upgrade_command_and_runnable(source: str, name: str):
+	if source == "brew":
+		return f"brew upgrade {name}", True, None
+	if source == "cask":
+		return f"brew upgrade --cask {name}", True, None
+	if source == "mise":
+		return f"mise upgrade {name}", True, None
+	if source == "standalone":
+		return None, False, "No generic upgrade command for a standalone CLI — check the tool's own docs."
+	if source == "macos":
+		return None, False, "macOS system/app update — install via System Settings or `softwareupdate -i`, not auto-run by this skill."
+	return None, False, "Unknown source — no safe default command."
+
+
+# ── risk_level (design.md A.1, "default-accept low-risk upgrades") ────────
+# Computed here from objective signals already in the report rather than a
+# subjective per-tool call from research — code enforces one rule
+# consistently instead of relying on every subagent to judge it the same
+# way. "elevated" if any of: pinned, a relevancy finding above "info", any
+# edit-kind suggestion authored, or a major-version bump (semver-aware).
+# Unparseable versions default to "elevated" — an unknown delta size is not
+# a low-risk delta.
+_LEADING_INT = re.compile(r"^\s*v?(\d+)")
+
+
+def _leading_major(version) -> int | None:
+	if not isinstance(version, str):
+		return None
+	m = _LEADING_INT.match(version)
+	return int(m.group(1)) if m else None
+
+
+def is_major_bump(current, latest) -> bool:
+	cur_major = _leading_major(current)
+	lat_major = _leading_major(latest)
+	if cur_major is None or lat_major is None:
+		return True  # unparseable — treat as elevated, not low-risk
+	return cur_major != lat_major
+
+
+def compute_risk_level(tool: dict) -> str:
+	if tool.get("pinned"):
+		return "elevated"
+	for item in tool.get("relevancy", []):
+		if item.get("severity") in ("warning", "incompatible"):
+			return "elevated"
+	for sug in tool.get("suggestions", []):
+		if sug.get("kind", "edit") == "edit":
+			return "elevated"
+	if is_major_bump(tool.get("current_version"), tool.get("latest_version")):
+		return "elevated"
+	return "low"
+
+
+# ── evidence path validation (SKILL.md step 4, "verify evidence paths") ───
+# Evidence strings are either a repo-relative "path" or "path:line" (checked
+# against the given repo roots), or a non-path citation (a commit hash/
+# subject, a changelog.md entry description) that config_status evidence
+# also uses — those are left alone. Never drops an item either way; just
+# warns to stderr so an agent skimming the run can catch a bad citation.
+_COMMIT_LIKE = re.compile(r"\bcommit\b|^[0-9a-f]{7,40}\b", re.IGNORECASE)
+
+
+def evidence_exists(evidence: str, roots) -> bool | None:
+	"""True/False if this looks like a checkable path; None if it doesn't
+	look like a path at all (e.g. a commit citation) — nothing to check."""
+	if _COMMIT_LIKE.search(evidence):
+		return None
+	candidate = evidence.rsplit(":", 1)[0] if re.search(r":\d+$", evidence) else evidence
+	candidate = os.path.expanduser(candidate)
+	if os.path.isabs(candidate):
+		return os.path.exists(candidate)
+	for root in roots:
+		if os.path.exists(os.path.join(root, candidate)):
+			return True
+	# Not found under any root — could still be a loose phrase rather than a
+	# real path (e.g. "no bespoke touchpoint"); only warn, never drop.
+	return False
+
+
+def as_evidence_list(evidence, tool_id: str, context: str) -> list:
+	"""design.md A.1 says evidence is always an array. A research subagent
+	that instead returns a bare string would make `for ev in evidence`
+	iterate individual characters — coerce and warn rather than silently
+	corrupting the warning output with single-letter "evidence" entries."""
+	if not evidence:
+		return []
+	if isinstance(evidence, list):
+		return evidence
+	print(f"warning: {tool_id}: {context} evidence was a bare string, not an array — wrapping it: {evidence!r}", file=sys.stderr)
+	return [evidence]
+
+
+def validate_evidence(tool: dict, roots) -> None:
+	tool_id = tool.get("id", "<unknown>")
+	for group in ("relevancy", "context"):
+		for item in tool.get(group, []):
+			for ev in as_evidence_list(item.get("evidence"), tool_id, group):
+				result = evidence_exists(ev, roots)
+				if result is False:
+					print(f"warning: {tool_id}: evidence not found: {ev!r}", file=sys.stderr)
+	for ev in as_evidence_list((tool.get("config_status") or {}).get("evidence"), tool_id, "config_status"):
+		if evidence_exists(ev, roots) is False:
+			print(f"warning: {tool_id}: config_status evidence not found: {ev!r}", file=sys.stderr)
+
+
+# ── main assembly ───────────────────────────────────────────────────────────
+def load_research(research_dir: str) -> dict:
+	"""Returns {tool_id: research_obj}. Every file in research/ is a JSON
+	array (SKILL.md step 3); a tool with no matching entry (subagent
+	failure/timeout) just gets research_error set later, in build_tool()."""
+	by_id: dict[str, dict] = {}
+	if not os.path.isdir(research_dir):
+		print(f"warning: no research/ dir at {research_dir!r} — every tool will show research_error", file=sys.stderr)
+		return by_id
+	for fname in sorted(os.listdir(research_dir)):
+		if not fname.endswith(".json"):
+			continue
+		fpath = os.path.join(research_dir, fname)
+		try:
+			with open(fpath, "r", encoding="utf-8") as fh:
+				entries = json.load(fh)
+		except (OSError, json.JSONDecodeError) as exc:
+			print(f"warning: could not read {fpath!r}: {exc}", file=sys.stderr)
+			continue
+		if not isinstance(entries, list):
+			print(f"warning: {fpath!r} is not a JSON array — skipping", file=sys.stderr)
+			continue
+		for entry in entries:
+			tid = entry.get("id")
+			if not tid:
+				print(f"warning: an entry in {fpath!r} has no \"id\" — skipping", file=sys.stderr)
+				continue
+			if tid in by_id:
+				print(f"warning: duplicate research entry for {tid!r} ({fpath!r} overwrites an earlier file)", file=sys.stderr)
+			by_id[tid] = entry
+	return by_id
+
+
+def build_tool(candidate: dict, research_obj: dict | None) -> dict:
+	source = candidate["source"]
+	name = candidate["name"]
+	tool_id = candidate["id"]
+	research_obj = research_obj or {}
+
+	tool = {
+		"id": tool_id,
+		"name": name,
+		"source": source,
+		"pinned": candidate.get("pinned", False),
+		"current_version": candidate.get("current_version"),
+		"latest_version": candidate.get("latest_version"),
+		"research_error": None if research_obj else "research subagent produced no output for this tool",
+		"headliners": research_obj.get("headliners", []),
+		"links": research_obj.get("links", []),
+		"config_status": research_obj.get("config_status", {"state": "unknown", "detail": "", "evidence": []}),
+		"relevancy": research_obj.get("relevancy", []),
+		"context": research_obj.get("context", []),
+		"release_inventory": research_obj.get("release_inventory", []),
+		"vendor_silent_categories": research_obj.get("vendor_silent_categories", []),
+		"suggestions": list(research_obj.get("suggestions", [])),
+	}
+
+	# Enforce the needs_attention-must-have-a-suggestion rule (SKILL.md
+	# research quality bar / design.md config_status semantics) — a
+	# violation here is a research-prompt bug, but assembly still surfaces
+	# it loudly rather than silently shipping an unactionable banner.
+	if tool["config_status"].get("state") == "needs_attention" and not tool["suggestions"]:
+		print(f"warning: {tool_id}: config_status is needs_attention with no suggestion addressing it", file=sys.stderr)
+
+	# Synthesize the baseline kind:"upgrade" suggestion (design.md A.1) —
+	# mechanical, every tool gets exactly one, never left to research.
+	command, auto_runnable, manual_reason = upgrade_command_and_runnable(source, name)
+	upgrade_suggestion = {
+		"id": f"{tool_id}:upgrade",
+		"kind": "upgrade",
+		"title": f"Upgrade {name} {tool['current_version']} → {tool['latest_version']}",
+		"target_files": [],
+		"command": command,
+		"auto_runnable": auto_runnable,
+		"needs_sudo": needs_sudo_for(source, research_obj),
+		"rationale": "Picks up the changes described in headliners[] above.",
+		"motivating_link": (tool["links"][0] if tool["links"] else None),
+		"diff_preview": None,
+	}
+	if not auto_runnable:
+		upgrade_suggestion["manual_reason"] = manual_reason
+	tool["suggestions"].insert(0, upgrade_suggestion)
+
+	tool["risk_level"] = compute_risk_level(tool)
+	return tool
+
+
+def main():
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("session_dir")
+	parser.add_argument("--macos-setup-root", default=".")
+	parser.add_argument("--dotfiles-root", default=None)
+	args = parser.parse_args()
+
+	session_dir = os.path.abspath(args.session_dir)
+	macos_setup_root = os.path.abspath(args.macos_setup_root)
+	dotfiles_root = os.path.abspath(args.dotfiles_root or os.path.join(macos_setup_root, "dotfiles"))
+	roots = [macos_setup_root, dotfiles_root]
+
+	collect_path = os.path.join(session_dir, "collect.json")
+	try:
+		with open(collect_path, "r", encoding="utf-8") as fh:
+			collect = json.load(fh)
+	except (OSError, json.JSONDecodeError) as exc:
+		print(f"Error: could not read {collect_path!r}: {exc}", file=sys.stderr)
+		sys.exit(1)
+
+	repo_context_path = os.path.join(session_dir, "repo_context.json")
+	try:
+		with open(repo_context_path, "r", encoding="utf-8") as fh:
+			repo_context = json.load(fh)
+	except (OSError, json.JSONDecodeError):
+		print(f"warning: no repo_context.json at {repo_context_path!r} — using placeholder", file=sys.stderr)
+		placeholder = {"up_to_date": True, "ahead": 0, "behind": 0, "recent_commits": []}
+		repo_context = {"macos_setup": placeholder, "dotfiles": dict(placeholder)}
+
+	research_by_id = load_research(os.path.join(session_dir, "research"))
+
+	candidates = (
+		collect.get("brew", []) + collect.get("mise", []) +
+		collect.get("standalone", []) + collect.get("macos", [])
+	)
+
+	tools = [build_tool(c, research_by_id.get(c["id"])) for c in candidates]
+
+	for tool in tools:
+		validate_evidence(tool, roots)
+
+	# Suggestion-id uniqueness — global, not just within one tool. A
+	# collision almost always means a research subagent copied an id
+	# pattern rather than deriving it from its own tool, so append a
+	# disambiguating suffix rather than silently dropping either one.
+	seen_ids: dict[str, str] = {}
+	for tool in tools:
+		for sug in tool["suggestions"]:
+			sid = sug.get("id")
+			if not sid:
+				continue
+			if sid in seen_ids:
+				n = 2
+				new_id = f"{sid}-{n}"
+				while new_id in seen_ids:
+					n += 1
+					new_id = f"{sid}-{n}"
+				print(f"warning: duplicate suggestion id {sid!r} (tool {tool['id']!r}) — renamed to {new_id!r}", file=sys.stderr)
+				sug["id"] = new_id
+				sid = new_id
+			seen_ids[sid] = tool["id"]
+
+	incompatible = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "incompatible")
+	warning = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "warning")
+	suggestions_count = sum(len(t["suggestions"]) for t in tools)
+
+	report_id = os.path.basename(session_dir)
+	report = {
+		"schema_version": 1,
+		"report_id": report_id,
+		"generated_at": collect.get("generated_at") or "",
+		"machine": collect.get("machine", {}),
+		"summary": {
+			"total_outdated": len(tools),
+			"incompatible_count": incompatible,
+			"warning_count": warning,
+			"suggestions_count": suggestions_count,
+		},
+		"repo_context": repo_context,
+		"tools": tools,
+	}
+
+	out_path = os.path.join(session_dir, "report.json")
+	with open(out_path, "w", encoding="utf-8") as fh:
+		json.dump(report, fh, ensure_ascii=False, indent="\t")
+		fh.write("\n")
+	print(out_path)
+
+
+if __name__ == "__main__":
+	main()

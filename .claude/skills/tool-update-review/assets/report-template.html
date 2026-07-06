@@ -132,6 +132,18 @@
 			accent-color: var(--cyan);
 		}
 
+		/* ── Collapse-all/expand-all + auto-advance toggle (B.2) ──────────── */
+		.btn-bar-action {
+			padding: 3px 10px;
+			border-radius: 3px;
+			border: 1px solid var(--base01);
+			background: transparent;
+			color: var(--base1);
+			font-size: 12px;
+			cursor: pointer;
+		}
+		.btn-bar-action:hover { background: var(--base01); color: var(--base2); }
+
 		/* ── Sticky progress bar ────────────────────────────────────────── */
 		#progress-bar-container {
 			position: sticky;
@@ -142,11 +154,20 @@
 			padding: 8px 24px;
 			display: flex;
 			align-items: center;
-			gap: 14px;
+			flex-wrap: wrap;
+			gap: 8px 14px;
 		}
 
+		/* At narrow widths (below ~560px) the three fixed-content/nowrap
+		 * siblings (#progress-text, #auto-run-toggle, #submit-btn) don't fit
+		 * next to this on one line even with flex-wrap enabled above — a
+		 * bare `flex: 1` has a flex-basis of 0%, so this element claims
+		 * essentially no space of its own and imposes no minimum width,
+		 * which lets the *other* three siblings alone determine whether the
+		 * line overflows; give it a real basis so it wraps onto its own line
+		 * instead of the whole row silently overflowing the viewport. */
 		#progress-track {
-			flex: 1;
+			flex: 1 1 120px;
 			height: 4px;
 			background: var(--base01);
 			border-radius: 2px;
@@ -331,6 +352,28 @@
 
 		.config-status-banner .item-evidence { margin-top: 6px; }
 
+		/* ── Header badges (B.2 "at a glance without expanding") ─────────── */
+		.decision-badge {
+			padding: 1px 7px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 700;
+			white-space: nowrap;
+		}
+		.decision-badge.pending { background: var(--yellow); color: #000; }
+		.decision-badge.done    { background: transparent; border: 1px solid var(--base01); color: var(--base01); }
+
+		.severity-tier-badges {
+			display: flex;
+			gap: 5px;
+			font-size: 11px;
+			white-space: nowrap;
+		}
+		.severity-tier-badges .tier-incompatible { color: var(--red); }
+		.severity-tier-badges .tier-warning      { color: var(--yellow); }
+		.severity-tier-badges .tier-notable      { color: var(--orange); }
+		.severity-tier-badges .tier-info         { color: var(--blue); }
+
 		.collapse-icon {
 			margin-left: auto;
 			color: var(--base01);
@@ -340,6 +383,20 @@
 
 		.tool-section.collapsed .collapse-icon { transform: rotate(-90deg); }
 		.tool-section.collapsed .tool-body     { display: none; }
+
+		/* ── Bottom collapse control (twin of the header toggle) ──────────── */
+		.tool-collapse-bottom {
+			margin-top: 14px;
+			width: 100%;
+			padding: 6px;
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			background: transparent;
+			color: var(--base01);
+			font-size: 11px;
+			cursor: pointer;
+		}
+		.tool-collapse-bottom:hover { color: var(--base1); border-color: var(--base00); }
 
 		/* ── Tool body ──────────────────────────────────────────────────── */
 		.tool-body {
@@ -383,37 +440,68 @@
 			font-size: 10px;
 		}
 
-		.content-group.cat-security .content-group-title { color: var(--red); border-color: rgba(220,50,47,0.35); }
-		.content-group.cat-fixes    .content-group-title { color: var(--yellow); border-color: rgba(181,137,0,0.35); }
-		.content-group.cat-features .content-group-title { color: var(--blue); border-color: rgba(38,139,210,0.35); }
-		.content-group.cat-notes   .content-group-title { color: var(--base00); border-color: var(--base01); }
+		/* Group titles are deliberately neutral — only items are colored, by
+		 * their own severity (below). See design.md B.2: this replaced an
+		 * earlier per-group color accent that conflated topic with urgency. */
 
+		/* ── Per-item severity accent (design.md B.2's icon/color mapping) ─
+		 * Reuses the palette's existing severity roles — no new colors. */
 		.content-item {
 			padding: 4px 0 4px 10px;
 			border-left: 2px solid var(--base01);
 			margin-bottom: 3px;
 		}
 
-		.content-group.cat-security .content-item { border-left-color: var(--red); }
-		.content-group.cat-fixes    .content-item { border-left-color: var(--yellow); }
-		.content-group.cat-features .content-item { border-left-color: var(--blue); }
-		.content-group.cat-notes   .content-item { border-left-color: var(--base01); }
+		.content-item.sev-incompatible { border-left-color: var(--red); }
+		.content-item.sev-warning      { border-left-color: var(--yellow); }
+		.content-item.sev-notable      { border-left-color: var(--orange); }
+		.content-item.sev-info         { border-left-color: var(--blue); }
+
+		.content-item-icon { margin-right: 4px; font-size: 11px; }
+		.content-item.sev-incompatible .content-item-icon { color: var(--red); }
+		.content-item.sev-warning      .content-item-icon { color: var(--yellow); }
+		.content-item.sev-notable      .content-item-icon { color: var(--orange); }
+		.content-item.sev-info         .content-item-icon { color: var(--blue); }
 
 		.content-item-title {
 			font-size: 13px;
 			color: var(--base2);
 			font-weight: 600;
+			cursor: default;
 		}
 
-		.content-group.cat-notes .content-item-title {
-			color: var(--base1);
+		.content-item-title.has-expand { cursor: pointer; }
+
+		.content-item-expand {
+			margin-left: 6px;
+			font-size: 11px;
+			color: var(--base01);
 			font-weight: 400;
+			text-transform: none;
+		}
+
+		.content-item[data-expanded="0"] .content-item-desc,
+		.content-item[data-expanded="0"] .item-evidence,
+		.content-item[data-expanded="0"] .item-motivating,
+		.content-item[data-expanded="0"] .item-ref {
+			display: none;
 		}
 
 		.content-item-desc {
 			font-size: 12px;
 			color: var(--base00);
 			margin-top: 2px;
+		}
+
+		/* ── Vendor-silent compact tag (A.1 vendor_silent_categories) ────── */
+		.vendor-silent-tag {
+			display: inline-block;
+			padding: 2px 8px;
+			border-radius: 10px;
+			font-size: 11px;
+			font-style: italic;
+			color: var(--base01);
+			border: 1px solid var(--base01);
 		}
 
 		.item-evidence {
@@ -462,6 +550,103 @@
 			color: var(--base01);
 			font-style: italic;
 		}
+
+		/* ── Context section (A.1 context[], B.2) — no severity coloring,
+		 * whole-item collapse (starts collapsed to title only, unlike the
+		 * lighter per-item detail-only collapse in the four content groups
+		 * above). ────────────────────────────────────────────────────────── */
+		.context-section {
+			margin-top: 14px;
+			padding: 10px 12px;
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			background: rgba(255,255,255,0.02);
+		}
+
+		.context-item { margin-bottom: 4px; }
+		.context-item:last-child { margin-bottom: 0; }
+
+		.context-item-title {
+			font-size: 12px;
+			color: var(--base1);
+			cursor: pointer;
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+		}
+
+		.context-item-title::before { content: "▸"; color: var(--base01); font-size: 10px; }
+		.context-item[data-expanded="1"] .context-item-title::before { content: "▾"; }
+
+		.context-item-body { display: none; margin: 4px 0 4px 16px; font-size: 12px; color: var(--base00); }
+		.context-item[data-expanded="1"] .context-item-body { display: block; }
+
+		/* ── Release inventory (A.1 release_inventory[]) — short, not
+		 * collapsed. ──────────────────────────────────────────────────────── */
+		.release-inventory-list {
+			margin-top: 10px;
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		.release-inventory-list .ri-label {
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: var(--base01);
+			margin-bottom: 3px;
+		}
+
+		.release-inventory-list .ri-row { padding: 1px 0; }
+		.release-inventory-list a { color: var(--base01); }
+		.release-inventory-list a:hover { color: var(--blue); }
+
+		/* ── Link modal (A.1 embedded_content, B.2) ───────────────────────── */
+		.link-modal-trigger {
+			background: none; border: none; padding: 0; margin: 0;
+			color: var(--blue); text-decoration: none; cursor: pointer;
+			font: inherit;
+		}
+		.link-modal-trigger:hover { text-decoration: underline; }
+
+		#link-modal-overlay {
+			display: none;
+			position: fixed; inset: 0;
+			background: rgba(0,0,0,0.6);
+			z-index: 500;
+			align-items: center;
+			justify-content: center;
+			padding: 24px;
+		}
+		#link-modal-overlay[data-open="1"] { display: flex; }
+
+		#link-modal-box {
+			max-width: 680px;
+			max-height: 80vh;
+			width: 100%;
+			overflow-y: auto;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 6px;
+			padding: 20px 22px;
+		}
+
+		#link-modal-box h2, #link-modal-box h3, #link-modal-box h4 { color: var(--base2); margin: 10px 0 6px; }
+		#link-modal-box p { margin-bottom: 8px; font-size: 13px; color: var(--base0); }
+		#link-modal-box ul { margin: 0 0 8px 18px; font-size: 13px; color: var(--base0); }
+		#link-modal-box code {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			background: var(--base03); padding: 0 4px; border-radius: 2px; font-size: 12px;
+		}
+		#link-modal-box a { color: var(--blue); }
+
+		#link-modal-close {
+			float: right;
+			background: none; border: none; color: var(--base01);
+			font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px;
+		}
+		#link-modal-close:hover { color: var(--base2); }
 
 		/* ── Suggestion cards ───────────────────────────────────────────── */
 		.suggestions-section { margin-top: 18px; }
@@ -687,6 +872,14 @@
 		[data-decision="reject"]  .btn-reject  { background: var(--base01); color: var(--base2); }
 		[data-decision="discuss"] .btn-discuss { background: var(--yellow);  color: #000; }
 
+		/* Same active-state coloring for thread-controls decision buttons
+		 * (#27) — a plain class toggle instead of the [data-decision] on an
+		 * ancestor .suggestion-card, since action threads have no such
+		 * ancestor at all. */
+		.btn-decision.is-selected.btn-accept  { background: var(--cyan);   color: #fff; }
+		.btn-decision.is-selected.btn-reject  { background: var(--base01); color: var(--base2); }
+		.btn-decision.is-selected.btn-discuss { background: var(--yellow);  color: #000; }
+
 		/* ── Comment / note textareas ───────────────────────────────────── */
 		.card-comment,
 		.tool-note-textarea {
@@ -713,6 +906,10 @@
 			outline: none;
 			border-color: var(--blue);
 		}
+
+		/* Followup submit is now the shared .btn-thread-send (results-view
+		 * CSS section below) — a followup card's decision/comment/send UI
+		 * moved into the turn-thread mount point (#27). */
 
 		/* ── Per-tool note (collapsible) ──────────────────────────────────── */
 		.tool-note-area { margin-top: 18px; }
@@ -937,19 +1134,66 @@
 			padding: 24px;
 		}
 
-		#results-status-bar {
+		/* ── Unified status header (#23) — replaces the old separate
+		 * tab-status text + #results-status-bar with one always-visible
+		 * component: phase/staleness, a dynamic progress bar, and live
+		 * failed/followup counts computed from the actual data every poll. */
+		#results-header {
 			padding: 10px 14px;
 			background: var(--base02);
 			border: 1px solid var(--base01);
 			border-radius: 4px;
 			margin-bottom: 16px;
+		}
+
+		#results-header-status {
 			font-size: 14px;
 			font-weight: 600;
 			color: var(--base2);
+			margin-bottom: 8px;
 		}
 
-		#results-status-bar.failed     { color: var(--red); }
-		#results-status-bar.discussing { color: var(--yellow); }
+		#results-header-status.failed     { color: var(--red); }
+		#results-header-status.discussing { color: var(--yellow); }
+		#results-header-status .stale     { color: var(--yellow); font-weight: 400; }
+
+		#results-progress-row {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin-bottom: 6px;
+		}
+
+		#results-progress-track {
+			flex: 1;
+			height: 6px;
+			background: var(--base01);
+			border-radius: 3px;
+			overflow: hidden;
+		}
+
+		#results-progress-fill {
+			height: 100%;
+			background: var(--cyan);
+			width: 0%;
+			transition: width 0.25s ease;
+		}
+
+		#results-done-count {
+			font-size: 12px;
+			color: var(--base1);
+			white-space: nowrap;
+			min-width: 80px;
+			text-align: right;
+		}
+
+		#results-header-counts {
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		#results-header-counts .rh-failed   { color: var(--red); font-weight: 600; }
+		#results-header-counts .rh-followup { color: var(--yellow); font-weight: 600; }
 
 		/* ── Action list ────────────────────────────────────────────────── */
 		#action-list { margin-bottom: 16px; }
@@ -1006,8 +1250,86 @@
 
 		.action-detail-pre.expanded { display: block; }
 
-		/* ── Follow-on suggestions (surfaced mid-apply from tool_comments) ── */
+		/* ── Followups (moved above the action list — #23; multi-turn — #27) */
 		#followups-section {
+			margin-top: 0;
+			margin-bottom: 16px;
+			padding: 14px;
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+		}
+
+		/* ── Turn-based thread (shared by followups and failed-action debug —
+		 * #27/#28/C.10). One component, two mount points. */
+		.thread-card {
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			padding: 10px 12px;
+			margin-top: 8px;
+			background: var(--base03);
+		}
+
+		.thread-origin {
+			font-size: 12px;
+			color: var(--base00);
+			margin-bottom: 6px;
+		}
+
+		.thread-history { margin-bottom: 8px; }
+
+		.thread-turn {
+			font-size: 12px;
+			padding: 4px 0;
+			border-bottom: 1px solid rgba(88,110,117,0.2);
+			color: var(--base1);
+		}
+
+		.thread-turn:last-child { border-bottom: none; }
+		.thread-turn .tt-author   { color: var(--base00); font-weight: 600; }
+		.thread-turn .tt-decision { text-transform: uppercase; font-size: 10px; margin-left: 4px; color: var(--base01); }
+
+		.thread-controls .card-actions { margin-top: 6px; }
+
+		.btn-thread-send {
+			padding: 5px 13px;
+			border-radius: 3px;
+			border: 1px solid var(--cyan);
+			color: var(--cyan);
+			background: transparent;
+			font-size: 12px;
+			font-weight: 600;
+			cursor: pointer;
+			margin-top: 6px;
+		}
+		.btn-thread-send:hover:not(:disabled) { background: var(--cyan); color: #fff; }
+		.btn-thread-send:disabled { cursor: not-allowed; opacity: 0.4; border-color: var(--base01); color: var(--base01); }
+
+		.btn-thread-retry {
+			padding: 5px 13px;
+			border-radius: 3px;
+			border: 1px solid var(--orange);
+			color: var(--orange);
+			background: transparent;
+			font-size: 12px;
+			font-weight: 600;
+			cursor: pointer;
+			margin-right: 8px;
+		}
+		.btn-thread-retry:hover { background: var(--orange); color: #fff; }
+
+		/* Failed-action inline thread (#28) — nested inside the action's own
+		 * detail <pre> area, not a separate followup card. */
+		.action-thread {
+			margin: 0 10px 8px 38px;
+			padding: 10px 12px;
+			border: 1px solid var(--base01);
+			border-radius: 4px;
+			background: var(--base02);
+		}
+
+		/* ── Recap section — collapsed by default (#23) ───────────────────── */
+		#results-recap {
 			margin-top: 16px;
 			padding: 14px;
 			background: var(--base02);
@@ -1015,33 +1337,69 @@
 			border-radius: 4px;
 		}
 
-		#followup-cards .suggestion-card { background: var(--base03); }
-
-		/* ── Recap / changelog sections ──────────────────────────────────── */
-		#results-recap,
-		#results-changelog {
-			margin-top: 16px;
-			padding: 14px;
-			background: var(--base02);
-			border: 1px solid var(--base01);
-			border-radius: 4px;
+		#recap-toggle {
+			cursor: pointer;
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
 		}
 
-		#results-recap pre,
-		#results-changelog pre {
-			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+		#recap-toggle .recap-expand { font-size: 11px; color: var(--base01); font-weight: 400; text-transform: none; }
+
+		#recap-body {
+			display: none;
+			margin-top: 8px;
 			font-size: 12px;
 			color: var(--base1);
-			white-space: pre-wrap;
-			word-break: break-word;
-			margin-top: 8px;
 		}
 
-		.changelog-entry-sep {
-			border: none;
-			border-top: 1px solid var(--base01);
-			margin: 10px 0;
+		#results-recap[data-expanded="1"] #recap-body { display: block; }
+
+		#recap-body p { margin-bottom: 8px; }
+		#recap-body ul { margin: 0 0 8px 18px; }
+		#recap-body code {
+			font-family: "SF Mono", "Fira Code", Consolas, Menlo, monospace;
+			background: var(--base03); padding: 0 4px; border-radius: 2px; font-size: 11px;
 		}
+
+		/* ── Changelog tab (#29) — sibling panel to #main/#results-panel ──── */
+		#changelog-panel {
+			display: none;
+			max-width: 960px;
+			margin: 0 auto;
+			padding: 24px;
+		}
+
+		#changelog-date-heading {
+			color: var(--base2);
+			font-size: 14px;
+			font-weight: 600;
+			margin-bottom: 12px;
+		}
+
+		.changelog-entry {
+			border-bottom: 1px solid rgba(88,110,117,0.2);
+			padding: 8px 0;
+		}
+
+		.changelog-entry-title {
+			font-size: 13px;
+			color: var(--base1);
+			cursor: pointer;
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+		}
+
+		.changelog-entry-body {
+			display: none;
+			margin: 6px 0 0 16px;
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		.changelog-entry[data-expanded="1"] .changelog-entry-body { display: block; }
+		.changelog-entry-body p { margin-bottom: 6px; }
 
 		/* ── Finish button row ───────────────────────────────────────────── */
 		#finish-row {
@@ -1121,6 +1479,12 @@
 				<option value="major">Major delta first</option>
 			</select>
 		</label>
+		<label>
+			<input type="checkbox" id="auto-advance-toggle" checked>
+			Auto-advance on collapse
+		</label>
+		<button type="button" class="btn-bar-action" id="btn-collapse-all">Collapse all</button>
+		<button type="button" class="btn-bar-action" id="btn-expand-all">Expand all</button>
 	</div>
 
 	<!-- ── Sticky progress bar ─────────────────────────────────────────── -->
@@ -1170,6 +1534,14 @@
 	<!-- ── Error toast ─────────────────────────────────────────────────── -->
 	<div id="error-toast" role="alert" aria-live="assertive"></div>
 
+	<!-- ── Link modal (A.1 embedded_content, B.2) ────────────────────────── -->
+	<div id="link-modal-overlay">
+		<div id="link-modal-box" role="dialog" aria-modal="true">
+			<button id="link-modal-close" aria-label="Close">✕</button>
+			<div id="link-modal-content"></div>
+		</div>
+	</div>
+
 	<script>
 		const REPORT = __REPORT_DATA__;
 		const base = location.pathname.replace(/\/+$/, '');
@@ -1184,6 +1556,42 @@
 				.replace(/</g, '&lt;')
 				.replace(/>/g, '&gt;')
 				.replace(/"/g, '&quot;');
+		}
+
+		/* ── Lightweight markdown rendering (design.md D's script-closing-tag
+		 * escaping discipline applies at the render.py layer already — this is a
+		 * separate, smaller safety net: agent-authored free text (recap,
+		 * changelog entries, followup comments, embedded_content) is escaped
+		 * via esc() *before* any markdown markup is reinserted, so no raw
+		 * HTML from that text can ever reach the DOM — only the literal
+		 * markup this function itself generates (headings/lists/bold/code/
+		 * links). Not a general-purpose parser — just enough for what these
+		 * agent-written fields actually use. */
+		function inlineMd(text) {
+			let html = esc(text);
+			html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+			html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+			html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+			html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+			return html;
+		}
+
+		function renderMarkdown(md) {
+			if (!md) return '';
+			const blocks = String(md).trim().split(/\n{2,}/);
+			return blocks.map(block => {
+				const lines = block.split('\n');
+				const headingMatch = lines.length === 1 && lines[0].match(/^(#{1,4})\s+(.*)$/);
+				if (headingMatch) {
+					const level = Math.min(headingMatch[1].length + 2, 6);
+					return `<h${level}>${inlineMd(headingMatch[2])}</h${level}>`;
+				}
+				if (lines.every(l => /^\s*[-*]\s+/.test(l))) {
+					const items = lines.map(l => `<li>${inlineMd(l.replace(/^\s*[-*]\s+/, ''))}</li>`).join('');
+					return `<ul>${items}</ul>`;
+				}
+				return `<p>${lines.map(inlineMd).join('<br>')}</p>`;
+			}).join('');
 		}
 
 		/* ── Compute max severity for a tool ────────────────────────────── */
@@ -1256,7 +1664,7 @@
 				<pre class="cmd-chip" tabindex="0" title="Click to select the command">${esc(command)}</pre>
 				<button type="button" class="btn-copy-cmd" data-copy-text="${esc(command)}">Copy</button>
 			</div>
-			<div class="cmd-hint">${esc(hint)}</div>`;
+			${hint ? `<div class="cmd-hint">${esc(hint)}</div>` : ''}`;
 		}
 
 		/* ── Render: body of a kind:"upgrade" card — reflects auto_runnable /
@@ -1273,10 +1681,7 @@
 				}
 				html += renderCommandChip(sug.command, 'Always manual — copy and run this yourself.');
 			} else {
-				html += renderCommandChip(
-					sug.command,
-					'If accepted, runs automatically when auto-run is enabled — or copy and run it yourself.'
-				);
+				html += renderCommandChip(sug.command);
 				if (needsSudo) {
 					html += `<div class="needs-sudo-note">🔒 May prompt for an admin password during apply.</div>`;
 				}
@@ -1294,6 +1699,12 @@
 			opts = opts || {};
 			const kind = sug.kind || 'edit'; /* defensive default for older fixtures */
 			const followup = !!opts.followup;
+			/* Pre-accept (design.md A.1/A.2, "default-accept low-risk
+			 * upgrades"): only ever the baseline upgrade suggestion on a
+			 * "low" risk_level tool — set by renderTool(), never by opts
+			 * on any other call path. Still a normal toggle afterward. */
+			const initialDecision = opts.preAccept ? 'accept' : '';
+			const stateLabel = { accept: 'ACCEPTED', reject: 'REJECTED', discuss: 'DISCUSS' }[initialDecision] || '';
 
 			const targets = (sug.target_files || []).map(f =>
 				`<span class="target-path" title="${esc(f.description || '')}">${esc(f.path)}</span>`
@@ -1303,38 +1714,50 @@
 				: '';
 
 			const motLink = sug.motivating_link
-				? `<div class="card-motlink">→ <a href="${esc(sug.motivating_link.url)}" target="_blank" rel="noopener noreferrer">${esc(sug.motivating_link.label)} ↗</a></div>`
+				? `<div class="card-motlink">→ ${renderLinkAnchor(sug.motivating_link, `${esc(sug.motivating_link.label)} ↗`)}</div>`
 				: '';
 
 			const bodyHtml = kind === 'upgrade'
 				? renderUpgradeBody(sug)
 				: renderDiff(sug.diff_preview);
 
+			// A followup card (#27) gets a turn-thread mount point instead of
+			// the plain decision-buttons + comment used by a Report-tab card
+			// — mountThread() fills it in with history + active controls
+			// after this HTML is inserted into the DOM (it needs the card's
+			// actual server/local turns, which this function doesn't have).
+			const decisionAreaHtml = followup
+				? `<div class="thread-mount" data-thread-id="${esc(sug.id)}"></div>`
+				: `<div class="card-actions">
+					<button class="btn-decision btn-accept" data-action="accept">Accept</button>
+					<button class="btn-decision btn-reject" data-action="reject">Reject</button>
+					<button class="btn-decision btn-discuss" data-action="discuss">Discuss</button>
+				</div>
+				<textarea class="card-comment" placeholder="Optional comment…" rows="1"></textarea>`;
+
 			return `
-			<div class="suggestion-card" data-suggestion-id="${esc(sug.id)}" data-kind="${esc(kind)}" data-decision="" data-followup="${followup ? '1' : '0'}">
+			<div class="suggestion-card" data-suggestion-id="${esc(sug.id)}" data-kind="${esc(kind)}" data-decision="${initialDecision}" data-followup="${followup ? '1' : '0'}">
 				<div class="card-header">
 					<div class="card-title">${esc(sug.title)}</div>
-					<span class="card-state-label"></span>
+					<span class="card-state-label">${stateLabel}</span>
 				</div>
 				${targetsHtml}
 				<div class="card-rationale">${esc(sug.rationale || '')}</div>
 				${motLink}
 				${bodyHtml}
-				<div class="card-actions">
-					<button class="btn-decision btn-accept" data-action="accept">Accept</button>
-					<button class="btn-decision btn-reject" data-action="reject">Reject</button>
-					<button class="btn-decision btn-discuss" data-action="discuss">Discuss</button>
-				</div>
-				<textarea class="card-comment" placeholder="Optional comment…" rows="1"></textarea>
+				${decisionAreaHtml}
 			</div>`;
 		}
 
-		/* ── Content classification: headliners[] + relevancy[] → 4 groups ─
-		 * Security / Fixes / Features / Notes. Simple keyword heuristics —
-		 * no LLM call available at render time. "Notes" is the catch-all:
-		 * relevancy `info` items and any headliner/finding with no sharper
-		 * keyword match land there. Nothing is rendered twice: each item is
-		 * classified into exactly one group. */
+		/* ── Content grouping: headliners[] + relevancy[] → 4 groups ──────
+		 * Security / Fixes / Features / Notes. Each item already carries its
+		 * own explicit `category` (topic) and `severity` (urgency) from
+		 * research (design.md A.1) — the page does no classification of its
+		 * own. Groups are purely organizational containers; only items are
+		 * colored, by severity (B.2). This replaced an earlier client-side
+		 * keyword-heuristic classifier that conflated topic with urgency
+		 * (a low-profile security item would get bucketed into Notes by the
+		 * same signal that was supposed to be its severity, not its topic). */
 		const CATEGORY_ORDER = ['security', 'fixes', 'features', 'notes'];
 		const CATEGORY_META = {
 			security: { label: 'Security' },
@@ -1342,44 +1765,14 @@
 			features: { label: 'Features' },
 			notes:    { label: 'Notes' },
 		};
+		const SEV_ICON = { incompatible: '⛔', warning: '⚠', notable: '●', info: '·' };
 
-		const CATEGORY_KEYWORDS = {
-			security: [
-				'cve', 'security', 'vulnerab', 'exploit', 'advisory', 'malicious',
-				'gatekeeper', 'quarantine', 'privilege escalat', 'sandbox escape',
-				'unsafe', 'attacker',
-			],
-			fixes: [
-				'fix', 'bug', 'crash', 'patch', 'regression', 'resolv', 'leak',
-				'deprecat', 'broken', 'incompatib', 'not supported', 'no longer support',
-				'drop support', 'dropped support', 'requires apple silicon',
-				'requires arm', 'removed', 'breaking change', 'stopped working',
-			],
-			features: [
-				'new ', 'add ', 'added', 'adds ', 'stabiliz', 'introduc',
-				'support for', 'now support', 'feature',
-			],
-		};
-
-		function classifyText(text) {
-			const t = (text || '').toLowerCase();
-			for (const cat of ['security', 'fixes', 'features']) {
-				if (CATEGORY_KEYWORDS[cat].some(k => t.includes(k))) return cat;
-			}
-			return 'notes';
+		function normalizeCategory(cat) {
+			return CATEGORY_ORDER.includes(cat) ? cat : 'notes';
 		}
 
-		/* Relevancy items get a second chance: incompatible/warning findings
-		 * with no keyword hit still land in Fixes rather than being buried
-		 * in Notes — a compatibility break is never "just a note". */
-		function classifyRelevancyItem(r) {
-			const text = [r.severity, r.summary, r.detail, r.motivating_change]
-				.filter(Boolean).join(' ');
-			let cat = classifyText(text);
-			if (cat === 'notes' && (r.severity === 'incompatible' || r.severity === 'warning')) {
-				cat = 'fixes';
-			}
-			return cat;
+		function normalizeSeverity(sev) {
+			return SEV_ORDER[sev] !== undefined ? sev : 'info';
 		}
 
 		/* Best-effort per-item reference link: prefer a tool link whose
@@ -1392,7 +1785,7 @@
 			const verMatch = lower.match(/\bv?(\d+\.\d+(?:\.\d+)?)\b/);
 			if (verMatch) {
 				const v = verMatch[1];
-				const hit = links.find(l => `${l.label} ${l.url}`.toLowerCase().includes(v));
+				const hit = links.find(l => `${l.label} ${l.url || ''}`.toLowerCase().includes(v));
 				if (hit) return hit;
 			}
 			const typePriority = {
@@ -1412,24 +1805,27 @@
 			const groups = { security: [], fixes: [], features: [], notes: [] };
 
 			(tool.relevancy || []).forEach(r => {
-				const cat = classifyRelevancyItem(r);
-				groups[cat].push({
+				groups[normalizeCategory(r.category)].push({
 					title: r.summary,
 					desc: r.detail || '',
 					evidence: r.evidence || [],
 					motivating: r.motivating_change || '',
-					sevRank: SEV_ORDER[r.severity] ?? 90,
+					severity: normalizeSeverity(r.severity),
+					sevRank: SEV_ORDER[normalizeSeverity(r.severity)],
 				});
 			});
 
 			(tool.headliners || []).forEach(h => {
-				const cat = classifyText(h);
-				groups[cat].push({
-					title: h,
+				/* Defensive: tolerate an older/malformed bare-string headliner
+				 * rather than crashing the whole render. */
+				const item = typeof h === 'string' ? { text: h } : (h || {});
+				groups[normalizeCategory(item.category)].push({
+					title: item.text || '',
 					desc: '',
 					evidence: [],
 					motivating: '',
-					sevRank: 95, /* headliners settle below relevancy findings within a group */
+					severity: normalizeSeverity(item.severity),
+					sevRank: SEV_ORDER[normalizeSeverity(item.severity)] + 0.5, /* settles just below a relevancy item of the same severity */
 				});
 			});
 
@@ -1447,18 +1843,33 @@
 			}</div>`;
 		}
 
+		let contentItemSeq = 0;
+
+		/* Per-item detail collapse (B.2): an item with real secondary detail
+		 * shows only its title by default; one with nothing beyond the
+		 * title gets no expand control at all. */
 		function renderContentItem(item, cat, links) {
+			const id = `ci-${++contentItemSeq}`;
 			const evidenceHtml = renderEvidenceHtml(item.evidence);
 			const motivatingHtml = item.motivating
 				? `<div class="item-motivating">${esc(item.motivating)}</div>`
 				: '';
 			const link = pickLinkForCategory(links, cat, `${item.title} ${item.desc}`);
-			const refHtml = link
-				? `<div class="item-ref">→ <a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.type)}: ${esc(link.label)} ↗</a></div>`
-				: '';
+			const refHtml = link ? `<div class="item-ref">→ ${renderLinkAnchor(link, `${esc(link.type)}: ${esc(link.label)} ↗`)}</div>` : '';
+			/* hasExtra must also account for a picked ref link (B.2: expanding
+			 * "reveals the rest, evidence, and per-item link") — a headliner
+			 * item never carries desc/evidence/motivating (only relevancy
+			 * items do), so without this a headliner with a real link picked
+			 * would render no expand control at all, permanently hiding that
+			 * link behind CSS that gates .item-ref on data-expanded="1" with
+			 * no way to ever set it. */
+			const hasExtra = !!(item.desc || (item.evidence && item.evidence.length) || item.motivating || link);
 			return `
-			<div class="content-item">
-				<div class="content-item-title">${esc(item.title)}</div>
+			<div class="content-item sev-${item.severity}" id="${id}" data-expanded="0">
+				<div class="content-item-title${hasExtra ? ' has-expand' : ''}" ${hasExtra ? `onclick="toggleContentItem('${id}')"` : ''}>
+					<span class="content-item-icon">${SEV_ICON[item.severity]}</span>${esc(item.title)}
+					${hasExtra ? `<span class="content-item-expand">▸ more</span>` : ''}
+				</div>
 				${item.desc ? `<div class="content-item-desc">${esc(item.desc)}</div>` : ''}
 				${evidenceHtml}
 				${motivatingHtml}
@@ -1466,18 +1877,96 @@
 			</div>`;
 		}
 
+		function toggleContentItem(id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			const expanded = el.dataset.expanded === '1';
+			el.dataset.expanded = expanded ? '0' : '1';
+			const label = el.querySelector('.content-item-expand');
+			if (label) label.textContent = expanded ? '▸ more' : '▾ less';
+		}
+
 		function renderContentGroups(tool) {
 			const groups = buildContentGroups(tool);
 			const links = tool.links || [];
+			const silent = new Set(tool.vendor_silent_categories || []);
 			return CATEGORY_ORDER.map(cat => {
 				const items = groups[cat];
-				if (!items.length) return '';
+				if (!items.length && !silent.has(cat)) return '';
+				const body = items.length
+					? items.map(item => renderContentItem(item, cat, links)).join('')
+					: `<span class="vendor-silent-tag">No detailed changelog published</span>`;
 				return `
 			<div class="content-group cat-${cat}">
-				<div class="content-group-title">${CATEGORY_META[cat].label} <span class="content-group-count">${items.length}</span></div>
-				${items.map(item => renderContentItem(item, cat, links)).join('')}
+				<div class="content-group-title">${CATEGORY_META[cat].label}${items.length ? ` <span class="content-group-count">${items.length}</span>` : ''}</div>
+				${body}
 			</div>`;
 			}).join('');
+		}
+
+		/* ── Context section (A.1 context[], B.2) — whole-item collapse,
+		 * starts collapsed to title only. ─────────────────────────────────── */
+		function renderContextSection(tool) {
+			const items = tool.context || [];
+			if (!items.length) return '';
+			return `
+			<div class="context-section">
+				<div class="section-label">Context</div>
+				${items.map((c, i) => {
+					const id = `ctx-${contentItemSeq}-${i}`;
+					const evidenceHtml = renderEvidenceHtml(c.evidence);
+					const linkHtml = c.link ? `<div class="item-ref">→ ${renderLinkAnchor(c.link, `${esc(c.link.label || c.link.type || 'link')} ↗`)}</div>` : '';
+					return `
+				<div class="context-item" id="${id}" data-expanded="0">
+					<div class="context-item-title" onclick="toggleContextItem('${id}')">${esc(c.title)}</div>
+					<div class="context-item-body">
+						${c.detail ? `<div>${esc(c.detail)}</div>` : ''}
+						${evidenceHtml}
+						${linkHtml}
+					</div>
+				</div>`;
+				}).join('')}
+			</div>`;
+		}
+
+		function toggleContextItem(id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			el.dataset.expanded = el.dataset.expanded === '1' ? '0' : '1';
+		}
+
+		/* ── Release inventory (A.1 release_inventory[], B.2) — short list,
+		 * not collapsed. ──────────────────────────────────────────────────── */
+		function renderReleaseInventory(tool) {
+			const entries = tool.release_inventory || [];
+			if (!entries.length) return '';
+			return `
+			<div class="release-inventory-list">
+				<div class="ri-label">Releases in range</div>
+				${entries.map(e => `<div class="ri-row">${esc(e.version)}${e.link ? ` → <a href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">changelog ↗</a>` : ''}</div>`).join('')}
+			</div>`;
+		}
+
+		/* ── Link rendering + embedded_content modal (A.1, B.2) ───────────── */
+		let modalLinks = [];
+		function renderLinkAnchor(link, labelHtml) {
+			if (!link) return '';
+			if (link.embedded_content) {
+				const idx = modalLinks.push(link) - 1;
+				return `<button type="button" class="link-modal-trigger" data-embed-idx="${idx}">${labelHtml}</button>`;
+			}
+			return `<a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${labelHtml}</a>`;
+		}
+
+		function openLinkModal(idx) {
+			const link = modalLinks[idx];
+			if (!link) return;
+			document.getElementById('link-modal-content').innerHTML = renderMarkdown(link.embedded_content);
+			document.getElementById('link-modal-overlay').dataset.open = '1';
+		}
+
+		function closeLinkModal() {
+			document.getElementById('link-modal-overlay').dataset.open = '0';
 		}
 
 		/* ── config_status badge + banner (B.2 / C.5) ────────────────────── */
@@ -1506,47 +1995,100 @@
 		}
 
 		/* ── Render: one tool section ───────────────────────────────────── */
+		/* ── Header badges (B.2 "at a glance without expanding") ─────────── */
+		function renderDecisionBadge(tool) {
+			const total = (tool.suggestions || []).length;
+			if (!total) return '';
+			/* Decisions aren't tracked in REPORT itself (they're local DOM
+			 * state on each card until Submit) — counted at render time here,
+			 * then kept live by refreshDecisionBadge() as the user decides. */
+			return `<span class="decision-badge pending" data-role="decision-badge">${total} undecided</span>`;
+		}
+
+		function refreshDecisionBadge(section) {
+			const badge = section.querySelector('[data-role="decision-badge"]');
+			if (!badge) return;
+			const cards = section.querySelectorAll('.suggestion-card');
+			const undecided = Array.from(cards).filter(c => !c.dataset.decision).length;
+			if (undecided === 0) {
+				badge.textContent = `${cards.length} decided`;
+				badge.className = 'decision-badge done';
+			} else {
+				badge.textContent = `${undecided} undecided`;
+				badge.className = 'decision-badge pending';
+			}
+		}
+
+		function renderSeverityTierBadges(tool) {
+			const counts = { incompatible: 0, warning: 0, notable: 0, info: 0 };
+			(tool.relevancy || []).forEach(r => { counts[normalizeSeverity(r.severity)]++; });
+			(tool.headliners || []).forEach(h => {
+				const item = typeof h === 'string' ? {} : (h || {});
+				counts[normalizeSeverity(item.severity)]++;
+			});
+			const parts = ['incompatible', 'warning', 'notable', 'info']
+				.filter(t => counts[t] > 0)
+				.map(t => `<span class="tier-${t}">${SEV_ICON[t]}${counts[t]}</span>`);
+			return parts.length ? `<span class="severity-tier-badges">${parts.join('')}</span>` : '';
+		}
+
 		function renderTool(tool) {
 			const sev = maxSeverity(tool);
 
 			const groupsHtml = renderContentGroups(tool);
 			const configBannerHtml = renderConfigStatusBanner(tool);
+			const contextHtml = renderContextSection(tool);
+			const releaseInventoryHtml = renderReleaseInventory(tool);
 
 			/* Research error note */
 			const researchErrorHtml = tool.research_error
 				? `<div class="research-error-note">Research unavailable: ${esc(tool.research_error)}</div>`
 				: '';
 
-			/* Suggestion cards */
+			/* Suggestion cards. The baseline upgrade suggestion on a "low"
+			 * risk_level tool (design.md A.1/A.2) renders pre-accepted. */
+			const baselineUpgradeId = `${tool.id}:upgrade`;
 			const suggestionsHtml = (tool.suggestions && tool.suggestions.length)
 				? `<div class="suggestions-section">
 				<div class="section-label">Suggestions</div>
-				${tool.suggestions.map(sug => renderCard(sug)).join('')}
+				${tool.suggestions.map(sug => renderCard(sug, {
+					preAccept: tool.risk_level === 'low' && sug.id === baselineUpgradeId,
+				})).join('')}
 			</div>`
 				: '';
 
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
 
+			/* Every section renders collapsed (B.2's default state); which
+			 * one ends up "first" depends on sort order, which applyFilters()
+			 * only determines *after* this render pass runs (default sort
+			 * reorders the DOM) — so collapseAllButFirst() expands the true
+			 * first visible section once, after that initial sort, rather
+			 * than this function guessing at array-index order. */
 			return `
 		<section
-			class="tool-section"
+			class="tool-section collapsed"
 			data-tool-id="${esc(tool.id)}"
 			data-name="${esc(tool.name)}"
 			data-source="${esc(tool.source)}"
 			data-max-severity="${esc(sev)}"
 			tabindex="0"
 		>
-			<div class="tool-header" role="button" aria-expanded="true">
+			<div class="tool-header" role="button" aria-expanded="false">
 				<span class="tool-name">${esc(tool.name)}</span>
 				<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>
 				<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
 				${pinnedHtml}
 				${renderConfigStatusBadge(tool)}
+				${renderDecisionBadge(tool)}
+				${renderSeverityTierBadges(tool)}
 				<span class="collapse-icon">▼</span>
 			</div>
 			<div class="tool-body">
 				${configBannerHtml}
 				${groupsHtml}
+				${contextHtml}
+				${releaseInventoryHtml}
 				${researchErrorHtml}
 				${suggestionsHtml}
 				<div class="tool-note-area">
@@ -1557,6 +2099,7 @@
 					<textarea class="tool-note-textarea" placeholder="Optional note…" data-tool-id="${esc(tool.id)}"></textarea>
 					<div class="tool-note-collapsed-label"></div>
 				</div>
+				<button type="button" class="tool-collapse-bottom">▲ Collapse</button>
 			</div>
 		</section>`;
 		}
@@ -1585,12 +2128,51 @@
 			mainEl.innerHTML = toolsHtml + overallHtml;
 		}
 
-		/* ── Collapse / expand tool section ─────────────────────────────── */
-		function toggleCollapse(headerEl) {
-			const section = headerEl.closest('.tool-section');
-			const expanded = !section.classList.contains('collapsed');
-			section.classList.toggle('collapsed', expanded);
-			headerEl.setAttribute('aria-expanded', String(!expanded));
+		/* ── Collapse / expand tool section (B.2) ─────────────────────────
+		 * Shared by the header toggle and the bottom collapse control (#12)
+		 * so both call one implementation. Collapsing (either control) is
+		 * the auto-advance trigger (#13) — not "all suggestions decided",
+		 * which would be ambiguous for a tool with zero suggestions. */
+		function toggleCollapse(section) {
+			const nowCollapsed = !section.classList.contains('collapsed');
+			section.classList.toggle('collapsed', nowCollapsed);
+			section.querySelector('.tool-header').setAttribute('aria-expanded', String(!nowCollapsed));
+			if (nowCollapsed) maybeAutoAdvance(section);
+		}
+
+		function maybeAutoAdvance(collapsedSection) {
+			const toggle = document.getElementById('auto-advance-toggle');
+			if (!toggle || !toggle.checked) return;
+			const secs = getVisibleSections();
+			const idx = secs.indexOf(collapsedSection);
+			if (idx === -1) return;
+			const next = secs[idx + 1];
+			if (next && next.classList.contains('collapsed')) {
+				next.classList.remove('collapsed');
+				next.querySelector('.tool-header').setAttribute('aria-expanded', 'true');
+			}
+		}
+
+		function setAllCollapsed(collapsed) {
+			getVisibleSections().forEach(section => {
+				section.classList.toggle('collapsed', collapsed);
+				section.querySelector('.tool-header').setAttribute('aria-expanded', String(!collapsed));
+			});
+		}
+
+		/* Called once, right after the initial applyFilters() on page load —
+		 * every section renders collapsed (renderTool), and the default sort
+		 * ("Needs decision first") only determines true visual order once
+		 * applyFilters() has already run, so "first" has to be resolved
+		 * after that reorder, not from render-time array index (B.2). Not
+		 * re-run on later filter/sort changes — that would blow away
+		 * whatever the user has manually expanded/collapsed by then. */
+		function collapseAllButFirst() {
+			const secs = getVisibleSections();
+			if (secs[0]) {
+				secs[0].classList.remove('collapsed');
+				secs[0].querySelector('.tool-header').setAttribute('aria-expanded', 'true');
+			}
 		}
 
 		/* ── Update state label text for a card ─────────────────────────── */
@@ -1641,21 +2223,64 @@
 
 		/* ── Decision button clicks + misc delegated actions ─────────────── */
 		document.addEventListener('click', e => {
-			/* Decision buttons */
+			/* Turn-thread controls (#27/#28, results-view-design.md C.10) —
+			 * shared by followup cards and failed-action debug threads.
+			 * Checked before the plain Report-tab decision-button branch
+			 * below since both use the same .btn-decision class; a
+			 * .thread-controls ancestor means this click is part of a
+			 * thread, not a one-shot Report-tab card. */
+			const threadBtn = e.target.closest('.thread-controls .btn-decision');
+			if (threadBtn) {
+				const controls = threadBtn.closest('.thread-controls');
+				const action = threadBtn.dataset.action;
+				controls.dataset.decision = controls.dataset.decision === action ? '' : action;
+				controls.querySelectorAll('.btn-decision').forEach(b => {
+					b.classList.toggle('is-selected', b.dataset.action === controls.dataset.decision);
+				});
+				const sendBtn = controls.querySelector('.btn-thread-send');
+				if (sendBtn) sendBtn.disabled = !controls.dataset.decision;
+				return;
+			}
+			const sendBtn = e.target.closest('.thread-controls .btn-thread-send');
+			if (sendBtn) {
+				const controls = sendBtn.closest('.thread-controls');
+				const threadId = controls.dataset.threadId;
+				const comment = controls.querySelector('.card-comment')?.value || '';
+				const decision = controls.dataset.kind === 'action' ? 'discuss' : controls.dataset.decision;
+				if (decision) submitTurn(threadId, decision, comment, controls.closest('.thread-mount, .action-thread'));
+				return;
+			}
+			const retryBtn = e.target.closest('.thread-controls .btn-thread-retry');
+			if (retryBtn) {
+				const controls = retryBtn.closest('.thread-controls');
+				const threadId = controls.dataset.threadId;
+				const comment = controls.querySelector('.card-comment')?.value || '';
+				submitTurn(threadId, 'accept', comment, controls.closest('.thread-mount, .action-thread'));
+				return;
+			}
+
+			/* Report-tab decision buttons — toggle local state only; the
+			 * actual decision is sent later by the page-wide Submit button. */
 			const btn = e.target.closest('.btn-decision');
 			if (btn) {
 				const card = btn.closest('.suggestion-card');
 				const action = btn.dataset.action;
-				if (card.dataset.followup === '1') {
-					/* Follow-on suggestion (Results view): posts to /followup,
-					 * one decision only, no toggle-back — handled separately
-					 * since it's a per-id server round trip, not local state. */
-					handleFollowupDecision(card, action);
-				} else {
-					card.dataset.decision = card.dataset.decision === action ? '' : action;
-					updateStateLabel(card);
-					updateProgress();
-				}
+				card.dataset.decision = card.dataset.decision === action ? '' : action;
+				updateStateLabel(card);
+				updateProgress();
+				const section = card.closest('.tool-section');
+				if (section) refreshDecisionBadge(section);
+				return;
+			}
+
+			/* Link modal trigger (embedded_content links, A.1/B.2) */
+			const modalTrigger = e.target.closest('.link-modal-trigger');
+			if (modalTrigger) {
+				openLinkModal(Number(modalTrigger.dataset.embedIdx));
+				return;
+			}
+			if (e.target.id === 'link-modal-close' || e.target.id === 'link-modal-overlay') {
+				closeLinkModal();
 				return;
 			}
 
@@ -1693,9 +2318,20 @@
 			/* Tool header collapse */
 			const header = e.target.closest('.tool-header');
 			if (header) {
-				toggleCollapse(header);
+				toggleCollapse(header.closest('.tool-section'));
+				return;
+			}
+
+			/* Bottom collapse control (#12 — twin of the header toggle) */
+			const bottomCollapseBtn = e.target.closest('.tool-collapse-bottom');
+			if (bottomCollapseBtn) {
+				toggleCollapse(bottomCollapseBtn.closest('.tool-section'));
+				return;
 			}
 		});
+
+		document.getElementById('btn-collapse-all').addEventListener('click', () => setAllCollapsed(true));
+		document.getElementById('btn-expand-all').addEventListener('click', () => setAllCollapsed(false));
 
 		/* ── Progress bar + submit gating ────────────────────────────────── */
 		function updateProgress() {
@@ -1844,11 +2480,21 @@
 						return sc !== 0 ? sc : (a.dataset.name || '').localeCompare(b.dataset.name || '');
 					}
 					case 'major': {
+						/* Mirrors assemble.py's _LEADING_INT regex (^\s*v?(\d+)) so a
+						 * "v"-prefixed version (e.g. "v9.0.0") parses the same way here
+						 * as it does for risk_level server-side — a bare parseInt() on
+						 * a leading "v" returns NaN and silently zeroed out this tool's
+						 * delta, tying it with every unrelated tool instead of sorting
+						 * near the top of "Major delta first". */
+						const leadingMajor = v => {
+							const m = typeof v === 'string' && v.match(/^\s*v?(\d+)/);
+							return m ? parseInt(m[1], 10) : NaN;
+						};
 						const getMajorDelta = el => {
 							const tool = (REPORT.tools || []).find(t => t.id === el.getAttribute('data-tool-id'));
 							if (!tool) return 0;
-							const cur = parseInt(tool.current_version);
-							const lat = parseInt(tool.latest_version);
+							const cur = leadingMajor(tool.current_version);
+							const lat = leadingMajor(tool.latest_version);
 							return (isNaN(cur) || isNaN(lat)) ? 0 : lat - cur;
 						};
 						return getMajorDelta(b) - getMajorDelta(a);
@@ -1905,9 +2551,14 @@
 			card.dataset.decision = action;
 			updateStateLabel(card);
 			updateProgress();
+			refreshDecisionBadge(section);
 		}
 
 		document.addEventListener('keydown', e => {
+			if (e.key === 'Escape' && document.getElementById('link-modal-overlay').dataset.open === '1') {
+				closeLinkModal();
+				return;
+			}
 			/* Suppress when typing */
 			if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
 			if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1965,10 +2616,12 @@
 		let spinIdx = 0;
 		const SPIN_FRAMES = ['⠇','⠏','⠋','⠙','⠸','⠴','⠦','⠧'];
 
-		/* Client-side record of follow-on suggestion decisions (id → decision)
-		 * so an optimistic UI update survives a status.json poll that hasn't
-		 * caught up yet with the server's followup_decisions.json write. */
-		const decidedFollowups = new Map();
+		/* Client-side record of turns submitted this session (thread id →
+		 * Turn[]) so an optimistic UI update survives a status.json poll
+		 * that hasn't caught up yet with the server's followup_turns.json
+		 * write (#27, results-view-design.md C.10) — shared by followup
+		 * threads and failed-action debug threads alike. */
+		const localTurns = new Map();
 
 		/* ── Initial-load status probe ───────────────────────────────────── */
 		async function probeStatus() {
@@ -1986,7 +2639,9 @@
 			renderHeader();
 			renderTools();
 			updateProgress();
+			document.querySelectorAll('.tool-section').forEach(refreshDecisionBadge);
 			applyFilters();
+			collapseAllButFirst();
 		}
 
 		/* ── Transition to Results view ──────────────────────────────────── */
@@ -2001,6 +2656,7 @@
 				renderHeader();
 				renderTools();
 				applyFilters();
+				collapseAllButFirst();
 			}
 
 			// 1. Filter bar stays visible and interactive — it's a read-only
@@ -2010,11 +2666,14 @@
 			// looking at a filtered-empty report.
 
 			// 2. Replace progress-bar-container contents with tab strip
+			// (Results | Report | Changelog — #29 promotes Changelog to a
+			// sibling tab instead of a Results-panel subsection)
 			const pbc = document.getElementById('progress-bar-container');
 			pbc.innerHTML =
 				'<div id="tab-strip">' +
 					'<button class="tab-btn active" id="tab-results">Results</button>' +
 					'<button class="tab-btn" id="tab-report">Report</button>' +
+					'<button class="tab-btn" id="tab-changelog">Changelog</button>' +
 					'<span id="tab-status">Applying…</span>' +
 				'</div>';
 
@@ -2041,31 +2700,64 @@
 						'<span class="action-note">Connecting…</span>' +
 					'</div>' +
 				'</div>';
+			// Unified status header (#23) sits first — always visible,
+			// merging what used to be two separate displays (tab-status +
+			// #results-status-bar) into one. Followups sit right after it,
+			// above the action list, since they're what most needs the
+			// user's attention (moved up from below in the old layout).
 			panel.innerHTML =
-				'<div id="results-status-bar">Applying changes…</div>' +
+				'<div id="results-header">' +
+					'<div id="results-header-status">Applying changes…</div>' +
+					'<div id="results-progress-row">' +
+						'<div id="results-progress-track"><div id="results-progress-fill"></div></div>' +
+						'<span id="results-done-count"></span>' +
+					'</div>' +
+					'<div id="results-header-counts"></div>' +
+				'</div>' +
+				'<div id="followups-section" style="display:none">' +
+					'<div class="section-label">FOLLOWUPS</div>' +
+					'<div id="followup-cards"></div>' +
+				'</div>' +
 				'<div id="action-list">' +
 					'<div class="section-label">ACTIONS</div>' +
 					'<div id="action-rows">' + loadingRowHtml + '</div>' +
 				'</div>' +
-				'<div id="followups-section" style="display:none">' +
-					'<div class="section-label">FOLLOW-ON SUGGESTIONS</div>' +
-					'<div id="followup-cards"></div>' +
-				'</div>' +
-				'<div id="results-recap" style="display:none">' +
-					'<div class="section-label">NOTES / RECAP</div>' +
-					'<pre id="recap-text"></pre>' +
-				'</div>' +
-				'<div id="results-changelog" style="display:none">' +
-					'<div class="section-label">CHANGELOG ENTRIES</div>' +
-					'<div id="changelog-entries"></div>' +
+				'<div id="results-recap" style="display:none" data-expanded="0">' +
+					'<div class="section-label" id="recap-toggle">NOTES / RECAP <span class="recap-expand">▸ show</span></div>' +
+					'<div id="recap-body"></div>' +
 				'</div>' +
 				'<div id="finish-row">' +
 					'<button id="finish-btn" disabled>Finish ↗</button>' +
 				'</div>';
 
+			// Changelog is its own tab now (#29), not a Results-panel
+			// subsection — a sibling panel to #main/#results-panel.
+			const changelogPanel = document.createElement('div');
+			changelogPanel.id = 'changelog-panel';
+			changelogPanel.innerHTML =
+				'<div id="changelog-date-heading"></div>' +
+				'<div id="changelog-entries"></div>';
+
 			// 5. Insert after progress-bar-container; show panel, hide report
+			pbc.insertAdjacentElement('afterend', changelogPanel);
 			pbc.insertAdjacentElement('afterend', panel);
 			mainEl.style.display = 'none';
+
+			// results-view-design.md C.6: the Changelog tab shows "an empty
+			// state rather than being disabled" whenever changelog_entries is
+			// empty — including the real gap between Submit and the first
+			// /status response (there is no initialData yet on that path), not
+			// just once real data with an empty array arrives. Render it now
+			// so a user who clicks the tab that early sees "No changelog
+			// entries yet." instead of a totally blank panel.
+			renderChangelogPanel(initialData || {});
+
+			document.getElementById('recap-toggle').addEventListener('click', () => {
+				const recap = document.getElementById('results-recap');
+				const expanded = recap.dataset.expanded === '1';
+				recap.dataset.expanded = expanded ? '0' : '1';
+				recap.querySelector('.recap-expand').textContent = expanded ? '▸ show' : '▾ hide';
+			});
 
 			// Animate the placeholder spinner immediately, before renderResults()
 			// (which normally owns spinInterval) ever runs.
@@ -2078,20 +2770,18 @@
 				}, 120);
 			}
 
-			// Tab switching
-			document.getElementById('tab-results').addEventListener('click', () => {
-				document.getElementById('tab-results').classList.add('active');
-				document.getElementById('tab-report').classList.remove('active');
-				panel.style.display = 'block';
-				mainEl.style.display = 'none';
-			});
-
-			document.getElementById('tab-report').addEventListener('click', () => {
-				document.getElementById('tab-report').classList.add('active');
-				document.getElementById('tab-results').classList.remove('active');
-				panel.style.display = 'none';
-				mainEl.style.display = 'block';
-			});
+			// Tab switching (Results | Report | Changelog — three mutually
+			// exclusive panels sharing one tab strip).
+			function selectTab(name) {
+				const panels = { results: panel, report: mainEl, changelog: changelogPanel };
+				['results', 'report', 'changelog'].forEach(n => {
+					document.getElementById('tab-' + n).classList.toggle('active', n === name);
+					panels[n].style.display = (n === name) ? 'block' : 'none';
+				});
+			}
+			document.getElementById('tab-results').addEventListener('click', () => selectTab('results'));
+			document.getElementById('tab-report').addEventListener('click', () => selectTab('report'));
+			document.getElementById('tab-changelog').addEventListener('click', () => selectTab('changelog'));
 
 			// Finish button
 			document.getElementById('finish-btn').addEventListener('click', async () => {
@@ -2118,6 +2808,127 @@
 		}
 
 		/* ── Render results (idempotent) ─────────────────────────────────── */
+		/* ── Turn-based threads (#27/#28, results-view-design.md C.10) ────
+		 * Shared mechanism for followup cards and failed-action debug
+		 * threads: both are an array of Turn objects, rendered as read-only
+		 * history plus one set of active controls for the next turn. */
+		/* serverTurnsCache/localBaseline back turnsForThread's merge — see
+		 * its own comment for why a plain "longer array wins" comparison
+		 * (this function's first version) is wrong: it silently drops the
+		 * server's real history whenever a local turn is appended on top of
+		 * a thread that already had turns (e.g. an agent-initiated
+		 * followup's opening turn), instead of layering on top of it. */
+		const serverTurnsCache = new Map();
+		const localBaseline = new Map();
+
+		function turnsForThread(threadId, serverTurns) {
+			if (serverTurns) serverTurnsCache.set(threadId, serverTurns);
+			const server = serverTurnsCache.get(threadId) || [];
+			const local = localTurns.get(threadId) || [];
+			if (!local.length) return server;
+			const baseline = localBaseline.get(threadId) ?? server.length;
+			if (server.length >= baseline + local.length) {
+				// The server has caught up (its poll now reflects our local
+				// turns, and possibly more — e.g. an agent turn appended
+				// after) — drop the local overlay and trust server data.
+				localTurns.delete(threadId);
+				localBaseline.delete(threadId);
+				return server;
+			}
+			// Server hasn't caught up yet: show what it knew as of our
+			// baseline, plus the turns we've submitted since.
+			return server.slice(0, baseline).concat(local);
+		}
+
+		function renderTurnLine(t) {
+			const who = t.author === 'agent' ? 'Agent' : 'You';
+			const decisionHtml = t.decision ? `<span class="tt-decision">${esc(t.decision)}</span>` : '';
+			const body = t.comment || t.action_taken || '';
+			return `<div class="thread-turn"><span class="tt-author">${who}</span>${decisionHtml} ${inlineMd(body)}</div>`;
+		}
+
+		/* kind "followup": Accept/Reject/Discuss + comment + Send (decoupled
+		 * per #26 — selecting a decision never submits by itself). kind
+		 * "action": Retry (submits decision:"accept" immediately, with
+		 * whatever's in the comment box) + a plain debug comment + Send
+		 * (submits decision:"discuss") — a failed action has no separate
+		 * suggestion to reject, just a command to retry or a note to leave. */
+		function renderThreadHtml(threadId, turns, kind) {
+			const historyHtml = turns.length
+				? `<div class="thread-history">${turns.map(renderTurnLine).join('')}</div>`
+				: '';
+			const controlsHtml = kind === 'action'
+				? `<div class="thread-controls" data-thread-id="${esc(threadId)}" data-kind="action">
+					<button type="button" class="btn-thread-retry">Retry</button>
+					<textarea class="card-comment" placeholder="Optional debugging notes…" rows="1"></textarea>
+					<button type="button" class="btn-thread-send">Send</button>
+				</div>`
+				: `<div class="thread-controls" data-thread-id="${esc(threadId)}" data-kind="followup">
+					<div class="card-actions">
+						<button class="btn-decision btn-accept" data-action="accept">Accept</button>
+						<button class="btn-decision btn-reject" data-action="reject">Reject</button>
+						<button class="btn-decision btn-discuss" data-action="discuss">Discuss</button>
+					</div>
+					<textarea class="card-comment" placeholder="Optional comment…" rows="1"></textarea>
+					<button type="button" class="btn-thread-send" disabled>Send</button>
+				</div>`;
+			return historyHtml + controlsHtml;
+		}
+
+		function mountThread(mountEl, threadId, serverTurns, kind) {
+			if (!mountEl) return;
+			const turns = turnsForThread(threadId, serverTurns);
+			// Skip re-render when nothing changed since the last mount —
+			// this runs on every ~2s poll (renderResults -> renderFollowups/
+			// action threads), and unconditionally replacing the controls'
+			// innerHTML every time would wipe out a comment the user is
+			// mid-typing, or the decision they just selected, well before
+			// they click Send.
+			if (mountEl.dataset.renderedTurnCount === String(turns.length) &&
+				mountEl.dataset.renderedKind === kind) {
+				return;
+			}
+			mountEl.innerHTML = renderThreadHtml(threadId, turns, kind);
+			mountEl.dataset.renderedTurnCount = String(turns.length);
+			mountEl.dataset.renderedKind = kind;
+		}
+
+		async function submitTurn(threadId, decision, comment, mountEl) {
+			const controls = mountEl?.querySelector('.thread-controls');
+			const disableable = controls ? controls.querySelectorAll('button, textarea') : [];
+			disableable.forEach(el => { el.disabled = true; });
+
+			try {
+				const resp = await fetch(base + '/followup', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ thread_id: threadId, decision, comment }),
+				});
+				if (resp.ok) {
+					if (!localBaseline.has(threadId)) {
+						localBaseline.set(threadId, (serverTurnsCache.get(threadId) || []).length);
+					}
+					const turns = localTurns.get(threadId) || [];
+					turns.push({
+						turn: turns.length + 1, author: 'user', at: new Date().toISOString(),
+						decision, comment, action_taken: null,
+					});
+					localTurns.set(threadId, turns);
+					// Re-render immediately from local state — don't wait for
+					// the next poll to reflect a turn the server just accepted.
+					const kind = controls?.dataset.kind || 'followup';
+					mountThread(mountEl, threadId, null, kind);
+				} else {
+					const body = await resp.text().catch(() => resp.status);
+					disableable.forEach(el => { el.disabled = false; });
+					showError(`Server error ${resp.status}: ${body}`);
+				}
+			} catch (err) {
+				disableable.forEach(el => { el.disabled = false; });
+				showError(`Network error: ${err.message} — please retry.`);
+			}
+		}
+
 		function renderResults(data) {
 			window._lastStatusData = data;
 
@@ -2126,33 +2937,13 @@
 			const placeholder = document.getElementById('loading-placeholder-row');
 			if (placeholder) placeholder.remove();
 
-			// 1. Tab status text
+			// 1. Tab status text (compact, visible regardless of active tab)
 			updateTabStatus(data);
 
-			// 2. Results status bar
-			const statusBar = document.getElementById('results-status-bar');
-			if (data.done) {
-				const s = data.summary || {};
-				statusBar.textContent =
-					'Complete — ' + (s.applied ?? 0) + ' applied · ' +
-					(s.rejected ?? 0) + ' rejected · ' +
-					(s.discussed ?? 0) + ' discuss · ' +
-					(s.failed ?? 0) + ' failed';
-				statusBar.className = (s.failed > 0) ? 'failed' : '';
-			} else if (data.phase === 'discussing') {
-				statusBar.textContent = 'In discussion — apply pass complete';
-				statusBar.className = 'discussing';
-			} else {
-				const actions = data.actions || [];
-				const doneCount = actions.filter(
-					a => a.state === 'done' || a.state === 'failed' || a.state === 'skipped'
-				).length;
-				const failedCount = actions.filter(a => a.state === 'failed').length;
-				statusBar.textContent =
-					'Applying changes — ' + doneCount + ' of ' + actions.length +
-					' done · ' + failedCount + ' failed';
-				statusBar.className = failedCount > 0 ? 'failed' : '';
-			}
+			// 2. Unified status header (#23) — phase/staleness, a dynamic
+			// progress bar, and live failed/followup counts computed from
+			// the actual data every render, never frozen prose.
+			renderResultsHeader(data);
 
 			// 3. Action list (find-or-create rows by action id)
 			const rowsContainer = document.getElementById('action-rows');
@@ -2173,10 +2964,24 @@
 						'<span class="action-note"></span>';
 					const detailPre = document.createElement('pre');
 					detailPre.className = 'action-detail-pre';
+					const threadMount = document.createElement('div');
+					threadMount.className = 'action-thread';
+					threadMount.style.display = 'none';
 					row.appendChild(mainLine);
 					row.appendChild(detailPre);
+					row.appendChild(threadMount);
 					mainLine.addEventListener('click', () => {
-						if (detailPre.textContent) detailPre.classList.toggle('expanded');
+						// Row expansion is tracked independently of whether
+						// `detail` happens to be non-empty — a failed action
+						// with no detail lines (a normal, documented case;
+						// `--detail-file` is optional) must still be able to
+						// reveal its retry/debug thread on click.
+						row.classList.toggle('row-expanded');
+						const expanded = row.classList.contains('row-expanded');
+						if (detailPre.textContent) detailPre.classList.toggle('expanded', expanded);
+						if (row.classList.contains('state-failed-row')) {
+							threadMount.style.display = expanded ? 'block' : 'none';
+						}
 					});
 					rowsContainer.appendChild(row);
 				}
@@ -2185,6 +2990,7 @@
 				const label   = row.querySelector('.action-label');
 				const note    = row.querySelector('.action-note');
 				const detail  = row.querySelector('.action-detail-pre');
+				const threadMount = row.querySelector('.action-thread');
 
 				const icons = { pending: '○', running: SPIN_FRAMES[spinIdx % SPIN_FRAMES.length],
 					done: '✓', failed: '✗', skipped: '—' };
@@ -2192,6 +2998,7 @@
 				icon.className = 'action-icon state-' + action.state;
 				label.textContent = action.label || action.id;
 				note.textContent  = action.note || '';
+				row.classList.toggle('state-failed-row', action.state === 'failed');
 
 				if (action.detail && action.detail.length > 0) {
 					detail.textContent = action.detail.join('\n');
@@ -2200,39 +3007,44 @@
 					detail.textContent = '';
 					row.querySelector('.action-main-line').style.cursor = 'default';
 				}
+
+				// Failed-action inline retry/debug thread (#28) — same
+				// mechanism as a followup, scoped to this action's own id.
+				// Only failed actions get one; a done/pending/skipped action
+				// has nothing to retry or debug.
+				if (action.state === 'failed') {
+					mountThread(threadMount, action.id, action.thread, 'action');
+				} else {
+					threadMount.innerHTML = '';
+					// Clear mountThread's memoization too — otherwise an
+					// action that goes failed -> running -> failed again
+					// with the same turn count would silently stay blank
+					// (the skip-check would see a "no change" match against
+					// stale data left over from before this reset).
+					delete threadMount.dataset.renderedTurnCount;
+					delete threadMount.dataset.renderedKind;
+				}
 			});
 
-			// 3b. Follow-on suggestions surfaced mid-apply from tool_comments
-			// (A.2 / C.2 step 7) — pending_followups in status.json.
+			// 4. Followups (#23 — moved above the action list; #27 — thread
+			// cards instead of one-shot decisions).
 			renderFollowups(data.pending_followups || []);
 
-			// 4. Recap section
+			// 5. Recap section — collapsed by default (#23), rendered as
+			// markdown (#30) rather than a raw <pre> dump.
 			const recapEl = document.getElementById('results-recap');
-			const recapText = document.getElementById('recap-text');
+			const recapBody = document.getElementById('recap-body');
 			if (data.recap) {
-				recapText.textContent = data.recap;
+				recapBody.innerHTML = renderMarkdown(data.recap);
 				recapEl.style.display = 'block';
 			} else {
 				recapEl.style.display = 'none';
 			}
 
-			// 5. Changelog section
-			const changelogEl  = document.getElementById('results-changelog');
-			const entriesEl    = document.getElementById('changelog-entries');
-			if (data.changelog_entries && data.changelog_entries.length > 0) {
-				entriesEl.innerHTML = data.changelog_entries.map((entry, i) => {
-					const pre = document.createElement('pre');
-					pre.textContent = entry;
-					return pre.outerHTML +
-						(i < data.changelog_entries.length - 1
-							? '<hr class="changelog-entry-sep">' : '');
-				}).join('');
-				changelogEl.style.display = 'block';
-			} else {
-				changelogEl.style.display = 'none';
-			}
+			// 6. Changelog — its own tab now (#29), not part of this panel.
+			renderChangelogPanel(data);
 
-			// 6. Finish button
+			// 7. Finish button
 			const finishBtn = document.getElementById('finish-btn');
 			if (finishBtn) finishBtn.disabled = !data.done;
 
@@ -2251,33 +3063,54 @@
 			}
 		}
 
-		/* ── Follow-on suggestions (Results view, A.2 / C.2 step 7) ───────
-		 * These are surfaced live, mid-apply, when investigating a
-		 * tool_comments entry (or a "discuss" comment) concludes a concrete
-		 * change is warranted. They are never auto-applied on the strength
-		 * of a comment alone — each needs its own fresh accept/reject/discuss
-		 * here, posted individually to POST /followup (not folded into the
-		 * one-shot /feedback payload, which already has a whole-session
-		 * duplicate-submit guard that doesn't fit this repeating case).
-		 *
-		 * Contract with status.json (chosen here; the session/orchestrator
-		 * that writes status.json must match this shape):
-		 *   status.pending_followups: Array<Suggestion & {
-		 *     tool_id?: string,        // originating tool, e.g. "mise:node"
-		 *     tool_name?: string,      // display name for the tool, e.g. "node"
-		 *     origin_comment?: string, // the tool_comments/discuss text that triggered it
-		 *   }>
-		 * Each element has the same shape as any report suggestion object
-		 * (id, kind, title, rationale, target_files/diff_preview or command,
-		 * auto_runnable/needs_sudo/manual_reason, motivating_link) so
-		 * renderCard() can be reused unmodified for the card body. Once a
-		 * decision is POSTed and accepted (200), the id is expected to
-		 * disappear from pending_followups on the *next* status.json write
-		 * (the server's source of truth is followup_decisions.json) — but
-		 * this code tolerates a stale poll that still includes an
-		 * already-decided id via the decidedFollowups map below, so a
-		 * lagging status.json can never "undecide" a card the user already
-		 * acted on. */
+		/* ── Unified status header (#23) ──────────────────────────────────── */
+		function renderResultsHeader(data) {
+			const statusEl = document.getElementById('results-header-status');
+			const actions = data.actions || [];
+			const doneCount = actions.filter(
+				a => a.state === 'done' || a.state === 'failed' || a.state === 'skipped'
+			).length;
+			const failedCount = actions.filter(a => a.state === 'failed').length;
+
+			let phaseText;
+			if (data.done) {
+				const d = new Date(data.written_at);
+				phaseText = 'Complete · ' + d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+			} else if (data.phase === 'discussing') {
+				phaseText = 'In discussion — apply pass complete';
+			} else {
+				phaseText = 'Applying changes';
+			}
+			if (!data.done && data.written_at) {
+				const delta = Math.round((Date.now() - new Date(data.written_at).getTime()) / 1000);
+				phaseText += ' · updated ' + delta + 's ago';
+			}
+			const isStale = data.written_at && !data.done &&
+				(Date.now() - new Date(data.written_at).getTime()) > 120000;
+			if (isStale) phaseText += ' <span class="stale">· session may have stopped</span>';
+			statusEl.innerHTML = phaseText;
+			statusEl.className = data.phase === 'discussing' ? 'discussing' : (failedCount > 0 ? 'failed' : '');
+
+			const pct = actions.length ? Math.round(100 * doneCount / actions.length) : 0;
+			document.getElementById('results-progress-fill').style.width = pct + '%';
+			document.getElementById('results-done-count').textContent = doneCount + ' / ' + actions.length + ' done';
+
+			// Followup counts computed live from pending_followups every
+			// render — never baked into recap prose, which is exactly the
+			// staleness bug this replaces (a frozen "N pending" sentence
+			// that went stale the instant the user decided one).
+			const followups = data.pending_followups || [];
+			const pending = followups.filter(f => f.resolution === 'pending' || !f.resolution).length;
+			const resolved = followups.length - pending;
+			const countsEl = document.getElementById('results-header-counts');
+			countsEl.innerHTML =
+				`<span class="${failedCount > 0 ? 'rh-failed' : ''}">${failedCount} failed</span>` +
+				(followups.length
+					? ` · <span class="${pending > 0 ? 'rh-followup' : ''}">${followups.length} followup${followups.length === 1 ? '' : 's'}: ${resolved} resolved, ${pending} pending</span>`
+					: ' · 0 followups');
+		}
+
+		/* ── Followups (#23/#27) ──────────────────────────────────────────── */
 		function renderFollowups(list) {
 			const section = document.getElementById('followups-section');
 			const container = document.getElementById('followup-cards');
@@ -2299,63 +3132,57 @@
 					if (sug.tool_name || sug.origin_comment) {
 						const originHtml =
 							(sug.tool_name ? `<span class="target-label">From:</span> <span class="target-path">${esc(sug.tool_name)}</span> ` : '') +
-							(sug.origin_comment ? `<span class="item-motivating">“${esc(sug.origin_comment)}”</span>` : '');
+							(sug.origin_comment ? `<span class="item-motivating">“${esc(sug.origin_comment)}”</span>` : '') +
+							(sug.origin === 'agent_initiated' ? `<span class="target-label" style="margin-left:6px;">Agent-initiated</span>` : '');
 						card.querySelector('.card-header')
 							.insertAdjacentHTML('afterend', `<div class="card-targets">${originHtml}</div>`);
 					}
 					container.appendChild(card);
 				}
-
-				// Optimistic local decision (this session already POSTed and
-				// got a 200) always wins over whatever the poll just said —
-				// no undo for follow-ons, so once decided, stay decided.
-				if (decidedFollowups.has(sug.id) && card.dataset.decided !== '1') {
-					applyFollowupDecidedState(card, decidedFollowups.get(sug.id));
-				}
+				mountThread(card.querySelector('.thread-mount'), sug.id, sug.turns, 'followup');
 			});
 		}
 
-		function applyFollowupDecidedState(card, decision) {
-			card.dataset.decision = decision;
-			card.dataset.decided = '1';
-			updateStateLabel(card);
-			card.querySelectorAll('.btn-decision').forEach(b => { b.disabled = true; });
-			const ta = card.querySelector('.card-comment');
-			if (ta) ta.disabled = true;
+		/* ── Changelog tab (#29) — heading-only entries, one shared date ──── */
+		function parseChangelogEntry(entry) {
+			// Written by the session as "## {date}\n### {source}: {name} ...\n{detail}"
+			// (design.md C.2 step 8) — strip the date line (shown once for the
+			// whole tab instead) and split heading from detail.
+			const withoutDate = entry.replace(/^##\s.*\n+/, '');
+			const m = withoutDate.match(/^(###\s.*)\n?([\s\S]*)$/);
+			if (!m) return { title: withoutDate.trim(), detail: '' };
+			return { title: m[1].replace(/^###\s*/, '').trim(), detail: m[2].trim() };
 		}
 
-		async function handleFollowupDecision(card, action) {
-			if (card.dataset.decided === '1') return; /* no undo, ignore repeat clicks */
-
-			const sid = card.dataset.suggestionId;
-			const comment = card.querySelector('.card-comment')?.value || '';
-			const buttons = card.querySelectorAll('.btn-decision');
-			buttons.forEach(b => { b.disabled = true; }); /* prevent double-submit while in flight */
-
-			try {
-				const resp = await fetch(base + '/followup', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ suggestion_id: sid, decision: action, comment }),
-				});
-				if (resp.ok) {
-					decidedFollowups.set(sid, action);
-					applyFollowupDecidedState(card, action);
-				} else if (resp.status === 409) {
-					/* Already decided (e.g. duplicate click race) — reflect as
-					 * locked without knowing which decision won; refresh will
-					 * pick up the true state on the next status.json poll. */
-					card.dataset.decided = '1';
-					showError('This suggestion was already decided.');
-				} else {
-					const body = await resp.text().catch(() => resp.status);
-					buttons.forEach(b => { b.disabled = false; });
-					showError(`Server error ${resp.status}: ${body}`);
-				}
-			} catch (err) {
-				buttons.forEach(b => { b.disabled = false; });
-				showError(`Network error: ${err.message} — please retry.`);
+		function renderChangelogPanel(data) {
+			const entries = data.changelog_entries || [];
+			const dateEl = document.getElementById('changelog-date-heading');
+			const entriesEl = document.getElementById('changelog-entries');
+			if (!entries.length) {
+				dateEl.textContent = '';
+				entriesEl.innerHTML = '<p style="color:var(--base01);font-size:12px;">No changelog entries yet.</p>';
+				return;
 			}
+			const dateMatch = entries[0].match(/^##\s*(.+)$/m);
+			dateEl.textContent = 'Changelog' + (dateMatch ? ' — ' + dateMatch[1].trim() : '');
+			entriesEl.innerHTML = entries.map((entry, i) => {
+				const { title, detail } = parseChangelogEntry(entry);
+				const id = 'changelog-' + i;
+				return `
+			<div class="changelog-entry" id="${id}" data-expanded="0">
+				<div class="changelog-entry-title" onclick="toggleChangelogEntry('${id}')">${esc(title)}${detail ? ' <span class="content-item-expand">▸ show</span>' : ''}</div>
+				${detail ? `<div class="changelog-entry-body">${renderMarkdown(detail)}</div>` : ''}
+			</div>`;
+			}).join('');
+		}
+
+		function toggleChangelogEntry(id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			const expanded = el.dataset.expanded === '1';
+			el.dataset.expanded = expanded ? '0' : '1';
+			const label = el.querySelector('.content-item-expand');
+			if (label) label.textContent = expanded ? '▸ show' : '▾ hide';
 		}
 
 		/* ── Tab status text ─────────────────────────────────────────────── */

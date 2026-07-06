@@ -64,17 +64,69 @@ The report is a single JSON object injected into the page template. The top-leve
 	"current_version": "4.9.3",
 	"latest_version":  "5.5.1",
 
+	// ── Risk assessment (assembly-computed — see below) ────────────────
+	"risk_level": "elevated",           // "low" | "elevated"
+
 	// ── Research ──────────────────────────────────────────────────────
 	"research_error": null,             // null | string — set if subagent failed
-	"headliners": [                     // agent-written; ≤6 concise bullets
-		"Migrated networking to netavark/aardvark stack",
-		"libkrun dependency now required (Apple Silicon only)"
+	// Agent-written; ≤6 concise items covering the whole current→latest
+	// range. Each is one atomic fact — split a compound changelog bullet
+	// ("added X, plus fixed CVE Y") into separate items before writing them
+	// here, never one item bundling both (SKILL.md step 3's quality bar).
+	// "category" and "severity" are independent axes, both assigned by
+	// research (not derived client-side from keywords — a heuristic can't
+	// tell topic apart from urgency, which is exactly how a low-profile
+	// security item used to get bucketed into Notes just because it read as
+	// minor). "category" is topic-only: which of the four content groups
+	// (B.2) this fact belongs in. "severity" reuses relevancy's vocabulary
+	// (`"info" | "notable" | "warning" | "incompatible"`) and drives this
+	// item's own color/icon within its category — it never changes which
+	// category the item lands in.
+	"headliners": [
+		{
+			"text":     "Migrated networking to netavark/aardvark stack",
+			"category": "features",           // "security" | "fixes" | "features" | "notes"
+			"severity": "notable"
+		},
+		{
+			"text":     "libkrun dependency now required (Apple Silicon only)",
+			"category": "fixes",
+			"severity": "warning"
+		}
 	],
+
+	// Categories where the vendor's own release notes for this range are
+	// pure non-detail ("This release includes security improvements.
+	// Updating is recommended.", nothing technical ever published) — SKILL.md
+	// forbids authoring fake bullets to fill this gap. Listing the category
+	// here renders one small compact tag in its place (B.2) instead of an
+	// empty or manufactured group. Rare: most tools never set this.
+	"vendor_silent_categories": [],   // e.g. ["security"]
+
 	"links": [
 		{
 			"type":  "changelog",           // "changelog" | "release" | "blog"
 			"label": "CHANGELOG.md",
 			"url":   "https://github.com/containers/podman/blob/main/CHANGELOG.md"
+			// "embedded_content" (below) is absent here — this link is a
+			// normal, human-navigable web page, so it just opens in a new tab.
+		},
+		{
+			// Fallback shape: used only when no stable, browsable destination
+			// exists for the source content at all (e.g. the actual changelog
+			// text was only available inside a downloaded release tarball, or
+			// as a raw non-browsable file) — never as a substitute for a real
+			// URL that does exist. "url" is omitted or null in this case; a
+			// link that would otherwise dead-end or trigger a file download
+			// is worse than no link.
+			"type":  "changelog",
+			"label": "stunnel 5.79 NEWS (from source tarball — no stable webpage)",
+			"url":   null,
+			"embedded_content": "### 5.79 (2026-06-20)\n\n- Fixed X\n- Changed Y\n\n[upstream advisory](https://...)"
+			// Markdown text, the actually-relevant excerpt only (not the
+			// whole file) — the page renders it in a modal instead of
+			// navigating externally. Any links inside the markdown render
+			// as normal links (B.2).
 		}
 	],
 
@@ -92,8 +144,15 @@ The report is a single JSON object injected into the page template. The top-leve
 	},
 
 	// ── Relevancy ─────────────────────────────────────────────────────
+	// A relevancy item connects a genuine changelog fact to a concrete
+	// effect on this setup — `motivating_change` is required and must name
+	// an actual changelog item, never null/"none found"/"not a
+	// changelog-driven finding". A finding with no real motivating change
+	// belongs in `context` below, not here with a hollow motivating_change.
 	"relevancy": [
 		{
+			"category": "fixes",            // "security" | "fixes" | "features" | "notes" —
+			                                 // topic only, independent of severity (see headliners above)
 			"severity": "incompatible",     // "info" | "notable" | "warning" | "incompatible"
 			"summary":  "Requires Apple Silicon (libkrun); Intel Mac not supported in v5+",
 			"detail":   "Longer explanation with the concrete failure mode.",
@@ -103,6 +162,38 @@ The report is a single JSON object injected into the page template. The top-leve
 			],
 			"motivating_change": "v5.0.0 release notes — 'libkrun is now a required dependency'"
 		}
+	],
+
+	// ── Context ───────────────────────────────────────────────────────
+	// Present-tense repo-scope/usage/locality/config-verification notes —
+	// "is this tool even used here", "does the claimed touchpoint actually
+	// hold", "does existing script logic still cover this release" —
+	// distinct from relevancy because there's no changelog fact driving
+	// them (motivating_change would be null there). Distinct from
+	// config_status, which is about audit-trail history ("was this handled
+	// by a prior commit"), not present-tense scope. No severity — these
+	// aren't change-risk items and shouldn't compete visually with ones
+	// that are (see B.2 — rendered collapsed-by-default, title-only until
+	// expanded, since they tend to run long: a one-line claim followed by a
+	// full paragraph of evidence).
+	"context": [
+		{
+			"title":    "No bespoke touchpoint anywhere in this repo",
+			"detail":   "Grepped tasks/*.sh, Brewfile, and dotfiles/ for azure-cli references; found none — this tool has no setup logic or config tracking it beyond the plain Brewfile line.",
+			"evidence": ["Brewfile:112"],
+			"link":     null                // optional; same shape as a links[] entry when relevant
+		}
+	],
+
+	// ── Release inventory ─────────────────────────────────────────────
+	// Bookkeeping about the release cadence itself within current→latest —
+	// "which releases exist in this range", not a claim about what any of
+	// them changed. Keep changelog content in headliners/relevancy/context;
+	// this is purely the version list, rendered as a short one-line-per-
+	// release list (not collapsed — these are already short).
+	"release_inventory": [
+		{ "version": "2026.06.09", "link": "https://github.com/yt-dlp/yt-dlp/releases/tag/2026.06.09" },
+		{ "version": "2026.07.04", "link": "https://github.com/yt-dlp/yt-dlp/releases/tag/2026.07.04" }
 	],
 
 	// ── Suggestions ───────────────────────────────────────────────────
@@ -209,6 +300,20 @@ Node gets a richer `headliners[]` list (security advisories, notable API
 changes); other mise runtimes get a coarser treatment (two or three bullets
 max, focus on breaking changes only).
 
+`risk_level` semantics: computed entirely by `scripts/assemble.py` from
+signals already present in the assembled Tool object — not a subjective
+per-tool judgment call left to the research subagent, so every run applies
+the same rule the same way. `"elevated"` if any of: `pinned` is true, any
+`relevancy[]` item has severity `warning`/`incompatible`, any `edit`-kind
+suggestion exists for this tool, or the version delta is a major bump
+(semver-aware — an unparseable version pair defaults to `"elevated"`, since
+an unknown delta size is never treated as low-risk). Otherwise `"low"`.
+Used by assembly to pre-set the baseline `upgrade` suggestion's initial
+decision (A.2) — a `"low"` tool starts `accept`ed instead of undecided; an
+`"elevated"` one starts undecided as before. This only ever affects the
+*baseline* `upgrade` suggestion; research-authored `edit` suggestions
+always start undecided regardless of the tool's risk_level.
+
 `config_status.state` semantics (see C.5 for how this is computed):
 - `up_to_date` — a prior commit or `changelog.md` entry already addressed
   this tool at a version ≥ today's `latest_version`. Purely confirmatory;
@@ -219,7 +324,12 @@ max, focus on breaking changes only).
   that fix may no longer be complete or correct (e.g. a pin comment
   reasoned about v5.0's requirement, and v5.5 changed the requirement
   again). Render as a warning banner — this is exactly the kind of thing a
-  periodic review should catch that a one-off glance wouldn't.
+  periodic review should catch that a one-off glance wouldn't. **Always
+  pairs with at least one suggestion that addresses it** — a banner telling
+  the user something might be stale, with nothing offered to resolve it,
+  just relocates the "someone should check this" burden onto them instead
+  of doing the check. If research concludes there's nothing to change
+  after all, that's `up_to_date`, not `needs_attention`.
 - `unknown` (default) — no evidence either way (no matching commit, no
   changelog entry). The common case for a first-time review of a tool.
   Render neutrally, same as today (no badge).
@@ -257,14 +367,26 @@ Written atomically by the server to `{session_dir}/feedback.json`.
 	// affected by this toggle — they're always manual, always.
 	"auto_run_upgrades": true,
 
-	// One entry per suggestion the user interacted with.
-	// Absent key = undecided.
+	// One entry per suggestion the user has a decision recorded for.
+	// Absent key = undecided — but "undecided" is no longer always the
+	// page's *starting* state (see below), only the state feedback.json
+	// records when the user never touched a control either way.
 	"decisions": {
 		"brew:podman:keep-pin-add-comment": {
 			"decision": "accept",           // "accept" | "reject" | "discuss"
 			"comment":  ""                  // may be non-empty for any decision
 		}
 	},
+
+	// A baseline "upgrade" suggestion on a "low" risk_level (A.1) tool
+	// renders pre-accepted (Accept button already shown active) instead of
+	// undecided — the page's default state, computed at render time from
+	// each tool's risk_level, not something feedback.json itself encodes
+	// specially. The user can still flip it to reject/discuss like any
+	// other decision; if they never touch it, it submits as a normal
+	// "accept" entry here, indistinguishable from one they clicked
+	// themselves. Only the baseline upgrade suggestion ever starts this
+	// way — research-authored "edit" suggestions always start undecided.
 
 	// Optional free-text comment anchored to a tool (not a suggestion).
 	"tool_comments": {
@@ -363,21 +485,121 @@ green check + "config current" for `up_to_date` (hover/click for the
 ("⚠ config may be stale — {detail}") placed right under the header before
 any content group, since it's a review-the-review flag the user shouldn't
 have to dig for.
+
+**Header badges, at a glance without expanding:**
+- **Decision-count badge**: while the tool has ≥1 undecided suggestion,
+  show an attention-styled badge with the undecided count (colored
+  icon — e.g. `--yellow` "?" or "!" — not neutral chrome, since this is the
+  "does this need me" signal). Once every suggestion on the tool has a
+  decision, downgrade to a quiet "N decided" badge (`--base01`, same
+  low-key treatment as the `config_status` "ok" badge) — the badge never
+  disappears, it just stops demanding attention.
+- **Severity-tier counts**: one small count per severity level actually
+  present among the tool's headliners+relevancy items (info/notable/
+  warning/incompatible), using the same icon/color mapping as per-item
+  severity above — e.g. "⛔1 ⚠2". Omit a tier with zero items rather than
+  showing "0". This is the "how significant is this tool's changelog"
+  signal, independent of the decision-count badge's "does it need action"
+  signal — both render, neither substitutes for the other.
+
+**Collapse controls**: the header row's existing collapse toggle gets a
+twin at the very bottom of the expanded body (after suggestion cards and
+the per-tool note area) — same handler, same collapsed/expanded state; a
+long tool card shouldn't force a scroll back to the top just to close it.
+This is distinct from the note textarea's own Close/collapse control
+(below), which only dismisses the note, not the whole section.
+
+**Default collapse state and auto-advance**: on page load, every tool
+section starts collapsed except the first (in current sort order) — with
+70+ tools, an all-expanded initial view is unusable. Collapsing a section
+(via either collapse control) auto-expands the next section in view order;
+this is gated by a toggle (default **on**) near the filter bar, so the
+behavior can be turned off for anyone who'd rather step through manually.
+**Auto-advance triggers on the collapse action itself** — not on "all of
+this tool's suggestions are decided," which would be ambiguous for a tool
+with zero suggestions or one the user collapses without deciding anything;
+collapsing is the one unambiguous, user-initiated signal that means "I'm
+done looking at this one for now." Add "Collapse all" / "Expand all"
+buttons next to the auto-advance toggle — both bulk actions ignore
+auto-advance entirely (they set every section to one state, not a
+one-at-a-time walk).
 **There is no separate "headliners" bullet list and no separate "links row"
-wall of buttons — both `headliners[]` and `relevancy[]` are classified and
-rendered entirely inside four content groups: Security, Fixes, Features,
-Notes** (catch-all/low-priority — anything that doesn't clearly fit the
-first three, including relevancy `info` items and headliner bullets with no
-sharper category), each with its own severity/notability color accent.
-Nothing is shown twice: a headliner that's really a security fix renders
-once, under Security, not also in a generic list. Evidence paths for
-relevancy items stay attached to their item wherever it lands. Lead with
-title + one-line description for each item; push its changelog/release link
-into a compact footer-style reference per item (a direct deep link where the
-source supports line-level anchors, e.g. a CHANGELOG.md section) rather than
-a shared links block. Suggestion cards follow the grouped content; a
-per-tool note textarea sits last, **with a Close/collapse control** so it
-can be dismissed after reading without leaving it visually "open" forever.
+wall of buttons — both `headliners[]` and `relevancy[]` render entirely
+inside four content groups: Security, Fixes, Features, Notes.** Each item
+carries its own `category` (which group) and `severity` (A.1, both assigned
+by research) — the groups themselves are neutral, purely-organizational
+containers with no color of their own; **only individual items are colored**,
+by their own `severity`, independent of which group they're in. This is a
+deliberate change from an earlier version of this design that colored the
+whole group box by a single severity/notability accent and derived
+category client-side from keyword matching — that heuristic is exactly
+what caused topic and urgency to get conflated (a low-profile security
+item reading as "minor" would get bucketed into Notes by the same signal
+that was supposed to be its severity, not its topic). Research assigns
+both explicitly now; the page just renders what it's given, no
+classification logic of its own. Nothing is shown twice: a headliner that's
+really a security fix renders once, under Security, not also in a generic
+list. Evidence paths for relevancy items stay attached to their item
+wherever it lands. Lead with title + one-line description for each item;
+push its changelog/release link into a compact footer-style reference per
+item (a direct deep link where the source supports line-level anchors, e.g.
+a CHANGELOG.md section) rather than a shared links block.
+
+**Per-item severity → color/icon** (reuses the palette's existing severity
+roles, B.1 — no new colors introduced): `incompatible` → `--red`, `⛔`;
+`warning` → `--yellow`, `⚠`; `notable` → `--orange`, `●`; `info` → `--blue`,
+`·`. Applied to the item's left border accent and a small leading icon —
+the group's own border/heading stays neutral (`--base01`) regardless of
+what severities its items carry.
+
+**Link click behavior**: a link with only `url` (A.1) behaves as a normal
+anchor — opens in a new tab. A link with `embedded_content` set opens a
+modal instead, rendering that markdown text inline (any links inside the
+markdown itself render as normal anchors within the modal) rather than
+navigating away — this is the fallback for source content with no stable
+browsable destination at all, not a general-purpose reader view; most links
+just have `url` and never trigger the modal.
+
+**After the four content groups, two more optional sections render** (only
+when the tool's research populated them — most tools have neither):
+- **Context** (from `context[]`, A.1): a callout, visually distinct from the
+  four groups above — no severity coloring, since these aren't change-risk
+  items. Each item starts **collapsed to its `title` only**; clicking
+  expands to show `detail`/`evidence`/`link`. This is a stronger collapse
+  default than suggestion cards or content-group items get elsewhere —
+  context items tend to be a one-line claim followed by a full paragraph
+  (e.g. "the existing warning and control flow remain accurate as
+  written" followed by the reasoning why), and showing that expanded by
+  default for every tool would bury the actual changelog content above it.
+- **Release inventory** (from `release_inventory[]`, A.1): a short list,
+  one line per `{version, link}` pair, no collapse (these are already
+  short) — pure bookkeeping about what releases exist in the current→latest
+  range, not a claim about what any of them changed.
+
+Both sit below Notes and above the suggestion cards. Suggestion cards
+follow the grouped content; a per-tool note textarea sits last, **with a
+Close/collapse control** so it can be dismissed after reading without
+leaving it visually "open" forever.
+
+**Compact "no detail published" tag**: driven by `vendor_silent_categories`
+(A.1) — a category name listed there renders one small pill-style tag in
+that group's slot ("No detailed changelog published") instead of its normal
+item list, even if the group would otherwise be empty. No bullet, no
+border-left accent, no per-item link (the link lives once, on the tool's
+canonical changelog/release reference). SKILL.md's research quality bar
+forbids authoring a fake bullet to fill this gap — this field is the
+correct alternative, not a fallback the page invents on its own from empty
+groups.
+
+**Per-item detail collapse**: inside the four content groups, an item with
+real secondary detail (`detail` beyond the one-line `summary`/title) shows
+only the summary in the forefront view; a small expand control (e.g. "▸
+more") reveals the rest, evidence, and per-item link. Items with no extra
+detail beyond the summary render with no expand control at all — don't add
+one that opens onto nothing. This is a lighter-weight collapse than the
+Context section's whole-item collapse (above) — the summary line stays
+visible here, since it's real changelog content, unlike Context's
+scope/locality notes.
 
 Suggestion card: for `kind: "upgrade"`, render the `command` in a copyable
 code chip instead of a diff (there is nothing to diff) with a short "run
@@ -435,7 +657,11 @@ increment up to 8751, then fail with `lsof -i :8742` hint.
 `allow_reuse_address = True`.
 
 Endpoints:
-- `GET /` → 200, serves `{session_dir}/index.html` read at request time.
+- `GET /` → 200, serves `{session_dir}/index.html` read at request time, or
+  an embedded loading page (results-view-design.md E) when `index.html`
+  doesn't exist yet — the server starts before research/render finish (C.2
+  step 2), so this is the normal state for the first stretch of a session.
+- `GET /research-status` → `research-status.json` or 404 (results-view-design.md E.1).
 - `GET /health` → `{"status":"ok"}` — session polls before opening browser.
 - `POST /feedback` → validate JSON + `report_id` + known suggestion ids
   (400 on any mismatch); 409 if `feedback.json` already exists (one
@@ -444,14 +670,19 @@ Endpoints:
   shut down the server** — it stays up so the page can keep polling
   `/status` through the whole apply pass. Only `/shutdown` (below) actually
   stops it.
-- `POST /followup` → for a tool-comment-triggered suggestion surfaced mid-apply
-  (see C.2 step 7): `{"suggestion_id", "decision", "comment"}`. 409 if that
-  `suggestion_id` already has a recorded decision (one decision per
-  follow-on suggestion, same spirit as the `/feedback` duplicate-guard, just
-  scoped per-id instead of per-session). Writes/merges into
-  `followup_decisions.json` (`.tmp` + `os.replace()`, dict keyed by
-  suggestion id) — the session polls that file directly (no new GET
-  endpoint needed, it already has local filesystem access).
+- `POST /followup` → **appends a turn** (results-view-design.md C.10) to a
+  thread — either a `pending_followups` entry or a `"failed"` action's own
+  `thread` (same mechanism, shared by #27/#28): `{"thread_id", "decision",
+  "comment"}`, `decision` one of `"accept"|"reject"|"discuss"|null`. Unlike
+  the original one-shot design, **there is no duplicate-decision 409** —
+  threads are multi-turn by design (results-view-design.md C.10), so a
+  second POST to the same `thread_id` is expected and valid, not an error.
+  Writes/merges into `followup_turns.json` (`.tmp` + `os.replace()`, dict
+  keyed by `thread_id` → array of turns, each turn timestamped `at` server-side
+  and `author: "user"`) — the session polls that file directly (no new GET
+  endpoint needed, it already has local filesystem access) and appends its
+  own `author: "agent"` turns directly into `status.json` (not through this
+  endpoint, which is browser→session only).
 - `POST /shutdown` → schedules `server.shutdown()` on a background thread
   (must run off the `serve_forever()` thread) after a ~1s delay so the
   response flushes; idempotent (still 200 if already scheduled).
@@ -463,26 +694,38 @@ every 5 s.
 ### C.2 Session Steps
 
 1. **Collect** — run `scripts/collect.sh` (brew outdated intersected with
-   Brewfile + pin state, mise outdated, standalone CLI versions) → candidates JSON.
-2. **Research** — one subagent per tool in parallel; each returns headliners,
-   typed links, relevancy (against setup repos + machine arch), suggestions.
-   Timeout → `research_error` set, tool still listed with versions only.
-3. **Assemble** — merge, compute summary counts, synthesize the baseline
-   `kind: "upgrade"` suggestion per tool, validate suggestion-id uniqueness
-   and evidence paths (warn, don't abort).
-4. **Render** — `scripts/render.py report.json` → writes `index.html` into a
-   session dir (`/tmp/tool-update-review-{report_id}/`).
-5. **Serve** — launch `server.py`, poll `/health`, `open http://localhost:{port}/`.
-6. **Wait** — block on server exit (24 h timeout; offer re-open or abandon).
-7. **Apply** — read `feedback.json`; for `kind: "edit"` accepts, apply per
+   Brewfile + pin state, mise outdated, standalone CLI versions) → candidates
+   JSON, and `scripts/repo_context.sh` → `repo_context.json` (C.5).
+2. **Serve** — launch `server.py`, poll `/health`, `open http://localhost:{port}/`
+   — started here, before research, since `server.py` tolerates a missing
+   `report.json` and falls back to a loading page (E) until one exists.
+3. **Research** — tiered subagents (SKILL.md step 3): one per tool with a
+   real repo touchpoint, one per ~4-9-tool batch otherwise; each writes its
+   own `research/{slug}.json` file rather than returning text to transcribe,
+   and the session updates `research-status.json` (E.1) as groups progress.
+   Returns headliners, typed links, relevancy (against setup repos + machine
+   arch), suggestions, config_status. Timeout/failure → `research_error`
+   set, tool still listed with versions only.
+4. **Assemble + Render** — read back `research/*.json`, merge with collect
+   output, compute summary counts, synthesize the baseline `kind: "upgrade"`
+   suggestion per tool, validate suggestion-id uniqueness and evidence paths
+   (warn, don't abort) — `scripts/assemble.py` does this mechanically — then
+   `scripts/render.py report.json` writes `index.html` into the session dir
+   (`/tmp/tool-update-review-{report_id}/`), followed by a `research-status.json`
+   update to `phase: "ready"` so the already-open loading page reloads into it.
+5. **Wait** — block on server exit (24 h timeout; offer re-open or abandon).
+6. **Apply** — read `feedback.json`; for `kind: "edit"` accepts, apply per
    repo conventions (dotfiles submodule flow for `dotfiles/` paths; direct
    edit for `Brewfile` etc., with the `./setup.sh projects` exception per
    CLAUDE.md when a target file is projects.sh-managed); for
    `kind: "upgrade"` accepts, execute per C.4 when auto-runnable, else
    prompt the user and poll; investigate `tool_comments`/`discuss` items and
-   turn any concluded action into a new pending suggestion rather than
-   applying it directly; summarize accepted/rejected/discuss/undecided +
-   comments.
+   turn any concluded action into a new pending followup thread
+   (`origin: "user_comment"`, results-view-design.md C.10) rather than
+   applying it directly — and do the same, unprompted, whenever the apply
+   pass itself hits something needing an explicit decision beyond plain
+   success/fail (`origin: "agent_initiated"`; results-view-design.md D);
+   summarize accepted/rejected/discuss/undecided + comments.
 
 ### C.3 Failure Modes
 
@@ -627,6 +870,57 @@ un-updated and untested. Instead:
 6. When the accepted `edit` suggestion from step 4 is applied (SKILL.md
    step 7), it's a normal repo edit + commit — nothing about this section
    changes how accepted `edit` suggestions get applied.
+
+### C.7 Watch Items — Persisting a Forward-Looking Concern
+
+`config_status` (C.5) is backward-looking: "was this tool's config already
+handled." Watch items are forward-looking: "the user flagged an ongoing
+concern about this tool — does *this run's* changelog touch it." Example:
+after investigating cursor-cli's shell-integration hook, the user wants any
+future cursor-cli changelog mentioning shell-integration/recording to be
+called out automatically, not re-investigated from scratch or missed.
+
+**File**: `${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json`
+— a sibling to `changelog.md`, same directory, created on first use. Shape:
+
+```jsonc
+{
+	"cask:cursor-cli": [
+		{
+			"topic": "shell-integration / session recording",
+			"note": "User wants any change to cursor-agent's shell hook or `agent record` behavior called out — see 2026-07-06's investigation: install-shell-integration execs `agent record` on every new shell via ~/.zshrc, zsh-only, undocumented data handling. User implemented an on-demand cursor-record() function instead of the vendor's always-on hook.",
+			"added_at": "2026-07-06"
+		}
+	]
+}
+```
+
+One entry per concern (a tool can have several); `topic` is a short phrase
+the next run's research subagent matches against its changelog content,
+`note` is the fuller context so a hit can explain itself without re-deriving
+everything.
+
+**Adding a watch item** (part of step 7's `tool_comments`/`discuss`
+investigation, SKILL.md): when investigating a comment concludes the user
+has an *ongoing* concern — they care about this topic on future runs, not
+just this one — append an entry here in addition to (never instead of)
+surfacing any concrete suggestion normally. A one-off question ("does this
+release fix the bug I hit last week?") doesn't need a watch item; a
+standing preference ("I don't want this tool doing X, ever, without me
+knowing") does. Use judgment; don't create a watch item for every comment
+reflexively.
+
+**Reading watch items** (part of step 2, Research): before researching, a
+subagent checks whether its assigned tool(s) have any watch-items.json
+entries and includes their `topic`/`note` in its own context. If this run's
+headliners/changelog touch a watched topic, that's not a normal `info`
+relevancy finding — bump it to at least `notable` severity (design.md A.1)
+and prefix the summary so it reads as a highlight (e.g. "⚠ Watch item hit:
+..."), citing the watch item's `note` as part of the evidence. This is the
+one case where relevancy severity is elevated by something *other* than
+the changelog content's own weight — a topic the user asked to be told
+about earns extra prominence regardless of how minor the change looks on
+its own.
 
 ## D. Template Variables
 

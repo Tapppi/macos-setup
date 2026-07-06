@@ -78,34 +78,69 @@ signal itself.
 
       // Last ≤10 lines of relevant output; empty array if none
       // e.g. diff hunk applied, commit hash, error message
-      "detail": []
+      "detail": [],
+
+      // Present only on a "failed" action (or one the user has commented
+      // on) — same Turn shape as pending_followups' turns[] above (C.10).
+      // This is what backs the failed-action inline retry/debug UI (C.6):
+      // a failed action isn't just a dead end, it's a thread the user can
+      // add a debug comment to or retry from, using the exact same
+      // mechanism a followup uses. Absent/empty for actions nothing has
+      // been added to yet.
+      "thread": []
     }
     // ... more actions in execution order
   ],
 
-  // Added by the /followup mechanism (design.md C.1/C.2 step 7): suggestions
-  // raised live, mid-apply, by investigating a tool_comments entry or a
-  // discuss comment. The session folds followup_decisions.json (written by
-  // POST /followup) together with its own investigation results into this
-  // array on every status.json write; an id disappears once decided.
-  // Each element has the same shape as a report Suggestion object (id, kind,
-  // title, rationale, target_files/diff_preview or command,
-  // auto_runnable/needs_sudo/manual_reason, motivating_link), plus:
+  // Threads raised live, mid-apply — by investigating a tool_comments entry
+  // or a discuss comment (user-initiated), or by the session itself hitting
+  // something during apply that needs an explicit decision, not just a
+  // plain success/fail outcome (agent-initiated — SKILL.md/design.md D).
+  // Each is a conversation, not a one-shot decision: turns accumulate, the
+  // newest is what's "active", and a thread is never permanently closed to
+  // new input — even one already resolved can get another out-of-turn turn
+  // later (e.g. an unrelated Gatekeeper popup noticed after an upgrade the
+  // followup was originally about had already been applied).
   "pending_followups": [
     {
       "id": "mise:node:from-comment-hold-for-nvmrc",
       "kind": "edit",
       "tool_id": "mise:node",              // originating tool
       "tool_name": "node",                 // display name for the origin line
-      "origin_comment": "Hold off until the project upgrades its .nvmrc"
+      "origin": "user_comment",            // "user_comment" | "agent_initiated"
+      // Purely descriptive of the latest concluded decision — never a hard
+      // "closed" gate. "pending": awaiting a decision on the latest turn.
+      // "applied"/"rejected": last decision was acted on, but the thread
+      // still accepts new turns (see turns[] below).
+      "resolution": "pending",            // "pending" | "applied" | "rejected"
+      "turns": [
+        {
+          "turn": 1,
+          "author": "user",                 // "user" | "agent"
+          "at": "2026-07-04T14:53:00Z",
+          "decision": "discuss",            // "accept" | "reject" | "discuss" | null (agent turns: null)
+          "comment": "Hold off until the project upgrades its .nvmrc",
+          "action_taken": null               // agent turns: what it did, e.g. "Applied edit, committed abc1234"
+        }
+        // ... more turns, newest last
+      ]
       // ...rest of the fields are identical to a normal Suggestion object
+      // (title, rationale, target_files/diff_preview or command,
+      // auto_runnable/needs_sudo/manual_reason, motivating_link) — a
+      // followup is a suggestion with a conversation attached, not a
+      // different kind of thing.
     }
   ],
 
-  // Free-form markdown-ish text written by the session at done time.
-  // Covers: what was applied, commits made, discuss items and their comments,
-  // rejected/undecided items, follow-up actions needed.
-  // Empty string until the session writes it (phase "done").
+  // Free-form markdown text written by the session at done time — pure
+  // narrative summary now (applied edits with commit hashes, failed
+  // actions with remediation hints for the ones that stay unresolved,
+  // rejected/undecided items). It does NOT need to mention followup counts
+  // or status — those live entirely in pending_followups/the merged status
+  // header (C.4) now, computed live on every poll, so recap can never go
+  // stale relative to them the way a frozen "N pending" sentence used to.
+  // Empty string until the session writes it (phase "done"). Rendered as
+  // parsed markdown (C.10), not preformatted text.
   "recap": "",
 
   // Each element is the markdown text of one changelog entry appended to
@@ -318,40 +353,64 @@ non-null, render it immediately before the first poll arrives.
 
 ### C.4 Results view layout
 
+Rewritten (superseding the original draft below the wireframes note) per
+live feedback: two separate status displays (tab-strip bar +
+`#results-status-bar`) merged into one; followups and recap moved above
+the action list; Changelog promoted to its own tab (#29) instead of a
+Results-panel subsection; recap collapsed by default so the page stays
+glanceable as it grows (#23).
+
 ```
 #progress-bar-container (repurposed — stays sticky):
 ┌──────────────────────────────────────────────────────────────────┐
-│  [Results ●]  [Report]        Applying…  · last update 0s ago   │
+│  [Results ●]  [Report]  [Changelog]      Applying… · updated 0s │
 └──────────────────────────────────────────────────────────────────┘
 
 #results-panel:
 ┌──────────────────────────────────────────────────────────────────┐
-│  #results-status-bar                                             │
-│  Applying changes… (2 / 7 done · 0 failed)                      │
+│  #results-header (unified — always visible, C.6)                │
+│  Applying changes… · updated 0s ago                              │
+│  [progress bar ===========------------------]  41/72 done       │
+│  0 failed · 2 followups: 0 resolved, 2 pending                  │
+├──────────────────────────────────────────────────────────────────┤
+│  FOLLOWUPS  (hidden until pending_followups non-empty)          │
+│  ... thread cards (C.10) ...                                     │
 ├──────────────────────────────────────────────────────────────────┤
 │  ACTIONS                                                         │
 │  [ state icon ]  label                         note (if any)    │
+│  a "failed" row expands inline to retry/debug controls (C.10)    │
 │  ...                                                             │
 ├──────────────────────────────────────────────────────────────────┤
-│  NOTES / RECAP      (hidden until recap non-empty)               │
-│  ...                                                             │
-├──────────────────────────────────────────────────────────────────┤
-│  CHANGELOG ENTRIES  (hidden until changelog_entries non-empty)   │
-│  ...                                                             │
+│  NOTES / RECAP  (collapsed by default — title only until expanded, │
+│                  hidden entirely until recap non-empty)          │
 ├──────────────────────────────────────────────────────────────────┤
 │                                    [Finish ↗]  (disabled / enabled) │
+└──────────────────────────────────────────────────────────────────┘
+
+#changelog-panel (separate tab, not part of #results-panel — C.6):
+┌──────────────────────────────────────────────────────────────────┐
+│  Changelog — {date}              (date shown once for the run)  │
+│  ### brew: gh 2.48.0 → 2.52.0                    ▸ show          │
+│  ### cask: google-chrome 148.0.7778.179 → 150.0.7871.47   ▸ show │
+│  ...                                                              │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ### C.5 ASCII wireframes
 
-#### In-progress state
+#### In-progress state, with pending followups
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  [Results ●]  [Report]              Applying… · updated 1s ago  ║
+║  [Results ●]  [Report]  [Changelog]      Applying… · updated 1s ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  Applying changes — 2 of 5 done · 0 failed                      ║
+║  Applying changes · updated 1s ago                               ║
+║  [=============---------------------------]  2 / 5 done         ║
+║  0 failed · 1 followup: 0 resolved, 1 pending                   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  FOLLOWUPS                                                       ║
+║  mise:node — "Hold off until the project upgrades its .nvmrc"   ║
+║  [ Accept ] [ Reject ] [ Discuss ]   comment…        [ Send ]   ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  ACTIONS                                                         ║
 ║  ✓  brew:podman:keep-pin-add-comment  Add pin comment to Brewfile║
@@ -362,39 +421,42 @@ non-null, render it immediately before the first poll arrives.
 ╠══════════════════════════════════════════════════════════════════╣
 ║  NOTES / RECAP                          (greyed — not yet ready) ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  CHANGELOG ENTRIES                      (greyed — not yet ready) ║
-╠══════════════════════════════════════════════════════════════════╣
 ║                                    [Finish ↗]  (disabled, grey)  ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-#### Done state
+#### Done state, with a failed action expanded for debugging
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  [Results ●]  [Report]              Done · 2026-07-04 14:58 UTC ║
+║  [Results ●]  [Report]  [Changelog]  Done · 2026-07-04 14:58 UTC║
 ╠══════════════════════════════════════════════════════════════════╣
-║  Complete — 3 applied · 2 rejected · 1 discuss · 0 failed       ║
+║  Complete · done                                                 ║
+║  [==========================================]  4 / 4 done       ║
+║  1 failed · 0 followups                                         ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  ACTIONS                                                         ║
 ║  ✓  brew:podman:keep-pin-add-comment  Add pin comment to Brewfile║
 ║  ✓  commit:dotfiles                   Committed abc1234          ║
 ║  ✓  mise:node:update-nvmrc            Updated .nvmrc to 22.x    ║
-║  ✗  brew:gh:update-config             Failed: merge conflict     ║
-║  —  brew:curl:no-action               Skipped (rejected)         ║
+║  ✗  cask:karabiner-elements:upgrade   Failed: sudo required      ║  ← expanded below
+║     brew upgrade --cask karabiner-elements                       ║
+║     [ Retry ]   comment…                        [ Send ]        ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  NOTES / RECAP                                                   ║
-║  Applied 3 of 4 accepted edits. brew:gh config had a merge       ║
-║  conflict — manual fix needed. Committed dotfiles (abc1234) and  ║
-║  macos-setup (def5678). Discuss: mise:node — user note: "Hold   ║
-║  off until .nvmrc upgraded."                                     ║
-╠══════════════════════════════════════════════════════════════════╣
-║  CHANGELOG ENTRIES                                               ║
-║  ## 2026-07-04                                                   ║
-║  ### brew: gh 2.48.0 → 2.52.0                                   ║
-║  Updated config alias for new --json flag.                       ║
+║  NOTES / RECAP                                        ▸ show     ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║                                    [Finish ↗]  (enabled, cyan)   ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+#### Changelog tab
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  [Results]  [Report]  [Changelog ●]        Done · 2026-07-04    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Changelog — 2026-07-04                                          ║
+║  ### brew: gh 2.48.0 → 2.52.0                          ▸ show   ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
@@ -413,19 +475,42 @@ non-null, render it immediately before the first poll arrives.
 ### C.6 Element detail
 
 **Tab strip** (replaces progress-bar-container contents):
-- Two buttons: "Results" and "Report". Active tab uses `--cyan` underline or
-  filled background. Clicking "Report" shows `#main`, hides `#results-panel`;
-  clicking "Results" reverses.
+- Three buttons: "Results", "Report", "Changelog" (#29 — promoted from a
+  Results-panel subsection to a sibling tab, since it's audit-trail content
+  someone browses independently of live apply progress). Active tab uses
+  `--cyan` underline or filled background. Clicking one shows its panel,
+  hides the other two (`#main`, `#results-panel`, `#changelog-panel`).
 - Right-aligned status text: phase label + "updated N s ago" computed from
   `written_at`. Turn red if `written_at` is >120 s ago and `done` is false
   (stale session hint).
 
-**Results status bar** (`#results-status-bar`):
-- During apply: `"Applying changes — N of M done · K failed"`. K > 0 colors
-  text red.
-- Phase "discussing": `"In discussion — apply pass complete"` in yellow.
-- Done: `"Complete — N applied · M rejected · K discuss · J failed"`. J > 0
-  adds red badge.
+**Unified status header** (`#results-header`, replaces the separate tab
+status text + `#results-status-bar` — #23, merging what used to be two
+displays into one, always visible at the top of `#results-panel`):
+- Line 1 — phase + staleness, same text/logic the tab strip used to show
+  alone: `"Applying changes"` / `"In discussion"` / `"Complete"`, plus
+  `"· updated N s ago"`, plus `"· session may have stopped"` in yellow when
+  stale (>120s, `done` false).
+- Line 2 — a progress bar (`#results-progress-track`/`#results-progress-fill`,
+  same visual language as the Report tab's sticky progress bar, B.2) whose
+  fill width is `doneCount / totalActions` and which dynamically absorbs
+  the row's leftover horizontal space (`flex: 1`) rather than a fixed
+  width; a done-count label (`"41 / 72 done"`) sits alongside it.
+- Line 3 — failure count (`"K failed"`, red when K > 0) and a followup
+  count split into resolved/pending (`"J followups: R resolved, P pending"`,
+  pending > 0 in yellow) — **computed live from `pending_followups` on
+  every poll** (count `resolution !== "pending"` vs `=== "pending"`), never
+  baked into recap prose. This is the fix for a real staleness bug: recap
+  text used to say "2 pending followups still need your decision" and that
+  sentence went stale the instant the user decided one, because it was
+  frozen prose written once. The live count here can't go stale the same
+  way since it's recomputed from the actual array shape every render.
+
+**Followups section** (`#followups-section`, moved above the action list —
+#23): hidden until `pending_followups` is non-empty. One thread card per
+entry (C.10) — multi-turn (#27), not a one-shot decision. Rendered before
+`#action-list` so the things most needing the user's attention aren't
+buried below a scroll.
 
 **Action list item** per action entry:
 
@@ -439,16 +524,29 @@ non-null, render it immediately before the first poll arrives.
 
 Row layout: `[icon] [label]  [note]` on one line. Clicking a row expands a
 `<pre>` showing `detail` lines (if non-empty), in monospace, `--base00` text
-on `--base03` background. Collapsed by default.
+on `--base03` background. Collapsed by default. **A `"failed"` row gets an
+inline retry/debug thread instead of pointing at recap for remediation**
+(#28) — same Turn-based mechanism as a followup (C.10), scoped to that
+action's own `thread` field (A). Recap no longer needs to hold any
+per-failure remediation text; it's pure narrative summary now.
 
-**Recap section** (`#results-recap`):
-Hidden (`display:none`) until `recap` is non-empty. Section label + `<pre>`
-rendering of the recap text (whitespace-preserving, monospace). Not a textarea
-— read only.
+**Recap section** (`#results-recap`): hidden until `recap` is non-empty.
+**Collapsed by default** (#23) — only a section label + one-line "Notes /
+Recap ▸ show" control is visible; expanding reveals the full text, rendered
+as parsed markdown (#30, C.10) rather than a raw `<pre>` dump. This keeps
+the top of the panel glanceable even as recap grows long; the unified
+header above already covers the at-a-glance status, so recap's only job
+now is narrative detail for whoever wants to read it.
 
-**Changelog section** (`#results-changelog`):
-Hidden until `changelog_entries` is non-empty. Section label + one `<pre>`
-block per entry, separated by a thin `--base01` rule. Monospace.
+**Changelog tab** (`#changelog-panel`, sibling to `#main`/`#results-panel`,
+not nested inside the Results panel — #29): hidden until
+`changelog_entries` is non-empty (tab itself can still be clicked; shows an
+empty state rather than being disabled). One shared date heading for the
+whole panel (all entries in one run share the same date, per changelog.md's
+own `## {date}` convention — C.2 step 8 unchanged, this is display-only).
+Each entry renders **heading-only by default** — just its
+`### {source}: {name} {old} → {new}` line — with a "▸ show" control
+revealing the summary/detail text below it, parsed as markdown (#30).
 
 **Finish button** (`#finish-btn`):
 - Disabled (grey, `cursor:not-allowed`) while `done` is false.
@@ -541,15 +639,84 @@ const base = location.pathname.replace(/\/+$/, '');
 // base + '/status', base + '/shutdown', base + '/feedback'
 ```
 
+### C.10 Turn-based threads (followups + failed-action debug) — #26/#27/#28/#31
+
+A single shared mechanism backs two surfaces: a `pending_followups` entry
+(schema A) and a `"failed"` action's `thread` field (schema A). Both are an
+array of **Turn** objects:
+
+```jsonc
+{
+  "turn": 1,
+  "author": "user",             // "user" | "agent"
+  "at": "2026-07-04T14:53:00Z",
+  "decision": "discuss",        // "accept" | "reject" | "discuss" | null — agent turns: null
+  "comment": "Hold off until the project upgrades its .nvmrc",
+  "action_taken": null          // agent turns only: what it did, e.g. "Applied edit, committed abc1234"
+}
+```
+
+**Decoupled decision-select from submit** (#26's fix, generalized): clicking
+Accept/Reject/Discuss on the active (newest, still-open) turn only sets a
+local pending decision — same as a normal Report-tab card (design.md B.2:
+"Clicking an active decision button toggles back to undecided"). A
+separate **Send** button submits the decision + whatever's in the comment
+box as a new turn. This was the literal bug report this run: clicking
+Discuss fired the POST immediately, with whatever the (empty) comment box
+held at click time, leaving no chance to type first.
+
+**Multi-turn, never permanently closed** (#27): a thread's history renders
+oldest-to-newest, each past turn shown as a read-only line (author, decision
+if any, comment/action_taken); the newest turn is the only one with live
+controls. Submitting a new turn appends rather than overwrites — even a
+thread whose `resolution` is already `"applied"`/`"rejected"` still shows
+an open comment box for an out-of-turn addition (e.g. a Gatekeeper
+quarantine popup noticed after the original followup's suggestion was
+already applied). Submitting with an empty comment is valid — it means "go
+investigate/retry, no extra direction needed," not "do nothing."
+
+**Failed-action inline retry/debug** (#28): a `"failed"` action row expands
+(same click-to-expand as its `detail` pre today) to show the manual command,
+a **Retry** button (re-issues the same command — useful once e.g. askpass
+is fixed, or for a transient failure likely to just succeed on a second
+try), and the same comment-box-plus-Send turn UI as a followup, writing
+into that action's own `thread` array rather than a separate followup id.
+This is the same component as C.10's followup thread, parameterized by
+which array it reads/writes — not two parallel systems.
+
+**Agent-initiated threads** (#31): a `pending_followups` entry's `origin`
+field (schema A) distinguishes `"user_comment"` (investigating a
+`tool_comments`/`discuss` entry, as before) from `"agent_initiated"` — the
+session creating one on its own after hitting something during apply that
+needs an explicit decision (a security-relevant system prompt, an unusual
+side effect — see D). Rendering is identical either way; `origin` is
+metadata, not a different card shape.
+
+### C.11 Markdown rendering (#30)
+
+Recap, changelog entry detail, and turn `comment`/`action_taken` text are
+all agent-authored and likely to contain basic markdown (bold, inline code,
+links, lists) — that's how the apply-phase agent naturally writes. Replace
+the current `<pre>`-as-plain-text treatment with a lightweight markdown
+renderer (page JS: escape first via the same discipline as design.md D's
+`</script>`-breakout guard, then reinsert only the literal markup the
+renderer itself generates — headings, lists, bold, inline code, links — so
+no raw HTML from agent text ever reaches the DOM). This is not a
+general-purpose markdown library; just enough for what these fields
+actually contain.
+
 ---
 
 ## D. Session Workflow Changes (`SKILL.md`)
 
 ### New step sequence
 
-Replace steps 4 (Serve and wait) and 5 (Apply feedback) with the following:
+Replace "Serve and wait" and "Apply feedback" with the following (step
+numbers below are this extension's own local sequence; see SKILL.md and
+design.md C.2 for the actual current numbering — Serve moved earlier, to
+step 2, per section E below):
 
-**4. Serve**
+**Serve**
 
 Start the server (unchanged from original). Poll `/health` until 200. Open URL.
 
@@ -590,6 +757,24 @@ For each accepted suggestion in order:
 
 Commit actions (`commit:dotfiles`, `commit:macos-setup`) follow the same
 pattern: running → done/failed.
+
+**Create a followup, don't just mention it in chat, when something during
+apply needs the user's explicit decision beyond plain success/fail** (#31).
+Concrete trigger from a real run: an already-accepted cask upgrade
+completed, but its installer's Gatekeeper quarantine popped a native
+malware warning on the user's screen — an unexpected side effect unrelated
+to the action's own done/failed outcome. Add a `pending_followups` entry
+(`origin: "agent_initiated"`, results-view-design.md A/C.10) the same way a
+`tool_comments` investigation would, rather than only raising it in
+conversation — the Results view should be the one place someone checks for
+"things needing my decision," not split across the page and the chat
+transcript. Poll `followup_turns.json` (B) throughout this step for new
+user turns on any open thread (followup or failed-action) and act on them
+promptly — accept → apply now, reject → mark resolved, discuss/comment →
+append an agent turn with the answer or a clarifying question. A thread
+being `resolution: "applied"`/`"rejected"` doesn't mean stop watching it —
+a later out-of-turn turn can still arrive (C.10) and needs the same
+promptness.
 
 **8. Append to changelog and write changelog entries**
 
@@ -656,3 +841,85 @@ Session complete.
 | POST /feedback returns 409 from a second tab | Page shows error toast "Feedback already submitted". Expected; harmless — the first submit stands. |
 | Server gone when Finish is clicked | `fetch('/shutdown')` network error; page shows "Safe to close this window" toast. |
 | All ports busy | Unchanged from original design (fail with lsof hint). |
+
+---
+
+## E. Pre-Report Progress View
+
+A large candidate list makes research take minutes, and — before this
+section — nothing was served until collect+research+assemble+render all
+finished, so the browser tab sat blank the whole time. Serve now starts
+right after Collect (SKILL.md step 2, design.md C.2 step 2), before
+research even begins, and shows a live "gathering info" state instead.
+
+### E.1 `research-status.json` schema
+
+```jsonc
+{
+  "phase": "collecting",   // "collecting" | "researching" | "assembling" | "ready"
+  "started_at": "2026-07-06T08:58:07Z",
+  "written_at": "2026-07-06T08:59:41Z",
+
+  // Populated once tiering (SKILL.md step 3) has grouped the candidates;
+  // empty during "collecting". One entry per research subagent (both
+  // individual-focus and batched-by-category groups).
+  "groups": [
+    {
+      "id": "01-podman",             // matches research/{id}.json's filename
+      "label": "podman",             // display label — tool name, or a short
+                                      // category label for a batch group
+      "state": "done",               // "pending" | "running" | "done" | "failed"
+      "tool_ids": ["brew:podman"]     // every group has ≥1; batches have several
+    }
+  ]
+}
+```
+
+Same write pattern as `status.json` (A): `.tmp` + `os.replace()`. `phase`
+transitions `collecting → researching → assembling → ready`; `ready` is
+written only after `render.py` has actually produced `index.html` (SKILL.md
+step 4) — it's the exact signal the loading page's poll is waiting for.
+
+### E.2 Server changes
+
+`GET .../research-status` — added to `do_GET`, same shape as `GET
+.../status` (B): reads `research-status.json`, 404 if absent, no caching.
+
+`GET /` (root/catch-all) — if `index.html` doesn't exist yet, serve an
+embedded loading page (`LOADING_PAGE_HTML` constant in `server.py`) instead
+of 404ing. This also means `server.py`'s startup can no longer treat a
+missing `report.json` as fatal: `report_id`/known-suggestion-ids move from
+being loaded once at startup to a `report_meta()` helper that lazily
+re-reads `report.json` on first actual need (i.e. when `/feedback` is
+POSTed — by which point the real report has always rendered, since Submit
+isn't reachable before then). `POST /feedback` returns 503 in the
+(practically unreachable) case where `report.json` still doesn't exist at
+that point, rather than crashing.
+
+### E.3 Loading page
+
+Self-contained (no CDN, inline CSS/JS — same constraint as the main report,
+B.1), embedded as a Python string in `server.py` rather than a separate
+templated file, since it needs no report data at all. Solarized Dark,
+minimal: title, phase label, a thin progress bar (`done` groups / total
+groups), and a per-group list with the same state-icon vocabulary as the
+Results view's action list (○ pending, spinner `running`, ✓ done, ✗ failed —
+C.6). Polls `GET {base}/research-status` on the same growing-backoff
+pattern as the Results view's `/status` poll (C.7); on `phase: "ready"`,
+calls `location.reload()` — the next `GET /` finds `index.html` and serves
+the real report.
+
+### E.4 Session responsibilities (SKILL.md)
+
+- **Step 2 (Serve)**: write an initial `research-status.json` with `phase:
+  "collecting"` and empty `groups` before starting the server, so the very
+  first poll has something to render.
+- **Step 3 (Research)**: once tiering has grouped the candidates, write
+  `groups` with every group `"pending"`, `phase: "researching"`. As each
+  subagent is spawned/finishes, update that group's `state` (`pending →
+  running → done`/`failed`) — same one-transition-per-write discipline as
+  `status.json` (A, "State transitions").
+- **Step 4 (Assemble + Render)**: `phase: "assembling"` while
+  `assemble.py`/`render.py` run, then `phase: "ready"` immediately after
+  `index.html` is written — not before, since `ready` is the loading page's
+  cue to reload into a page that must actually exist by then.
