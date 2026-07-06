@@ -20,5 +20,9 @@ Thumbs.db
 .sisyphus
 .copilot
 /.ai/
-/.claude/worktrees/
-/.claude/scheduled_tasks.lock
+
+# Claude Code: ignore everything under .claude/ by default (session/daemon
+# runtime state) and allowlist only the shared config we want tracked.
+/.claude/*
+!/.claude/settings.json
+!/.claude/skills/
