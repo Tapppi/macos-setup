@@ -125,10 +125,11 @@ projects_link_skill() {
 }
 
 # Define Function =projects_ensure_marketplaces= — idempotently register every
-# local marketplace found under SKILLS_ROOT (a vendor dir with a
-# `.claude-plugin/marketplace.json`, e.g. agent-skills/tapppi/) so `claude
-# plugin install <plugin>@<marketplace>` can resolve it. No-op if `claude` is
-# not on PATH (plugin scoping is best-effort, not a hard requirement).
+# local marketplace found under SKILLS_ROOT (a dir with a
+# `.claude-plugin/marketplace.json`, e.g. agent-skills/ itself, or a vendor
+# subdir within it) so `claude plugin install <plugin>@<marketplace>` can
+# resolve it. No-op if `claude` is not on PATH (plugin scoping is best-effort,
+# not a hard requirement).
 projects_ensure_marketplaces() {
 	command -v claude >/dev/null 2>&1 || return 0
 
@@ -141,7 +142,7 @@ projects_ensure_marketplaces() {
 		else
 			projects_warn "could not register marketplace at ${vendor_dir}"
 		fi
-	done < <(find "${SKILLS_ROOT}" -mindepth 3 -maxdepth 3 \
+	done < <(find "${SKILLS_ROOT}" -mindepth 2 -maxdepth 4 \
 		-path '*/.claude-plugin/marketplace.json' 2>/dev/null)
 }
 
