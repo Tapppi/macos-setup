@@ -184,14 +184,26 @@ The report is a single JSON object injected into the page template. The top-leve
 }
 ```
 
-Source vocabulary: `brew` = Brewfile `brew` line, `cask` = Brewfile `cask` line,
-`mise` = `mise outdated` runtime, `standalone` = tool updated outside brew
-(claude CLI, codex CLI — version checked by running `--version` and comparing
-to the latest release), `macos` = a `softwareupdate -l` entry (system OS/app
+Source vocabulary: `brew` = Brewfile `brew` line, `cask` = Brewfile `cask`
+line, `mise` = `mise outdated` runtime, `standalone` = a CLI genuinely
+unmanaged by brew, version-checked by running `--version` and comparing to
+the latest release, `macos` = a `softwareupdate -l` entry (system OS/app
 updates — Safari, Xcode CLT, the OS itself). `current_version` for `macos`
 entries is the running `sw_vers -productVersion`, not a per-update version —
 research should treat it as "what's currently installed system-wide" context
 rather than a strict current→latest delta for that specific update.
+
+Note: `claude CLI` and `codex CLI` are **not** current examples of
+`standalone` — both are plain Homebrew casks (`claude-code@latest`, `codex`)
+with `auto_updates` unset and a real resolved version (not the `:latest`
+sentinel), so `brew outdated --greedy` (used by `collect.sh` specifically to
+also catch `auto_updates: true`/`version :latest` casks — e.g. the separate
+`claude` desktop-app cask) tracks them correctly on its own. `standalone`
+currently has no active tool using it; the source type stays in the schema
+for a future CLI that's genuinely installed outside brew. If you're re-adding
+a standalone check for either, first re-verify with `brew info --cask --json=v2
+<token>` that the cask hasn't reverted to being untracked — don't assume the
+old rationale still holds.
 
 Node gets a richer `headliners[]` list (security advisories, notable API
 changes); other mise runtimes get a coarser treatment (two or three bullets

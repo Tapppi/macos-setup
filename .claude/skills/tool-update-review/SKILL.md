@@ -2,11 +2,12 @@
 name: tool-update-review
 description: >
   Generate an interactive changelog review page for pending tool updates —
-  brew/Brewfile packages, mise runtimes, standalone CLIs (Claude Code,
-  Codex), and macOS system/app updates — with agent-written headliners,
-  canonical changelog/release/blog links, and relevancy analysis against
-  this machine and the user's setup repos (macos-setup, dotfiles, systems).
-  Use this whenever the user asks to
+  brew/Brewfile packages and casks (including self-updating desktop apps),
+  mise runtimes, standalone CLIs genuinely unmanaged by brew, and macOS
+  system/app updates — with agent-written headliners, canonical
+  changelog/release/blog links, and relevancy analysis against this machine
+  and the user's setup repos (macos-setup, dotfiles, systems). Use this
+  whenever the user asks to
   check tool updates, review changelogs, see what's outdated, asks "what's new
   in <tool>", wants headliner changes since a version, or wants update
   suggestions reviewed/applied — even if they only mention one tool or say
@@ -130,8 +131,13 @@ with versions only.
 Merge collect + research into the report object (design.md A.1): compute
 `summary` counts, ensure suggestion ids are unique
 (`{source}:{name}:{slug}`), verify evidence paths exist (warn, don't drop).
-Dedup tools that appear both as a cask and standalone (claude-code@latest,
-codex) — keep the standalone entry; `:latest`-style casks don't version-track.
+`collect.sh` uses `brew outdated --greedy` specifically so `auto_updates:
+true`/`version :latest` casks (self-updating desktop apps — e.g. the `claude`
+app cask, distinct from the `claude-code@latest` CLI cask) aren't silently
+skipped; no standalone/cask dedup is currently needed — `claude-code@latest`
+and `codex` are both plain, correctly-version-tracked casks today (verify
+this hasn't drifted again before assuming otherwise — see collect.sh's
+`standalone_json` comment).
 
 **Synthesize a baseline `kind: "upgrade"` suggestion for every tool**, id
 `{source}:{name}:upgrade` (design.md A.1 has the exact shape and per-source

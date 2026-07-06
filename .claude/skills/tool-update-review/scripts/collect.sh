@@ -3,9 +3,10 @@
 # Usage: collect.sh [path-to-Brewfile]
 # Emits one JSON object on stdout:
 #   { machine: {...}, brew: [...], mise: [...], standalone: [...], macos: [...] }
-# Network use is limited to version lookups for standalone tools; every
-# lookup is best-effort with a timeout so the script works offline
-# (latest_version is then null and research must fill it in).
+# Network use is limited to `brew`/`mise`'s own update checks plus the macOS
+# software-update lookup; every lookup is best-effort with a timeout so the
+# script works offline (latest_version is then null and research must fill
+# it in).
 set -euo pipefail
 
 brewfile="${1:-Brewfile}"
@@ -33,7 +34,12 @@ fi
 # brew outdated intersected with Brewfile entries; keeps pin state.
 # `brew outdated` matches on the short name even when the Brewfile taps
 # a qualified name (e.g. hashicorp/tap/terraform), hence the `sed s|.*/||`.
-brew_json="$(brew outdated --json=v2 2>/dev/null | jq \
+# --greedy is required for casks: brew silently skips `auto_updates: true`
+# and `version :latest` casks otherwise (e.g. self-updating desktop apps
+# like the Claude app, 1Password, Tailscale) even when they're genuinely
+# behind — without it this report misses exactly the apps most likely to
+# have drifted unnoticed.
+brew_json="$(brew outdated --json=v2 --greedy 2>/dev/null | jq \
 	--argjson formulae "${brewfile_formulae}" \
 	--argjson casks "${brewfile_casks}" '
 	[ (.formulae[] | select(.name as $n | $formulae | index($n)) | {
@@ -79,40 +85,19 @@ mise_json="$(mise outdated --json 2>/dev/null | jq '
 			pinned: false
 		} ]' || echo '[]')"
 
-# Standalone CLIs installed outside brew. Latest versions are best-effort:
-# null when offline or the lookup fails — research fills the gap. The two
-# latest-version lookups are independent network calls (different hosts),
-# so run them in parallel rather than paying their --max-time 10 back to back.
-claude_current="$(claude --version 2>/dev/null | awk '{print $1}' || true)"
-codex_current="$(codex --version 2>/dev/null | awk '{print $2}' || true)"
-
-claude_latest_tmp="$(mktemp)"
-codex_latest_tmp="$(mktemp)"
-trap 'rm -f "${claude_latest_tmp}" "${codex_latest_tmp}"' EXIT
-
-(curl -fsS --max-time 10 https://registry.npmjs.org/@anthropic-ai/claude-code/latest 2>/dev/null \
-	| jq -r .version > "${claude_latest_tmp}" || true) &
-(curl -fsS --max-time 10 https://api.github.com/repos/openai/codex/releases/latest 2>/dev/null \
-	| jq -r '.tag_name // empty' | sed 's/^rust-v//; s/^v//' > "${codex_latest_tmp}" || true) &
-wait
-
-claude_latest="$(cat "${claude_latest_tmp}" 2>/dev/null || true)"
-codex_latest="$(cat "${codex_latest_tmp}" 2>/dev/null || true)"
-
-standalone_json="$(jq -n \
-	--arg cc "${claude_current}" --arg cl "${claude_latest}" \
-	--arg xc "${codex_current}" --arg xl "${codex_latest}" '
-	[ { id: "standalone:claude-code", name: "claude-code", source: "standalone",
-			current_version: ($cc | select(. != "")),
-			latest_version: ($cl | select(. != "")), pinned: false },
-		{ id: "standalone:codex", name: "codex", source: "standalone",
-			current_version: ($xc | select(. != "")),
-			latest_version: ($xl | select(. != "")), pinned: false }
-	] | map(select(.current_version != null)) ]' 2>/dev/null || echo '[]')"
+# Standalone CLIs installed outside brew. Both `claude-code@latest` and
+# `codex` used to need this (they predate their Brewfile cask entries — see
+# git history), but both are now plain Homebrew casks with `auto_updates`
+# unset and a real resolved `version` (not the `:latest` sentinel), and their
+# `/opt/homebrew/bin/*` shims are confirmed symlinks into the Caskroom — so
+# `brew outdated --greedy` (brew_json above) already tracks them accurately.
+# No tool currently needs a standalone check; the source type stays in the
+# schema for a future CLI that's genuinely unmanaged by brew.
+standalone_json="[]"
 
 # macOS system software updates. `softwareupdate -l` has no JSON output and
-# is network-bound like the standalone-CLI lookups above, so treat it the
-# same way: best-effort, empty array on failure/timeout, research fills gaps.
+# is network-bound, so treat it the same way as the checks above: best-effort,
+# empty array on failure/timeout, research fills gaps.
 macos_current="$(sw_vers -productVersion 2>/dev/null || echo '?')"
 macos_updates_raw="$(softwareupdate -l 2>/dev/null | grep -oE 'Title: [^,]+, Version: [^,]+' | sed -E 's/Title: (.+), Version: (.+)/\1'$'\t''\2/' || true)"
 macos_json="[]"
