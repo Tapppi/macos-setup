@@ -7,11 +7,22 @@
 #   1. symlinks each named skill into the corresponding repo's `.claude/skills/`.
 #      Skills are per-repo because Claude Code only discovers skills up to a
 #      repo's git root, so a workspace-level link would not be seen inside a repo.
-#   2. provisions a shared per-workspace environment: renders a `mise.local.toml`
+#   2. enables each named plugin for the repo via `claude plugin install
+#      --scope local`, which records it in that repo's gitignored
+#      `.claude/settings.local.json` (enabledPlugins). This covers both
+#      third-party marketplace plugins (e.g. `frontend-design@claude-plugins-
+#      official`) and our own skills that have been wrapped as plugins (e.g.
+#      `browser@tapppi-skills`, see agent-skills/tapppi/.claude-plugin/) —
+#      unlike raw skills, Claude Code has no `enabledSkills` toggle, so a
+#      skill only gets this per-project scoping if it's packaged as a plugin.
+#      Any local marketplace under SKILLS_ROOT (one with a
+#      `.claude-plugin/marketplace.json`) is auto-registered so its plugins
+#      resolve by name.
+#   3. provisions a shared per-workspace environment: renders a `mise.local.toml`
 #      in the workspace dir whose [env] loads a local 0600 dotenv file via mise's
 #      `_.file`. mise walks up the directory tree across git boundaries, so every
 #      repo under the workspace inherits the env.
-#   3. for a `jira` block, prints the one-time commands to write that dotenv file
+#   4. for a `jira` block, prints the one-time commands to write that dotenv file
 #      from 1Password and run `jira init` (it does not run them).
 #
 # Why a dotenv file and not `op read` in mise: mise evaluates [env] on every
@@ -25,6 +36,9 @@
 #     "skills": {                         # repo path (rel. to workspace) -> skills
 #       "service-a": ["jira", "gke-basics"],
 #       "service-b": ["jira"]
+#     },
+#     "plugins": {                        # repo path (rel. to workspace) -> plugin@marketplace
+#       "service-a": ["frontend-design@claude-plugins-official", "browser@tapppi-skills"]
 #     },
 #     "jira": {
 #       "installation": "local",
@@ -108,6 +122,40 @@ projects_link_skill() {
 		return 1
 	fi
 	ln -s "${target}" "${link}" && p2 "linked ${name} -> ${target}"
+}
+
+# Define Function =projects_ensure_marketplaces= — idempotently register every
+# local marketplace found under SKILLS_ROOT (a vendor dir with a
+# `.claude-plugin/marketplace.json`, e.g. agent-skills/tapppi/) so `claude
+# plugin install <plugin>@<marketplace>` can resolve it. No-op if `claude` is
+# not on PATH (plugin scoping is best-effort, not a hard requirement).
+projects_ensure_marketplaces() {
+	command -v claude >/dev/null 2>&1 || return 0
+
+	local manifest vendor_dir
+	while IFS= read -r manifest; do
+		[[ -z "${manifest}" ]] && continue
+		vendor_dir="$(dirname "$(dirname "${manifest}")")"
+		if claude plugin marketplace add "${vendor_dir}" >/dev/null 2>&1; then
+			p3 "marketplace ok: ${vendor_dir}"
+		else
+			projects_warn "could not register marketplace at ${vendor_dir}"
+		fi
+	done < <(find "${SKILLS_ROOT}" -mindepth 3 -maxdepth 3 \
+		-path '*/.claude-plugin/marketplace.json' 2>/dev/null)
+}
+
+# Define Function =projects_enable_plugin= — idempotently enable one
+# `plugin@marketplace` for a repo at local scope (writes enabledPlugins into
+# the repo's gitignored .claude/settings.local.json).
+projects_enable_plugin() {
+	local repo="${1}" name="${2}"
+	if (cd "${repo}" && claude plugin install "${name}" --scope local >/dev/null 2>&1); then
+		p3 "ok ${name}"
+		return 0
+	fi
+	projects_warn "could not enable plugin '${name}' in ${repo}"
+	return 1
 }
 
 # Define Function =projects_git_exclude= — add a pattern to a repo's
@@ -262,6 +310,28 @@ projects_apply() {
 		[[ "${linked}" -gt 0 ]] && projects_git_exclude "${repo}" "/.claude/skills/"
 	done < <(printf '%s' "${json}" | jq -r '.skills // {} | keys[]')
 
+	# Per-repo plugin enablement. `plugins` maps a repo path to a list of
+	# `plugin@marketplace` names, enabled at local scope (see
+	# projects_enable_plugin). Requires `claude` on PATH; skipped otherwise.
+	if command -v claude >/dev/null 2>&1; then
+		local plugin_name enabled
+		while IFS= read -r repo_key; do
+			[[ -z "${repo_key}" ]] && continue
+			repo="$(projects_resolve_path "${workspace}" "${repo_key}")"
+			if [[ ! -d "${repo}" ]]; then
+				projects_warn "repo '${repo_key}' not found at ${repo}"
+				continue
+			fi
+			p2 "Repo ${repo}"
+			enabled=0
+			while IFS= read -r plugin_name; do
+				[[ -z "${plugin_name}" ]] && continue
+				projects_enable_plugin "${repo}" "${plugin_name}" && enabled=$((enabled + 1))
+			done < <(printf '%s' "${json}" | jq -r --arg r "${repo_key}" '.plugins[$r] // [] | .[]')
+			[[ "${enabled}" -gt 0 ]] && projects_git_exclude "${repo}" "/.claude/settings.local.json"
+		done < <(printf '%s' "${json}" | jq -r '.plugins // {} | keys[]')
+	fi
+
 	projects_render_env "${workspace}" "${json}"
 	projects_jira_hint "${workspace}" "${json}"
 }
@@ -278,6 +348,8 @@ projects() {
 			return 1
 		}
 	done
+
+	projects_ensure_marketplaces
 
 	p1 "Scanning ${PROJECT_ROOT} for .tapppi-project manifests"
 
