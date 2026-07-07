@@ -492,9 +492,26 @@ install_claude_code() {
 	clear_cask_quarantine claude-code@latest
 
 	p3 "Claude Code MCP servers and plugins..."
-	# context7: library/framework documentation lookup (not built into Claude Code)
-	if ! claude mcp list 2>/dev/null | grep -q context7; then
-		claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
+	# context7: library/framework documentation lookup (not built into Claude
+	# Code). Set up via the ctx7 CLI: it OAuth-logs into context7.com (opens
+	# a browser) for higher rate limits, writes the MCP server with an API
+	# key into ~/.claude.json, and installs its own skill
+	# (~/.claude/skills/context7-mcp/) and rule (~/.claude/rules/context7.md).
+	# Those files are ctx7-managed, not tracked in dotfiles —
+	# dotfiles/bootstrap.sh excludes the skill dir from its --delete mirror.
+	# Guard on the API key so a keyless entry from the old automation is
+	# upgraded, but a completed setup is not re-run. Match both shapes ctx7
+	# writes: stdio transport with an `--api-key` arg (default) and http
+	# transport with a CONTEXT7_API_KEY header (--oauth mode).
+	if ! jq -e '.mcpServers.context7 // {} | tostring | test("--api-key|CONTEXT7_API_KEY")' \
+		"${HOME}/.claude.json" >/dev/null 2>&1; then
+		if ! npx -y ctx7 setup --claude --yes; then
+			# Fallback (e.g. headless run, OAuth aborted): keyless server so
+			# context7 still works, at anonymous rate limits.
+			p3 "ctx7 setup failed, adding keyless context7 MCP server..."
+			claude mcp list 2>/dev/null | grep -q context7 \
+				|| claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
+		fi
 	fi
 	# chrome-devtools: browser debugging, Lighthouse audits, performance tracing
 	if ! claude mcp list 2>/dev/null | grep -q chrome-devtools; then

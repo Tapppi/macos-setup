@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project tooling + agent skills from .tapppi-project manifests
