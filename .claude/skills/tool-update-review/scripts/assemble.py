@@ -27,6 +27,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 
 
 # ── needs_sudo heuristic (references/schemas.md §Report Object; references/apply.md §Executing Upgrade Suggestions) ──
@@ -109,22 +110,71 @@ def compute_risk_level(tool: dict) -> str:
 # warns to stderr so an agent skimming the run can catch a bad citation.
 _COMMIT_LIKE = re.compile(r"\bcommit\b|^[0-9a-f]{7,40}\b", re.IGNORECASE)
 
+# A citation can trail a human-readable parenthetical describing the hit
+# (e.g. "tasks/install.sh:56-104 (install_podman_intel)") and/or a line
+# locator that's a single line (":112") or a range ("Brewfile:83-87") —
+# strip both, in that order (a parenthetical always trails any line locator,
+# never the reverse), down to the real path before checking existence.
+_TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\s*$")
+_TRAILING_LINE_REF = re.compile(r":\d+(?:-\d+)?$")
+
+
+def strip_evidence_suffixes(evidence: str) -> str:
+	s = _TRAILING_PAREN.sub("", evidence)
+	s = _TRAILING_LINE_REF.sub("", s)
+	return s
+
 
 def evidence_exists(evidence: str, roots) -> bool | None:
 	"""True/False if this looks like a checkable path; None if it doesn't
 	look like a path at all (e.g. a commit citation) — nothing to check."""
 	if _COMMIT_LIKE.search(evidence):
 		return None
-	candidate = evidence.rsplit(":", 1)[0] if re.search(r":\d+$", evidence) else evidence
+	candidate = strip_evidence_suffixes(evidence)
 	candidate = os.path.expanduser(candidate)
 	if os.path.isabs(candidate):
 		return os.path.exists(candidate)
 	for root in roots:
 		if os.path.exists(os.path.join(root, candidate)):
 			return True
+		# A citation is sometimes prefixed with its own repo's directory name
+		# (e.g. "systems/flake.nix:1", "dotfiles/config/git/..." ) — the
+		# dotfiles case happens to already resolve above purely by luck (the
+		# dotfiles submodule is physically nested inside the macos-setup
+		# checkout, so "dotfiles/..." already matches under
+		# --macos-setup-root); "systems/..." has no such nesting under any
+		# root, so the same convention needs an explicit strip-and-retry:
+		# if the candidate's leading path segment matches this root's own
+		# directory name, retry with that segment stripped.
+		prefix = os.path.basename(os.path.normpath(root)) + "/"
+		if candidate.startswith(prefix):
+			stripped = candidate[len(prefix):]
+			if os.path.exists(os.path.join(root, stripped)):
+				return True
 	# Not found under any root — could still be a loose phrase rather than a
 	# real path (e.g. "no bespoke touchpoint"); only warn, never drop.
 	return False
+
+
+# ── config_status normalization (references/assembly.md §Evidence Validation; a research subagent can
+# legitimately return `config_status: null` — e.g. nothing to compute for a
+# macOS-source tool — rather than omitting the key entirely. `dict.get(key,
+# default)` only substitutes the default when the key is *absent*; a
+# present-but-null value passes straight through as None and a later
+# `.get("state")` call on it raises AttributeError, crashing the whole run.
+# Normalize both the whole object and its `detail` sub-field here so every
+# downstream `.get()` call always sees a dict) ────────────────────────────
+_DEFAULT_CONFIG_STATUS = {"state": "unknown", "detail": "", "evidence": []}
+
+
+def normalize_config_status(research_obj: dict) -> dict:
+	cs = research_obj.get("config_status")
+	if not isinstance(cs, dict):
+		return dict(_DEFAULT_CONFIG_STATUS)
+	cs = dict(cs)
+	if cs.get("detail") is None:
+		cs["detail"] = ""
+	return cs
 
 
 def as_evidence_list(evidence, tool_id: str, context: str) -> list:
@@ -262,7 +312,7 @@ def build_health_tool(candidate: dict, research_obj: dict | None) -> dict:
 		"research_error": None,
 		"headliners": headliners,
 		"links": research_obj.get("links", []),
-		"config_status": research_obj.get("config_status", {"state": "unknown", "detail": "", "evidence": []}),
+		"config_status": normalize_config_status(research_obj),
 		"relevancy": research_obj.get("relevancy", []),
 		"context": research_obj.get("context", []),
 		"release_inventory": research_obj.get("release_inventory", []),
@@ -301,7 +351,7 @@ def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 		"research_error": None if research_obj else "research subagent produced no output for this tool",
 		"headliners": research_obj.get("headliners", []),
 		"links": research_obj.get("links", []),
-		"config_status": research_obj.get("config_status", {"state": "unknown", "detail": "", "evidence": []}),
+		"config_status": normalize_config_status(research_obj),
 		"relevancy": research_obj.get("relevancy", []),
 		"context": research_obj.get("context", []),
 		"release_inventory": research_obj.get("release_inventory", []),
@@ -344,12 +394,20 @@ def main():
 	parser.add_argument("session_dir")
 	parser.add_argument("--macos-setup-root", default=".")
 	parser.add_argument("--dotfiles-root", default=None)
+	# references/research.md / references/research-prompt-template.md both tell
+	# every research subagent to scan and cite ~/project/github/tapppi/systems
+	# (the NixOS flake repo) for relevancy — evidence validation needs that
+	# repo root too, or every "systems/..." citation gets falsely flagged as
+	# "evidence not found." Defaults to the standard workspace location; pass
+	# explicitly if the harness mounts it elsewhere.
+	parser.add_argument("--systems-root", default="~/project/github/tapppi/systems")
 	args = parser.parse_args()
 
 	session_dir = os.path.abspath(args.session_dir)
 	macos_setup_root = os.path.abspath(args.macos_setup_root)
 	dotfiles_root = os.path.abspath(args.dotfiles_root or os.path.join(macos_setup_root, "dotfiles"))
-	roots = [macos_setup_root, dotfiles_root]
+	systems_root = os.path.abspath(os.path.expanduser(args.systems_root))
+	roots = [macos_setup_root, dotfiles_root, systems_root]
 
 	collect_path = os.path.join(session_dir, "collect.json")
 	try:
@@ -421,7 +479,7 @@ def main():
 	report = {
 		"schema_version": 1,
 		"report_id": report_id,
-		"generated_at": collect.get("generated_at") or "",
+		"generated_at": collect.get("generated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 		"machine": collect.get("machine", {}),
 		"summary": {
 			"total_outdated": len(tools) - health_count,

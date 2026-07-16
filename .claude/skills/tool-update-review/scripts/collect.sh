@@ -2,7 +2,8 @@
 # collect.sh — gather update candidates for the tool-update-review skill.
 # Usage: collect.sh [path-to-Brewfile]
 # Emits one JSON object on stdout:
-#   { machine: {...}, brew: [...], mise: [...], standalone: [...], macos: [...] }
+#   { generated_at: "...", machine: {...}, brew: [...], mise: [...],
+#     standalone: [...], macos: [...], brew_health: {...} }
 # Network use is limited to `brew`/`mise`'s own update checks plus the macOS
 # software-update lookup; every lookup is best-effort with a timeout so the
 # script works offline (latest_version is then null and research must fill
@@ -15,6 +16,7 @@ brewfile="${1:-Brewfile}"
 arch="$(uname -m)"
 os_name="macOS $(sw_vers -productVersion 2>/dev/null || echo '?')"
 hostname="$(hostname -s 2>/dev/null || echo '?')"
+generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Names manifested in the Brewfile, so transitive deps don't pollute the report
 brewfile_formulae="[]"
@@ -329,10 +331,12 @@ fi
 
 jq -n \
 	--arg arch "${arch}" --arg os "${os_name}" --arg host "${hostname}" \
+	--arg generated_at "${generated_at}" \
 	--argjson brew "${brew_json}" --argjson pinned "${pinned_json}" \
 	--argjson mise "${mise_json}" --argjson standalone "${standalone_json}" \
 	--argjson macos "${macos_json}" --argjson brew_health "${brew_health_json}" '
 	{
+		generated_at: $generated_at,
 		machine: { arch: $arch, os: $os, hostname: $host },
 		brew: (($brew + $pinned) | unique_by(.id)
 			| map(select(.current_version != .latest_version))),

@@ -15,15 +15,28 @@ Table of contents:
 
 ## Overview
 
-`scripts/assemble.py {session_dir}` merges `collect.sh`'s saved output
-(`collect.json`, step 1 — see `references/collection.md`) with every
-`research/*.json` file written in step 3 (see `references/research.md`) into
-the single report object (`references/schemas.md` §Report Object), and writes
+```sh
+python3 scripts/assemble.py {session_dir} \
+	[--macos-setup-root PATH] [--dotfiles-root PATH] \
+	[--systems-root ~/project/github/tapppi/systems]
+```
+
+merges `collect.sh`'s saved output (`collect.json`, step 1 — see
+`references/collection.md`) with every `research/*.json` file written in step
+3 (see `references/research.md`) into the single report object
+(`references/schemas.md` §Report Object), and writes
 `{session_dir}/report.json`. This is purely mechanical/structural work — it
 computes `summary` counts, enforces suggestion-id uniqueness, validates
 evidence paths, assigns each tool a `risk_level`, and applies a real
 `needs_sudo` heuristic — none of it is a subjective per-tool judgment left to
 research, so every run applies the same rule the same way.
+
+`--systems-root` defaults to `~/project/github/tapppi/systems` and rarely
+needs overriding — pass it explicitly only if the harness mounts that repo
+somewhere else. It exists because `references/research.md` and
+`references/research-prompt-template.md` both tell every research subagent to
+scan and cite that repo for relevancy, so evidence validation (below) needs
+it as a checkable root too, alongside `--macos-setup-root`/`--dotfiles-root`.
 
 This replaces the ad hoc hand-assembly used before this script existed, which
 silently skipped two documented rules: it blanket-set `needs_sudo: false` on
@@ -94,13 +107,26 @@ too.
 
 Every `relevancy[]` and `context[]` item's `evidence`, plus
 `config_status.evidence`, gets checked: a string that looks like a
-`path` or `path:line` is resolved against the macos-setup and dotfiles repo
-roots (absolute paths checked directly); a string that looks like a commit
-citation (`commit …` or a bare 7–40 char hex prefix) is left alone — nothing
-to check. Anything else that doesn't resolve under either root is **warned
-about, never dropped** — a bad citation is a research-quality problem worth
-surfacing to whoever's watching the run, not a reason to silently strip
-content the human reviewer would otherwise have seen.
+`path`, `path:line`, or `path:line-line` (a range, e.g. `Brewfile:83-87`) —
+optionally followed by a human-readable ` (description)` parenthetical
+(e.g. `tasks/install.sh:56-104 (install_podman_intel)`) — has both the
+parenthetical and the line locator stripped, in that order, down to the real
+path, then resolved against the macos-setup, dotfiles, and **systems**
+(`--systems-root`, above) repo roots (absolute paths checked directly). A
+research subagent sometimes prefixes a citation with its own repo's
+directory name (e.g. `systems/flake.nix:1`, mirroring `dotfiles/config/...`
+for the dotfiles submodule) — the `dotfiles/` case already happened to
+resolve under `--macos-setup-root` purely because the submodule is
+physically nested inside that checkout, but `systems/` has no such nesting
+under any root, so evidence checking also retries with a leading
+`{root's own directory name}/` segment stripped before giving up on that
+root. A string that looks like a commit citation (`commit …` or a bare 7–40
+char hex prefix) is left alone — nothing to check. Anything else that
+doesn't resolve under any of the three roots (with or without that prefix
+retry) is **warned about, never dropped** — a bad citation is a
+research-quality problem worth surfacing to whoever's watching the run, not
+a reason to silently strip content the human reviewer would otherwise have
+seen.
 
 Evidence is normalized to a list first: the schema (`references/schemas.md`)
 requires evidence to always be an array; a research subagent that returns a
@@ -243,6 +269,20 @@ category label, source badge, and `health_count` badge actually render, and
 `references/apply.md` §Brew-Health Remediation for how these suggestions get
 applied.
 
+## `config_status` Normalization
+
+A research subagent can legitimately return `config_status: null` on its Tool
+object (e.g. nothing to compute for a macOS-source tool) rather than omitting
+the key entirely — and `config_status.detail` can independently come back
+`null` too. Assembly normalizes both a null `config_status` and a null
+`detail` to the schema default (`{"state": "unknown", "detail": "",
+"evidence": []}`) *before* anything downstream calls `.get()` on it, in both
+`build_tool` and `build_health_tool` — a naive `research_obj.get(key,
+default)` only substitutes the default when the key is absent, not when it's
+present-but-`null`, and every read after that (including the
+`needs_attention`-must-have-a-suggestion check right below) used to crash the
+whole assembly run with an `AttributeError` on exactly this case.
+
 ## `needs_attention`-Must-Have-a-Suggestion Enforcement
 
 A `config_status.state` of `"needs_attention"` (computed by research — see
@@ -270,7 +310,11 @@ the same guard runs in both code paths.
 
 `report.json` is written with `schema_version: 1` (see
 `references/schemas.md` §Report Object for the full top-level shape) and
-`report_id` taken from the session dir's basename. Assembly itself does not
+`report_id` taken from the session dir's basename. `generated_at` is
+`collect.json`'s own `generated_at` (see `references/collection.md`) when
+present; if `collect.sh` ran before it emitted that field, or the value is
+missing/empty for any other reason, assembly falls back to the current UTC
+timestamp rather than writing an empty string. Assembly itself does not
 touch `research-status.json`, `status.json`, or any server-side state — see
 `references/server-and-session.md` for the `phase: "ready"` write that
 happens right after `render.py` runs.

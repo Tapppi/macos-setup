@@ -17,8 +17,9 @@ maintaining either script.
 Run `scripts/collect.sh` from the macos-setup repo root (pass the Brewfile
 path if elsewhere) and save its stdout to `{session_dir}/collect.json` —
 `assemble.py` (step 4) reads it from there rather than from conversation
-memory. It emits machine context plus outdated tools from four version
-sources:
+memory. It emits a `generated_at` (ISO-8601 UTC, via `date -u
++%Y-%m-%dT%H:%M:%SZ`) plus machine context plus outdated tools from four
+version sources:
 
 - **Brewfile-manifested brew/cask packages** — transitive deps excluded,
   pinned formulae included. A pin usually marks a *known* incompatibility
