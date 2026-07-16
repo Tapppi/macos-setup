@@ -75,7 +75,7 @@
 			margin-top: 12px;
 		}
 
-		/* ── Repo freshness note (repo_context, A.1/C.5) ───────────────────── */
+		/* ── Repo freshness note (repo_context, references/schemas.md §Report Object; references/rendering-report.md §Page Layout) ─── */
 		#header-repo-note {
 			margin-top: 6px;
 			font-size: 12px;
@@ -132,7 +132,7 @@
 			accent-color: var(--cyan);
 		}
 
-		/* ── Collapse-all/expand-all + auto-advance toggle (B.2) ──────────── */
+		/* ── Collapse-all/expand-all + auto-advance toggle (references/rendering-report.md §Page Layout) ──── */
 		.btn-bar-action {
 			padding: 3px 10px;
 			border-radius: 3px;
@@ -193,7 +193,7 @@
 			font-weight: 600;
 		}
 
-		/* ── Auto-run-upgrades toggle (near Submit, A.2/C.4) ──────────────── */
+		/* ── Auto-run-upgrades toggle (near Submit, references/schemas.md §Feedback Object; references/apply.md §Executing Upgrade Suggestions) ──── */
 		#auto-run-toggle {
 			display: flex;
 			align-items: center;
@@ -321,7 +321,7 @@
 			color: #000;
 		}
 
-		/* ── config_status badge (B.2 / C.5) ──────────────────────────────── */
+		/* ── config_status badge (references/rendering-report.md §Page Layout; references/research.md §Config Status) ──────── */
 		.config-status-badge {
 			padding: 1px 7px;
 			border-radius: 3px;
@@ -358,7 +358,7 @@
 
 		.config-status-banner .item-evidence { margin-top: 6px; }
 
-		/* ── Header badges (B.2 "at a glance without expanding") ─────────── */
+		/* ── Header badges (references/rendering-report.md §Page Layout "at a glance without expanding") ─────────── */
 		.decision-badge {
 			padding: 1px 7px;
 			border-radius: 3px;
@@ -447,10 +447,10 @@
 		}
 
 		/* Group titles are deliberately neutral — only items are colored, by
-		 * their own severity (below). See design.md B.2: this replaced an
+		 * their own severity (below). See references/rendering-report.md §Page Layout: this replaced an
 		 * earlier per-group color accent that conflated topic with urgency. */
 
-		/* ── Per-item severity accent (design.md B.2's icon/color mapping) ─
+		/* ── Per-item severity accent (references/rendering-report.md §Page Layout's icon/color mapping) ─
 		 * Reuses the palette's existing severity roles — no new colors. */
 		.content-item {
 			padding: 4px 0 4px 10px;
@@ -499,7 +499,7 @@
 			margin-top: 2px;
 		}
 
-		/* ── Vendor-silent compact tag (A.1 vendor_silent_categories) ────── */
+		/* ── Vendor-silent compact tag (references/schemas.md §Report Object; references/rendering-report.md §Page Layout vendor_silent_categories) ────── */
 		.vendor-silent-tag {
 			display: inline-block;
 			padding: 2px 8px;
@@ -557,7 +557,7 @@
 			font-style: italic;
 		}
 
-		/* ── Context section (A.1 context[], B.2) — no severity coloring,
+		/* ── Context section (references/schemas.md §Report Object context[]; references/rendering-report.md §Page Layout) — no severity coloring,
 		 * whole-item collapse (starts collapsed to title only, unlike the
 		 * lighter per-item detail-only collapse in the four content groups
 		 * above). ────────────────────────────────────────────────────────── */
@@ -587,7 +587,7 @@
 		.context-item-body { display: none; margin: 4px 0 4px 16px; font-size: 12px; color: var(--base00); }
 		.context-item[data-expanded="1"] .context-item-body { display: block; }
 
-		/* ── Release inventory (A.1 release_inventory[]) — short, not
+		/* ── Release inventory (references/schemas.md §Report Object release_inventory[]; references/rendering-report.md §Page Layout) — short, not
 		 * collapsed. ──────────────────────────────────────────────────────── */
 		.release-inventory-list {
 			margin-top: 10px;
@@ -608,7 +608,7 @@
 		.release-inventory-list a { color: var(--base01); }
 		.release-inventory-list a:hover { color: var(--blue); }
 
-		/* ── Link modal (A.1 embedded_content, B.2) ───────────────────────── */
+		/* ── Link modal (references/schemas.md §Report Object embedded_content; references/rendering-report.md §Page Layout) ───────────────────────── */
 		.link-modal-trigger {
 			background: none; border: none; padding: 0; margin: 0;
 			color: var(--blue); text-decoration: none; cursor: pointer;
@@ -821,7 +821,7 @@
 			margin-bottom: 10px;
 		}
 
-		/* ── Manual-only / needs-sudo hints (kind: "upgrade", A.1) ────────── */
+		/* ── Manual-only / needs-sudo hints (kind: "upgrade", references/schemas.md §Report Object) ────────── */
 		.manual-only-badge {
 			display: inline-block;
 			padding: 2px 8px;
@@ -1267,7 +1267,7 @@
 		}
 
 		/* ── Turn-based thread (shared by followups and failed-action debug —
-		 * #27/#28/C.10). One component, two mount points. */
+		 * #27/#28, references/rendering-results.md §Turn-Based Threads). One component, two mount points. */
 		.thread-card {
 			border: 1px solid var(--base01);
 			border-radius: 4px;
@@ -1541,7 +1541,7 @@
 	<!-- ── Error toast ─────────────────────────────────────────────────── -->
 	<div id="error-toast" role="alert" aria-live="assertive"></div>
 
-	<!-- ── Link modal (A.1 embedded_content, B.2) ────────────────────────── -->
+	<!-- ── Link modal (references/schemas.md §Report Object embedded_content; references/rendering-report.md §Page Layout) ────────────────────────── -->
 	<div id="link-modal-overlay">
 		<div id="link-modal-box" role="dialog" aria-modal="true">
 			<button id="link-modal-close" aria-label="Close">✕</button>
@@ -1565,7 +1565,7 @@
 				.replace(/"/g, '&quot;');
 		}
 
-		/* ── Lightweight markdown rendering (design.md D's script-closing-tag
+		/* ── Lightweight markdown rendering (references/rendering-report.md §Template Variables's script-closing-tag
 		 * escaping discipline applies at the render.py layer already — this is a
 		 * separate, smaller safety net: agent-authored free text (recap,
 		 * changelog entries, followup comments, embedded_content) is escaped
@@ -1641,7 +1641,7 @@
 			badges.push(`<span class="count-badge suggestions">${esc(s.suggestions_count ?? 0)} suggestions</span>`);
 			document.getElementById('header-counts').innerHTML = badges.join('');
 
-			/* Repo freshness (repo_context, A.1/C.5) — only surfaced when a
+			/* Repo freshness (repo_context, references/schemas.md §Report Object; references/rendering-report.md §Page Layout) — only surfaced when a
 			 * repo is behind; recent_commits[] is research context only and
 			 * is never rendered here. */
 			const repoContext = REPORT.repo_context || {};
@@ -1678,7 +1678,7 @@
 		}
 
 		/* ── Render: body of a kind:"upgrade" card — reflects auto_runnable /
-		 * needs_sudo / manual_reason (A.1). auto_runnable defaults true,
+		 * needs_sudo / manual_reason (references/schemas.md §Report Object). auto_runnable defaults true,
 		 * needs_sudo defaults false when absent. */
 		function renderUpgradeBody(sug) {
 			const autoRunnable = sug.auto_runnable !== false;
@@ -1709,7 +1709,7 @@
 			opts = opts || {};
 			const kind = sug.kind || 'edit'; /* defensive default for older fixtures */
 			const followup = !!opts.followup;
-			/* Pre-accept (design.md A.1/A.2, "default-accept low-risk
+			/* Pre-accept (references/schemas.md §Report Object; §Feedback Object, "default-accept low-risk
 			 * upgrades"): only ever the baseline upgrade suggestion on a
 			 * "low" risk_level tool — set by renderTool(), never by opts
 			 * on any other call path. Still a normal toggle afterward. */
@@ -1762,9 +1762,9 @@
 		/* ── Content grouping: headliners[] + relevancy[] → 4 groups ──────
 		 * Security / Fixes / Features / Notes. Each item already carries its
 		 * own explicit `category` (topic) and `severity` (urgency) from
-		 * research (design.md A.1) — the page does no classification of its
+		 * research (references/schemas.md §Report Object) — the page does no classification of its
 		 * own. Groups are purely organizational containers; only items are
-		 * colored, by severity (B.2). This replaced an earlier client-side
+		 * colored, by severity (references/rendering-report.md §Page Layout). This replaced an earlier client-side
 		 * keyword-heuristic classifier that conflated topic with urgency
 		 * (a low-profile security item would get bucketed into Notes by the
 		 * same signal that was supposed to be its severity, not its topic). */
@@ -1855,7 +1855,7 @@
 
 		let contentItemSeq = 0;
 
-		/* Per-item detail collapse (B.2): an item with real secondary detail
+		/* Per-item detail collapse (references/rendering-report.md §Page Layout): an item with real secondary detail
 		 * shows only its title by default; one with nothing beyond the
 		 * title gets no expand control at all. */
 		function renderContentItem(item, cat, links) {
@@ -1866,7 +1866,7 @@
 				: '';
 			const link = pickLinkForCategory(links, cat, `${item.title} ${item.desc}`);
 			const refHtml = link ? `<div class="item-ref">→ ${renderLinkAnchor(link, `${esc(link.type)}: ${esc(link.label)} ↗`)}</div>` : '';
-			/* hasExtra must also account for a picked ref link (B.2: expanding
+			/* hasExtra must also account for a picked ref link (references/rendering-report.md §Page Layout: expanding
 			 * "reveals the rest, evidence, and per-item link") — a headliner
 			 * item never carries desc/evidence/motivating (only relevancy
 			 * items do), so without this a headliner with a real link picked
@@ -1914,7 +1914,7 @@
 			}).join('');
 		}
 
-		/* ── Context section (A.1 context[], B.2) — whole-item collapse,
+		/* ── Context section (references/schemas.md §Report Object context[]; references/rendering-report.md §Page Layout) — whole-item collapse,
 		 * starts collapsed to title only. ─────────────────────────────────── */
 		function renderContextSection(tool) {
 			const items = tool.context || [];
@@ -1945,7 +1945,7 @@
 			el.dataset.expanded = el.dataset.expanded === '1' ? '0' : '1';
 		}
 
-		/* ── Release inventory (A.1 release_inventory[], B.2) — short list,
+		/* ── Release inventory (references/schemas.md §Report Object release_inventory[]; references/rendering-report.md §Page Layout) — short list,
 		 * not collapsed. ──────────────────────────────────────────────────── */
 		function renderReleaseInventory(tool) {
 			const entries = tool.release_inventory || [];
@@ -1957,7 +1957,7 @@
 			</div>`;
 		}
 
-		/* ── Link rendering + embedded_content modal (A.1, B.2) ───────────── */
+		/* ── Link rendering + embedded_content modal (references/schemas.md §Report Object, references/rendering-report.md §Page Layout) ───────────── */
 		let modalLinks = [];
 		function renderLinkAnchor(link, labelHtml) {
 			if (!link) return '';
@@ -1979,7 +1979,7 @@
 			document.getElementById('link-modal-overlay').dataset.open = '0';
 		}
 
-		/* ── config_status badge + banner (B.2 / C.5) ────────────────────── */
+		/* ── config_status badge + banner (references/rendering-report.md §Page Layout; references/research.md §Config Status) ────────────────────── */
 		function renderConfigStatusBadge(tool) {
 			const cs = tool.config_status;
 			if (!cs || !cs.state || cs.state === 'unknown') return '';
@@ -2005,7 +2005,7 @@
 		}
 
 		/* ── Render: one tool section ───────────────────────────────────── */
-		/* ── Header badges (B.2 "at a glance without expanding") ─────────── */
+		/* ── Header badges (references/rendering-report.md §Page Layout "at a glance without expanding") ─────────── */
 		function renderDecisionBadge(tool) {
 			const total = (tool.suggestions || []).length;
 			if (!total) return '';
@@ -2068,7 +2068,7 @@
 				: '';
 
 			/* Suggestion cards. The baseline upgrade suggestion on a "low"
-			 * risk_level tool (design.md A.1/A.2) renders pre-accepted. */
+			 * risk_level tool (references/schemas.md §Report Object; §Feedback Object) renders pre-accepted. */
 			const baselineUpgradeId = `${tool.id}:upgrade`;
 			const suggestionsHtml = (tool.suggestions && tool.suggestions.length)
 				? `<div class="suggestions-section">
@@ -2082,7 +2082,7 @@
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
 
 			/* Header "version delta" slot: a brew-health finding (source
-			 * "brew-health", C.8) has no current→latest version, so show its
+			 * "brew-health", references/rendering-report.md §Brew-Health Rendering) has no current→latest version, so show its
 			 * finding category instead of a "null → null" delta. */
 			const HEALTH_LABEL = {
 				deprecated_cask: 'deprecated cask', disabled_cask: 'disabled cask',
@@ -2095,7 +2095,7 @@
 				? `<span class="version-delta health-label">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
 				: `<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
 
-			/* Every section renders collapsed (B.2's default state); which
+			/* Every section renders collapsed (references/rendering-report.md §Page Layout's default state); which
 			 * one ends up "first" depends on sort order, which applyFilters()
 			 * only determines *after* this render pass runs (default sort
 			 * reorders the DOM) — so collapseAllButFirst() expands the true
@@ -2164,7 +2164,7 @@
 			mainEl.innerHTML = toolsHtml + overallHtml;
 		}
 
-		/* ── Collapse / expand tool section (B.2) ─────────────────────────
+		/* ── Collapse / expand tool section (references/rendering-report.md §Page Layout) ─────────────────────────
 		 * Shared by the header toggle and the bottom collapse control (#12)
 		 * so both call one implementation. Collapsing (either control) is
 		 * the auto-advance trigger (#13) — not "all suggestions decided",
@@ -2200,7 +2200,7 @@
 		 * every section renders collapsed (renderTool), and the default sort
 		 * ("Needs decision first") only determines true visual order once
 		 * applyFilters() has already run, so "first" has to be resolved
-		 * after that reorder, not from render-time array index (B.2). Not
+		 * after that reorder, not from render-time array index (references/rendering-report.md §Page Layout). Not
 		 * re-run on later filter/sort changes — that would blow away
 		 * whatever the user has manually expanded/collapsed by then. */
 		function collapseAllButFirst() {
@@ -2259,7 +2259,7 @@
 
 		/* ── Decision button clicks + misc delegated actions ─────────────── */
 		document.addEventListener('click', e => {
-			/* Turn-thread controls (#27/#28, results-view-design.md C.10) —
+			/* Turn-thread controls (#27/#28, references/rendering-results.md §Turn-Based Threads) —
 			 * shared by followup cards and failed-action debug threads.
 			 * Checked before the plain Report-tab decision-button branch
 			 * below since both use the same .btn-decision class; a
@@ -2309,7 +2309,7 @@
 				return;
 			}
 
-			/* Link modal trigger (embedded_content links, A.1/B.2) */
+			/* Link modal trigger (embedded_content links, references/schemas.md §Report Object; references/rendering-report.md §Page Layout) */
 			const modalTrigger = e.target.closest('.link-modal-trigger');
 			if (modalTrigger) {
 				openLinkModal(Number(modalTrigger.dataset.embedIdx));
@@ -2655,7 +2655,7 @@
 		/* Client-side record of turns submitted this session (thread id →
 		 * Turn[]) so an optimistic UI update survives a status.json poll
 		 * that hasn't caught up yet with the server's followup_turns.json
-		 * write (#27, results-view-design.md C.10) — shared by followup
+		 * write (#27, references/rendering-results.md §Turn-Based Threads) — shared by followup
 		 * threads and failed-action debug threads alike. */
 		const localTurns = new Map();
 
@@ -2779,7 +2779,7 @@
 			pbc.insertAdjacentElement('afterend', panel);
 			mainEl.style.display = 'none';
 
-			// results-view-design.md C.6: the Changelog tab shows "an empty
+			// references/rendering-results.md §Element Detail: the Changelog tab shows "an empty
 			// state rather than being disabled" whenever changelog_entries is
 			// empty — including the real gap between Submit and the first
 			// /status response (there is no initialData yet on that path), not
@@ -2844,7 +2844,7 @@
 		}
 
 		/* ── Render results (idempotent) ─────────────────────────────────── */
-		/* ── Turn-based threads (#27/#28, results-view-design.md C.10) ────
+		/* ── Turn-based threads (#27/#28, references/rendering-results.md §Turn-Based Threads) ────
 		 * Shared mechanism for followup cards and failed-action debug
 		 * threads: both are an array of Turn objects, rendered as read-only
 		 * history plus one set of active controls for the next turn. */
@@ -3182,7 +3182,7 @@
 		/* ── Changelog tab (#29) — heading-only entries, one shared date ──── */
 		function parseChangelogEntry(entry) {
 			// Written by the session as "## {date}\n### {source}: {name} ...\n{detail}"
-			// (design.md C.2 step 8) — strip the date line (shown once for the
+			// (references/apply.md §Push and Terminal Status) — strip the date line (shown once for the
 			// whole tab instead) and split heading from detail.
 			const withoutDate = entry.replace(/^##\s.*\n+/, '');
 			const m = withoutDate.match(/^(###\s.*)\n?([\s\S]*)$/);

@@ -9,7 +9,8 @@ review). The report holds config details, so only add interfaces the
 user trusts — a tailnet qualifies, a shared LAN may not. The server
 stays up after POST /feedback and shuts down only when POST /shutdown
 is received (or the 24h session fallback triggers). POST /followup appends
-a turn (results-view-design.md C.10) to a thread — a pending_followups
+a turn (references/rendering-results.md §Turn-Based Threads;
+references/apply.md §Turn-Based Threads) to a thread — a pending_followups
 entry or a failed action's own debug thread — into followup_turns.json.
 Threads are multi-turn by design: unlike /feedback, there is no
 duplicate-submit guard here; a second POST to the same thread_id is
@@ -42,8 +43,9 @@ def write_json_atomic(path: str, obj) -> None:
 
 # Served at GET / whenever index.html hasn't been written yet — the session
 # now starts the server right after collect, before research/assemble/render
-# (results-view-design.md E), so there's real minutes-long latency with
-# nothing to show otherwise. Polls research-status.json (schema: E.1) and
+# (references/rendering-results.md §Loading Page), so there's real
+# minutes-long latency with nothing to show otherwise. Polls
+# research-status.json (schema: references/schemas.md §Research-Status Object) and
 # reloads once phase reaches "ready", at which point index.html exists and
 # this fallback stops being served. Self-contained on purpose, same as the
 # main report page (no CDN, inline CSS/JS) — it's the first thing a user
@@ -164,7 +166,7 @@ def main():
 
 	# ── Load report metadata (tolerant — may not exist yet) ────────────────
 	# The session now starts the server right after collect, before research
-	# has produced report.json (SKILL.md step 2 moved after Serve) — so a
+	# has produced report.json (references/collection.md; references/server-and-session.md §Starting the Server) — so a
 	# missing report.json at startup is the normal case, not an error. GET /
 	# falls back to an embedded loading page until index.html appears; the
 	# feedback/report-id/known-ids machinery below re-reads report.json
@@ -280,7 +282,7 @@ def main():
 						self._error(400, "Expected thread_id and decision in accept|reject|discuss")
 						return
 
-					# Appends a turn (results-view-design.md C.10) — no
+					# Appends a turn (references/rendering-results.md §Turn-Based Threads) — no
 					# duplicate-decision guard. Threads are multi-turn by
 					# design: a second POST to the same thread_id (an
 					# out-of-turn addition after the thread was already

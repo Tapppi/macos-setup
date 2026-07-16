@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-write_status.py — atomic status.json read-modify-write helper (SKILL.md
-steps 6-9, results-view-design.md A/C.10).
+write_status.py — atomic status.json read-modify-write helper (see
+references/apply.md for steps 6-9 mechanics, references/schemas.md §Status
+Object, and references/rendering-results.md §Turn-Based Threads).
 
 Every subcommand does one atomic .tmp + os.replace() write, matching the
 "one state transition per write" discipline status.json's design requires.
@@ -84,7 +85,7 @@ def cmd_init(args):
 
 	# Iterate every suggestion in report.json (suggestion order), not just
 	# the ids present in feedback.json's decisions map — the front end only
-	# gates Submit on incompatible-severity suggestions (design.md B.2), so
+	# gates Submit on incompatible-severity suggestions (references/rendering-report.md §Page Layout), so
 	# a lower-severity suggestion can be legitimately submitted with no
 	# decision at all and simply never appear in `decisions`. Treating an
 	# absent id as "skip the action" (the previous behavior) silently
@@ -109,7 +110,7 @@ def cmd_init(args):
 					touches_macos_setup = True
 
 		# One investigation action per discuss decision *with a comment*
-		# (SKILL.md step 7) — a bare discuss with no comment has nothing to
+		# (references/apply.md §Turn-Based Threads) — a bare discuss with no comment has nothing to
 		# investigate.
 		if decision == "discuss" and dec.get("comment"):
 			actions.append({
@@ -118,7 +119,7 @@ def cmd_init(args):
 				"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [],
 			})
 
-	# Investigation actions — one per tool_comments entry (SKILL.md step 7).
+	# Investigation actions — one per tool_comments entry (references/apply.md §Tool Comments and Discuss).
 	for tool_id, comment in feedback.get("tool_comments", {}).items():
 		actions.append({
 			"id": f"investigate:{tool_id}", "label": f"Investigate: {tool_id} — {comment}",
@@ -127,7 +128,7 @@ def cmd_init(args):
 		})
 
 	# Synthetic commit/push actions — only for repos that will actually get
-	# a commit (SKILL.md step 6/8) — never render a no-op action.
+	# a commit (references/apply.md §Initializing status.json; §Push and Terminal Status) — never render a no-op action.
 	if touches_dotfiles:
 		actions.append({"id": "commit:dotfiles", "label": "Commit changes in dotfiles submodule",
 			"decision": None, "state": "pending", "started_at": None, "finished_at": None,
@@ -182,8 +183,8 @@ def cmd_set_action(args):
 			action["detail"] = fh.read().splitlines()[-10:]
 	if args.thread_turn_file:
 		# Appends an agent turn onto this action's own debug thread
-		# (results-view-design.md C.10) — the mechanism SKILL.md step 7
-		# means when it says to "append an agent turn answering or asking
+		# (references/rendering-results.md §Turn-Based Threads) — the mechanism references/apply.md
+		# §Turn-Based Threads means when it says to "append an agent turn answering or asking
 		# back" on a failed action's thread.
 		with open(args.thread_turn_file, "r", encoding="utf-8") as fh:
 			turn = json.load(fh)
@@ -206,7 +207,7 @@ def cmd_touch(args):
 	print("touched written_at")
 
 
-# ── sync-turns (merge browser-submitted turns, results-view-design C.10) ─
+# ── sync-turns (merge browser-submitted turns, references/apply.md §Turn-Based Threads) ─
 def cmd_sync_turns(args):
 	status = load_status(args.session_dir)
 	turns_path = os.path.join(args.session_dir, "followup_turns.json")
@@ -215,7 +216,7 @@ def cmd_sync_turns(args):
 	# followup_turns.json (server.py's /followup handler) only ever records
 	# *user* turns, numbered from its own file — its length is unrelated to
 	# a thread's real length in status.json once even one agent turn has
-	# been appended there directly (SKILL.md step 7 has no subcommand for
+	# been appended there directly (references/apply.md §Turn-Based Threads has no subcommand for
 	# that; it's appended straight into status.json). Comparing raw array
 	# lengths (`len(new) > len(existing)`) breaks both ways: it can miss a
 	# genuinely new user turn (if an agent turn already pushed `existing`

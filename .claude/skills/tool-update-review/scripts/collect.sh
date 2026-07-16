@@ -152,7 +152,7 @@ fi
 # same rationale as assemble.py/render.py being Python. Best-effort: an empty
 # result on any failure, never aborts the collector.
 #
-# Noise filter (SKILL.md): unlinked kegs that are mise-managed language
+# Noise filter (references/collection.md §Brew-Health Collection): unlinked kegs that are mise-managed language
 # runtimes (ruby/python/node/…) are an *expected* byproduct of managing
 # runtimes with mise while brew installs one as a transitive dependency —
 # they are moved to `suppressed`, not reported as actionable. Non-prefixed

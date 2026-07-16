@@ -75,7 +75,7 @@ def main():
 		print(f"Error: template not found: {template_path}", file=sys.stderr)
 		sys.exit(1)
 
-	# ── Three token replacements per design D.1 ───────────────────────────
+	# ── Three token replacements per references/rendering-report.md §Template Variables ───
 	# The tokens inside attribute quotes include the surrounding quotes.
 	html = html.replace('"__REPORT_ID__"',    json.dumps(report_id))
 	html = html.replace('"__GENERATED_AT__"', json.dumps(generated_at))

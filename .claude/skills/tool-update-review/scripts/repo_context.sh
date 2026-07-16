@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# repo_context.sh — emit repo_context.json (design.md A.1/C.5) for the two
+# repo_context.sh — emit repo_context.json (references/schemas.md §Report Object;
+# references/collection.md §Repo Freshness) for the two
 # setup repos. Usage: repo_context.sh <macos-setup-root> [dotfiles-root]
 # (dotfiles-root defaults to <macos-setup-root>/dotfiles)
 #
 # Read-only: fetches from origin (network) but never pulls/merges. Prints
 # the assembled JSON to stdout — the session redirects it to
-# {session_dir}/repo_context.json for assemble.py to read (SKILL.md step 1).
+# {session_dir}/repo_context.json for assemble.py to read (references/collection.md).
 set -euo pipefail
 
 macos_setup_root="${1:-.}"

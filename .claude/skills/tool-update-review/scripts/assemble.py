@@ -3,16 +3,17 @@
 assemble.py — merge collect.sh + research/*.json into report.json.
 Usage: assemble.py <session_dir> [--macos-setup-root PATH] [--dotfiles-root PATH]
 
-Reads {session_dir}/collect.json (collect.sh's saved stdout, SKILL.md step 1)
-and every {session_dir}/research/*.json file (SKILL.md step 3 — each one a
-JSON array of partial Tool objects, one per tool, each carrying its own "id"),
-merges them into the full report object (design.md A.1), and writes
+Reads {session_dir}/collect.json (collect.sh's saved stdout, see
+references/collection.md) and every {session_dir}/research/*.json file (see
+references/research.md — each one a JSON array of partial Tool objects, one
+per tool, each carrying its own "id"), merges them into the full report
+object (references/schemas.md §Report Object), and writes
 {session_dir}/report.json.
 
 This replaces the ad hoc hand-assembly used before this script existed,
 which silently skipped two documented rules: it blanket-set needs_sudo:false
-on every synthesized upgrade suggestion (design.md A.1 says default true
-when unsure) and never checked that cited evidence paths actually exist.
+on every synthesized upgrade suggestion (references/schemas.md §Report Object
+says default true when unsure) and never checked that cited evidence paths actually exist.
 Both are enforced here in code instead of being re-derived — and re-skipped
 — by hand each run.
 """
@@ -28,11 +29,11 @@ import re
 import sys
 
 
-# ── needs_sudo heuristic (design.md A.1, C.4) ──────────────────────────────
+# ── needs_sudo heuristic (references/schemas.md §Report Object; references/apply.md §Executing Upgrade Suggestions) ──
 # brew formulae, mise, and standalone CLIs never invoke a privileged
 # installer themselves — only some casks (pkg-shipping installers) do, and
 # Homebrew handles the internal `sudo` call itself. Default a cask to
-# needs_sudo:true (design.md: "default to true when genuinely unsure") and
+# needs_sudo:true (references/schemas.md §Report Object: "default to true when genuinely unsure") and
 # only trust false when research explicitly confirmed it via
 # "cask_sudo_hint": false on its returned Tool object — never assume.
 def needs_sudo_for(source: str, research_obj: dict) -> bool:
@@ -45,7 +46,7 @@ def needs_sudo_for(source: str, research_obj: dict) -> bool:
 	return True
 
 
-# ── auto_runnable / command per source (design.md A.1) ────────────────────
+# ── auto_runnable / command per source (references/assembly.md §Baseline Suggestion Synthesis) ──
 def upgrade_command_and_runnable(source: str, name: str):
 	if source == "brew":
 		return f"brew upgrade {name}", True, None
@@ -60,7 +61,7 @@ def upgrade_command_and_runnable(source: str, name: str):
 	return None, False, "Unknown source — no safe default command."
 
 
-# ── risk_level (design.md A.1, "default-accept low-risk upgrades") ────────
+# ── risk_level (references/assembly.md §Risk Level, "default-accept low-risk upgrades") ──
 # Computed here from objective signals already in the report rather than a
 # subjective per-tool call from research — code enforces one rule
 # consistently instead of relying on every subagent to judge it the same
@@ -100,7 +101,7 @@ def compute_risk_level(tool: dict) -> str:
 	return "low"
 
 
-# ── evidence path validation (SKILL.md step 4, "verify evidence paths") ───
+# ── evidence path validation (references/assembly.md §Evidence Validation, "verify evidence paths") ──
 # Evidence strings are either a repo-relative "path" or "path:line" (checked
 # against the given repo roots), or a non-path citation (a commit hash/
 # subject, a changelog.md entry description) that config_status evidence
@@ -127,7 +128,7 @@ def evidence_exists(evidence: str, roots) -> bool | None:
 
 
 def as_evidence_list(evidence, tool_id: str, context: str) -> list:
-	"""design.md A.1 says evidence is always an array. A research subagent
+	"""references/schemas.md §Report Object says evidence is always an array. A research subagent
 	that instead returns a bare string would make `for ev in evidence`
 	iterate individual characters — coerce and warn rather than silently
 	corrupting the warning output with single-letter "evidence" entries."""
@@ -155,7 +156,7 @@ def validate_evidence(tool: dict, roots) -> None:
 # ── main assembly ───────────────────────────────────────────────────────────
 def load_research(research_dir: str) -> dict:
 	"""Returns {tool_id: research_obj}. Every file in research/ is a JSON
-	array (SKILL.md step 3); a tool with no matching entry (subagent
+	array (references/research.md §Spawning and the Output-File Contract); a tool with no matching entry (subagent
 	failure/timeout) just gets research_error set later, in build_tool()."""
 	by_id: dict[str, dict] = {}
 	if not os.path.isdir(research_dir):
@@ -185,7 +186,7 @@ def load_research(research_dir: str) -> dict:
 	return by_id
 
 
-# ── brew-health finding → headliner category (design.md A.1, C.8) ─────────
+# ── brew-health finding → headliner category (references/assembly.md §Brew-Health Assembly) ──
 # A brew doctor finding is not a changelog fact, but the four content groups
 # (Security/Fixes/Features/Notes) are still where its problem statement reads
 # best on the card. Map each health category to the group whose topic fits;
@@ -205,7 +206,7 @@ _HEALTH_CATEGORY_GROUP = {
 
 
 def build_health_tool(candidate: dict, research_obj: dict | None) -> dict:
-	"""Build a Tool object for a `source: "brew-health"` finding (C.8). Unlike
+	"""Build a Tool object for a `source: "brew-health"` finding (references/assembly.md §Brew-Health Assembly). Unlike
 	a version-outdated tool it has no current→latest delta and gets no
 	synthesized `brew upgrade` baseline — its action is the finding's own
 	remediation. Research (if a brew-health subagent ran) can override the
@@ -308,14 +309,14 @@ def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 		"suggestions": list(research_obj.get("suggestions", [])),
 	}
 
-	# Enforce the needs_attention-must-have-a-suggestion rule (SKILL.md
-	# research quality bar / design.md config_status semantics) — a
+	# Enforce the needs_attention-must-have-a-suggestion rule (references/research.md
+	# §Config Status / references/assembly.md §Evidence Validation, enforcement point) — a
 	# violation here is a research-prompt bug, but assembly still surfaces
 	# it loudly rather than silently shipping an unactionable banner.
 	if tool["config_status"].get("state") == "needs_attention" and not tool["suggestions"]:
 		print(f"warning: {tool_id}: config_status is needs_attention with no suggestion addressing it", file=sys.stderr)
 
-	# Synthesize the baseline kind:"upgrade" suggestion (design.md A.1) —
+	# Synthesize the baseline kind:"upgrade" suggestion (references/assembly.md §Baseline Suggestion Synthesis) —
 	# mechanical, every tool gets exactly one, never left to research.
 	command, auto_runnable, manual_reason = upgrade_command_and_runnable(source, name)
 	upgrade_suggestion = {
@@ -369,7 +370,7 @@ def main():
 
 	research_by_id = load_research(os.path.join(session_dir, "research"))
 
-	# brew-health findings (design.md C.8) are candidates too, appended after
+	# brew-health findings (references/assembly.md §Brew-Health Assembly) are candidates too, appended after
 	# the version-outdated tools so they sort/render as their own cards.
 	health = collect.get("brew_health") or {}
 	health_findings = health.get("findings", []) if isinstance(health, dict) else []
