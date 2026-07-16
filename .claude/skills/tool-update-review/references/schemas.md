@@ -366,24 +366,36 @@ how `risk_level`-driven pre-accept state renders.
 
 (See `references/research.md` §Config Status for how this is computed.)
 
-- `up_to_date` — a prior commit or `changelog.md` entry already addressed
-  this tool at a version ≥ today's `latest_version`. Purely confirmatory;
-  render it quietly (small green check), don't make it loud — the point is
-  reassurance that nothing was missed, not a new thing to review.
-- `needs_attention` — this tool's config *was* touched for an older
-  version, but something in this run's `headliners`/`relevancy` suggests
-  that fix may no longer be complete or correct (e.g. a pin comment
-  reasoned about v5.0's requirement, and v5.5 changed the requirement
-  again). Render as a warning banner — this is exactly the kind of thing a
-  periodic review should catch that a one-off glance wouldn't. **Always
-  pairs with at least one suggestion that addresses it** — a banner telling
-  the user something might be stale, with nothing offered to resolve it,
-  just relocates the "someone should check this" burden onto them instead
-  of doing the check. If research concludes there's nothing to change
-  after all, that's `up_to_date`, not `needs_attention`.
-- `unknown` (default) — no evidence either way (no matching commit, no
-  changelog entry). The common case for a first-time review of a tool.
-  Render neutrally, same as today (no badge).
+- `up_to_date` — either (a) a prior commit or `changelog.md` entry already
+  addressed this tool at a version ≥ today's `latest_version`, or (b) a
+  prior entry addressed an *older* version V, and re-verifying the
+  V→`latest_version` delta (`references/research.md` §Config Status) found
+  nothing that invalidates that handling — `detail` says so explicitly in
+  that second case (e.g. "Reviewed at 5.0.0; nothing in 5.0.0→5.5.1 affects
+  the pin rationale."), it isn't left blank just because nothing changed.
+  Purely confirmatory either way; render it quietly (small green check),
+  don't make it loud — the point is reassurance that nothing was missed,
+  not a new thing to review.
+- `needs_attention` — a prior commit/`changelog.md` entry addressed this
+  tool at an older version V, and re-verifying the V→`latest_version` delta
+  found a change that could invalidate that fix's own reasoning (e.g. a pin
+  comment reasoned about v5.0's requirement, and the v5.0→v5.5 delta changed
+  the requirement again). Render as a warning banner — this is exactly the
+  kind of thing a periodic review should catch that a one-off glance
+  wouldn't. **Always pairs with at least one suggestion that addresses
+  it** — a banner telling the user something might be stale, with nothing
+  offered to resolve it, just relocates the "someone should check this"
+  burden onto them instead of doing the check. If the re-verification
+  concludes there's nothing to change after all, that's `up_to_date`, not
+  `needs_attention`.
+- `unknown` (default) — no prior evidence at all (no matching commit, no
+  changelog entry) — the common case for a first-time review of a tool — or
+  a delta that genuinely can't be assessed either way (no citable basis for
+  a verdict in either direction). **Not** the default just because a prior
+  entry predates `latest_version` — that case is always re-verified against
+  the V→latest delta and lands on `up_to_date` or `needs_attention`, per
+  `references/research.md` §Config Status. Render neutrally, same as today
+  (no badge).
 
 ### 1.6 `kind: "upgrade"` field semantics
 

@@ -301,7 +301,11 @@ not something to duplicate here.
 
 ### Config Status
 
-Per tool, compute `config_status`:
+Per tool, compute `config_status` — this is a **re-verification of the
+current→latest delta**, not a one-time lookup of whether something happened
+before. A prior fix is a starting point to re-check, never a permanent
+excuse to stop looking: "verify again, just from the version that was
+already handled to the newest version" instead of from scratch.
 
 1. Grep targeted `git log --oneline -- <files you're already inspecting for
    relevancy>` (its Brewfile line, its `tasks/*.sh` section, its dotfiles
@@ -311,28 +315,51 @@ Per tool, compute `config_status`:
    `${XDG_STATE_HOME:-~/.local/state}/tool-update-review/changelog.md` (the
    audit trail every prior session's machine-local upgrades get appended to
    — `references/apply.md` §Push and Terminal Status) for a prior entry
-   naming this tool.
-3. If either shows the config was already touched for a version ≥ today's
-   `latest_version`: `state: "up_to_date"`. If touched for an *older*
-   version and this run's headliners describe something that could
-   invalidate that fix's own reasoning (grep the fix's own commit
-   message/diff for keywords that also appear in the new headliners — e.g.
-   "libkrun", "Apple Silicon", the specific flag/requirement named): `state:
-   "needs_attention"`, with `detail` explaining specifically what changed
-   since. Otherwise `state: "unknown"` — don't guess a verdict without a
-   citable diff between the old fix and the new change.
-4. Cite the evidence (commit hash + subject, changelog.md entry date) in
-   `config_status.evidence[]` same as any other finding.
+   naming this tool, and note the version **V** that entry/commit was
+   written against.
+3. Decide the state from V vs. this run's `latest_version`:
+   - **No matching commit or changelog entry at all** (nothing names this
+     tool anywhere in either source): `state: "unknown"` — there's genuinely
+     no prior evidence to re-verify against. The common case for a
+     first-time review of a tool.
+   - **V ≥ `latest_version`**: `state: "up_to_date"` — prior handling
+     already covers the version this run is reviewing; nothing to
+     re-verify.
+   - **V < `latest_version`**: do **not** default to `"unknown"` just
+     because the prior record predates today's `latest_version` — instead,
+     re-verify the **V→`latest_version` delta's** changelog for a
+     config-relevant change, the same cross-referencing this rule already
+     used (grep the prior fix's own commit message/diff for keywords that
+     also appear in this run's headliners — e.g. "libkrun", "Apple Silicon",
+     the specific flag/requirement named):
+     - Delta **contains** a change that could affect this tool's
+       config/setup: `state: "needs_attention"`, with `detail` naming
+       specifically what changed in the delta and why it might invalidate
+       the prior fix's reasoning, **plus at least one suggestion addressing
+       it** (see below).
+     - Delta **contains nothing config-relevant**: `state: "up_to_date"` —
+       the prior handling still holds; say so explicitly in `detail` (e.g.
+       "Reviewed at 5.0.0; nothing in 5.0.0→5.5.1 affects the pin
+       rationale.") rather than leaving it blank just because nothing
+       changed.
+   - **Delta genuinely can't be assessed** (e.g. no changelog/release notes
+     exist for part of the range, or the prior fix's own commit message is
+     too vague to cross-reference against anything): `state: "unknown"` —
+     don't guess a verdict without a citable basis either way.
+4. Cite the evidence (commit hash + subject, changelog.md entry date, plus
+   whatever delta content backs a re-verified `up_to_date` or
+   `needs_attention` verdict) in `config_status.evidence[]` same as any
+   other finding.
 
 This deliberately reuses the same "cite it or don't claim it" discipline as
-`relevancy[]` — a `needs_attention` verdict without a concrete diff between
-what changed is worse than no verdict at all.
+`relevancy[]` — a verdict, in either direction, without a concrete look at
+the V→latest delta is worse than no verdict at all.
 
 **A `"needs_attention"` verdict must come with at least one suggestion
 addressing it** — flagging a possibly-stale fix and then giving the user
 nothing to act on just moves the "did anyone check this?" question one
-level up without answering it. If the re-check concludes the old fix still
-holds after all, that's `"up_to_date"`, not `"needs_attention"` with no
+level up without answering it. If the re-verification concludes the old fix
+still holds after all, that's `"up_to_date"`, not `"needs_attention"` with no
 suggestion.
 
 ### Watch Items (Reading)
