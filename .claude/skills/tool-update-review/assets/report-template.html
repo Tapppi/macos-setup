@@ -305,6 +305,12 @@
 		.source-badge.mise       { background: var(--violet);  color: #fff; }
 		.source-badge.standalone { background: var(--magenta); color: #fff; }
 		.source-badge.macos      { background: var(--base00);  color: var(--base2); }
+		/* brew-health: environment diagnostics, not a package manager — a
+		   neutral cyan-tinted badge distinct from the source colors above. */
+		.source-badge.brew-health { background: var(--cyan); color: var(--base03); }
+
+		.version-delta.health-label { color: var(--base1); font-style: italic; }
+		.count-badge.health { background: var(--cyan); color: var(--base03); }
 
 		.pin-badge {
 			padding: 1px 7px;
@@ -1453,6 +1459,7 @@
 				<option value="mise">mise</option>
 				<option value="standalone">standalone</option>
 				<option value="macos">macos</option>
+				<option value="brew-health">brew-health</option>
 			</select>
 		</label>
 		<label>
@@ -1627,6 +1634,9 @@
 			}
 			if (s.warning_count > 0) {
 				badges.push(`<span class="count-badge warning">${esc(s.warning_count)} warnings</span>`);
+			}
+			if (s.health_count > 0) {
+				badges.push(`<span class="count-badge health">${esc(s.health_count)} brew health</span>`);
 			}
 			badges.push(`<span class="count-badge suggestions">${esc(s.suggestions_count ?? 0)} suggestions</span>`);
 			document.getElementById('header-counts').innerHTML = badges.join('');
@@ -2033,7 +2043,19 @@
 		}
 
 		function renderTool(tool) {
-			const sev = maxSeverity(tool);
+			let sev = maxSeverity(tool);
+			/* brew-health findings carry their severity on headliners, not
+			 * relevancy (which stays empty), so maxSeverity() returns '' for
+			 * them — derive data-max-severity from the headliners instead, or
+			 * the severity dropdown and "relevant only" filters would hide a
+			 * real warning-severity health card. Normal tools are unchanged. */
+			if (!sev && tool.source === 'brew-health') {
+				let best = 99;
+				for (const h of (tool.headliners || [])) {
+					const o = SEV_ORDER[h.severity] ?? 99;
+					if (o < best) { best = o; sev = h.severity; }
+				}
+			}
 
 			const groupsHtml = renderContentGroups(tool);
 			const configBannerHtml = renderConfigStatusBanner(tool);
@@ -2052,12 +2074,26 @@
 				? `<div class="suggestions-section">
 				<div class="section-label">Suggestions</div>
 				${tool.suggestions.map(sug => renderCard(sug, {
-					preAccept: tool.risk_level === 'low' && sug.id === baselineUpgradeId,
+					preAccept: tool.source !== 'brew-health' && tool.risk_level === 'low' && sug.id === baselineUpgradeId,
 				})).join('')}
 			</div>`
 				: '';
 
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
+
+			/* Header "version delta" slot: a brew-health finding (source
+			 * "brew-health", C.8) has no current→latest version, so show its
+			 * finding category instead of a "null → null" delta. */
+			const HEALTH_LABEL = {
+				deprecated_cask: 'deprecated cask', disabled_cask: 'disabled cask',
+				deprecated_formula: 'deprecated formula', disabled_formula: 'disabled formula',
+				missing_keg: 'orphaned keg', unlinked_keg: 'unlinked keg',
+				untrusted_tap: 'untrusted tap', missing_dependency: 'missing dependency',
+				path_note: 'expected note', other: 'brew doctor',
+			};
+			const deltaHtml = tool.source === 'brew-health'
+				? `<span class="version-delta health-label">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
+				: `<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
 
 			/* Every section renders collapsed (B.2's default state); which
 			 * one ends up "first" depends on sort order, which applyFilters()
@@ -2076,7 +2112,7 @@
 		>
 			<div class="tool-header" role="button" aria-expanded="false">
 				<span class="tool-name">${esc(tool.name)}</span>
-				<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>
+				${deltaHtml}
 				<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
 				${pinnedHtml}
 				${renderConfigStatusBadge(tool)}

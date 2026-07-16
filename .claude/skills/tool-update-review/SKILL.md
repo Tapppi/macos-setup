@@ -4,12 +4,15 @@ description: >
   Generate an interactive changelog review page for pending tool updates —
   brew/Brewfile packages and casks (including self-updating desktop apps),
   mise runtimes, standalone CLIs genuinely unmanaged by brew, and macOS
-  system/app updates — with agent-written headliners, canonical
+  system/app updates, plus Homebrew environment-health findings from `brew
+  doctor` (deprecated/disabled casks, orphaned/unlinked kegs, untrusted taps,
+  missing dependencies) — with agent-written headliners, canonical
   changelog/release/blog links, and relevancy analysis against this machine
   and the user's setup repos (macos-setup, dotfiles, systems). Use this
   whenever the user asks to
   check tool updates, review changelogs, see what's outdated, asks "what's new
-  in <tool>", wants headliner changes since a version, or wants update
+  in <tool>", wants headliner changes since a version, wants a holistic look
+  at their brew/tap/cask/keg health, or wants update
   suggestions reviewed/applied — even if they only mention one tool or say
   something casual like "anything interesting in the latest brew updates?".
 ---
@@ -41,14 +44,26 @@ session dir, `/tmp/{report_id}/`. Run `scripts/collect.sh` from the
 macos-setup repo root (pass the Brewfile path if elsewhere) and save its
 stdout to `{session_dir}/collect.json` — `assemble.py` (step 4) reads it
 from there rather than from conversation memory. It emits machine context
-plus outdated tools from four sources: Brewfile-manifested brew/cask
+plus outdated tools from four version sources: Brewfile-manifested brew/cask
 packages (transitive deps excluded, pinned formulae included — a pin
 usually marks a *known* incompatibility worth re-checking, not a tool to
 skip), mise runtimes, standalone CLIs, and `softwareupdate -l` entries
-(macOS system/app updates — `source: "macos"`).
+(macOS system/app updates — `source: "macos"`). It **also** emits a
+`brew_health` object (design.md C.8): `brew doctor` environment-health
+findings — deprecated/disabled casks, orphaned/unlinked kegs, untrusted
+taps, missing dependencies — each parsed into a structured finding with a
+default remediation, `source: "brew-health"`. These are the "state of my
+brew install," not version deltas. The collector applies a noise filter so
+this stays holistic without being noisy: unlinked kegs that are mise-managed
+runtimes (ruby/python/node/…) and the intentional non-prefixed GNU-utils
+PATH notes are moved to `suppressed`/collapsed into one `expected` info
+finding rather than reported as actionable (C.8). Unknown warning blocks are
+kept (`category: "other"`), never silently dropped.
 
 If the user scoped the request ("just podman", "only claude"), filter the
-candidate list before researching.
+candidate list before researching. Scoping to version updates only? Skip the
+brew-health findings; scoping to "environment health"? Skip the version
+sources — filter whichever the request excludes.
 
 **Also check repo freshness** (design.md C.5): run
 `scripts/repo_context.sh . dotfiles > {session_dir}/repo_context.json` —
@@ -119,6 +134,23 @@ subagent per one is wasted overhead. Group tools into two tiers instead:
   work stays coherent. Give it the same schema and depth requirements per
   tool inside the batch; a batch subagent still returns one full Tool
   research object per tool, just from one process instead of N.
+- **brew-health group** (design.md C.8): the `brew_health` findings get their
+  own dedicated subagent (individual-tier — they're all repo-touchpoint work
+  by nature: which tap owns which keg, whether a deprecated cask is in the
+  Brewfile, whether an untrusted tap is actually used here). It writes one
+  research element per finding (matching each finding's `id`) enriching the
+  collect-default remediation into the *right* fix for this setup: a Brewfile
+  `edit` migrating a deprecated cask to its replacement; the trust-vs-untap
+  judgment per tap (trust the tap that owns a backend you rely on; flag for
+  Discuss a tap whose future is genuinely undecided; recommend untap for one
+  that's unused); and the causal links between findings (an untrusted tap is
+  *why* its kegs are orphaned — trust it rather than reinstall). Findings the
+  default remediation already handles well (a plain missing dependency, an
+  intentional path note) need no enrichment; leaving a finding out of the
+  research file is fine — `assemble.py` falls back to the collect default.
+  This group can be researched by the orchestrator directly instead of a
+  subagent when the finding set is small and the setup context is already in
+  hand — it's the same output file either way (`research/{id}.json`).
 
 **Use word-boundary grep (`grep -wn`/`-wni`) to find touchpoints, never plain
 substring matching.** A substring grep produces false positives that feed
@@ -368,6 +400,15 @@ subagent — it's the only thing that actually tracks an outdated tool to
 completion; without it a plain patch bump with no config impact would get
 zero suggestions and silently never get upgraded. Research-authored `edit`
 suggestions are additional to this baseline, never a replacement for it.
+**Exception: `brew-health` findings** (design.md C.8) get **no** baseline
+upgrade suggestion — they have no version to upgrade. `assemble.py` builds
+them from `collect.sh`'s `brew_health.findings` into `source: "brew-health"`
+tools whose `suggestions[]` are the research-authored fix, or the finding's
+own default `remediation` when research didn't enrich it (an `expected`
+finding like the intentional GNU-utils PATH note carries no remediation and
+so no suggestion — it renders as a quiet info card). It also emits a
+`health_count` in `summary` (separate from `total_outdated`) and logs the
+`suppressed` expected-noise list to stderr.
 
 Write `report.json` to the session dir, then:
 
@@ -481,6 +522,18 @@ Accepted suggestions split by `kind`:
   CLAUDE.md's never-run-setup-scripts rule, scoped to that single idempotent
   subcommand — instead of hand-simulating what that task does. The `systems`
   repo (nix) is out of scope — surface nix findings as notes only.
+- **`brew-health` remediations** (design.md C.8) → a `brew-health` finding's
+  suggestion is either a normal `edit` (e.g. migrating a deprecated cask in
+  the Brewfile — applied and committed exactly like any other edit) or a
+  `kind:"upgrade"` command that is **structural** rather than a version bump
+  (`brew trust`/`untap`/`link`, `brew install <missing-dep>`,
+  `brew install --cask <replacement> && brew uninstall --cask <old>`). Trust,
+  untap, link, and uninstall default to `auto_runnable:false` — print the
+  command and let the user run it; never auto-trust a tap, untap, or uninstall
+  an app, since those are security/availability decisions, not upgrades. A
+  plain `brew install <missing-dep>` is `auto_runnable:true` and follows the
+  normal `upgrade` execution path below. Never run a structural brew change
+  on the strength of a default remediation alone.
 - **`upgrade`** (machine-local: mise runtimes, brew/cask packages, standalone
   CLIs) → execution depends on `auto_runnable` and the report's
   `auto_run_upgrades` toggle (feedback.json, default `true` — design.md

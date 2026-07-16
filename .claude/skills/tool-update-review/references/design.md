@@ -279,10 +279,15 @@ Source vocabulary: `brew` = Brewfile `brew` line, `cask` = Brewfile `cask`
 line, `mise` = `mise outdated` runtime, `standalone` = a CLI genuinely
 unmanaged by brew, version-checked by running `--version` and comparing to
 the latest release, `macos` = a `softwareupdate -l` entry (system OS/app
-updates — Safari, Xcode CLT, the OS itself). `current_version` for `macos`
-entries is the running `sw_vers -productVersion`, not a per-update version —
-research should treat it as "what's currently installed system-wide" context
-rather than a strict current→latest delta for that specific update.
+updates — Safari, Xcode CLT, the OS itself), `brew-health` = a `brew doctor`
+environment-health finding (deprecated cask, orphaned/unlinked keg, untrusted
+tap, missing dependency — **not** a version delta; see C.8). `current_version`
+for `macos` entries is the running `sw_vers -productVersion`, not a per-update
+version — research should treat it as "what's currently installed system-wide"
+context rather than a strict current→latest delta for that specific update.
+`brew-health` findings have **no** `current_version`/`latest_version` at all
+(both `null`) and get **no** synthesized `upgrade` baseline — their action is
+the finding's own remediation (C.8).
 
 Note: `claude CLI` and `codex CLI` are **not** current examples of
 `standalone` — both are plain Homebrew casks (`claude-code@latest`, `codex`)
@@ -921,6 +926,109 @@ one case where relevancy severity is elevated by something *other* than
 the changelog content's own weight — a topic the user asked to be told
 about earns extra prominence regardless of how minor the change looks on
 its own.
+
+### C.8 Homebrew Environment Health (`brew doctor`) — the `brew-health` Source
+
+Version deltas are only half of "is my toolchain healthy." The other half is
+the *state* of the Homebrew install itself: casks the vendor has deprecated
+or disabled, kegs orphaned from their formula, unlinked kegs, untrusted taps
+whose formulae/casks brew is silently ignoring, and missing dependencies.
+`brew doctor` surfaces all of these; the review folds them in as a first-class
+source so they get the same accept/reject/discuss → apply → status →
+changelog flow as an upgrade, not a wall of terminal text the user has to
+triage by hand.
+
+**Collection (`collect.sh`, part of step 1).** After the version-outdated
+sources, `collect.sh` runs `brew doctor`, parses each `Warning:` block into a
+structured finding, and emits a `brew_health` object:
+
+```jsonc
+"brew_health": {
+  "findings": [
+    {
+      "id": "brew-health:untrusted_tap:libkrun-krun",   // {source}:{category}:{slug}
+      "name": "Untrusted tap: libkrun/krun",
+      "source": "brew-health",
+      "category": "untrusted_tap",   // deprecated_cask | disabled_cask |
+                                      // deprecated_formula | disabled_formula |
+                                      // missing_keg | unlinked_keg | untrusted_tap |
+                                      // missing_dependency | path_note | other
+                                      // (brew doctor emits the "deprecated or
+                                      //  disabled" warning separately for
+                                      //  formulae and casks, and a currently
+                                      //  *disabled* item — no longer installable —
+                                      //  is distinguished from a merely deprecated
+                                      //  one via `brew info`'s "Disabled because …")
+      "severity": "warning",         // info | notable | warning | incompatible (first guess;
+                                      //   research may refine)
+      "detail": "…human explanation of the finding + how to resolve it…",
+      "affected": ["libkrun/krun"],  // the cask/keg/tap/dep name(s) the block named
+      "remediation": {               // default fix, or null when it needs research/no action
+        "command": "brew trust libkrun/krun",
+        "auto_runnable": false,      // trust/untap/link default to MANUAL — structural changes
+        "needs_sudo": false,
+        "label": "Trust libkrun/krun (or `brew untap libkrun/krun` to remove)"
+      },
+      "expected": false,             // true = intentional/known-benign (rendered quietly, no action)
+      "pinned": false, "current_version": null, "latest_version": null
+    }
+  ],
+  "suppressed": [ "…one line per finding filtered as expected noise…" ]
+}
+```
+
+**Noise filter (the point of "holistic, not noisy").** Two classes of
+`brew doctor` output are expected byproducts of *this* setup, not problems:
+- **Unlinked kegs that are mise-managed language runtimes** (ruby, python,
+  node, go, rust, …). mise owns the runtime; brew installs one only as a
+  transitive dependency, so it stays unlinked by design. These move to
+  `suppressed` (logged, never rendered as actionable), NOT to `findings`.
+- **Non-prefixed GNU-utils PATH notes** (coreutils/findutils). The Brewfile
+  deliberately puts gnubin first; brew doctor flags it generically. These
+  collapse into a single `expected: true`, `info`-severity `path_note`
+  finding rather than N actionable warnings — visible (so the user sees it's
+  accounted for) but never demanding a decision.
+Any *other* warning block, known category or not (`other`), is kept — better
+to surface an unknown diagnostic than silently drop it.
+
+**Assembly (`assemble.py`, step 4).** Each finding becomes a Tool object with
+`source: "brew-health"`, `current_version`/`latest_version` `null`, and an
+extra `health_category`/`health_expected` pair. Unlike every other source it
+gets **no** synthesized `brew upgrade` baseline. Its `suggestions[]` come
+from research if a brew-health subagent ran (which can author a better fix —
+e.g. a Brewfile `edit` migrating a deprecated cask to its replacement, or the
+trust-vs-untap judgment for a tap that depends on how the setup uses it),
+otherwise from the finding's own default `remediation` (a single
+`kind:"upgrade"` command suggestion). Headliners degrade the same way: the
+finding's `detail` becomes one headliner in the group its category maps to
+(untrusted_tap → Security; missing/unlinked/missing_dependency → Fixes;
+deprecated/path/other → Notes). `risk_level` is `low` for an `expected`
+finding (informational, never pre-anything) and `elevated` otherwise (so a
+structural change is never quietly pre-accepted — health remediations always
+start undecided, since the pre-accept path is scoped to `:upgrade` baseline
+ids only).
+
+**Interconnection is the value.** Findings are often causally linked — an
+untrusted tap is *why* its kegs show as "no formula"; a deprecated cask may
+also appear in the same review as a plain version update. Research (or the
+orchestrator authoring the brew-health file directly) should connect these:
+recommend trusting the tap that owns an orphaned-keg backend rather than
+reinstalling; recommend migrating a deprecated cask rather than updating it.
+
+**Rendering.** The page treats a `brew-health` tool like any other card
+except the header's version-delta slot shows the finding category label
+(e.g. "untrusted tap") instead of `null → null`, the source badge uses the
+dedicated `brew-health` color, and a `health_count` header badge counts them
+separately from `total_outdated` (they're environment issues, not updates).
+
+**Apply (step 7).** Remediations follow their `kind`: an `edit` (e.g. the
+Brewfile cask migration) applies in-session per repo conventions; an
+`upgrade`-kind command runs per C.4 when `auto_runnable` — but trust/untap/
+link default to `auto_runnable:false` (structural, security-relevant), so the
+session prints the command and the user runs it. A plain missing-dependency
+`brew install` is safe to auto-run. Nothing structural (trusting a tap,
+untapping, uninstalling a deprecated app) is ever auto-applied on the strength
+of a default remediation alone.
 
 ## D. Template Variables
 

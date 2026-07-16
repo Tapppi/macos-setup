@@ -185,8 +185,107 @@ def load_research(research_dir: str) -> dict:
 	return by_id
 
 
+# ── brew-health finding → headliner category (design.md A.1, C.8) ─────────
+# A brew doctor finding is not a changelog fact, but the four content groups
+# (Security/Fixes/Features/Notes) are still where its problem statement reads
+# best on the card. Map each health category to the group whose topic fits;
+# untrusted taps are a trust/security decision, so → security.
+_HEALTH_CATEGORY_GROUP = {
+	"deprecated_cask": "notes",
+	"disabled_cask": "notes",
+	"deprecated_formula": "notes",
+	"disabled_formula": "notes",
+	"missing_keg": "fixes",
+	"unlinked_keg": "fixes",
+	"untrusted_tap": "security",
+	"missing_dependency": "fixes",
+	"path_note": "notes",
+	"other": "notes",
+}
+
+
+def build_health_tool(candidate: dict, research_obj: dict | None) -> dict:
+	"""Build a Tool object for a `source: "brew-health"` finding (C.8). Unlike
+	a version-outdated tool it has no current→latest delta and gets no
+	synthesized `brew upgrade` baseline — its action is the finding's own
+	remediation. Research (if a brew-health subagent ran) can override the
+	headliners/context/suggestions; absent research, this degrades to the
+	collect.sh finding's own detail + default remediation so the card is
+	still useful on its own."""
+	research_obj = research_obj or {}
+	tool_id = candidate["id"]
+	category = candidate.get("category", "other")
+
+	# Headliners: research's if present, else one synthesized from the
+	# finding's own detail so the problem still shows in a content group.
+	headliners = research_obj.get("headliners")
+	if not headliners:
+		headliners = [{
+			"text": candidate.get("detail", candidate.get("name", "")),
+			"category": _HEALTH_CATEGORY_GROUP.get(category, "notes"),
+			"severity": candidate.get("severity", "notable"),
+		}]
+
+	# Suggestions: research's if present, else synthesize from the finding's
+	# default remediation (skipped for expected/no-action findings, e.g. the
+	# intentional GNU-utils PATH note, which carries remediation: null).
+	suggestions = list(research_obj.get("suggestions", []))
+	if not suggestions:
+		rem = candidate.get("remediation")
+		if rem and rem.get("command"):
+			sug = {
+				"id": f"{tool_id}:remediate",
+				"kind": "upgrade",  # a single command to run, like an upgrade
+				"title": rem.get("label") or candidate.get("name", "Remediate"),
+				"target_files": [],
+				"command": rem["command"],
+				"auto_runnable": rem.get("auto_runnable", False),
+				"needs_sudo": rem.get("needs_sudo", False),
+				"rationale": candidate.get("detail", ""),
+				"motivating_link": None,
+				"diff_preview": None,
+			}
+			if not sug["auto_runnable"]:
+				sug["manual_reason"] = "Structural brew change — review and run this yourself."
+			suggestions = [sug]
+
+	tool = {
+		"id": tool_id,
+		"name": candidate.get("name", tool_id),
+		"source": "brew-health",
+		"health_category": category,
+		"health_expected": bool(candidate.get("expected", False)),
+		"pinned": False,
+		"current_version": None,
+		"latest_version": None,
+		"research_error": None,
+		"headliners": headliners,
+		"links": research_obj.get("links", []),
+		"config_status": research_obj.get("config_status", {"state": "unknown", "detail": "", "evidence": []}),
+		"relevancy": research_obj.get("relevancy", []),
+		"context": research_obj.get("context", []),
+		"release_inventory": research_obj.get("release_inventory", []),
+		"vendor_silent_categories": research_obj.get("vendor_silent_categories", []),
+		"suggestions": suggestions,
+	}
+	# Same needs_attention-must-have-a-suggestion guard build_tool applies —
+	# a brew-health research subagent could set needs_attention on a finding
+	# whose default remediation is null (e.g. missing_keg), shipping an
+	# unactionable banner; surface it loudly rather than silently.
+	if tool["config_status"].get("state") == "needs_attention" and not tool["suggestions"]:
+		print(f"warning: {tool_id}: config_status is needs_attention with no suggestion addressing it", file=sys.stderr)
+	# An expected/no-action finding (path_note) is informational: keep it
+	# visible but low-risk so it never demands a decision. Everything else is
+	# structural — treat as elevated so it isn't quietly pre-accepted.
+	tool["risk_level"] = "low" if tool["health_expected"] else "elevated"
+	return tool
+
+
 def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 	source = candidate["source"]
+	if source == "brew-health":
+		return build_health_tool(candidate, research_obj)
+
 	name = candidate["name"]
 	tool_id = candidate["id"]
 	research_obj = research_obj or {}
@@ -270,9 +369,18 @@ def main():
 
 	research_by_id = load_research(os.path.join(session_dir, "research"))
 
+	# brew-health findings (design.md C.8) are candidates too, appended after
+	# the version-outdated tools so they sort/render as their own cards.
+	health = collect.get("brew_health") or {}
+	health_findings = health.get("findings", []) if isinstance(health, dict) else []
+	health_suppressed = health.get("suppressed", []) if isinstance(health, dict) else []
+	for s in health_suppressed:
+		print(f"note: brew-health suppressed (expected, not reported): {s}", file=sys.stderr)
+
 	candidates = (
 		collect.get("brew", []) + collect.get("mise", []) +
-		collect.get("standalone", []) + collect.get("macos", [])
+		collect.get("standalone", []) + collect.get("macos", []) +
+		health_findings
 	)
 
 	tools = [build_tool(c, research_by_id.get(c["id"])) for c in candidates]
@@ -304,6 +412,9 @@ def main():
 	incompatible = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "incompatible")
 	warning = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "warning")
 	suggestions_count = sum(len(t["suggestions"]) for t in tools)
+	# "outdated" counts version-outdated tools only; brew-health findings are
+	# environment issues, not updates, so they get their own count.
+	health_count = sum(1 for t in tools if t["source"] == "brew-health")
 
 	report_id = os.path.basename(session_dir)
 	report = {
@@ -312,10 +423,11 @@ def main():
 		"generated_at": collect.get("generated_at") or "",
 		"machine": collect.get("machine", {}),
 		"summary": {
-			"total_outdated": len(tools),
+			"total_outdated": len(tools) - health_count,
 			"incompatible_count": incompatible,
 			"warning_count": warning,
 			"suggestions_count": suggestions_count,
+			"health_count": health_count,
 		},
 		"repo_context": repo_context,
 		"tools": tools,
