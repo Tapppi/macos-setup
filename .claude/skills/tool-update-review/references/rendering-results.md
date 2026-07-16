@@ -443,6 +443,14 @@ effect — see `apply.md` §Turn-Based Threads for when the session does this).
 **Rendering is identical either way; `origin` is metadata, not a different
 card shape.**
 
+**A `kind: "watch-item"` followup** (a standing concern the session noticed
+mid-apply, `apply.md` §Agent-Initiated Followups) renders through this exact
+same `renderCard(sug, {followup: true})` path as any other followup — `kind`
+only changes which body function runs (`rendering-report.md` §Suggestion
+Card's `renderWatchItemBody` instead of a diff/command), same as it does on
+the pre-Submit Report tab. Accept/Reject/Discuss and the turn-thread
+mechanism below are unaffected by `kind` either way.
+
 ## Markdown Rendering
 
 Recap, changelog entry detail, and turn `comment`/`action_taken` text are

@@ -241,8 +241,16 @@ of a diff (there is nothing to diff) with a short "run this yourself" hint;
 Accept only marks the decision; it does not imply a diff preview exists. For
 `kind: "edit"`, unchanged: title, target file(s), rationale, motivating
 link, diff preview (`+` green / `-` red in a `<pre>`), Accept/Reject/Discuss
-buttons, comment textarea (1 row collapsed, 3 rows focused). Clicking an
-active decision button toggles back to undecided.
+buttons, comment textarea (1 row collapsed, 3 rows focused). For
+`kind: "watch-item"` (`schemas.md` §1.7): no target files, no diff, no
+command — the body is just the proposal's `watch_topic`/`watch_note`
+(`renderWatchItemBody`), a small cyan-accented callout distinct from a diff
+or command chip, since accepting it doesn't run or edit anything, it only
+writes a `watch-items.json` entry (`apply.md` §Executing `watch-item`
+Suggestions). Accept/Reject/Discuss buttons and the comment textarea are
+otherwise identical to an `edit` card — same `decisions` plumbing, no
+special-casing in the Submit payload. Clicking an active decision button
+toggles back to undecided.
 
 | State | Visual |
 |---|---|

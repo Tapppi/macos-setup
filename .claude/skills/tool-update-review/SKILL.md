@@ -255,10 +255,17 @@ Accepted suggestions split by `kind`:
   `auto_run_upgrades` toggle: not-auto-runnable prints the command and polls
   for completion; auto-runnable-and-toggle-on runs it directly (askpass for
   `needs_sudo`), then polls to confirm the version landed either way.
+- **`watch-item`** → not an edit/upgrade; a research-proposed standing
+  concern (`references/research.md` §Watch Items (Proposing)). On accept,
+  run `scripts/write_status.py add-watch-item` to append the proposal's
+  `topic`/`note` to `watch-items.json` — no repo edit, no command runs.
 
 `tool_comments`/`discuss` investigation never applies anything directly —
 write a followup object and run `scripts/write_status.py add-followup`
-instead, surfaced live in the Results view for an explicit decision.
+instead, surfaced live in the Results view for an explicit decision. A
+followup itself can also carry `kind: "watch-item"` when the session notices
+a standing concern mid-apply (`origin: "agent_initiated"`) — same
+accept-writes-to-`watch-items.json` behavior as the report-time proposal.
 
 Full execution rules incl. askpass/auto_run_upgrades/bespoke-setup/
 followups/watch-items: `references/apply.md`.

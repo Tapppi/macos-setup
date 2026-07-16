@@ -16,6 +16,11 @@ Subcommands:
   sync-turns      <session_dir>                        merge followup_turns.json into pending_followups[].turns / actions[].thread
   add-followup    <session_dir> <followup-json-file>  append (or replace, by id) a pending_followups entry
   append-changelog <session_dir> <entry-file>...       append changelog entries to status.json AND changelog.md
+  add-watch-item  --tool-id ID --topic TEXT --note TEXT   append an accepted watch-item proposal's {topic, note,
+                                                           added_at} to watch-items.json (references/apply.md §Watch
+                                                           Items (Writing)). No <session_dir> — this file is
+                                                           machine-global, not scoped to any one review session, and
+                                                           this subcommand never touches status.json.
   finalize        <session_dir> [--phase discussing|done] --recap TEXT|--recap-file FILE
 """
 from __future__ import annotations
@@ -303,6 +308,30 @@ def cmd_append_changelog(args):
 	print(f"appended {len(entries)} changelog entries")
 
 
+# ── add-watch-item (references/apply.md §Watch Items (Writing)) ───────────
+def cmd_add_watch_item(args):
+	# Deliberately independent of any session_dir/status.json — watch-items.json
+	# is a machine-global audit trail read at *research* time on a later run
+	# (references/research.md §Watch Items (Reading)), not part of this
+	# session's own state. Same directory/atomic-write pattern as changelog.md
+	# (append-changelog above).
+	watch_path = os.path.expanduser(
+		os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/tool-update-review/watch-items.json"
+	)
+	os.makedirs(os.path.dirname(watch_path), exist_ok=True)
+	watch_items = load_json(watch_path, default={})
+	if not isinstance(watch_items, dict):
+		watch_items = {}
+	entries = watch_items.setdefault(args.tool_id, [])
+	entries.append({
+		"topic": args.topic,
+		"note": args.note,
+		"added_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+	})
+	write_json_atomic(watch_path, watch_items)
+	print(f"added watch item for {args.tool_id!r}: {args.topic!r}")
+
+
 # ── finalize ──────────────────────────────────────────────────────────────
 def cmd_finalize(args):
 	status = load_status(args.session_dir)
@@ -370,6 +399,12 @@ def main():
 	p.add_argument("session_dir")
 	p.add_argument("entry_files", nargs="+")
 	p.set_defaults(func=cmd_append_changelog)
+
+	p = sub.add_parser("add-watch-item")
+	p.add_argument("--tool-id", required=True)
+	p.add_argument("--topic", required=True)
+	p.add_argument("--note", required=True)
+	p.set_defaults(func=cmd_add_watch_item)
 
 	p = sub.add_parser("finalize")
 	p.add_argument("session_dir")

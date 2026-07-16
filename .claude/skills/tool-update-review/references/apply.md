@@ -8,6 +8,7 @@ Table of contents:
 - Executing `edit` Suggestions
 - Brew-Health Remediation
 - Executing Upgrade Suggestions
+- Executing `watch-item` Suggestions
 - Bespoke Setup Execution
 - Tool Comments and Discuss
 - Agent-Initiated Followups
@@ -215,6 +216,28 @@ install`) does *not* upgrade an already-installed runtime pinned to
 `mise upgrade [tool]` re-resolves it, which is exactly what the synthesized
 `command` runs — don't substitute `install.sh` for it.
 
+## Executing `watch-item` Suggestions
+
+A `kind: "watch-item"` suggestion (`references/schemas.md` §1.7,
+`references/research.md` §Watch Items (Proposing)) is a research-proposed
+standing concern, accepted/rejected/discussed through the exact same
+`feedback.json` `decisions` map as any other suggestion — nothing special
+about how the decision arrives, only about what accepting it does:
+
+- **Accept**: run `scripts/write_status.py add-watch-item --tool-id
+  {tool_id} --topic "{watch_topic}" --note "{watch_note}"` (writes the
+  `{topic, note, added_at}` entry into `watch-items.json` under this tool's
+  id — see §Watch Items (Writing) below for the file mechanics shared with
+  the other two ways a watch item gets written). No repo edit, no command,
+  no commit action gets synthesized for this suggestion — `target_files` is
+  always `[]`, so `write_status.py init`'s dotfiles/macos-setup commit
+  detection never fires for it. Mark the action `"done"` with a note like
+  `"Added watch item: {watch_topic}"`.
+- **Reject**: already handled generically at `init` time (rejected →
+  `state: "skipped"` immediately) — no file write, nothing further to do.
+- **Discuss**: normal discuss handling (§Tool Comments and Discuss below) —
+  never writes `watch-items.json` on the strength of a discuss alone.
+
 ## Bespoke Setup Execution
 
 For tools with setup logic beyond a plain package command (podman's
@@ -269,21 +292,63 @@ with `origin: "agent_initiated"` instead of `"user_comment"`. The Results
 view should be the single place someone checks for "things needing my
 decision" — not split across the page and the chat transcript.
 
+**A standing concern noticed mid-apply** (not from research, and not from a
+user comment either — the session itself, applying something, notices a
+pattern worth watching on future runs) is the same mechanism with
+`kind: "watch-item"` instead of `"edit"`/`"upgrade"`: a `pending_followups`
+entry, `origin: "agent_initiated"`, carrying `watch_topic`/`watch_note`
+instead of `target_files`/`command`/`diff_preview`. Rendered identically to
+any other followup (`references/rendering-results.md` §Turn-Based
+Threads — `origin` is metadata, not a different card shape). On a user turn
+accepting it (via `sync-turns`, §Heartbeat and Turn Sync above), write the
+`watch-items.json` entry the same way as §Executing `watch-item` Suggestions
+above, then re-run `scripts/write_status.py add-followup` with the updated
+object (`resolution: "applied"`, the accepting turn appended) — the same
+"answer a turn is a judgment call, not a scriptable transition" mechanism
+§Turn-Based Threads (Session Side) below already documents, just applied to
+this specific kind of followup.
+
 ## Watch Items (Writing)
 
-**If a comment expresses a standing concern rather than a one-off
-question**, append an entry to `watch-items.json` (see
-`references/research.md` §Watch Items for the file shape and the read side
-that consumes it on future runs) so future runs check for it automatically —
-a preference like "tell me if this tool's shell integration changes, ever"
-shouldn't only live in this conversation's memory. Append the watch-item
-entry **in addition to (never instead of)** surfacing any concrete
-suggestion normally — a standing concern does not replace acting on the
-one-off action the comment also warrants. A one-time question ("does this
-release fix the bug I hit last week?") doesn't need one; use judgment rather
-than creating a watch item for every comment. This is an apply-time write
-(during step 7's investigation) — the corresponding read happens at research
-time on a later run.
+`watch-items.json` (see `references/research.md` §Watch Items (Reading) for
+the file shape and the read side that consumes it on future runs) gets a new
+entry from **exactly one action**, regardless of which of three paths
+proposed it — `scripts/write_status.py add-watch-item --tool-id {tool_id}
+--topic "{topic}" --note "{note}"` (atomic write, no `session_dir` argument:
+this file is machine-global, not scoped to one review session). Never write
+the file any other way (no hand-rolled `jq`/Python edit) — always go through
+this subcommand so every write follows the same atomic pattern the rest of
+this skill's state files use.
+
+The three paths that can trigger it, and the one thing they have in common
+— **never written on the strength of a proposal alone; always a separate,
+explicit accept**:
+
+1. **A research-proposed `kind: "watch-item"` suggestion, accepted** (the
+   normal case going forward — `references/research.md` §Watch Items
+   (Proposing), execution mechanics in §Executing `watch-item` Suggestions
+   above).
+2. **An agent-initiated followup proposing one mid-apply, accepted** (the
+   session itself notices a standing concern while applying something —
+   §Agent-Initiated Followups above).
+3. **A comment expressing a standing concern, investigated** (the original,
+   pre-suggestion path: if a `tool_comments` entry or `discuss` comment
+   expresses a standing concern rather than a one-off question — a
+   preference like "tell me if this tool's shell integration changes, ever"
+   shouldn't only live in this conversation's memory — investigate per
+   §Tool Comments and Discuss above, then call `add-watch-item` directly as
+   part of that investigation's outcome. Do this **in addition to (never
+   instead of)** surfacing any concrete one-off suggestion the comment also
+   warrants — a standing concern does not replace acting on the immediate
+   ask. A one-time question ("does this release fix the bug I hit last
+   week?") doesn't need one; use judgment rather than creating a watch item
+   for every comment.)
+
+Paths 1 and 2 are the preferred, review-gated way to propose a watch item
+now — surfaced explicitly in the review UI for accept/reject, same as any
+other suggestion — rather than the session silently deciding one is
+warranted from a comment. Path 3 remains for the free-text case where
+nothing already produced a formal proposal to accept.
 
 ## Turn-Based Threads (Session Side)
 

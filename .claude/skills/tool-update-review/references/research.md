@@ -32,6 +32,7 @@ Table of contents:
   - Suggestions Are Always `kind: "edit"`
   - Config Status
   - Watch Items (Reading)
+  - Watch Items (Proposing)
   - Deduplicate Facts
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
@@ -404,6 +405,48 @@ the watch item's `note` as part of the evidence. This is the one case where
 relevancy severity is elevated by something *other* than the changelog
 content's own weight — a topic the user asked to be told about earns extra
 prominence regardless of how minor the change looks on its own.
+
+### Watch Items (Proposing)
+
+The section above is the *read* side — matching against watch items that
+already exist. This is the *write* side's other half: **you can propose a
+new watch item yourself**, from research, when you notice a standing,
+forward-looking concern about a tool worth tracking on future runs — not
+just when the user asks for one in a comment (that path is
+`references/apply.md` §Watch Items (Writing), triggered mid-apply from a
+`tool_comments`/`discuss` investigation). The cursor-cli shell-integration
+example above (§Watch Items (Reading)) is exactly the kind of thing that
+could have been proposed at research time, the first time it was noticed,
+instead of waiting for the user to ask for it explicitly.
+
+**When to propose one** — rare, not a default. A genuine standing concern
+looks like: an intentional deviation from the vendor's default behavior that
+a future release could silently reintroduce or break (an on-demand wrapper
+replacing an always-on hook, a pin whose blocking condition is narrow and
+easy to miss changing back), or a config decision whose correctness depends
+on something the vendor could change without prominent announcement. It does
+**not** mean proposing one for every tool with a pin, a bespoke touchpoint,
+or a `needs_attention` verdict — those are already tracked via
+`config_status`/relevancy on every run; a watch item is for a concern that
+`config_status`'s per-run re-verification (§Config Status above) wouldn't
+naturally catch because there's no single delta to re-check, just an
+ongoing "did the vendor change their mind about X" question.
+
+**How to propose one**: add a suggestion to the tool's `suggestions[]` with
+`kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same
+schema strictness as any other suggestion, just a different shape:
+`target_files: []`, `command: null`, `auto_runnable: false`, and the
+proposal's payload in `watch_topic`/`watch_note` (same field meaning as
+`watch-items.json`'s `topic`/`note`, §Watch Items (Reading) above — write
+them so they'd read sensibly if copied verbatim into that file, because
+that's exactly what happens on accept). Give it a real `rationale` explaining
+why this is worth watching, same evidence-discipline as everything else
+here. **This is a proposal, not a write** — nothing touches
+`watch-items.json` unless the user explicitly accepts it in the review UI
+(`references/apply.md` §Watch Items (Writing)); do not also write the file
+yourself from research. At most one or two per run across the whole
+candidate set is the expected volume — if you're proposing one for most
+tools you research, you're almost certainly over-applying this.
 
 ### Deduplicate Facts
 

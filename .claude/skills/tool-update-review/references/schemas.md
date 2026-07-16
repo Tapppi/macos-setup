@@ -22,6 +22,7 @@ Table of contents:
   - [1.4 `risk_level` semantics](#14-risk_level-semantics)
   - [1.5 `config_status.state` semantics](#15-config_statusstate-semantics)
   - [1.6 `kind: "upgrade"` field semantics](#16-kind-upgrade-field-semantics)
+  - [1.7 `kind: "watch-item"` field semantics](#17-kind-watch-item-field-semantics)
 - [2. Feedback Object (feedback.json)](#2-feedback-object-feedbackjson)
   - [2.1 Schema](#21-schema)
   - [2.2 `decision` semantics](#22-decision-semantics)
@@ -231,7 +232,11 @@ mechanism).
 	// ── Suggestions ───────────────────────────────────────────────────
 	// Every tool gets exactly one synthesized "upgrade" suggestion (added
 	// during assembly, not by the research subagent) plus zero or more
-	// research-authored "edit" suggestions.
+	// research-authored "edit" suggestions, plus zero or more
+	// research-proposed "watch-item" suggestions (§1.7 below;
+	// references/research.md §Watch Items (Proposing)) — a standing,
+	// forward-looking concern the user can accept/reject in the review UI,
+	// distinct from a one-off "edit" fix.
 	"suggestions": [
 		{
 			"id":      "cask:wireshark-app:upgrade",       // always "{source}:{name}:upgrade" for the baseline
@@ -303,6 +308,26 @@ mechanism).
 				"url":   "https://github.com/containers/podman/releases/tag/v5.0.0"
 			},
 			"diff_preview": "-brew \"podman\"\n+# Intel only — v5+ requires libkrun (ARM). Keep at 4.x.\n+brew \"podman\""
+		},
+		{
+			// A proposed watch item (§1.7 below) — a standing, forward-looking
+			// concern, not a one-off fix. No target_files/command/diff_preview:
+			// there is nothing to apply here except the watch-item entry
+			// itself, written to watch-items.json on accept
+			// (references/apply.md §Watch Items (Writing)).
+			"id":    "cask:cursor-cli:watch-shell-integration",  // "{source}:{name}:watch-{slug}"
+			"kind":  "watch-item",
+			"title": "Watch: shell-integration / session recording",
+			"target_files": [],
+			"command": null,
+			"auto_runnable": false,           // never auto-run — accepting this writes a
+			                                  // watch-items.json entry, nothing else
+			"needs_sudo": false,
+			"rationale": "install-shell-integration execs `agent record` on every new shell via ~/.zshrc, undocumented data handling; the user implemented an on-demand cursor-record() function instead. Worth flagging if a future release touches this again.",
+			"motivating_link": null,
+			"diff_preview": null,
+			"watch_topic": "shell-integration / session recording",   // → watch-items.json's `topic` on accept
+			"watch_note":  "User wants any change to cursor-agent's shell hook or `agent record` behavior called out — see 2026-07-06's investigation: install-shell-integration execs `agent record` on every new shell via ~/.zshrc, zsh-only, undocumented data handling. User implemented an on-demand cursor-record() function instead of the vendor's always-on hook."  // → watch-items.json's `note` on accept
 		}
 	]
 }
@@ -421,6 +446,40 @@ mechanism.)
   genuinely unsure — assuming `false` and hitting an un-satisfiable
   password prompt is worse than an unnecessary askpass popup.
 
+### 1.7 `kind: "watch-item"` field semantics
+
+A standing, forward-looking concern about a tool — "call this out
+automatically on a future run" — proposed by a research subagent
+(`references/research.md` §Watch Items (Proposing)) or by the session itself
+mid-apply (as a `pending_followups` entry, `origin: "agent_initiated"`,
+§3.2 below). Renders on the tool's card (or the Results view's followups
+section) exactly like any other suggestion — same Accept/Reject/Discuss
+buttons, same `decisions`/turn plumbing — **it is not a parallel system**,
+just a different `kind` with a different body and a different apply-time
+action. See `references/apply.md` §Watch Items (Writing) for what Accept
+actually does.
+
+- `target_files`, `command`: always `[]` / `null` — there is nothing to edit
+  or run for this kind, only a watch-items.json entry to write.
+- `auto_runnable`: always `false` — a watch-item proposal always needs an
+  explicit human accept; there's no "safe to auto-run" reading of it.
+- `watch_topic` (string, required): the short phrase a future research
+  subagent matches its changelog content against — copied verbatim into
+  watch-items.json's `topic` field on accept (`references/research.md`
+  §Watch Items (Reading) for how a later run consumes it).
+- `watch_note` (string, required): the fuller context, so a future hit can
+  explain itself without re-deriving everything — copied verbatim into
+  watch-items.json's `note` field on accept.
+- **Accept** writes `{topic: watch_topic, note: watch_note, added_at:
+  <today>}` under this tool's id in `watch-items.json`
+  (`references/apply.md` §Watch Items (Writing)) — nothing else. **Reject**
+  does nothing (no file write). **Discuss** behaves like any other
+  discussed suggestion — surfaced in conversation/as a followup, never
+  auto-applied.
+- Never elevates a tool's `risk_level` (`references/assembly.md` §Risk
+  Level's edit-kind check only matches `kind: "edit"`) — proposing a watch
+  item is not itself a risky change.
+
 ---
 
 ## 2. Feedback Object (feedback.json)
@@ -483,7 +542,12 @@ Written atomically by the server to `{session_dir}/feedback.json`.
   session executes `command` itself (via the askpass mechanism if
   `needs_sudo`); when off, same manual/poll behavior as
   `auto_runnable: false`.
-- `reject` — session skips; records in summary.
+  For `kind: "watch-item"` (§1.7): the session appends the proposal's
+  `watch_topic`/`watch_note` to `watch-items.json`
+  (`references/apply.md` §Watch Items (Writing)) — no repo edit, no
+  command, nothing else.
+- `reject` — session skips; records in summary. For `kind: "watch-item"`,
+  this means no watch-items.json write — the proposal is simply dropped.
 - `discuss` — session does not apply; surfaces the suggestion + comment as a
   follow-up dialogue item after the apply pass.
 - **Tool comments can themselves generate new decisions.** If investigating
@@ -618,7 +682,14 @@ signal itself.
       // (title, rationale, target_files/diff_preview or command,
       // auto_runnable/needs_sudo/manual_reason, motivating_link) — a
       // followup is a suggestion with a conversation attached, not a
-      // different kind of thing.
+      // different kind of thing. A `kind: "watch-item"` followup (§1.7) is
+      // the apply-time counterpart to a research-proposed one: the session
+      // itself, not a research subagent, noticed a standing concern worth
+      // watching while applying something (`origin: "agent_initiated"`),
+      // and carries `watch_topic`/`watch_note` instead of
+      // target_files/command/diff_preview — same accept-writes-to-
+      // watch-items.json behavior as the report-time version
+      // (`references/apply.md` §Watch Items (Writing)).
     }
   ],
 

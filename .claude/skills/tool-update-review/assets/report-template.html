@@ -847,6 +847,32 @@
 			margin-bottom: 10px;
 		}
 
+		/* ── Watch-item proposal body (kind: "watch-item", references/schemas.md §1.7) ──
+		 * No diff/command to show — just the proposed topic/note. Accept
+		 * writes it to watch-items.json; nothing renders here implies a repo
+		 * change, unlike a diff preview or command chip would. */
+		.watch-item-body {
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-left: 3px solid var(--cyan);
+			border-radius: 3px;
+			padding: 8px 10px;
+			margin-bottom: 10px;
+		}
+
+		.watch-item-topic {
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--base2);
+			margin-bottom: 4px;
+		}
+
+		.watch-item-note {
+			font-size: 12px;
+			color: var(--base0);
+			white-space: pre-wrap;
+		}
+
 		/* ── Decision buttons ───────────────────────────────────────────── */
 		.card-actions {
 			display: flex;
@@ -1699,6 +1725,16 @@
 			return html;
 		}
 
+		/* ── Render: body of a kind:"watch-item" card (references/schemas.md §1.7) —
+		 * a proposed standing concern, no diff/command: just the topic/note
+		 * that would be written to watch-items.json on accept. */
+		function renderWatchItemBody(sug) {
+			return `<div class="watch-item-body">
+				<div class="watch-item-topic">👁 ${esc(sug.watch_topic || '')}</div>
+				<div class="watch-item-note">${esc(sug.watch_note || '')}</div>
+			</div>`;
+		}
+
 		/* ── Render: one suggestion card ─────────────────────────────────
 		 * opts.followup marks a card surfaced mid-apply (Results view, from
 		 * a tool_comments investigation) so it can be styled/wired the same
@@ -1729,6 +1765,8 @@
 
 			const bodyHtml = kind === 'upgrade'
 				? renderUpgradeBody(sug)
+				: kind === 'watch-item'
+				? renderWatchItemBody(sug)
 				: renderDiff(sug.diff_preview);
 
 			// A followup card (#27) gets a turn-thread mount point instead of
