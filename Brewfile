@@ -147,10 +147,12 @@ cask "karabiner-elements"
 cask "hammerspoon"
 
 # Text editors
+# neovim and neovide are owned by the nix-darwin config in tapppi/systems
+# (hosts/darwin-minimal), which builds neovim from the nixCats flake and wraps
+# neovide to launch that exact binary. Do not re-add them here — brew's neovim
+# would shadow the configured one on PATH.
 brew "micro"
-brew "neovim"
 cask "cursor"
-cask "neovide-app"
 
 # Claude desktop app
 cask "claude"
