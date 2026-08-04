@@ -159,8 +159,8 @@ cask "claude"
 # Terminal AI Agents
 cask "claude-code@latest"
 cask "codex"
-# Codex desktop app (GUI for managing coding agents) — companion to the CLI
-cask "codex-app"
+# ChatGPT desktop app (GUI) — companion to the codex CLI
+cask "chatgpt"
 cask "cursor-cli"
 brew "anomalyco/tap/opencode"
 
