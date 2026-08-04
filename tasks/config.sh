@@ -220,10 +220,15 @@ config_obsidian() {
 	fi
 
 	if [[ -f "${zprofile_file}" ]]; then
-		sed -i '' \
+		# `sed -i.bak` rather than `sed -i ''`: the latter is BSD-only, and GNU
+		# sed reads the empty string as a missing filename and errors. Both
+		# dialects are reachable here — a freshly imaged Mac has BSD sed, and
+		# once the Brewfile's gnu-sed is on PATH it is GNU.
+		sed -i.bak \
 			-e '/# Added by Obsidian/d' \
 			-e '/\/Applications\/Obsidian\.app\/Contents\/MacOS/d' \
 			"${zprofile_file}"
+		rm -f "${zprofile_file}.bak"
 	fi
 }
 
