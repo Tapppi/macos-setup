@@ -28,31 +28,3 @@ if command -v brew >/dev/null 2>&1; then
   # Add gnu-getopt to path
   export PATH="$brew_prefix/opt/gnu-getopt/bin:$PATH"
 fi
-
-# Nix paths, prepended after the Homebrew block above so that Nix wins for
-# tools provided by both (e.g. neovim, now owned by the nix-darwin config in
-# tapppi/systems rather than the Brewfile). Note `.bash_profile` activates
-# mise *after* sourcing this file, so mise-managed runtimes still take
-# precedence over both Nix and Homebrew.
-#
-# nix-darwin's set-environment (sourced from /etc/bashrc) already puts these
-# on PATH, but `brew shellenv` in .bash_profile prepends ahead of them. So
-# re-prepend here, dropping the now-stale entry left further down the list.
-prepend_nix_path() {
-  local dir="$1"
-  [[ -d "$dir" ]] || return 0
-
-  local rest=":${PATH}:"
-  rest="${rest//":${dir}:"/":"}"
-  rest="${rest#:}"
-  rest="${rest%:}"
-
-  export PATH="${dir}:${rest}"
-}
-
-# Listed lowest priority first — each call prepends, so the last one wins.
-prepend_nix_path "/nix/var/nix/profiles/default/bin"
-prepend_nix_path "/run/current-system/sw/bin"
-prepend_nix_path "${HOME}/.nix-profile/bin"
-
-unset -f prepend_nix_path
