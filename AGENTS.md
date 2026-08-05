@@ -151,6 +151,27 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 - `Brewfile` is the primary manifest (Apple Silicon). `intel.Brewfile` is a copy minus
   ARM-only packages (e.g. `krunkit`). Always edit `Brewfile` first, then replicate
   applicable changes to `intel.Brewfile`
+- **Keg-only formulae need an explicit `.path` entry.** Homebrew does not symlink these
+  into its `bin`, so a `brew "x"` line alone installs the formula but leaves it
+  unreachable — this is how `curl` silently stayed Apple's older build and `psql` was
+  missing entirely despite both being declared. Run `brew info <formula> | grep -i keg-only`
+  when adding one, and if it should win, add `$brew_prefix/opt/<formula>/bin` to `.path`.
+  Decide deliberately: `binutils` and `e2fsprogs` are keg-only for good reason, since they
+  would shadow the system toolchain (`ar`/`nm`/`ld`, `uuidgen`)
+
+### PATH Layering
+
+`.path` is sourced last by `dotfiles/config/bash/.bash_profile`, and `activate_mise` runs after
+that, so a configured login shell resolves in this order:
+
+```text
+mise shims  →  Homebrew (gnubin + keg-only)  →  Nix (/run/current-system/sw/bin)  →  macOS
+```
+
+Homebrew therefore wins over the nix-darwin config in `tapppi/systems` for anything both provide.
+**To hand a tool over to Nix, remove it from the Brewfile and `brew uninstall` it — do not reorder
+PATH.** That is how `nvim` resolves to the nixCats build; an earlier attempt to prepend the Nix
+profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` and `zsh`.
 
 ### Git Identity and Attribution
 
