@@ -87,12 +87,13 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
 **Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing.
 
-**Prefer portable idioms.** These scripts run against both BSD and GNU tooling: a freshly imaged Mac
-has the BSD userland, and once the Brewfile's `coreutils`/`gnu-sed`/`findutils` are on PATH it is
-GNU. Write for both rather than assuming either. The recurring case is `sed -i` — use
-`sed -i.bak … && rm -f …bak`, which works on both; never `sed -i ''` (BSD-only, GNU reads the empty
-string as a missing filename) and never bare `sed -i` (GNU-only). The same care applies to
-`readlink -f`, `date`, `stat`, `sort`, `grep -P` and `find -printf`.
+**Bootstrap code must be portable; everything else can assume GNU.** This repo *installs* the
+tooling, so its scripts can run on a freshly imaged Mac against the stock BSD userland, before the
+Brewfile's `coreutils`/`findutils`/`gnu-sed`/`gawk`/`gnu-tar`/`grep`/`make` exist. Anything
+reachable on that path must work under both — chiefly `sed -i.bak … && rm -f …bak` rather than
+`sed -i ''` (BSD-only, GNU reads the empty string as a missing filename) or bare `sed -i`
+(GNU-only); same care for `readlink -f`, `date`, `stat`, `sort`, `grep -P` and `find -printf`.
+Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 
 ## Code Style
 
