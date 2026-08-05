@@ -87,6 +87,13 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
 **Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing.
 
+**Prefer portable idioms.** These scripts run against both BSD and GNU tooling: a freshly imaged Mac
+has the BSD userland, and once the Brewfile's `coreutils`/`gnu-sed`/`findutils` are on PATH it is
+GNU. Write for both rather than assuming either. The recurring case is `sed -i` — use
+`sed -i.bak … && rm -f …bak`, which works on both; never `sed -i ''` (BSD-only, GNU reads the empty
+string as a missing filename) and never bare `sed -i` (GNU-only). The same care applies to
+`readlink -f`, `date`, `stat`, `sort`, `grep -P` and `find -printf`.
+
 ## Code Style
 
 ### EditorConfig (enforced via `.editorconfig`)

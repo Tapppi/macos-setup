@@ -92,6 +92,12 @@ Tabs (width 2), UTF-8, LF line endings, trim trailing whitespace, insert final n
 - Keep scripts idempotent: check before installing/configuring
 - Use `return 1` in functions (not `exit 1`)
 - **Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing
+- **Prefer portable idioms.** These scripts run against both BSD and GNU tooling: a freshly imaged
+  Mac has the BSD userland, and once the Brewfile's `coreutils`/`gnu-sed`/`findutils` are on PATH it
+  is GNU. Write for both rather than assuming either. The recurring case is `sed -i` — use
+  `sed -i.bak … && rm -f …bak`, which works on both; never `sed -i ''` (BSD-only, GNU reads the
+  empty string as a missing filename) and never bare `sed -i` (GNU-only). The same care applies to
+  `readlink -f`, `date`, `stat`, `sort`, `grep -P` and `find -printf`
 
 ### Brewfile
 Group by category with comments, `brew`/`cask`/`mas` syntax, keep sorted within groups.

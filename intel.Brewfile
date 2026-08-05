@@ -146,11 +146,14 @@ cask "karabiner-elements"
 cask "hammerspoon"
 
 # Text editors
-# neovim and neovide are owned by the nix-darwin config in tapppi/systems
-# (hosts/darwin-minimal), which builds neovim from the nixCats flake and wraps
-# neovide to launch that exact binary. Do not re-add them here — brew's neovim
-# would shadow the configured one on PATH.
+# Unlike the Apple Silicon Brewfile, neovim stays here: this machine (tmopro18)
+# has no nix-darwin config and is slated for a NixOS migration rather than one,
+# so brew is the only source of an on-the-fly, unconfigured nvim. The configured
+# editor still comes from the nixCats flake via the `nrl` alias.
+#
+# neovide is not re-added — it is only useful with the configured nvim.
 brew "micro"
+brew "neovim"
 cask "cursor"
 
 # Claude desktop app
