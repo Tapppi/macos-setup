@@ -27,4 +27,16 @@ if command -v brew >/dev/null 2>&1; then
   export PATH="$brew_prefix/opt/make/libexec/gnubin:$PATH"
   # Add gnu-getopt to path
   export PATH="$brew_prefix/opt/gnu-getopt/bin:$PATH"
+
+  # Keg-only formulae. Homebrew deliberately does not symlink these into its
+  # bin — macOS ships its own curl, and libpq would clash with a full postgres
+  # install — so they are unreachable unless named here, even though the
+  # Brewfile installs them. Without this, `curl` silently stays Apple's older
+  # build and `psql`/`pg_dump`/`pg_isready` do not exist at all.
+  #
+  # Only these two: the other keg-only formulae are either already provided by
+  # macOS (ssh-copy-id, trash) or would shadow the system toolchain in ways we
+  # do not want (binutils' ar/nm/ld, e2fsprogs' uuidgen).
+  export PATH="$brew_prefix/opt/libpq/bin:$PATH"
+  export PATH="$brew_prefix/opt/curl/bin:$PATH"
 fi
