@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project tooling + agent skills from .tapppi-project manifests
@@ -201,6 +201,28 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
 - Anything containing API keys, tokens, or passwords
 - Backup tarballs
 
+## Cursor CLI (`cursor-agent`)
+
+`install_cursor_agent()` in `tasks/install.sh` only clears the cask quarantine; all
+config is dotfiles-managed.
+
+**Quarantine must be re-cleared after every `brew upgrade --cask cursor-cli`.** A
+fresh cask download re-quarantines the bundled `merkle-tree-napi` native binding,
+and every `cursor-agent` invocation then dies with `library load disallowed by
+system policy` (plus a Gatekeeper popup per run). Re-run
+`xattr -dr com.apple.quarantine "$(brew --prefix)/Caskroom/cursor-cli"`.
+
+Cursor reads much of the Claude Code setup natively — repo `CLAUDE.md`,
+`.claude/skills/**/SKILL.md`, `.claude/agents/**`, `~/.claude/commands/`, and
+`enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` — so
+`tasks/projects.sh` needs no Cursor-specific handling: the skills it links into each
+repo's `.claude/skills/` are discovered as-is. It does **not** read
+`~/.claude/CLAUDE.md` (ported to `dotfiles/home/.cursor/rules/*.mdc`) or Claude's
+`Bash(...)` permission entries (Cursor's shell tool is `Shell(...)`).
+
+See `dotfiles/AGENTS.md` for the two-directory config split — `cli-config.json` is
+XDG-resolved, everything else is hardcoded to `~/.cursor/`.
+
 ## Tools & Runtime Environment
 
 | Tool         | Purpose                 | Config location                            |
@@ -212,7 +234,7 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
 | fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
 | opencode     | AI coding agent         | `dotfiles/config/opencode/opencode.json`   |
-| cursor-agent | AI coding agent (CLI)   | `dotfiles/home/.cursor/cli-config.json`    |
+| cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, rules/) |
 | btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
 | lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
 | tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |

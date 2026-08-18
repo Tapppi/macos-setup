@@ -540,6 +540,12 @@ install_claude_code() {
 # won't accept once quarantined. This is a permanent upstream packaging
 # limitation, not a bug awaiting a fix: homebrew-cask#246786 was closed
 # NOT_PLANNED ("upstream distribution issue, not a Homebrew problem").
+#
+# This must be re-run after EVERY `brew upgrade --cask cursor-cli`: the fresh
+# download re-quarantines the bundled `merkle-tree-napi` native binding, and
+# every `cursor-agent` invocation then dies with "library load disallowed by
+# system policy" while spamming Gatekeeper popups. The failure looks like a
+# crashed Node process dumping minified source, not a permissions error.
 install_cursor_agent() {
 	p2 "Configuring Cursor Agent CLI..."
 
