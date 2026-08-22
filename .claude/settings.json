@@ -2,7 +2,11 @@
   "permissions": {
     "ask": [
       "Bash(git -C dotfiles push)",
-      "Bash(git -C dotfiles push *)"
+      "Bash(git -C dotfiles push *)",
+      "Bash(git push *main*)",
+      "Bash(git push *master*)",
+      "Bash(git -* push *main*)",
+      "Bash(git -* push *master*)"
     ],
     "allow": [
       "Bash(git -C dotfiles status)",
