@@ -38,6 +38,30 @@ See `dotfiles/README.md` for details. It has two sync directories:
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
+### Tool-owned config is re-asserted, not vendored
+
+`ctx7` and `herdr` write their own config into files the submodule tracks —
+`herdr integration install claude` adds a hook script under `~/.claude/hooks/`
+and a `SessionStart` entry to `~/.claude/settings.json`.
+
+None of it is vendored in dotfiles. `install()` relies on ordering instead:
+`install_dotfiles` runs first and `bootstrap.sh` overwrites the tracked files,
+dropping the tool's keys; `install_herdr_integrations` and the `ctx7` setup run
+afterwards and write them back. The live `~/.claude/settings.json` therefore has
+a `hooks` key the tracked copy does not, and that is correct.
+
+Both halves are easy to break:
+
+- Keep these tasks **last in `install()`**, after `install_dotfiles`. Ahead of it,
+  bootstrap wipes what they just wrote.
+- Any dispatch running `install_dotfiles` must re-assert too — `./setup.sh
+  dotfiles` calls `install_herdr_integrations` for this reason, or a
+  dotfiles-only sync silently disables the integration.
+
+Never fix a missing key by copying it into `dotfiles/home/`: that tracks a path
+and payload the tool owns and rewrites between versions, going stale silently on
+the next upgrade. Re-run the writing command instead (`./setup.sh herdr`).
+
 ### Committing to the dotfiles submodule
 
 The submodule has its own git history. Both repos use `master` branch. The parent repo tracks the
