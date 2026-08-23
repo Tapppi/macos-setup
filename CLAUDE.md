@@ -156,6 +156,31 @@ git add dotfiles
 git commit -m "Update dotfiles"
 ```
 
+### Tool-Owned Config Is Re-Asserted, Not Vendored
+
+`ctx7` and `herdr` write their own config into files the dotfiles submodule
+tracks. `herdr integration install claude`, for one, adds a hook script under
+`~/.claude/hooks/` and a `SessionStart` entry to `~/.claude/settings.json`.
+
+None of it is vendored in dotfiles. The install task instead depends on ordering:
+`install_dotfiles` runs first and `bootstrap.sh` overwrites the tracked files,
+dropping the tool's keys; `install_herdr_integrations` and the `ctx7` setup run
+afterwards and write them straight back. So the live `~/.claude/settings.json`
+carries a `hooks` key the tracked copy does not, and that is correct.
+
+Two things follow, and both are easy to break:
+
+- **Keep these tasks last in `install()`**, after `install_dotfiles`. Moving one
+  ahead of it means bootstrap wipes what it just wrote.
+- **Any dispatch that runs `install_dotfiles` must re-assert too.** `./setup.sh
+  dotfiles` calls `install_herdr_integrations` for exactly this reason; without it
+  a dotfiles-only sync silently disables the integration.
+
+Do not "fix" a missing key by copying it into `dotfiles/home/`. That means
+tracking a path and payload the tool owns and rewrites between versions, which
+goes stale silently on the next upgrade. Re-run the writing command instead —
+`./setup.sh herdr` for herdr.
+
 ### XDG Base Directory
 `XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`. Tools that support XDG read
 config from `~/.config/`. Env var overrides (`INPUTRC`, `WGETRC`, `KUBECONFIG`, `PGPASSFILE`, etc.)
