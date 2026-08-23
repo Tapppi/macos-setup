@@ -21,6 +21,11 @@ export HOMEBREW_REQUIRE_TAP_TRUST=1
 # and so does nothing in a non-interactive script.
 export PATH="${HOME}/.local/share/mise/shims:${PATH}"
 
+# Add XDG_BIN_HOME. .path exports it for interactive shells only, so a setup run
+# started non-interactively would not see tools that install themselves there —
+# herdr's remote auto-install being the one that matters here.
+export PATH="${HOME}/.local/bin:${PATH}"
+
 # Ask for the administrator password upfront and keep-alive
 sudo -v
 
@@ -94,6 +99,13 @@ elif [[ "${1}" = "install" ]]; then
 elif [[ "${1}" = "dotfiles" ]]; then
 	. tasks/install.sh
 	install_dotfiles
+	# bootstrap.sh has just overwritten the tracked agent config files, dropping
+	# the keys herdr writes into them. Put them back, exactly as a full install
+	# does — otherwise syncing dotfiles alone silently disables the integration.
+	install_herdr_integrations
+elif [[ "${1}" = "herdr" ]]; then
+	. tasks/install.sh
+	install_herdr_integrations
 elif [[ "${1}" = "config" ]]; then
 	. tasks/config.sh
 	shift
@@ -104,9 +116,10 @@ elif [[ "${1}" = "projects" ]]; then
 	. tasks/projects.sh
 	projects
 else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | config [name...] | macos | projects]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | herdr | config [name...] | macos | projects]"
 	echo "  config without args runs all config_* and custom_* steps."
 	echo "  projects sets up per-project tooling and agent skills from .tapppi-project manifests."
+	echo "  herdr installs herdr's agent-state integrations only (also part of install)."
 	echo "  config with names runs only those (e.g. 'config podman spotify')."
 	echo "See README.md for more information."
 fi

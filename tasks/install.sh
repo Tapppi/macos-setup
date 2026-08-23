@@ -14,6 +14,7 @@ install() {
 	install_agent_skills_venv
 	install_claude_code
 	install_cursor_agent
+	install_herdr_integrations
 }
 
 # Define Function =link_terraform_to_tofu=
@@ -555,6 +556,53 @@ install_cursor_agent() {
 	fi
 
 	clear_cask_quarantine cursor-cli
+}
+
+# Install herdr's agent-state integrations
+#
+# herdr classifies every pane by which agent is running in it and whether that
+# agent is working, blocked or idle. Claude Code, Codex and Cursor report only a
+# session id, which is what lets herdr resume a conversation after a server
+# restart; opencode's plugin additionally authors the state herdr shows in its
+# agents sidebar. Without an integration an agent is classified by screen
+# scraping alone.
+#
+# What each integration writes lands in files dotfiles tracks — for Claude Code, a
+# hook script under ~/.claude/hooks/ and a SessionStart entry in
+# ~/.claude/settings.json. None of it is vendored in dotfiles. Instead this task
+# runs *after* install_dotfiles, so bootstrap.sh drops the tool's keys and the
+# tool immediately writes them back. That ordering is the whole mechanism: keep
+# this call after install_dotfiles, and keep the standalone `dotfiles` task in
+# setup.sh calling it too.
+#
+# The alternative — tracking the hook entry in dotfiles — means carrying a path
+# and payload herdr owns and rewrites between versions, which goes stale silently
+# on the next upgrade. `integration install` is idempotent and rewrites an
+# outdated hook, so re-running this is both safe and the way to update.
+#
+# herdr itself is not installed here: asterix takes it from nix
+# (systems/modules/darwin/herdr.nix), and a host that is only ever attached to
+# over SSH takes it from herdr's own remote auto-install into ~/.local/bin. It
+# can therefore legitimately be absent at this point.
+install_herdr_integrations() {
+	p2 "Configuring herdr agent integrations..."
+
+	if ! command -v herdr >/dev/null 2>&1; then
+		p3 "herdr not installed, skipping"
+		return 0
+	fi
+
+	# <herdr integration target>:<CLI whose presence makes it worth installing>
+	local pair target cli
+	for pair in claude:claude codex:codex cursor:cursor-agent opencode:opencode; do
+		target="${pair%%:*}"
+		cli="${pair##*:}"
+		command -v "${cli}" >/dev/null 2>&1 || continue
+		if ! herdr integration install "${target}" >/dev/null; then
+			p3 "herdr ${target} integration failed"
+		fi
+	done
+	p3 "herdr agent integrations configured..."
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
