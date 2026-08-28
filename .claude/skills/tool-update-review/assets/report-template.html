@@ -24,6 +24,35 @@
 			--green:  #859900;
 			--violet: #6c71c4;
 			--magenta:#d33682;
+
+			/* ── Derived tokens (references/rendering-report.md §Palette) ──
+			 * Not new hues: alphas and steps of the fifteen above, so the
+			 * "this view introduces no new colors" claim still holds.
+			 * 10%-alpha panel tints are written as literal rgba() of the
+			 * existing hexes rather than color-mix(), which Safari < 16.2
+			 * would drop — taking the whole rule with it. */
+			--tint-red:    rgba(220, 50, 47, .10);
+			--tint-yellow: rgba(181, 137,  0, .10);
+			--tint-cyan:   rgba( 42, 161, 152, .10);
+			--tint-blue:   rgba( 38, 139, 210, .10);
+			--tint-orange: rgba(203,  75,  22, .10);
+
+			/* 14% --base1: an internal hairline. --base01 stays for
+			 * structural card edges; a 77-row page ruled entirely in
+			 * --base01 reads as a spreadsheet grid. */
+			--hair: rgba(147, 161, 161, .14);
+			/* --base01 stepped toward --base03 — a fourth, quieter
+			 * proportion-bar step without inventing a hue. */
+			--base01-dim: #3f5b62;
+			/* --red lightened: #dc322f on --base02 is ~3.6:1, fine for a
+			 * 26px numeral, under AA for an 11px CVE chip. */
+			--red-text: #e6706e;
+
+			--mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+			/* Measured at runtime by observeStickyHeight() — the shell bar
+			 * wraps to two rows on narrow screens, so scroll-margin-top
+			 * cannot be a constant. This is only the pre-measurement value. */
+			--sticky-h: 104px;
 		}
 
 		/* ── Reset / base ──────────────────────────────────────────────── */
@@ -41,71 +70,64 @@
 		a { color: var(--blue); text-decoration: none; }
 		a:hover { text-decoration: underline; }
 
-		/* ── Page header ───────────────────────────────────────────────── */
+		/* ── Page header ───────────────────────────────────────────────────
+		 * One compressed flex row. The counts row (#header-counts) is gone:
+		 * the Overview's stat tiles say the same thing better, and two homes
+		 * for one number is how they drift (references/rendering-report.md
+		 * §Header and Counts). */
 		#page-header {
 			background: var(--base02);
 			border-bottom: 1px solid var(--base01);
-			padding: 16px 24px;
+			padding: 12px 24px;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: 8px 18px;
 		}
 
 		#page-header h1 {
 			color: var(--base2);
-			font-size: 20px;
+			font-size: 17px;
 			font-weight: 600;
-			margin-bottom: 8px;
+			letter-spacing: 0.01em;
 		}
 
 		.header-meta {
 			display: flex;
 			flex-wrap: wrap;
-			gap: 16px;
+			gap: 14px;
 			font-size: 12px;
 			color: var(--base00);
 		}
+
+		.header-meta .k { color: var(--base01); }
 
 		.arch-intel {
 			color: var(--red);
 			font-weight: 700;
 		}
 
-		.counts-row {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 10px;
-			margin-top: 12px;
-		}
-
 		/* ── Repo freshness note (repo_context, references/schemas.md §Report Object; references/rendering-report.md §Page Layout) ─── */
 		#header-repo-note {
-			margin-top: 6px;
+			flex: 1 0 100%;
 			font-size: 12px;
 			color: var(--yellow);
 		}
 
 		#header-repo-note:empty { display: none; }
 
-		.count-badge {
-			padding: 2px 10px;
-			border-radius: 3px;
-			font-size: 12px;
-			font-weight: 600;
-			background: var(--base01);
-			color: var(--base2);
-		}
-
-		.count-badge.incompatible { background: var(--red);    color: #fff; }
-		.count-badge.warning      { background: var(--yellow); color: #000; }
-		.count-badge.suggestions  { background: var(--base02); border: 1px solid var(--base01); }
-
-		/* ── Filter bar ────────────────────────────────────────────────── */
+		/* ── Filter bar — lives INSIDE #main (the All-tools panel), since it
+		 * only ever governs the tool list and would be dead chrome on the
+		 * Overview. It stays interactive in the frozen Results view, one tab
+		 * click away (references/rendering-report.md §Filter Bar). ───────── */
 		#filter-bar {
-			background: var(--base02);
-			border-bottom: 1px solid var(--base01);
-			padding: 8px 24px;
 			display: flex;
 			flex-wrap: wrap;
-			gap: 14px;
+			gap: 10px 16px;
 			align-items: center;
+			padding: 0 0 12px;
+			margin-bottom: 14px;
+			border-bottom: 1px solid var(--base01);
 		}
 
 		#filter-bar label {
@@ -132,6 +154,39 @@
 			accent-color: var(--cyan);
 		}
 
+		/* Filter-state visibility (references/rendering-report.md §Filter Bar):
+		 * three guarantees that replace the old bar's mere adjacency to the
+		 * report — a persistent hidden-count banner, a Clear filters button,
+		 * and a filtered-empty state that contains its own reset. Between
+		 * them, "stuck looking at a filtered-empty report" is closed by
+		 * construction. */
+		#filter-note {
+			display: none;
+			gap: 10px;
+			align-items: center;
+			flex-wrap: wrap;
+			font-size: 12px;
+			color: var(--yellow);
+			padding: 6px 10px;
+			border: 1px solid var(--yellow);
+			border-radius: 4px;
+			background: var(--tint-yellow);
+			margin-bottom: 12px;
+		}
+
+		#filter-note.on { display: flex; }
+
+		#filter-empty {
+			display: none;
+			padding: 40px 20px;
+			text-align: center;
+			color: var(--base01);
+			font-size: 14px;
+		}
+
+		#filter-empty.on { display: block; }
+		#filter-empty .btn-bar-action { margin-left: 10px; }
+
 		/* ── Collapse-all/expand-all + auto-advance toggle (references/rendering-report.md §Page Layout) ──── */
 		.btn-bar-action {
 			padding: 3px 10px;
@@ -144,7 +199,12 @@
 		}
 		.btn-bar-action:hover { background: var(--base01); color: var(--base2); }
 
-		/* ── Sticky progress bar ────────────────────────────────────────── */
+		/* ── Sticky shell bar ───────────────────────────────────────────────
+		 * The one sticky row: tab strip + progress + auto-run toggle +
+		 * Submit. Two stacked sticky bars (tabs above progress) ate a
+		 * quarter of a phone viewport, and Submit/progress are global state
+		 * that has to be reachable from the Overview, where a user may well
+		 * finish deciding (references/rendering-report.md §Tab Shell). */
 		#progress-bar-container {
 			position: sticky;
 			top: 0;
@@ -158,14 +218,21 @@
 			gap: 8px 14px;
 		}
 
-		/* At narrow widths (below ~560px) the three fixed-content/nowrap
-		 * siblings (#progress-text, #auto-run-toggle, #submit-btn) don't fit
-		 * next to this on one line even with flex-wrap enabled above — a
-		 * bare `flex: 1` has a flex-basis of 0%, so this element claims
-		 * essentially no space of its own and imposes no minimum width,
-		 * which lets the *other* three siblings alone determine whether the
-		 * line overflows; give it a real basis so it wraps onto its own line
-		 * instead of the whole row silently overflowing the viewport. */
+		/* At narrow widths the fixed-content/nowrap siblings (auto-run
+		 * toggle, Submit) don't fit next to this on one line even with
+		 * flex-wrap enabled above — a bare `flex: 1` has a flex-basis of 0%,
+		 * so this element claims essentially no space of its own and imposes
+		 * no minimum width, which lets the *other* siblings alone determine
+		 * whether the line overflows; give it a real basis so it wraps onto
+		 * its own line instead of the whole row silently overflowing. */
+		#progress-wrap {
+			flex: 1 1 260px;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			min-width: 180px;
+		}
+
 		#progress-track {
 			flex: 1 1 120px;
 			height: 4px;
@@ -181,17 +248,47 @@
 			transition: width 0.25s ease;
 		}
 
+		/* min-width:0 + ellipsis: a flex item's default min-width:auto lets
+		 * this text set the row's min-content width (§Long Strings). */
 		#progress-text {
 			font-size: 12px;
-			color: var(--base1);
+			color: var(--base00);
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
 			white-space: nowrap;
-			min-width: 220px;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
 		#progress-text.has-incompatible {
 			color: var(--red);
 			font-weight: 600;
 		}
+
+		/* Both strings always render; CSS picks one by viewport width, so
+		 * neither needs re-computing on resize — and nothing has to be
+		 * re-measured when the shell bar reflows. */
+		#progress-bar-container .short { display: none; }
+
+		/* The gate is never invisible from either tab: this button mirrors
+		 * the Overview's blocking strip into the shell bar
+		 * (references/rendering-report.md §Overview Tab → Highlights). */
+		#gate-btn {
+			flex: 0 0 auto;
+			background: none;
+			border: 1px solid var(--red);
+			color: var(--red);
+			border-radius: 4px;
+			font: inherit;
+			font-size: 11px;
+			font-weight: 600;
+			padding: 2px 8px;
+			cursor: pointer;
+			white-space: nowrap;
+		}
+
+		#gate-btn:hover { background: var(--tint-red); }
 
 		/* ── Auto-run-upgrades toggle (near Submit, references/schemas.md §Feedback Object; references/apply.md §Executing Upgrade Suggestions) ──── */
 		#auto-run-toggle {
@@ -230,11 +327,15 @@
 
 		#submit-btn:not(:disabled):hover { background: #1d8a80; }
 
-		/* ── Main content area ──────────────────────────────────────────── */
+		/* ── Panels (references/rendering-report.md §Tab Shell) ──────────────
+		 * #panel-overview and #main are the two pre-Submit panels; at most
+		 * one is displayed. #results-panel / #changelog-panel join them
+		 * post-Submit and keep their own narrower measure. */
+		#panel-overview,
 		#main {
-			max-width: 960px;
+			max-width: 1180px;
 			margin: 0 auto;
-			padding: 24px;
+			padding: 20px 24px 80px;
 		}
 
 		/* ── Empty state ────────────────────────────────────────────────── */
@@ -253,6 +354,690 @@
 
 		#empty-state p { color: var(--base1); font-size: 15px; }
 
+		/* ══ OVERVIEW TAB ══════════════════════════════════════════════════
+		 * "Instrument panel": density and discipline rather than decoration.
+		 * Tabular mono numerals, uppercase micro-labels, hairline rules, and
+		 * warm color rationed to security content and to things blocking
+		 * Submit — everything else is blue, cyan or neutral
+		 * (references/rendering-report.md §Palette). */
+
+		.mono {
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* Uppercase micro-label — extends .section-label's role to the
+		 * Overview's column and group headings. */
+		.slabel {
+			font-size: 11px;
+			letter-spacing: 0.09em;
+			text-transform: uppercase;
+			color: var(--base01);
+			font-weight: 600;
+		}
+
+		/* ── Lede: the five-second answer; everything below is evidence ──── */
+		#lede {
+			font-size: 20px;
+			line-height: 1.45;
+			color: var(--base1);
+			margin: 6px 0 22px;
+			max-width: 64ch;
+			letter-spacing: -0.005em;
+		}
+
+		#lede b { color: var(--base2); font-weight: 600; }
+
+		#lede .n {
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+			color: var(--base2);
+			font-weight: 600;
+		}
+
+		/* ── Stat tiles ─────────────────────────────────────────────────────
+		 * Two labelled groups, not six tiles in a row: the delta axis is
+		 * ordinal magnitude and the security axis is status — different
+		 * jobs, so different color treatment and physical separation. */
+		.tilegroups {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+			gap: 22px;
+			margin-bottom: 26px;
+		}
+
+		.tilegroup > .slabel { display: block; margin-bottom: 8px; }
+
+		.tiles {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+			gap: 8px;
+		}
+
+		.tile {
+			background: var(--base02);
+			border: 1px solid var(--hair);
+			border-left: 3px solid var(--base01);
+			border-radius: 5px;
+			padding: 9px 11px 10px;
+			cursor: pointer;
+			text-align: left;
+			font: inherit;
+			color: inherit;
+			display: block;
+			width: 100%;
+			min-width: 0;
+			transition: background 0.12s, border-color 0.12s;
+		}
+
+		.tile:hover:not(:disabled) { background: #0a3d4a; border-color: var(--base00); }
+		.tile:disabled { cursor: default; }
+		.tile:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+		/* Values wear ink, not the accent color: identity is carried by the
+		 * left rail, the 7px square before the label, and (for the status
+		 * tiles) the panel tint. Rendering both ways, ink values read calmer
+		 * and the two tinted security tiles still take the eye first — which
+		 * is the intended reading order. It also dodges a real contrast
+		 * problem with --red on --base02 at small sizes. */
+		.tile .v {
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+			font-size: 26px;
+			line-height: 1.1;
+			color: var(--base2);
+			font-weight: 600;
+			letter-spacing: -0.02em;
+		}
+
+		/* An empty category recedes; it never shouts. */
+		.tile .v.zero { color: var(--base01); }
+
+		.tile .l {
+			font-size: 12px;
+			color: var(--base1);
+			margin-top: 1px;
+			display: flex;
+			align-items: center;
+			gap: 5px;
+		}
+
+		.tile .l::before {
+			content: "";
+			width: 7px;
+			height: 7px;
+			border-radius: 2px;
+			background: var(--dot, var(--base01));
+			flex: 0 0 auto;
+		}
+
+		.tile .s {
+			font-size: 11px;
+			color: var(--base01);
+			line-height: 1.35;
+			margin-top: 2px;
+		}
+
+		.tile[data-accent="orange"]  { --dot: var(--orange); border-left-color: var(--orange); }
+		.tile[data-accent="blue"]    { --dot: var(--blue);   border-left-color: var(--blue); }
+		.tile[data-accent="neutral"] { --dot: var(--base01); border-left-color: var(--base01); }
+		.tile[data-accent="cyan"]    { --dot: var(--cyan);   border-left-color: var(--cyan); }
+		.tile[data-accent="red"] {
+			--dot: var(--red);
+			border-left-color: var(--red);
+			background: linear-gradient(var(--tint-red), var(--tint-red)), var(--base02);
+		}
+		.tile[data-accent="yellow"] {
+			--dot: var(--yellow);
+			border-left-color: var(--yellow);
+			background: linear-gradient(var(--tint-yellow), var(--tint-yellow)), var(--base02);
+		}
+
+		/* Proportion bar. The tiles are its legend — adjacent, direct-
+		 * labelled, same colors — so there is no separate legend box, and
+		 * each segment carries its tile's own click action. */
+		.deltabar { display: flex; gap: 2px; height: 8px; margin-top: 9px; }
+
+		.deltabar span {
+			border-radius: 2px;
+			border: none;
+			padding: 0;
+			min-width: 0;
+		}
+
+		/* Only a segment that actually filters offers to be clicked — the
+		 * merged revision+unknown segment and seg-rest carry no data-act. */
+		.deltabar span[data-act] { cursor: pointer; }
+
+		.deltabar .seg-major    { background: var(--orange); }
+		.deltabar .seg-minor    { background: var(--blue); }
+		.deltabar .seg-patch    { background: var(--base01); }
+		.deltabar .seg-revision { background: var(--base01-dim); }
+		.deltabar .seg-auto     { background: var(--cyan); }
+		.deltabar .seg-mixed    { background: var(--yellow); }
+		.deltabar .seg-rest     { background: var(--base01-dim); }
+
+		/* ── Overview sections ──────────────────────────────────────────── */
+		.ovsection { margin: 0 0 30px; }
+
+		.ovsection > h2 {
+			font-size: 15px;
+			color: var(--base2);
+			font-weight: 600;
+			display: flex;
+			align-items: baseline;
+			gap: 10px;
+			flex-wrap: wrap;
+			border-bottom: 1px solid var(--base01);
+			padding-bottom: 7px;
+			margin-bottom: 12px;
+		}
+
+		.ovsection > h2 .sub {
+			font-size: 12px;
+			color: var(--base00);
+			font-weight: 400;
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+		}
+
+		.ovsection > h2 .shield { color: var(--red); }
+
+		.ov-empty { color: var(--base01); font-size: 13px; }
+
+		/* ── Security group (a): security-only, no impact, auto-approved ────
+		 * Collapsed to one line by default so the eye lands on the cards
+		 * that actually need a decision — but still first in reading order,
+		 * and still naming the tools it waved through. */
+		.autostrip {
+			border: 1px solid var(--hair);
+			border-left: 3px solid var(--cyan);
+			border-radius: 5px;
+			background: linear-gradient(var(--tint-cyan), var(--tint-cyan)), var(--base02);
+			margin-bottom: 14px;
+		}
+
+		.autostrip-head {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 9px 12px;
+			cursor: pointer;
+			flex-wrap: wrap;
+			background: none;
+			border: none;
+			width: 100%;
+			text-align: left;
+			font: inherit;
+		}
+
+		.autostrip-head .ck { color: var(--cyan); font-size: 14px; }
+		.autostrip-head .t  { color: var(--base1); font-size: 13px; }
+		.autostrip-head .t b {
+			color: var(--base2);
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* The inline tool-name list keeps the collapsed state informative —
+		 * you can see *which* tools were waved through without expanding. */
+		.autostrip-head .names {
+			color: var(--base01);
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.autostrip-head .exp { margin-left: auto; font-size: 11px; color: var(--base00); }
+		.autostrip[data-open="0"] .autorows { display: none; }
+		.autorows { border-top: 1px solid var(--hair); }
+
+		.autorow {
+			display: grid;
+			/* Eight tracks, one per slot, and every slot is always emitted
+			 * (empty when it has nothing) — an optional element that only
+			 * sometimes appears would push `details →` onto an implicit
+			 * second row and misalign the whole column. */
+			grid-template-columns: 26px minmax(120px, 1.1fr) auto auto 1fr auto auto auto;
+			gap: 10px;
+			align-items: center;
+			padding: 7px 12px;
+			border-bottom: 1px solid rgba(147,161,161,0.07);
+			font-size: 13px;
+		}
+
+		/* Default min-width:auto on a grid item lets one 45-character
+		 * version string set the track's min-content width (§Long Strings). */
+		.autorow > * { min-width: 0; }
+		.autorow:last-child { border-bottom: none; }
+		.autorow:hover { background: rgba(255,255,255,0.03); }
+		.autorow .nm { color: var(--base1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.autorow .vd { font-size: 12px; color: var(--base00); }
+
+		/* The un-accept affordance: a single ○ row among ✓ rows is
+		 * unmistakable at a glance. */
+		.acc-toggle {
+			background: none;
+			border: 1px solid var(--cyan);
+			color: var(--cyan);
+			border-radius: 4px;
+			width: 22px;
+			height: 22px;
+			line-height: 1;
+			cursor: pointer;
+			font-size: 12px;
+			padding: 0;
+			flex: 0 0 auto;
+		}
+
+		.acc-toggle[data-on="1"] { background: var(--cyan); color: var(--base03); }
+		.acc-toggle[data-on="0"] { border-color: var(--base01); color: var(--base01); }
+		.acc-toggle:disabled { cursor: not-allowed; opacity: 0.5; }
+		.acc-toggle:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+		/* CVE chips are plain text, never a fabricated link — the report
+		 * contract carries ids only, and inventing an NVD URL is exactly the
+		 * made-up authority references/research.md forbids. A chip becomes
+		 * an anchor only when the data itself supplies a real link. */
+		.cve-chips { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
+
+		.cve {
+			font-family: var(--mono);
+			font-size: 11px;
+			background: var(--base03);
+			border: 1px solid rgba(220,50,47,0.4);
+			color: var(--red-text);
+			border-radius: 3px;
+			padding: 0 5px;
+			white-space: nowrap;
+		}
+
+		a.cve:hover { text-decoration: underline; }
+
+		/* Impact always carries a word, never color alone. */
+		.impact { font-size: 11px; font-family: var(--mono); white-space: nowrap; }
+		.impact[data-i="none"]     { color: var(--cyan); }
+		.impact[data-i="possible"] { color: var(--yellow); }
+		.impact[data-i="unknown"]  { color: var(--base01); }
+
+		/* needs_sudo does not block pre-accept — so a pre-accepted
+		 * suggestion that needs an admin password says so, everywhere it
+		 * renders (references/schemas.md §1.6). */
+		.sudo-chip {
+			flex: 0 0 auto;
+			font-family: var(--mono);
+			font-size: 10px;
+			letter-spacing: 0.04em;
+			color: var(--yellow);
+			border: 1px solid rgba(181,137,0,0.5);
+			border-radius: 3px;
+			padding: 0 5px;
+			white-space: nowrap;
+		}
+
+		.jump {
+			color: var(--blue);
+			background: none;
+			border: none;
+			font: inherit;
+			font-size: 11px;
+			cursor: pointer;
+			white-space: nowrap;
+			padding: 0;
+		}
+
+		.jump:hover { text-decoration: underline; }
+		.jump:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+		/* ── Security group (b): security + other changes, side by side ──── */
+		.mixcard {
+			border: 1px solid var(--hair);
+			border-left: 3px solid var(--red);
+			border-radius: 6px;
+			background: var(--base02);
+			margin-bottom: 12px;
+		}
+
+		.mixhead {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			flex-wrap: wrap;
+			padding: 10px 13px;
+			border-bottom: 1px solid var(--hair);
+		}
+
+		.mixhead .nm { color: var(--base2); font-weight: 600; font-size: 14px; }
+		.mixhead .vd { font-size: 12px; color: var(--base00); }
+		.mixhead .spacer { flex: 1; }
+
+		/* Equal columns, deliberately: the asymmetry between a one-item
+		 * security column and a five-item other column *is* the information
+		 * ("one CVE, five unrelated changes"), and ragged column widths
+		 * across nine cards destroy the side-by-side read. */
+		.mixcols { display: grid; grid-template-columns: 1fr 1fr; }
+		.mixcol { padding: 10px 13px 12px; min-width: 0; }
+
+		.mixcol.sec {
+			background: linear-gradient(var(--tint-red), var(--tint-red)), transparent;
+			border-right: 1px solid var(--hair);
+		}
+
+		.mixcol .colhead {
+			display: flex;
+			gap: 8px;
+			align-items: baseline;
+			margin-bottom: 7px;
+			flex-wrap: wrap;
+		}
+
+		.mixcol .colhead .slabel { color: var(--base00); }
+		.mixcol.sec .colhead .slabel { color: var(--red-text); }
+
+		.itemline {
+			display: flex;
+			gap: 7px;
+			font-size: 12.5px;
+			line-height: 1.45;
+			margin-bottom: 6px;
+			color: var(--base0);
+		}
+
+		/* min-width:0 keeps the grid track from blowing out; it does not
+		 * break the glyphs. The whole .mixcard chain is overflow-x visible
+		 * (unlike .tool-section, which clips), so one unbroken ~46-char run
+		 * in an agent-written headliner — a sha256: digest is 71 — scrolls
+		 * the page body sideways. */
+		.itemline > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+		.itemline .ic { flex: 0 0 auto; font-size: 11px; line-height: 1.6; }
+		.itemline.dash { color: var(--base01); }
+
+		.ic.incompatible { color: var(--red); }
+		.ic.warning      { color: var(--yellow); }
+		.ic.notable      { color: var(--orange); }
+		.ic.info         { color: var(--blue); }
+
+		.more {
+			font-size: 11px;
+			color: var(--base00);
+			background: none;
+			border: none;
+			font-family: inherit;
+			cursor: pointer;
+			padding: 0;
+		}
+
+		.more:hover { color: var(--blue); text-decoration: underline; }
+
+		.mixfoot {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+			padding: 8px 13px;
+			border-top: 1px solid var(--hair);
+		}
+
+		.mixfoot .spacer { flex: 1; }
+
+		/* ── Mirror decision buttons ────────────────────────────────────────
+		 * Same three states and the same active colors as .btn-decision on
+		 * the canonical card — different (smaller) metrics only. There is no
+		 * fourth state. */
+		.mirror { display: flex; gap: 5px; flex: 0 0 auto; }
+
+		.btn-d {
+			background: none;
+			border: 1px solid var(--base01);
+			color: var(--base00);
+			border-radius: 4px;
+			font: inherit;
+			font-size: 11.5px;
+			min-height: 28px;
+			padding: 3px 11px;
+			cursor: pointer;
+		}
+
+		.btn-d:hover:not(:disabled) { border-color: var(--base00); color: var(--base1); }
+		.btn-d:disabled { cursor: not-allowed; opacity: 0.45; }
+		.btn-d:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+		.btn-d[data-on="1"][data-action="accept"]  { background: var(--cyan);   border-color: var(--cyan);   color: var(--base03); font-weight: 600; }
+		.btn-d[data-on="1"][data-action="reject"]  { background: var(--base01); border-color: var(--base01); color: var(--base03); font-weight: 600; }
+		.btn-d[data-on="1"][data-action="discuss"] { background: var(--yellow); border-color: var(--yellow); color: var(--base03); font-weight: 600; }
+
+		.mirror-note {
+			font-size: 11px;
+			color: var(--base01);
+			font-family: var(--mono);
+		}
+
+		/* ── Highlights ─────────────────────────────────────────────────────
+		 * The blocking strip is client-derived on every decision change:
+		 * highlights[] is agent-written and cannot be relied on to contain
+		 * the tools that gate Submit. */
+		.blockstrip {
+			border: 1px solid var(--red);
+			border-radius: 5px;
+			background: linear-gradient(var(--tint-red), var(--tint-red)), var(--base02);
+			padding: 9px 12px;
+			margin-bottom: 14px;
+			font-size: 13px;
+			color: var(--base1);
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+
+		.blockstrip .ic { color: var(--red); }
+		.blockstrip b { color: var(--base2); font-family: var(--mono); }
+
+		.hlcard {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 0 12px;
+			border: 1px solid var(--hair);
+			border-left: 3px solid var(--base01);
+			border-radius: 6px;
+			background: var(--base02);
+			padding: 12px 14px;
+			margin-bottom: 10px;
+		}
+
+		/* §Long Strings: without this a 45-character version token in the
+		 * meta row forces the whole grid wider than the viewport. */
+		.hlcard > * { min-width: 0; }
+
+		.hlcard[data-sev="incompatible"] {
+			border-left-color: var(--red);
+			background: linear-gradient(var(--tint-red), var(--tint-red)), var(--base02);
+		}
+		.hlcard[data-sev="warning"]  { border-left-color: var(--yellow); }
+		.hlcard[data-sev="notable"]  { border-left-color: var(--orange); }
+		.hlcard[data-sev="info"]     { border-left-color: var(--blue); }
+
+		.hlcard .rail { font-size: 13px; line-height: 1.5; padding-top: 1px; }
+
+		.hlcard h3 {
+			font-size: 14px;
+			color: var(--base2);
+			font-weight: 600;
+			line-height: 1.4;
+			margin-bottom: 3px;
+		}
+
+		/* The one place on the page with real prose — it must not run to
+		 * 1400px. */
+		.hlcard .why {
+			font-size: 13px;
+			color: var(--base0);
+			max-width: 78ch;
+			margin-bottom: 8px;
+		}
+
+		.hlcard .meta {
+			display: flex;
+			gap: 9px;
+			align-items: center;
+			flex-wrap: wrap;
+			margin-bottom: 8px;
+			font-size: 12px;
+			color: var(--base00);
+		}
+
+		/* Capped and margin-left:auto so every button group in the section
+		 * aligns to one vertical column; uncapped they sat ragged at ~1240px
+		 * and read as unrelated. */
+		.hlsug {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			flex-wrap: wrap;
+			padding: 6px 0;
+			border-top: 1px solid rgba(147,161,161,0.08);
+			max-width: 680px;
+		}
+
+		/* flex-basis, not auto: with an auto basis a long title's own
+		 * content sets the hypothetical main size, and a wrapping flex
+		 * container then breaks the line instead of shrinking the title —
+		 * which put the mirror buttons on their own row and destroyed the
+		 * single aligned column the section is built around. */
+		.hlsug .t {
+			font-size: 12px;
+			color: var(--base1);
+			flex: 1 1 140px;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.hlsug .mirror { margin-left: auto; }
+
+		/* j/k focus ring — same treatment the tool sections already use. */
+		.mixcard[data-focused],
+		.hlcard[data-focused] { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+		#hl-showall,
+		#mix-showall { margin-bottom: 10px; }
+
+		/* ── "Everything else" bands — completes the accounting ─────────── */
+		.band {
+			border: 1px solid var(--hair);
+			border-radius: 6px;
+			background: var(--base02);
+			margin-bottom: 12px;
+		}
+
+		.band-head {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 9px 12px;
+			cursor: pointer;
+			flex-wrap: wrap;
+			background: none;
+			border: none;
+			width: 100%;
+			text-align: left;
+			font: inherit;
+		}
+
+		.band-head h3 { font-size: 13px; color: var(--base1); font-weight: 600; }
+
+		.band-head .sub {
+			font-size: 12px;
+			color: var(--base00);
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+		}
+
+		.band-head .exp { margin-left: auto; font-size: 11px; color: var(--base00); }
+		.band[data-open="0"] .band-body { display: none; }
+		.band-body { padding: 10px 12px 12px; border-top: 1px solid var(--hair); }
+
+		.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+		.chip {
+			background: var(--base03);
+			border: 1px solid var(--hair);
+			border-radius: 4px;
+			padding: 2px 7px;
+			font-size: 11.5px;
+			color: var(--base0);
+			cursor: pointer;
+			font-family: var(--mono);
+			display: inline-flex;
+			gap: 5px;
+			align-items: center;
+			max-width: 230px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.chip > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+		.chip:hover { border-color: var(--blue); color: var(--base1); }
+		.chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+		.chip .ck { color: var(--cyan); font-size: 10px; flex: 0 0 auto; }
+		.chip .ck[data-on="0"] { color: var(--base01); }
+		.chip .ver { color: var(--base01); }
+
+		.healthrow {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			flex-wrap: wrap;
+			padding: 6px 0;
+			font-size: 13px;
+			border-bottom: 1px solid rgba(147,161,161,0.07);
+		}
+
+		.healthrow:last-child { border-bottom: none; }
+		.healthrow .nm { color: var(--base1); }
+		.healthrow .spacer { flex: 1; }
+
+		.cmd {
+			font-family: var(--mono);
+			font-size: 11.5px;
+			background: var(--base03);
+			border: 1px solid var(--hair);
+			border-radius: 3px;
+			padding: 1px 6px;
+			color: var(--base1);
+			cursor: pointer;
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.cmd:hover { border-color: var(--base00); }
+		.cmd.copied { border-color: var(--cyan); color: var(--cyan); }
+
+		/* ── Back-to-overview pill ──────────────────────────────────────── */
+		#backpill {
+			position: fixed;
+			left: 18px;
+			bottom: 18px;
+			z-index: 60;
+			background: var(--base02);
+			border: 1px solid var(--cyan);
+			color: var(--cyan);
+			border-radius: 20px;
+			padding: 7px 16px;
+			font: inherit;
+			font-size: 12.5px;
+			cursor: pointer;
+			display: none;
+			box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+		}
+
+		#backpill.on { display: block; }
+
 		/* ── Tool section ───────────────────────────────────────────────── */
 		.tool-section {
 			margin-bottom: 20px;
@@ -260,10 +1045,19 @@
 			border-radius: 6px;
 			background: var(--base02);
 			overflow: hidden;
+			/* Keeps a deep-linked section clear of the sticky shell bar.
+			 * --sticky-h is measured at runtime — the bar wraps to two rows
+			 * on narrow screens (references/rendering-report.md §Tab Shell). */
+			scroll-margin-top: calc(var(--sticky-h) + 8px);
 		}
 
 		.tool-section:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
 		.tool-section[data-focused] { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+		/* Lands the eye after a jump. A static outline rather than an
+		 * animation: a pulsing 77-row page is noise, and this is also the
+		 * prefers-reduced-motion-safe choice. */
+		.tool-section[data-flash] { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
 		.tool-section[data-hidden] { display: none; }
 
@@ -271,26 +1065,47 @@
 		.tool-header {
 			display: flex;
 			align-items: center;
-			gap: 10px;
-			padding: 13px 16px;
+			gap: 9px;
+			padding: 11px 14px;
 			cursor: pointer;
 			user-select: none;
+			flex-wrap: wrap;
 		}
+
+		.tool-header > * { min-width: 0; }
 
 		.tool-header:hover { background: rgba(255,255,255,0.03); }
 
 		.tool-name {
 			color: var(--base2);
-			font-size: 16px;
+			font-size: 15px;
 			font-weight: 600;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		/* §Long Strings: cask:cursor's real version is
+		 * "3.12.17,0fb762053c34788bb7760d5673f8a6d4c8589d52" — untruncated
+		 * it blew the header row apart and forced 737px of horizontal
+		 * scroll on a 390px viewport. Full value stays in `title`. */
+		.version-delta,
+		.vd {
+			max-width: 34ch;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
 		}
 
 		.version-delta {
-			font-size: 13px;
+			font-size: 12px;
 			color: var(--base00);
 		}
 
-		.version-delta .v-new { color: var(--green); font-weight: 600; }
+		.version-delta .v-new,
+		.vd .v-new { color: var(--green); font-weight: 600; }
 
 		.source-badge {
 			padding: 1px 7px;
@@ -310,7 +1125,39 @@
 		.source-badge.brew-health { background: var(--cyan); color: var(--base03); }
 
 		.version-delta.health-label { color: var(--base1); font-style: italic; }
-		.count-badge.health { background: var(--cyan); color: var(--base03); }
+
+		/* ── Delta pill + CVE badge (references/rendering-report.md
+		 * §Per-Tool Section) — these give the collapsed 77-row list the same
+		 * vocabulary as the Overview, so scanning the list and scanning the
+		 * tiles feel like one page. Outlined, not filled: the source badge
+		 * is already a solid block and two solids per row is a wall. */
+		.delta-badge {
+			padding: 0 6px;
+			border-radius: 3px;
+			font-size: 10px;
+			font-weight: 600;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			font-family: var(--mono);
+			border: 1px solid currentColor;
+			white-space: nowrap;
+		}
+
+		.delta-badge.major    { color: var(--orange); }
+		.delta-badge.minor    { color: var(--blue); }
+		.delta-badge.patch,
+		.delta-badge.revision,
+		.delta-badge.unknown  { color: var(--base01); }
+
+		.cve-badge {
+			padding: 0 6px;
+			border-radius: 3px;
+			font-size: 10px;
+			font-family: var(--mono);
+			color: var(--red);
+			border: 1px solid currentColor;
+			white-space: nowrap;
+		}
 
 		.pin-badge {
 			padding: 1px 7px;
@@ -1089,6 +1936,16 @@
 			white-space: nowrap;
 		}
 
+		.key-table td.key-group {
+			font-family: inherit;
+			color: var(--base01);
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			padding-top: 12px;
+		}
+
 		.btn-close-help {
 			margin-top: 6px;
 			padding: 7px 18px;
@@ -1121,34 +1978,57 @@
 		}
 
 		#error-toast.visible { display: block; }
+		#error-toast.info { background: var(--cyan); color: var(--base03); }
 
-		/* ── Tab strip (replaces progress-bar-container contents) ────────── */
+		/* ── Tab strip (rendered from the panel registry, §Tab Shell) ─────
+		 * overflow-x + hidden scrollbar so the four-tab post-Submit strip
+		 * never wraps the shell bar to a third row. */
 		#tab-strip {
-			flex: 1;
+			flex: 0 0 auto;
 			display: flex;
 			align-items: center;
-			gap: 8px;
+			gap: 4px;
+			overflow-x: auto;
+			scrollbar-width: none;
 		}
 
+		#tab-strip::-webkit-scrollbar { display: none; }
+
 		.tab-btn {
-			padding: 4px 12px;
-			border-radius: 3px;
-			border: 1px solid var(--base01);
-			background: transparent;
-			color: var(--base01);
-			font-size: 12px;
-			font-weight: 600;
+			padding: 6px 14px;
+			border: 1px solid transparent;
+			border-bottom: 2px solid transparent;
+			border-radius: 5px 5px 0 0;
+			background: none;
+			color: var(--base00);
+			font: inherit;
+			font-size: 13px;
 			cursor: pointer;
+			white-space: nowrap;
 			transition: background 0.1s, color 0.1s;
 		}
 
+		.tab-btn:hover { background: rgba(255,255,255,0.04); color: var(--base1); }
+
 		.tab-btn.active {
-			background: var(--cyan);
-			border-color: var(--cyan);
-			color: #fff;
+			color: var(--base2);
+			border-bottom-color: var(--cyan);
+			background: var(--tint-cyan);
 		}
 
-		.tab-btn:not(.active):hover { background: rgba(255,255,255,0.04); }
+		.tab-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+
+		/* Second, always-visible signal that a filter is on: the count chip
+		 * reads `visible/total` while anything is hidden. */
+		.tab-btn .cnt {
+			font-family: var(--mono);
+			font-variant-numeric: tabular-nums;
+			font-size: 11px;
+			color: var(--base01);
+			margin-left: 6px;
+		}
+
+		.tab-btn.active .cnt { color: var(--cyan); }
 
 		#tab-status {
 			margin-left: auto;
@@ -1462,6 +2342,117 @@
 
 		/* ── Frozen report (read-only after submit) ──────────────────────── */
 		.report-frozen { opacity: 0.5; pointer-events: none; }
+
+		/* The filter bar lives inside #main now, so the blanket freeze above
+		 * would take it with the report — but references/rendering-report.md
+		 * §Filter Bar requires it to stay reachable *and* interactive after
+		 * Submit: it is a read-only navigation aid over the frozen list, not
+		 * a decision control, and without it a filter applied before Submit
+		 * would strand the user on a filtered-empty report. Opacity can't be
+		 * undone by a descendant (it composites the whole subtree as a
+		 * group), so the dimming moves down onto the content that really is
+		 * frozen and #main itself stays at full opacity. */
+		#main.report-frozen { opacity: 1; }
+
+		#main.report-frozen > #tool-list,
+		#main.report-frozen > #overall-section { opacity: 0.5; }
+
+		#main.report-frozen #filter-bar,
+		#main.report-frozen #filter-note,
+		#main.report-frozen #filter-empty { pointer-events: auto; }
+
+		/* …and so does the list itself. The blanket freeze inherits all the
+		 * way down #tool-list, which left 77 collapse toggles, 76 copy
+		 * buttons, 76 command chips, 765 changelog links and every "▸ more"
+		 * disclosure (the only route to the embedded offline excerpts) dead
+		 * for the life of the page — the exact opposite of what
+		 * transitionToResults() says it freezes. Restored wholesale rather
+		 * than control-by-control: a whitelist names buttons, and the reader
+		 * of a frozen report is doing everything *but* pressing buttons.
+		 * The decision controls inside it are already `disabled` by
+		 * transitionToResults(), and a disabled control ignores clicks
+		 * whatever its pointer-events; the rule below is the belt to that
+		 * braces, so restoring the list can never be what makes a decision
+		 * live again (references/rendering-report.md §Transition to Results
+		 * View). #overall-section stays fully frozen — it holds nothing but
+		 * the overall comment box. */
+		#main.report-frozen > #tool-list { pointer-events: auto; }
+
+		#main.report-frozen #tool-list .btn-decision,
+		#main.report-frozen #tool-list .card-comment,
+		#main.report-frozen #tool-list .tool-note-textarea { pointer-events: none; }
+
+		/* The frozen Overview stays *navigable*. Its decision mirrors are
+		 * disabled individually by transitionToResults(); jumps, tiles, band
+		 * toggles, chips, the auto-strip toggle and the two "show all"
+		 * controls are navigation rather than decision, so they keep their
+		 * pointer events. Without the last one the 23 mixed cards behind the
+		 * cap would be unreachable for the rest of the page's life
+		 * (references/rendering-report.md §Transition to Results View). */
+		#panel-overview.report-frozen .jump,
+		#panel-overview.report-frozen .more,
+		#panel-overview.report-frozen .tile,
+		#panel-overview.report-frozen .chip,
+		#panel-overview.report-frozen .cmd,
+		#panel-overview.report-frozen .band-head,
+		#panel-overview.report-frozen .autostrip-head,
+		#panel-overview.report-frozen .btn-bar-action,
+		#panel-overview.report-frozen .deltabar span {
+			pointer-events: auto;
+		}
+
+		/* ── Responsive (references/rendering-report.md §Long Strings and
+		 * Overflow) — the page body must never scroll horizontally at
+		 * 390px. ─────────────────────────────────────────────────────────── */
+		@media (max-width: 760px) {
+			#page-header { padding: 10px 12px; }
+			#progress-bar-container { padding: 6px 12px; gap: 6px 10px; }
+			#panel-overview, #main { padding: 16px 12px 80px; }
+			#results-panel, #changelog-panel { padding: 16px 12px; }
+
+			#lede { font-size: 17px; }
+			.tile .s { font-size: 10.5px; }
+
+			/* Security on top, with a bottom hairline instead of a right one. */
+			.mixcols { grid-template-columns: 1fr; }
+			.mixcol.sec { border-right: none; border-bottom: 1px solid var(--hair); }
+
+			/* Stacked: toggle | name + versions, then source + impact, then
+			 * CVEs, the admin-password chip and the jump on their own lines.
+			 * Every slot is placed explicitly — auto-placement around an
+			 * optional element reshuffled the whole row. */
+			.autorow {
+				grid-template-columns: 26px 1fr auto;
+				gap: 4px 10px;
+			}
+			.autorow .acc-toggle   { grid-area: 1 / 1 / 2 / 2; }
+			.autorow .nm           { grid-area: 1 / 2 / 2 / 3; }
+			.autorow .vd           { grid-area: 1 / 3 / 2 / 4; }
+			.autorow .source-badge { grid-area: 2 / 2 / 3 / 3; justify-self: start; }
+			.autorow .impact       { grid-area: 2 / 3 / 3 / 4; justify-self: end; }
+			.autorow .cve-chips    { grid-area: 3 / 2 / 4 / 4; }
+			.autorow .sudo-slot    { grid-area: 4 / 2 / 5 / 4; justify-self: start; }
+			.autorow .jump         { grid-area: 5 / 2 / 6 / 4; justify-self: end; }
+			.autorow .cve-chips:empty,
+			.autorow .sudo-slot:empty { display: none; }
+		}
+
+		@media (max-width: 600px) {
+			/* Row 1 = tabs + Submit, row 2 = progress + compact text. */
+			#tab-strip     { order: 1; }
+			#submit-btn    { order: 2; margin-left: auto; padding: 6px 16px; }
+			#auto-run-toggle { order: 4; flex: 1 0 100%; white-space: normal; }
+			#progress-wrap { order: 3; flex: 1 0 100%; gap: 8px; }
+			#progress-bar-container .long  { display: none; }
+			#progress-bar-container .short { display: inline; }
+		}
+
+		/* Only two animations exist on this page: the results spinner and
+		 * the static [data-flash] outline (no keyframes). Smooth scrolling
+		 * is dropped in JS when this query matches. */
+		@media (prefers-reduced-motion: reduce) {
+			#progress-fill, #results-progress-fill { transition: none; }
+		}
 	</style>
 </head>
 <body>
@@ -1470,71 +2461,131 @@
 	<header id="page-header">
 		<h1>Tool Update Review</h1>
 		<div id="header-meta" class="header-meta"></div>
-		<div id="header-counts" class="counts-row"></div>
 		<div id="header-repo-note"></div>
 	</header>
 
-	<!-- ── Filter bar ──────────────────────────────────────────────────── -->
-	<div id="filter-bar">
-		<label>
-			Source:
-			<select id="filter-source">
-				<option value="">All</option>
-				<option value="brew">brew</option>
-				<option value="cask">cask</option>
-				<option value="mise">mise</option>
-				<option value="standalone">standalone</option>
-				<option value="macos">macos</option>
-				<option value="brew-health">brew-health</option>
-			</select>
-		</label>
-		<label>
-			Severity:
-			<select id="filter-severity">
-				<option value="">All</option>
-				<option value="incompatible">Incompatible</option>
-				<option value="warning">Warning</option>
-				<option value="notable">Notable</option>
-				<option value="info">Info</option>
-			</select>
-		</label>
-		<label>
-			<input type="checkbox" id="filter-relevant">
-			Only relevant to me
-		</label>
-		<label>
-			Sort:
-			<select id="filter-sort">
-				<option value="needs-decision" selected>Needs decision first</option>
-				<option value="incompatible">Incompatible first</option>
-				<option value="name">Name</option>
-				<option value="source">Source</option>
-				<option value="major">Major delta first</option>
-			</select>
-		</label>
-		<label>
-			<input type="checkbox" id="auto-advance-toggle" checked>
-			Auto-advance on collapse
-		</label>
-		<button type="button" class="btn-bar-action" id="btn-collapse-all">Collapse all</button>
-		<button type="button" class="btn-bar-action" id="btn-expand-all">Expand all</button>
-	</div>
-
-	<!-- ── Sticky progress bar ─────────────────────────────────────────── -->
+	<!-- ── Sticky shell bar: tab strip + progress + Submit ─────────────────
+	     One sticky row for both the tab strip and the global decision state
+	     (references/rendering-report.md §Tab Shell). transitionToResults()
+	     strips the progress/auto-run/Submit controls out of it and re-renders
+	     the strip from the panel registry — it no longer replaces this
+	     container's innerHTML. -->
 	<div id="progress-bar-container">
-		<div id="progress-track">
-			<div id="progress-fill"></div>
+		<div id="tab-strip" role="tablist" aria-label="Report sections"></div>
+		<div id="progress-wrap">
+			<div id="progress-track">
+				<div id="progress-fill"></div>
+			</div>
+			<span id="progress-text">Loading…</span>
+			<button type="button" id="gate-btn" style="display:none"></button>
 		</div>
-		<span id="progress-text">Loading…</span>
 		<label id="auto-run-toggle" title="If off, every accepted upgrade becomes manual-only for this session, regardless of auto_runnable.">
 			<input type="checkbox" id="auto-run-upgrades" checked>
-			Auto-run accepted upgrades (I'll approve any admin prompts)
+			<span class="long">Auto-run accepted upgrades (I'll approve any admin prompts)</span>
+			<span class="short">Auto-run accepted upgrades</span>
 		</label>
 		<button id="submit-btn" disabled title="Decide all suggestions on incompatible-severity tools first">Submit</button>
 	</div>
 
-	<!-- ── Main content: tool sections injected by JS ──────────────────── -->
-	<main id="main"></main>
+	<!-- ── Overview panel (built by renderOverview) ────────────────────── -->
+	<div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview"></div>
+
+	<!-- ── All-tools panel. The filter bar lives in here: it only ever
+	     governs this list, so it would be dead chrome on the Overview. ── -->
+	<main id="main" role="tabpanel" aria-labelledby="tab-tools">
+		<div id="filter-bar">
+			<label>
+				Bucket:
+				<select id="filter-bucket">
+					<option value="">All</option>
+					<option value="security_mixed">Security + other</option>
+					<option value="security_auto">Security only</option>
+					<option value="attention">Needs attention</option>
+					<option value="routine">Routine</option>
+				</select>
+			</label>
+			<label>
+				Delta:
+				<select id="filter-delta">
+					<option value="">All</option>
+					<option value="major">major</option>
+					<option value="minor">minor</option>
+					<option value="patch">patch</option>
+					<option value="revision">revision</option>
+					<option value="unknown">unknown</option>
+				</select>
+			</label>
+			<label>
+				Source:
+				<select id="filter-source">
+					<option value="">All</option>
+					<option value="brew">brew</option>
+					<option value="cask">cask</option>
+					<option value="mise">mise</option>
+					<option value="standalone">standalone</option>
+					<option value="macos">macos</option>
+					<option value="brew-health">brew-health</option>
+				</select>
+			</label>
+			<label>
+				Severity:
+				<select id="filter-severity">
+					<option value="">All</option>
+					<option value="incompatible">Incompatible</option>
+					<option value="warning">Warning</option>
+					<option value="notable">Notable</option>
+					<option value="info">Info</option>
+				</select>
+			</label>
+			<label>
+				<input type="checkbox" id="filter-security">
+				Security only
+			</label>
+			<label>
+				<input type="checkbox" id="filter-relevant">
+				Only relevant to me
+			</label>
+			<label>
+				Sort:
+				<select id="filter-sort">
+					<option value="needs-decision" selected>Needs decision first</option>
+					<option value="incompatible">Incompatible first</option>
+					<option value="name">Name</option>
+					<option value="source">Source</option>
+					<option value="major">Major delta first</option>
+				</select>
+			</label>
+			<label>
+				<input type="checkbox" id="auto-advance-toggle" checked>
+				Auto-advance on collapse
+			</label>
+			<button type="button" class="btn-bar-action" id="btn-collapse-all">Collapse all</button>
+			<button type="button" class="btn-bar-action" id="btn-expand-all">Expand all</button>
+		</div>
+
+		<!-- Persistent hidden-count banner: filter state stays visible even
+		     though the bar itself is now one tab click away. -->
+		<div id="filter-note">
+			<span id="filter-note-text"></span>
+			<button type="button" class="btn-bar-action" data-act="clear-filters">Clear filters</button>
+		</div>
+
+		<div id="tool-list"></div>
+
+		<!-- A filtered-empty panel always carries its own reset. -->
+		<div id="filter-empty">
+			No tools match these filters.
+			<button type="button" class="btn-bar-action" data-act="clear-filters">Clear filters</button>
+		</div>
+
+		<div id="overall-section">
+			<label for="overall-comment">Overall comment (optional)</label>
+			<textarea id="overall-comment" placeholder="Any overall thoughts, context, or instructions for the session…"></textarea>
+		</div>
+	</main>
+
+	<!-- ── Back-to-overview pill (visible only after a jump) ───────────── -->
+	<button type="button" id="backpill">← Back to overview</button>
 
 	<!-- ── Closing splash (shown after Finish is clicked) ──────────────── -->
 	<div id="closing-splash" role="dialog" aria-modal="true" aria-label="Session complete">
@@ -1551,12 +2602,17 @@
 			<h2>Keyboard shortcuts</h2>
 			<table class="key-table">
 				<tbody>
-					<tr><td>j / k</td><td>Next / previous tool section</td></tr>
-					<tr><td>a</td><td>Accept first undecided suggestion in focused tool</td></tr>
-					<tr><td>r</td><td>Reject first undecided suggestion in focused tool</td></tr>
-					<tr><td>c</td><td>Discuss first undecided suggestion in focused tool</td></tr>
+					<tr><td colspan="2" class="key-group">Tabs</td></tr>
+					<tr><td>1 … 4</td><td>Switch tab (Overview, All tools, and post-Submit Results / Changelog)</td></tr>
+					<tr><td>g</td><td>Overview: open the focused card's tool in the tool list</td></tr>
+					<tr><td>Escape</td><td>Close modal / help; else back to Overview if you arrived by jump</td></tr>
+					<tr><td colspan="2" class="key-group">Moving and deciding</td></tr>
+					<tr><td>j / k</td><td>Next / previous card in the active tab</td></tr>
+					<tr><td>a</td><td>Accept the focused card's first undecided suggestion</td></tr>
+					<tr><td>r</td><td>Reject the focused card's first undecided suggestion</td></tr>
+					<tr><td>c</td><td>Discuss the focused card's first undecided suggestion</td></tr>
 					<tr><td>s</td><td>Submit (when ready)</td></tr>
-					<tr><td>f</td><td>Cycle filter: All → Incompatible → Relevant</td></tr>
+					<tr><td>f</td><td>All tools + cycle filter: All → Incompatible → Relevant</td></tr>
 					<tr><td>?</td><td>Toggle this help overlay</td></tr>
 				</tbody>
 			</table>
@@ -1639,7 +2695,72 @@
 			return bestSev;
 		}
 
-		/* ── Render: page header ────────────────────────────────────────── */
+		/* ── Triage-field accessors (references/schemas.md §1.8/§1.9/§1.10)
+		 * ────────────────────────────────────────────────────────────────
+		 * `version_delta`, `security` and `review_bucket` are written by
+		 * assembly. These readers exist so a report from an older assembly
+		 * still renders something honest rather than a page of blanks — the
+		 * fallbacks are deliberately coarse and never invent precision the
+		 * data does not have. */
+		const DELTA_VALUES = ['major', 'minor', 'patch', 'revision', 'unknown'];
+		/* Ordinal attention order — biggest change first. Used by the
+		 * "Major delta first" sort; the page never re-derives a delta. */
+		const DELTA_RANK = { major: 0, minor: 1, patch: 2, revision: 3, unknown: 4 };
+
+		function versionDelta(tool) {
+			return DELTA_VALUES.includes(tool.version_delta) ? tool.version_delta : 'unknown';
+		}
+
+		/* An explicit "unknown" is a real classification (an opaque or
+		 * build-number scheme) and earns its pill. A *missing* field is not
+		 * a classification at all — rendering it as UNKNOWN on every row of
+		 * a pre-triage report states something the data never said. */
+		function hasVersionDelta(tool) {
+			return DELTA_VALUES.includes(tool.version_delta);
+		}
+
+		const EMPTY_SECURITY = {
+			cve_ids: [], cve_count: 0, has_security: false,
+			security_only: false, impact: 'unknown',
+		};
+
+		function toolSecurity(tool) {
+			const s = tool.security;
+			if (!s || typeof s !== 'object') return EMPTY_SECURITY;
+			const ids = Array.isArray(s.cve_ids) ? s.cve_ids : [];
+			return {
+				cve_ids: ids,
+				cve_count: typeof s.cve_count === 'number' ? s.cve_count : ids.length,
+				has_security: s.has_security === true,
+				security_only: s.security_only === true,
+				/* "unknown" is a real value in the contract, and the honest
+				 * default when the field is missing entirely. */
+				impact: ['none', 'possible', 'unknown'].includes(s.impact) ? s.impact : 'unknown',
+			};
+		}
+
+		const BUCKET_VALUES = ['security_auto', 'security_mixed', 'attention', 'routine'];
+
+		function reviewBucket(tool) {
+			if (BUCKET_VALUES.includes(tool.review_bucket)) return tool.review_bucket;
+			/* No bucket at all (pre-triage report): fall back to the one
+			 * signal that has always been there, so the Overview's bands
+			 * still account for every tool instead of rendering empty. */
+			return tool.risk_level === 'low' ? 'routine' : 'attention';
+		}
+
+		/* True when no tool carries a given triage field — the trigger for
+		 * hiding a whole tile group rather than drawing a row of zeros. */
+		function anyToolHas(fn) {
+			return (REPORT.tools || []).some(fn);
+		}
+
+		/* ── Render: page header ──────────────────────────────────────────
+		 * One compressed row: title, generation time, machine context, repo
+		 * freshness. The counts row is gone — the Overview's stat tiles say
+		 * the same thing better and are always one click away, and two homes
+		 * for one number is how they drift (references/rendering-report.md
+		 * §Header and Counts). */
 		function renderHeader() {
 			const m = REPORT.machine || {};
 			const archHtml = m.arch === 'x86_64'
@@ -1647,25 +2768,9 @@
 				: esc(m.arch || '');
 
 			document.getElementById('header-meta').innerHTML =
-				`<span>${esc(m.hostname)}</span>` +
-				`<span>arch: ${archHtml}</span>` +
-				`<span>${esc(m.os)}</span>` +
-				`<span>Generated: ${esc(REPORT.generated_at)}</span>`;
-
-			const s = REPORT.summary || {};
-			const badges = [];
-			badges.push(`<span class="count-badge">${esc(s.total_outdated ?? 0)} outdated</span>`);
-			if (s.incompatible_count > 0) {
-				badges.push(`<span class="count-badge incompatible">${esc(s.incompatible_count)} incompatible</span>`);
-			}
-			if (s.warning_count > 0) {
-				badges.push(`<span class="count-badge warning">${esc(s.warning_count)} warnings</span>`);
-			}
-			if (s.health_count > 0) {
-				badges.push(`<span class="count-badge health">${esc(s.health_count)} brew health</span>`);
-			}
-			badges.push(`<span class="count-badge suggestions">${esc(s.suggestions_count ?? 0)} suggestions</span>`);
-			document.getElementById('header-counts').innerHTML = badges.join('');
+				`<span class="k">${esc(REPORT.generated_at)}</span>` +
+				`<span><span class="k">host</span> ${esc(m.hostname)}</span>` +
+				`<span><span class="k">arch</span> ${archHtml} · ${esc(m.os)}</span>`;
 
 			/* Repo freshness (repo_context, references/schemas.md §Report Object; references/rendering-report.md §Page Layout) — only surfaced when a
 			 * repo is behind; recent_commits[] is research context only and
@@ -1741,15 +2846,29 @@
 		 * way as any other card while its Accept/Reject/Discuss buttons post
 		 * to /followup instead of just toggling local state (see the click
 		 * delegate below). */
+		/* ── needs_sudo chip ──────────────────────────────────────────────
+		 * `needs_sudo: true` deliberately does not block pre-accept
+		 * (references/schemas.md §1.6) — so this chip is what keeps a
+		 * pre-accepted admin-password upgrade from being silent. It renders
+		 * everywhere such a suggestion appears, including its Overview
+		 * mirrors. */
+		function sudoChipHtml(sug) {
+			if (!sug || sug.needs_sudo !== true || sug.pre_accept !== true) return '';
+			return `<span class="sudo-chip" title="Accepted by default, but applying it prompts for an admin password.">🔒 needs admin password</span>`;
+		}
+
 		function renderCard(sug, opts) {
 			opts = opts || {};
 			const kind = sug.kind || 'edit'; /* defensive default for older fixtures */
 			const followup = !!opts.followup;
-			/* Pre-accept (references/schemas.md §Report Object; §Feedback Object, "default-accept low-risk
-			 * upgrades"): only ever the baseline upgrade suggestion on a
-			 * "low" risk_level tool — set by renderTool(), never by opts
-			 * on any other call path. Still a normal toggle afterward. */
-			const initialDecision = opts.preAccept ? 'accept' : '';
+			/* Pre-accept is a *field* now, not a client-side derivation:
+			 * assembly computes `pre_accept` on every suggestion as a union
+			 * of `risk_level == "low"` and `review_bucket ==
+			 * "security_auto"` (references/schemas.md §1.6). The page reads
+			 * it and never re-derives it — a second derivation here is
+			 * exactly how the page and the payload drift apart. Absent
+			 * field ⇒ false. Still a normal toggle afterward. */
+			const initialDecision = (!followup && sug.pre_accept === true) ? 'accept' : '';
 			const stateLabel = { accept: 'ACCEPTED', reject: 'REJECTED', discuss: 'DISCUSS' }[initialDecision] || '';
 
 			const targets = (sug.target_files || []).map(f =>
@@ -1787,6 +2906,7 @@
 			<div class="suggestion-card" data-suggestion-id="${esc(sug.id)}" data-kind="${esc(kind)}" data-decision="${initialDecision}" data-followup="${followup ? '1' : '0'}">
 				<div class="card-header">
 					<div class="card-title">${esc(sug.title)}</div>
+					${sudoChipHtml(sug)}
 					<span class="card-state-label">${stateLabel}</span>
 				</div>
 				${targetsHtml}
@@ -1814,6 +2934,19 @@
 			notes:    { label: 'Notes' },
 		};
 		const SEV_ICON = { incompatible: '⛔', warning: '⚠', notable: '●', info: '·' };
+
+		/* A brew-health finding (source "brew-health",
+		 * references/rendering-report.md §Brew-Health Rendering) has no
+		 * current→latest version pair, so its finding category fills the
+		 * version slot instead of a "null → null" delta — in the tool header
+		 * and on an Overview highlight card alike. */
+		const HEALTH_LABEL = {
+			deprecated_cask: 'deprecated cask', disabled_cask: 'disabled cask',
+			deprecated_formula: 'deprecated formula', disabled_formula: 'disabled formula',
+			missing_keg: 'orphaned keg', unlinked_keg: 'unlinked keg',
+			untrusted_tap: 'untrusted tap', missing_dependency: 'missing dependency',
+			path_note: 'expected note', other: 'brew doctor',
+		};
 
 		function normalizeCategory(cat) {
 			return CATEGORY_ORDER.includes(cat) ? cat : 'notes';
@@ -2105,33 +3238,31 @@
 				? `<div class="research-error-note">Research unavailable: ${esc(tool.research_error)}</div>`
 				: '';
 
-			/* Suggestion cards. The baseline upgrade suggestion on a "low"
-			 * risk_level tool (references/schemas.md §Report Object; §Feedback Object) renders pre-accepted. */
-			const baselineUpgradeId = `${tool.id}:upgrade`;
+			/* Suggestion cards. Each one carries its own `pre_accept` flag
+			 * from assembly (references/schemas.md §1.6); renderCard() reads
+			 * it directly rather than re-deriving pre-accept here. */
 			const suggestionsHtml = (tool.suggestions && tool.suggestions.length)
 				? `<div class="suggestions-section">
 				<div class="section-label">Suggestions</div>
-				${tool.suggestions.map(sug => renderCard(sug, {
-					preAccept: tool.source !== 'brew-health' && tool.risk_level === 'low' && sug.id === baselineUpgradeId,
-				})).join('')}
+				${tool.suggestions.map(sug => renderCard(sug)).join('')}
 			</div>`
 				: '';
 
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
 
-			/* Header "version delta" slot: a brew-health finding (source
-			 * "brew-health", references/rendering-report.md §Brew-Health Rendering) has no current→latest version, so show its
-			 * finding category instead of a "null → null" delta. */
-			const HEALTH_LABEL = {
-				deprecated_cask: 'deprecated cask', disabled_cask: 'disabled cask',
-				deprecated_formula: 'deprecated formula', disabled_formula: 'disabled formula',
-				missing_keg: 'orphaned keg', unlinked_keg: 'unlinked keg',
-				untrusted_tap: 'untrusted tap', missing_dependency: 'missing dependency',
-				path_note: 'expected note', other: 'brew doctor',
-			};
 			const deltaHtml = tool.source === 'brew-health'
 				? `<span class="version-delta health-label">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
-				: `<span class="version-delta">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
+				: `<span class="version-delta" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
+
+			/* Delta pill + CVE badge: the same vocabulary the Overview uses,
+			 * so the collapsed 77-row list scans the same way the tiles do
+			 * (references/rendering-report.md §Per-Tool Section). A
+			 * brew-health finding has no version pair, so no delta pill. */
+			const delta = versionDelta(tool);
+			const deltaBadgeHtml = tool.source === 'brew-health' || !hasVersionDelta(tool)
+				? ''
+				: `<span class="delta-badge ${esc(delta)}"${tool.version_delta_note ? ` title="${esc(tool.version_delta_note)}"` : ''}>${esc(delta)}</span>`;
+			const sec = toolSecurity(tool);
 
 			/* Every section renders collapsed (references/rendering-report.md §Page Layout's default state); which
 			 * one ends up "first" depends on sort order, which applyFilters()
@@ -2142,16 +3273,22 @@
 			return `
 		<section
 			class="tool-section collapsed"
+			id="tool-${esc(encodeURIComponent(tool.id))}"
 			data-tool-id="${esc(tool.id)}"
 			data-name="${esc(tool.name)}"
 			data-source="${esc(tool.source)}"
 			data-max-severity="${esc(sev)}"
+			data-bucket="${esc(reviewBucket(tool))}"
+			data-delta="${esc(delta)}"
+			data-sec="${sec.has_security ? '1' : '0'}"
 			tabindex="0"
 		>
 			<div class="tool-header" role="button" aria-expanded="false">
 				<span class="tool-name">${esc(tool.name)}</span>
 				${deltaHtml}
 				<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
+				${deltaBadgeHtml}
+				${cveBadgeHtml(sec)}
 				${pinnedHtml}
 				${renderConfigStatusBadge(tool)}
 				${renderDecisionBadge(tool)}
@@ -2178,13 +3315,22 @@
 		</section>`;
 		}
 
-		/* ── Render: all tools + overall comment ────────────────────────── */
+		/* ── Render: all tools ──────────────────────────────────────────────
+		 * Sections go into #tool-list; the filter bar, the hidden-count
+		 * banner, the filtered-empty state and the overall-comment box are
+		 * static siblings inside #main, so their listeners survive a
+		 * re-render and applyFilters() can reorder sections freely. */
+		let reportRendered = false;
+
 		function renderTools() {
-			const mainEl = document.getElementById('main');
+			const listEl = document.getElementById('tool-list');
 			const tools = REPORT.tools || [];
+			reportRendered = true;
 
 			if (tools.length === 0) {
-				mainEl.innerHTML = `
+				document.getElementById('filter-bar').style.display = 'none';
+				document.getElementById('overall-section').style.display = 'none';
+				listEl.innerHTML = `
 			<div id="empty-state">
 				<div class="es-icon">🎉</div>
 				<h2>Everything is up to date!</h2>
@@ -2193,13 +3339,652 @@
 				return;
 			}
 
-			const toolsHtml = tools.map(renderTool).join('');
-			const overallHtml = `
-		<div id="overall-section">
-			<label for="overall-comment">Overall comment (optional)</label>
-			<textarea id="overall-comment" placeholder="Any overall thoughts, context, or instructions for the session…"></textarea>
-		</div>`;
-			mainEl.innerHTML = toolsHtml + overallHtml;
+			listEl.innerHTML = tools.map(renderTool).join('');
+		}
+
+		/* ══ OVERVIEW TAB ══════════════════════════════════════════════════
+		 * Answers "what do I need to think about, and what can I wave
+		 * through" before any scrolling, then hands off to the per-tool
+		 * detail view in the All-tools tab for anything needing a real read.
+		 * Every decision control here is a *mirror* (§Decision State and
+		 * Mirrors) — it writes to the canonical suggestion card in #main and
+		 * re-reads its state. There is no second decision store. */
+
+		function toolById(id) {
+			return (REPORT.tools || []).find(t => t.id === id) || null;
+		}
+
+		function suggestionById(tool, sid) {
+			return ((tool && tool.suggestions) || []).find(s => s.id === sid) || null;
+		}
+
+		/* The tool's baseline upgrade suggestion — what a one-control mirror
+		 * (auto row, mixed-card foot, band chip) stands for. Falls back to
+		 * the first suggestion so a tool whose baseline was renamed by the
+		 * id-uniqueness pass still gets a working mirror. */
+		function baselineSuggestion(tool) {
+			const list = (tool && tool.suggestions) || [];
+			return list.find(s => s.id === `${tool.id}:upgrade`) || list[0] || null;
+		}
+
+		function versionsHtml(tool, cls) {
+			return `<span class="${cls}" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">` +
+				`${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
+		}
+
+		/* CVE chips are plain text unless the data itself carries a link.
+		 * The report contract carries ids only; fabricating an NVD URL is
+		 * the made-up authority references/research.md forbids. */
+		function cveChipsHtml(sec) {
+			return (sec.cve_ids || []).map(c =>
+				`<span class="cve">${esc(c)}</span>`).join('');
+		}
+
+		/* has_security can be true with zero named ids — a vendor that says
+		 * "security fixes" without publishing CVEs. Saying "0 CVE" there is
+		 * worse than saying nothing, so the badge drops the count. */
+		function cveBadgeHtml(sec) {
+			if (!sec.has_security) return '';
+			return sec.cve_count
+				? `<span class="cve-badge" title="${sec.cve_count} CVE id${sec.cve_count === 1 ? '' : 's'} named in this update's research">🛡 ${sec.cve_count} CVE</span>`
+				: `<span class="cve-badge" title="Security content with no CVE id published">🛡 security</span>`;
+		}
+
+		const IMPACT_WORD = {
+			none: 'no impact here', possible: 'possible impact', unknown: 'impact unknown',
+		};
+
+		function impactHtml(sec, prefix) {
+			const word = prefix ? `impact: ${sec.impact}` : IMPACT_WORD[sec.impact];
+			return `<span class="impact" data-i="${esc(sec.impact)}">${esc(word)}</span>`;
+		}
+
+		/* Mirror markup. Three variants, all reading the same canonical
+		 * state and none of them a .suggestion-card — which is what keeps
+		 * submitFeedback(), updateProgress() and sectionNeedsDecision()
+		 * correct without touching one of their selectors. */
+		function mirrorHtml(sid) {
+			return `<div class="mirror" data-mirrors="${esc(sid)}">
+				<button type="button" class="btn-d" data-action="accept">Accept</button>
+				<button type="button" class="btn-d" data-action="reject">Reject</button>
+				<button type="button" class="btn-d" data-action="discuss">Discuss</button>
+			</div>`;
+		}
+
+		function jumpHtml(toolId, label) {
+			return `<button type="button" class="jump" data-jump="${esc(toolId)}">${esc(label)}</button>`;
+		}
+
+		/* ── Stat tiles ─────────────────────────────────────────────────── */
+		function tileHtml(o) {
+			const disabled = o.v === 0 ? ' disabled' : '';
+			return `<button type="button" class="tile" data-accent="${esc(o.accent)}"` +
+				` data-act="${esc(o.act || '')}" data-arg="${esc(o.arg || '')}"` +
+				` title="${esc(o.title || '')}"${disabled}>` +
+				`<div class="v${o.v === 0 ? ' zero' : ''}">${esc(o.v)}</div>` +
+				`<div class="l">${esc(o.l)}</div>` +
+				`<div class="s">${esc(o.s)}</div></button>`;
+		}
+
+		function barSegHtml(cls, value, total, label, act, arg) {
+			if (!value) return '';
+			const pct = (value / total * 100).toFixed(2);
+			const share = Math.round(value / total * 100);
+			return `<span class="${cls}" style="width:${pct}%" title="${esc(label)} — ${value} (${share}%)"` +
+				(act ? ` data-act="${esc(act)}" data-arg="${esc(arg || '')}"` : '') + `></span>`;
+		}
+
+		/* §2.5 fallbacks: derive from the tools when summary blocks are
+		 * absent, and hide a group entirely rather than draw three zeros. */
+		function deltaCounts() {
+			const s = (REPORT.summary || {}).by_delta;
+			if (s && typeof s === 'object') return s;
+			if (!anyToolHas(t => t.version_delta)) return null;
+			const counts = { major: 0, minor: 0, patch: 0, revision: 0, unknown: 0 };
+			(REPORT.tools || []).forEach(t => {
+				if (t.source === 'brew-health') return;
+				counts[versionDelta(t)]++;
+			});
+			return counts;
+		}
+
+		function securityCounts(buckets) {
+			const s = (REPORT.summary || {}).security;
+			if (s && typeof s === 'object') return s;
+			if (!anyToolHas(t => t.security)) return null;
+			const ids = new Set();
+			let withSec = 0;
+			(REPORT.tools || []).forEach(t => {
+				const sec = toolSecurity(t);
+				(sec.cve_ids || []).forEach(c => ids.add(c));
+				if (sec.has_security) withSec++;
+			});
+			return {
+				cve_count: ids.size,
+				tools_with_security: withSec,
+				auto_count: buckets.security_auto.length,
+				mixed_count: buckets.security_mixed.length,
+			};
+		}
+
+		/* ── Security group (a): the collapsed auto-approved strip ───────── */
+		function autoStripHtml(auto) {
+			if (!auto.length) return '';
+			const rows = auto.map(t => {
+				const sec = toolSecurity(t);
+				const sug = baselineSuggestion(t);
+				const toggle = sug
+					? `<button type="button" class="acc-toggle" data-mirrors="${esc(sug.id)}" data-on="0" aria-label="Toggle acceptance of ${esc(t.name)}">○</button>`
+					: `<span></span>`;
+				return `<div class="autorow">
+					${toggle}
+					<span class="nm" title="${esc(t.name)}">${esc(t.name)}</span>
+					${versionsHtml(t, 'vd')}
+					<span class="source-badge ${esc(t.source)}">${esc(t.source)}</span>
+					<span class="cve-chips">${cveChipsHtml(sec)}</span>
+					${impactHtml(sec, false)}
+					<span class="sudo-slot">${sudoChipHtml(sug)}</span>
+					${jumpHtml(t.id, 'details →')}
+				</div>`;
+			}).join('');
+			return `<div class="autostrip" id="sec-auto" data-open="0">
+				<button type="button" class="autostrip-head" data-toggle-strip="sec-auto" aria-expanded="false">
+					<span class="ck">✓</span>
+					<span class="t"><b>${auto.length}</b> security-only, no impact here — accepted</span>
+					<span class="names slabel">${esc(auto.map(t => t.name).join(' · '))}</span>
+					<span class="exp">▸ show</span>
+				</button>
+				<div class="autorows">${rows}</div>
+			</div>`;
+		}
+
+		/* ── Security group (b): security and other changes, side by side ──
+		 * Summary lines only — the per-CVE prose lives in the tool section,
+		 * one click away. These need confirming, not reading. */
+		function mixColHtml(items, cls, label, extra, toolId, silent) {
+			let body;
+			if (silent) {
+				body = `<span class="vendor-silent-tag">No detailed changelog published</span>`;
+			} else if (items.length) {
+				body = items.slice(0, 3).map(i =>
+					`<div class="itemline"><span class="ic ${esc(i.severity)}">${SEV_ICON[i.severity]}</span><span>${esc(i.text)}</span></div>`
+				).join('');
+				if (items.length > 3) {
+					body += `<button type="button" class="more" data-jump="${esc(toolId)}">+${items.length - 3} more →</button>`;
+				}
+			} else {
+				/* An empty column renders a dash, never a collapsed
+				 * zero-height panel — the asymmetry is the information. */
+				body = `<div class="itemline dash">—</div>`;
+			}
+			return `<div class="mixcol ${cls}">
+				<div class="colhead"><span class="slabel">${esc(label)}</span>${extra || ''}</div>
+				${body}
+			</div>`;
+		}
+
+		/* ── Mixed-card ordering ────────────────────────────────────────────
+		 * The Overview caps this list (MIX_CAP below), so its order decides
+		 * which cards survive the cut — it has to be worst-first and it has to
+		 * be total, or two renders of one report cut differently. Assembly
+		 * scores `highlights[]` but writes no ranking onto `tools[]`, so there
+		 * is nothing to read: this derives one from the triage fields the
+		 * contract does guarantee (references/schemas.md §1.8/§1.9). */
+		const IMPACT_RANK = { possible: 0, unknown: 1, none: 2 };
+
+		/* Worst severity among the tool's security-category items — the same
+		 * items the card's left column shows, so the ranking matches what the
+		 * reader sees. Lower is worse. buildContentGroups() already sorts each
+		 * group worst-first; its half-step for headliners is floored away so
+		 * this stays exactly "max severity" and the CVE count breaks the tie.
+		 * A tool with no security item at all ranks below `info` rather than
+		 * tying with it. */
+		function securitySeverityRank(tool) {
+			const items = buildContentGroups(tool).security;
+			return items.length ? Math.floor(items[0].sevRank) : 99;
+		}
+
+		function compareMixedTools(a, b) {
+			const sa = toolSecurity(a), sb = toolSecurity(b);
+			return (securitySeverityRank(a) - securitySeverityRank(b))
+				|| (sb.cve_count - sa.cve_count)
+				|| (IMPACT_RANK[sa.impact] - IMPACT_RANK[sb.impact])
+				|| (DELTA_RANK[versionDelta(a)] - DELTA_RANK[versionDelta(b)])
+				/* Last resort, and the reason the order is stable at all. */
+				|| (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+		}
+
+		function mixCardHtml(tool) {
+			const sec = toolSecurity(tool);
+			const silent = new Set(tool.vendor_silent_categories || []);
+			const secItems = [], othItems = [];
+			/* relevancy items sort first within a column — they are about
+			 * *this machine*. */
+			(tool.relevancy || []).forEach(r => {
+				const item = { text: r.summary, severity: normalizeSeverity(r.severity) };
+				(normalizeCategory(r.category) === 'security' ? secItems : othItems).push(item);
+			});
+			(tool.headliners || []).forEach(h => {
+				const raw = typeof h === 'string' ? { text: h } : (h || {});
+				const item = { text: raw.text || '', severity: normalizeSeverity(raw.severity) };
+				(normalizeCategory(raw.category) === 'security' ? secItems : othItems).push(item);
+			});
+
+			const sug = baselineSuggestion(tool);
+			const extras = ((tool.suggestions || []).length) - (sug ? 1 : 0);
+			const delta = versionDelta(tool);
+			return `<article class="mixcard" data-tool="${esc(tool.id)}" tabindex="-1">
+				<div class="mixhead">
+					<span class="nm">${esc(tool.name)}</span>
+					${versionsHtml(tool, 'vd')}
+					<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
+					${hasVersionDelta(tool) ? `<span class="delta-badge ${esc(delta)}">${esc(delta)}</span>` : ''}
+					<span class="spacer"></span>
+					${impactHtml(sec, true)}
+				</div>
+				<div class="mixcols">
+					${mixColHtml(secItems, 'sec', sec.cve_count ? `Security · ${sec.cve_count} CVE` : 'Security',
+						`<span class="cve-chips">${cveChipsHtml(sec)}</span>`, tool.id, silent.has('security'))}
+					${mixColHtml(othItems, '', `Other changes · ${othItems.length}`, '', tool.id, false)}
+				</div>
+				<div class="mixfoot">
+					${sug ? mirrorHtml(sug.id) : ''}
+					${sug ? sudoChipHtml(sug) : ''}
+					${extras > 0 ? `<span class="mirror-note">+${extras} more decision${extras === 1 ? '' : 's'}</span>` : ''}
+					<span class="spacer"></span>
+					${jumpHtml(tool.id, 'full details →')}
+				</div>
+			</article>`;
+		}
+
+		/* ── Highlights ─────────────────────────────────────────────────── */
+		function highlightCardHtml(h) {
+			const tool = toolById(h.tool_id) || {};
+			const sev = normalizeSeverity(h.severity);
+			const sec = toolSecurity(tool);
+			/* A brew-health finding that reaches highlights[] has no version
+			 * pair: render its finding category and drop the delta pill,
+			 * rather than "null → null". */
+			const isHealth = tool.source === 'brew-health' || !tool.current_version;
+			const delta = versionDelta(tool);
+			const metaVersions = isHealth
+				? `<span class="vd">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
+				: versionsHtml(tool, 'vd') +
+					(hasVersionDelta(tool) ? `<span class="delta-badge ${esc(delta)}">${esc(delta)}</span>` : '');
+
+			/* A suggestion_ids entry with no matching suggestion renders its
+			 * raw id rather than vanishing — a silent drop hides an assembly
+			 * bug. */
+			const sugRows = (h.suggestion_ids || []).map(sid => {
+				const sug = suggestionById(tool, sid);
+				const title = sug ? sug.title : sid;
+				return `<div class="hlsug">
+					<span class="t" title="${esc(title)}">${esc(title)}</span>
+					${sudoChipHtml(sug)}
+					${mirrorHtml(sid)}
+				</div>`;
+			}).join('');
+
+			return `<article class="hlcard" data-sev="${esc(sev)}" data-tool="${esc(h.tool_id)}" tabindex="-1">
+				<div class="rail ic ${esc(sev)}">${SEV_ICON[sev]}</div>
+				<div>
+					<h3>${esc(h.title)}</h3>
+					<div class="why">${esc(h.why || '')}</div>
+					<div class="meta">
+						${tool.source ? `<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>` : ''}
+						${metaVersions}
+						${cveBadgeHtml(sec)}
+						${jumpHtml(h.tool_id, 'open in tool list →')}
+					</div>
+					${sugRows}
+				</div>
+			</article>`;
+		}
+
+		/* ── "Everything else" bands ────────────────────────────────────── */
+		function chipHtml(tool, trailing) {
+			const sug = baselineSuggestion(tool);
+			const dot = sug
+				? `<span class="ck" data-mirror-dot="${esc(sug.id)}" data-on="0">○</span>`
+				: '';
+			const full = `${tool.name} ${trailing}`;
+			return `<button type="button" class="chip" data-jump="${esc(tool.id)}" title="${esc(full)}">` +
+				`${dot}<span>${esc(tool.name)} <span class="ver">${esc(trailing)}</span></span></button>`;
+		}
+
+		function bandHtml(id, title, sub, bodyHtml, open) {
+			return `<div class="band" id="${esc(id)}" data-open="${open ? '1' : '0'}">
+				<button type="button" class="band-head" data-toggle-band aria-expanded="${open ? 'true' : 'false'}">
+					<h3>${esc(title)}</h3>
+					<span class="sub" data-role="band-sub">${sub}</span>
+					<span class="exp">${open ? '▾ hide' : '▸ show'}</span>
+				</button>
+				<div class="band-body">${bodyHtml}</div>
+			</div>`;
+		}
+
+		function renderOverview() {
+			const panel = document.getElementById('panel-overview');
+			const tools = REPORT.tools || [];
+			if (!tools.length) {
+				panel.innerHTML = `<p class="ov-empty">No tool updates were found — nothing to triage.</p>`;
+				return;
+			}
+
+			const buckets = { security_auto: [], security_mixed: [], attention: [], routine: [] };
+			const health = [];
+			tools.forEach(t => {
+				if (t.source === 'brew-health') health.push(t);
+				buckets[reviewBucket(t)].push(t);
+			});
+			/* brew-health findings are environment issues, not updates —
+			 * counted separately, exactly as summary.health_count is. */
+			const attention = buckets.attention.filter(t => t.source !== 'brew-health');
+			const routine = buckets.routine.filter(t => t.source !== 'brew-health');
+			const auto = buckets.security_auto;
+			const mixed = buckets.security_mixed;
+
+			const summary = REPORT.summary || {};
+			const total = typeof summary.total_outdated === 'number'
+				? summary.total_outdated
+				: tools.filter(t => t.source !== 'brew-health').length;
+			const D = deltaCounts();
+			const SEC = securityCounts(buckets);
+			const needs = mixed.length + attention.length;
+			const waved = routine.length + auto.length;
+
+			/* ── Lede: the five-second answer ──────────────────────────────
+			 * Both clauses are conditional on the data actually being there:
+			 * a report with no security content must not claim any, and
+			 * "already accepted below" must not be said when nothing was
+			 * pre-accepted. */
+			const secClause = SEC ? ' or security-only with no impact here' : '';
+			const preAccepted = (REPORT.tools || []).some(t =>
+				(t.suggestions || []).some(sg => sg.pre_accept === true));
+			const acceptedClause = preAccepted ? ' — already accepted below' : '';
+			const ledeHtml = needs === 0
+				? `<b>Nothing needs a decision</b> — all <span class="n">${total}</span> updates are routine${secClause}.`
+				: `<b><span class="n">${needs}</span> of ${total} updates need a decision.</b> ` +
+					`The other <span class="n">${waved}</span> are patch-level${secClause}${acceptedClause}.`;
+
+			/* ── Group A: change size ────────────────────────────────────── */
+			let groupA = '';
+			if (D) {
+				const dTotal = D.major + D.minor + D.patch + D.revision + (D.unknown || 0);
+				/* revision and unknown get no tiles of their own: for a
+				 * reader they are the same question as patch ("nothing to
+				 * think about"), and two more near-zero tiles is exactly the
+				 * noise this redesign exists to remove. They keep their own
+				 * bar segment — one, merged, and deliberately *not* a filter
+				 * target: applyFilters() matches data-delta exactly, so a
+				 * segment labelled "revision (2) and unknown (1) — 3" cannot
+				 * carry a single arg without filtering to fewer tools than it
+				 * counts. seg-rest below is proportion-only for the same
+				 * reason; both are styled without a pointer cursor. Either
+				 * value stays reachable from the delta select. */
+				const patchSecondary = (D.revision || D.unknown)
+					? `+${D.revision} revision${D.unknown ? `, ${D.unknown} unknown` : ''}`
+					: 'fixes only';
+				groupA = `<div class="tilegroup">
+					<span class="slabel">Change size — ${total} updates</span>
+					<div class="tiles">
+						${tileHtml({ v: D.major, l: 'Major', s: 'breaking-change candidates', accent: 'orange', act: 'filter-delta', arg: 'major', title: 'Show only major-delta tools' })}
+						${tileHtml({ v: D.minor, l: 'Minor', s: 'feature releases', accent: 'blue', act: 'filter-delta', arg: 'minor', title: 'Show only minor-delta tools' })}
+						${tileHtml({ v: D.patch, l: 'Patch', s: patchSecondary, accent: 'neutral', act: 'filter-delta', arg: 'patch', title: 'Show only patch-delta tools' })}
+					</div>
+					${dTotal ? `<div class="deltabar">
+						${barSegHtml('seg-major', D.major, dTotal, 'Major', 'filter-delta', 'major')}
+						${barSegHtml('seg-minor', D.minor, dTotal, 'Minor', 'filter-delta', 'minor')}
+						${barSegHtml('seg-patch', D.patch, dTotal, 'Patch', 'filter-delta', 'patch')}
+						${barSegHtml('seg-revision', (D.revision || 0) + (D.unknown || 0), dTotal,
+							`Revision${D.unknown ? ` (${D.revision}) and unknown (${D.unknown})` : ''}`, '', '')}
+					</div>` : ''}
+				</div>`;
+			}
+
+			/* ── Group B: security ───────────────────────────────────────── */
+			let groupB = '';
+			if (SEC) {
+				groupB = `<div class="tilegroup">
+					<span class="slabel">Security — ${SEC.tools_with_security} of ${total} tools affected</span>
+					<div class="tiles">
+						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: `across ${SEC.tools_with_security} tools`, accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
+						${tileHtml({ v: SEC.auto_count, l: 'Security only', s: 'no impact here · accepted', accent: 'cyan', act: 'open-auto', arg: 'sec-auto', title: 'Open the auto-approved list' })}
+						${tileHtml({ v: SEC.mixed_count, l: 'Security + other', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the tools that mix security with other changes' })}
+					</div>
+					${total ? `<div class="deltabar">
+						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security only', 'open-auto', 'sec-auto')}
+						${barSegHtml('seg-mixed', SEC.mixed_count, total, 'Security + other', 'scroll', 'sec-mixed')}
+						${barSegHtml('seg-rest', Math.max(0, total - SEC.auto_count - SEC.mixed_count), total, 'No security content', '', '')}
+					</div>` : ''}
+				</div>`;
+			}
+
+			/* ── Security section ────────────────────────────────────────── */
+			let secSection = '';
+			if (SEC) {
+				/* The design was verified against 9 mixed cards; real data brought
+				 * 31, which made the Overview ~13 viewport-heights tall and buried
+				 * the very triage it exists to provide. Cap the render, worst
+				 * first, with the same show-all expander §4.2 uses for highlights.
+				 * The cap is a rendering decision and never an accounting one —
+				 * the heading, the tile and the bar segment below all keep
+				 * counting the full set. */
+				const MIX_CAP = 8;
+				const mixOrdered = mixed.slice().sort(compareMixedTools);
+				const mixRest = mixOrdered.slice(MIX_CAP).map(mixCardHtml).join('');
+				const mixedBody = mixed.length
+					? mixOrdered.slice(0, MIX_CAP).map(mixCardHtml).join('') + (mixRest
+						? `<button type="button" class="btn-bar-action" id="mix-showall" data-act="show-all-mixed">show all ${mixed.length} →</button>
+							<div id="mix-rest" style="display:none">${mixRest}</div>`
+						: '')
+					: `<p class="ov-empty">No tool mixes security fixes with other changes this run.</p>`;
+				secSection = `<section class="ovsection" id="sec-section">
+					<h2><span class="shield">🛡</span> Security patches
+						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.auto_count} auto-approved · ${SEC.mixed_count} need a look</span>
+					</h2>
+					${autoStripHtml(auto)}
+					<div id="sec-mixed">${mixedBody}</div>
+				</section>`;
+			}
+
+			/* ── Highlights ──────────────────────────────────────────────── */
+			const highlights = (REPORT.highlights || []).slice();
+			/* Assembly's editorial order is the point of the array — the only
+			 * client-side reordering is floating a blocking tool to the top. */
+			const blockingIds = new Set(blockingToolIds());
+			highlights.sort((a, b) => (blockingIds.has(b.tool_id) ? 1 : 0) - (blockingIds.has(a.tool_id) ? 1 : 0));
+			const HL_CAP = 8;
+			const hlShown = highlights.slice(0, HL_CAP).map(highlightCardHtml).join('');
+			const hlRest = highlights.slice(HL_CAP).map(highlightCardHtml).join('');
+			const hlBody = highlights.length
+				? hlShown + (hlRest
+					? `<button type="button" class="btn-bar-action" id="hl-showall" data-act="show-all-highlights">show all ${highlights.length} →</button>
+						<div id="hl-rest" style="display:none">${hlRest}</div>`
+					: '')
+				: `<p class="ov-empty">Nothing stood out as needing a decision${SEC ? ' beyond the security patches above' : ''}.</p>`;
+
+			const hlSection = `<section class="ovsection" id="hl-section">
+				<h2>Highlights <span class="sub">biggest decision drivers</span></h2>
+				<div id="blockstrip-mount"></div>
+				${hlBody}
+			</section>`;
+
+			/* ── Everything else — completes the accounting ──────────────── */
+			const attentionIds = new Set(highlights.map(h => h.tool_id));
+			const attentionRest = attention.filter(t => !attentionIds.has(t.id));
+			const bands = [];
+			if (routine.length) {
+				bands.push(bandHtml('band-routine', 'Routine updates',
+					`${routine.length} tools · patch/minor, nothing flagged · <span data-band-accepted="routine"></span>`,
+					`<div class="chips">${routine.map(t => chipHtml(t, t.latest_version || '')).join('')}</div>`,
+					false));
+			}
+			if (attentionRest.length) {
+				bands.push(bandHtml('band-attention', 'Other tools needing attention',
+					`${attentionRest.length} tools not in Highlights · <span data-band-accepted="attention"></span>`,
+					`<div class="chips">${attentionRest.map(t => chipHtml(t, versionDelta(t))).join('')}</div>`,
+					false));
+			}
+			if (health.length) {
+				/* Expanded by default: there are only ever a handful, and one
+				 * of them is usually actionable. */
+				const rows = health.map(t => {
+					const sug = baselineSuggestion(t);
+					const sev = healthRowSeverity(t);
+					return `<div class="healthrow">
+						<span class="ic ${esc(sev)}">${SEV_ICON[sev] || '·'}</span>
+						<span class="nm">${esc(t.name)}</span>
+						${sug && sug.command ? `<button type="button" class="cmd" data-copy-text="${esc(sug.command)}" title="Click to copy">${esc(sug.command)}</button>` : ''}
+						<span class="spacer"></span>
+						${jumpHtml(t.id, 'details →')}
+					</div>`;
+				}).join('');
+				bands.push(bandHtml('band-health', 'Homebrew environment',
+					`${health.length} finding${health.length === 1 ? '' : 's'} from brew doctor`, rows, true));
+			}
+			const elseSection = bands.length
+				? `<section class="ovsection" id="else-section">
+					<h2>Everything else <span class="sub">${routine.length} routine · ${attentionRest.length} other attention · ${health.length} health</span></h2>
+					${bands.join('')}
+				</section>`
+				: '';
+
+			panel.innerHTML =
+				`<p id="lede">${ledeHtml}</p>` +
+				((groupA || groupB) ? `<div class="tilegroups">${groupA}${groupB}</div>` : '') +
+				secSection + hlSection + elseSection;
+		}
+
+		/* brew-health findings carry their severity on headliners rather
+		 * than relevancy (which stays empty) — the same derivation
+		 * renderTool() applies for data-max-severity. Only used for the
+		 * health band's rows, where a headliner is always synthesized. */
+		function healthRowSeverity(tool) {
+			let sev = maxSeverity(tool);
+			if (!sev) {
+				let best = 99;
+				for (const h of (tool.headliners || [])) {
+					const raw = typeof h === 'string' ? {} : (h || {});
+					const o = SEV_ORDER[raw.severity] ?? 99;
+					if (o < best) { best = o; sev = raw.severity; }
+				}
+			}
+			return sev || 'info';
+		}
+
+		/* ── Decision state: one source of truth ────────────────────────────
+		 * The canonical decision lives on .suggestion-card[data-suggestion-id]
+		 * inside #main and nowhere else. Everything on the Overview is a
+		 * mirror: a control that writes to the canonical card and re-reads
+		 * its state. Mirrors never carry the .suggestion-card class or a
+		 * data-suggestion-id attribute — that is exactly what keeps
+		 * submitFeedback(), updateProgress() and sectionNeedsDecision()
+		 * correct with no edit to their selectors. */
+		function canonicalCard(sid) {
+			return document.querySelector(
+				`#main .suggestion-card[data-suggestion-id="${CSS.escape(sid)}"]`);
+		}
+
+		/* The ONE place a decision changes — the tool card's own
+		 * .btn-decision handler routes through here too, so canonical
+		 * controls and mirrors run identical code. */
+		function setDecision(sid, action) {
+			const card = canonicalCard(sid);
+			if (!card) return;
+			/* A frozen (post-Submit) card makes this a no-op, so a stale
+			 * mirror click can never mutate a submitted report. */
+			const btn = card.querySelector('.btn-decision');
+			if (btn && btn.disabled) return;
+			card.dataset.decision = card.dataset.decision === action ? '' : action;
+			updateStateLabel(card);
+			const section = card.closest('.tool-section');
+			if (section) refreshDecisionBadge(section);
+			syncMirrors(sid);
+			/* The band heads read "N of M already accepted" off the chip
+			 * dots, so they have to be recomputed on a single change too —
+			 * syncMirrors() only touches the one id that moved. */
+			refreshBandCounts();
+			updateProgress();
+		}
+
+		function renderMirrorState(node, decision) {
+			if (node.classList.contains('mirror')) {
+				node.querySelectorAll('.btn-d').forEach(b => {
+					b.dataset.on = b.dataset.action === decision ? '1' : '0';
+				});
+				return;
+			}
+			if (node.classList.contains('acc-toggle')) {
+				const on = decision === 'accept';
+				node.dataset.on = on ? '1' : '0';
+				node.textContent = on ? '✓' : '○';
+				node.title = on ? 'Accepted — click to un-accept' : 'Not accepted — click to accept';
+				return;
+			}
+		}
+
+		function syncMirrors(sid) {
+			const card = canonicalCard(sid);
+			const d = card ? card.dataset.decision : '';
+			document.querySelectorAll(`[data-mirrors="${CSS.escape(sid)}"]`)
+				.forEach(node => renderMirrorState(node, d));
+			document.querySelectorAll(`[data-mirror-dot="${CSS.escape(sid)}"]`)
+				.forEach(el => {
+					const on = d === 'accept';
+					el.dataset.on = on ? '1' : '0';
+					el.textContent = on ? '✓' : '○';
+				});
+		}
+
+		/* Full pass — after the initial render (to pick up pre-accepted
+		 * suggestions) and after any bulk change. */
+		function syncAllMirrors() {
+			const seen = new Set();
+			document.querySelectorAll('[data-mirrors], [data-mirror-dot]').forEach(node => {
+				const sid = node.dataset.mirrors || node.dataset.mirrorDot;
+				if (sid && !seen.has(sid)) { seen.add(sid); syncMirrors(sid); }
+			});
+			refreshBandCounts();
+		}
+
+		/* Live "N of M already accepted" on the rollup bands. */
+		function refreshBandCounts() {
+			document.querySelectorAll('[data-band-accepted]').forEach(el => {
+				const band = el.closest('.band');
+				if (!band) return;
+				const dots = Array.from(band.querySelectorAll('[data-mirror-dot]'));
+				const accepted = dots.filter(d => d.dataset.on === '1').length;
+				el.textContent = `${accepted} of ${dots.length} already accepted`;
+			});
+		}
+
+		/* ── Blocking set: recomputed live, never read from highlights[] ────
+		 * highlights[] is agent-written and cannot be relied on to contain
+		 * the tools that gate Submit. */
+		function blockingToolIds() {
+			const ids = [];
+			document.querySelectorAll('#main .tool-section[data-max-severity="incompatible"]').forEach(section => {
+				const undecided = Array.from(section.querySelectorAll('.suggestion-card'))
+					.some(c => c.dataset.decision === '');
+				if (undecided) ids.push(section.dataset.toolId);
+			});
+			return ids;
+		}
+
+		function renderBlockStrip(blocking) {
+			const mount = document.getElementById('blockstrip-mount');
+			if (!mount) return;
+			if (!blocking.length) { mount.innerHTML = ''; return; }
+			/* Capped at five named tools: uncapped, a pathological report
+			 * rendered a two-row wall of links. */
+			const shown = blocking.slice(0, 5);
+			mount.innerHTML = `<div class="blockstrip">
+				<span class="ic">⛔</span>
+				<span><b>${blocking.length}</b> tool${blocking.length === 1 ? '' : 's'} with incompatible findings still block Submit:</span>
+				${shown.map(id => jumpHtml(id, `${(toolById(id) || {}).name || id} →`)).join('')}
+				${blocking.length > 5 ? `<button type="button" class="jump" data-act="filter-blocking">+${blocking.length - 5} more →</button>` : ''}
+			</div>`;
 		}
 
 		/* ── Collapse / expand tool section (references/rendering-report.md §Page Layout) ─────────────────────────
@@ -2283,20 +4068,310 @@
 			setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
 		}
 
-		function copyCommand(text, btn) {
+		/* Shared by the suggestion-card command chip (which swaps its button
+		 * label) and the health band's .cmd chip (which must keep its own
+		 * text — the command itself is the label). */
+		function writeClipboard(text, done) {
+			const cb = typeof done === 'function' ? done : () => {};
 			if (navigator.clipboard && navigator.clipboard.writeText) {
-				navigator.clipboard.writeText(text).then(
-					() => flashCopied(btn),
-					() => { fallbackCopy(text); flashCopied(btn); }
-				);
+				navigator.clipboard.writeText(text).then(cb, () => { fallbackCopy(text); cb(); });
 			} else {
 				fallbackCopy(text);
-				flashCopied(btn);
+				cb();
+			}
+		}
+
+		function copyCommand(text, btn) {
+			writeClipboard(text, () => flashCopied(btn));
+		}
+
+		/* ══ TAB SHELL ═════════════════════════════════════════════════════
+		 * A registry, not a hardcoded triple: transitionToResults() adds to
+		 * it and the strip is re-rendered from it, so pre- and post-Submit
+		 * use one mechanism instead of two. Client-side only — a tab is not
+		 * a navigable location, so no pushState; only a tool deep link
+		 * writes the hash. */
+		let PANELS = {
+			overview: { el: () => document.getElementById('panel-overview'), label: 'Overview' },
+			tools:    { el: () => document.getElementById('main'),           label: 'All tools' },
+		};
+		let activeTab = 'overview';
+		let cameFromOverview = false;
+
+		function renderTabStrip() {
+			const strip = document.getElementById('tab-strip');
+			strip.innerHTML = Object.entries(PANELS).map(([name, p]) => {
+				const active = name === activeTab;
+				const cnt = name === 'tools' ? `<span class="cnt" id="tab-tools-count"></span>` : '';
+				return `<button type="button" class="tab-btn${active ? ' active' : ''}" id="tab-${name}"` +
+					` data-tab="${name}" role="tab" aria-selected="${active}">${esc(p.label)}${cnt}</button>`;
+			}).join('');
+			refreshTabCount();
+		}
+
+		/* The All-tools label carries a count chip: the total normally,
+		 * `visible/total` while any filter is active — a second,
+		 * always-visible signal that something is hidden. */
+		function refreshTabCount() {
+			const el = document.getElementById('tab-tools-count');
+			if (!el) return;
+			const all = document.querySelectorAll('#tool-list > .tool-section');
+			const hidden = document.querySelectorAll('#tool-list > .tool-section[data-hidden]');
+			el.textContent = hidden.length
+				? `${all.length - hidden.length}/${all.length}`
+				: String(all.length);
+		}
+
+		function selectTab(name) {
+			if (!PANELS[name]) return;
+			activeTab = name;
+			for (const [n, p] of Object.entries(PANELS)) {
+				const el = p.el();
+				if (el) el.style.display = (n === name) ? 'block' : 'none';
+				const btn = document.getElementById('tab-' + n);
+				if (btn) {
+					btn.classList.toggle('active', n === name);
+					btn.setAttribute('aria-selected', String(n === name));
+				}
+			}
+			const pill = document.getElementById('backpill');
+			if (pill) pill.classList.toggle('on', name === 'tools' && cameFromOverview);
+		}
+
+		/* Respect prefers-reduced-motion by dropping smooth scrolling — the
+		 * only other motion on the page is the results spinner. */
+		function scrollBehavior() {
+			return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+		}
+
+		/* ── The two capped Overview lists ──────────────────────────────────
+		 * §3.3's mixed cards and §4.2's highlights both render a prefix and
+		 * park the remainder in a hidden sibling behind a "show all". The
+		 * overflow stays in the DOM — its mirrors keep tracking decisions and
+		 * its canonical cards are untouched in #main — so nothing about the
+		 * payload changes when a card is merely out of sight. What must not
+		 * happen is a jump or a j/k step landing on one of those cards while
+		 * it is hidden, which is why both lists expand through one function. */
+		const OVERFLOW_SEL = '#mix-rest, #hl-rest';
+
+		function revealOverflow(restId, btnId) {
+			const rest = document.getElementById(restId);
+			if (!rest || rest.style.display !== 'none') return;
+			/* focusedIdx.overview is a *position* in getOverviewCards(), and
+			 * this reveal splices up to 23 #mix-rest cards into the list
+			 * ahead of every .hlcard. Remap the held index onto the same
+			 * element across the reveal, or the visible ring and the a/r/c
+			 * target silently drift apart and a keystroke writes a decision
+			 * for a tool the user never ringed. Read the ring first: it is
+			 * the authority (see focusedItem()), the index only its cache. */
+			const cur = document.querySelector('#panel-overview [data-focused]')
+				|| getOverviewCards()[focusedIdx.overview] || null;
+			rest.style.display = 'block';
+			const btn = document.getElementById(btnId);
+			if (btn) btn.remove();
+			focusedIdx.overview = cur ? getOverviewCards().indexOf(cur) : -1;
+		}
+
+		/* Expand whichever capped list holds this tool's Overview card, if
+		 * either does. Called before a jump scrolls or focuses, so the card a
+		 * jump refers to is really on screen when the back pill returns. */
+		function revealOverviewCardFor(toolId) {
+			const sel = `[data-tool="${CSS.escape(toolId)}"]`;
+			if (document.querySelector(`#mix-rest ${sel}`)) revealOverflow('mix-rest', 'mix-showall');
+			if (document.querySelector(`#hl-rest ${sel}`)) revealOverflow('hl-rest', 'hl-showall');
+		}
+
+		/* ── Deep linking: #tool-<id> ───────────────────────────────────────
+		 * Tool ids contain a colon, so every jump control is a
+		 * <button data-jump="<tool id>"> rather than an anchor — that avoids
+		 * querySelector escaping problems and lets the jump run the
+		 * multi-step behavior below. The hash is written only for
+		 * shareability, with replaceState: a report is not a browser-history
+		 * document and back-stack noise across 77 jumps is worse than
+		 * useless. The back pill is the affordance instead. */
+		function jumpToTool(id) {
+			if (!id) return;
+			cameFromOverview = (activeTab === 'overview');
+			/* 0. A jump must never refer to a card the cap is hiding — expand
+			 *    before anything scrolls or takes focus. Same rule as the
+			 *    filter clear in step 1, one step earlier. */
+			revealOverviewCardFor(id);
+			selectTab('tools');
+			const s = document.querySelector(
+				`#tool-list > .tool-section[data-tool-id="${CSS.escape(id)}"]`);
+			if (!s) return;
+			/* 1. A jump must never silently fail because a filter hides its
+			 *    target. */
+			if (s.hasAttribute('data-hidden')) {
+				clearFilters();
+				showToast(`Filters cleared to show ${s.dataset.name}.`);
+			}
+			/* 2. Expand. Auto-advance is not triggered — it fires on
+			 *    collapse only. */
+			s.classList.remove('collapsed');
+			s.querySelector('.tool-header').setAttribute('aria-expanded', 'true');
+			/* 3. Keep keyboard nav coherent: j/k continue from where you
+			 *    landed. Focus, not scroll: focusSection()'s own
+			 *    scrollIntoView({block:'nearest'}) would be a second scroll
+			 *    issued in this same task, and the browser resolves it against
+			 *    the pre-animation offset — with the target still below the
+			 *    fold, 'nearest' then means "align its *bottom* edge", which
+			 *    is what used to strand a jump (innerHeight - sectionHeight -
+			 *    scroll-margin) px too low. Suppressed here so step 4 is the
+			 *    single authoritative scroll; the focus() call inside already
+			 *    passes preventScroll. */
+			focusSection(getVisibleSections().indexOf(s), { scroll: false });
+			/* 4. Scroll — one motion, and the last word on where the jump
+			 *    lands. scroll-margin-top keeps it clear of the sticky bar. */
+			s.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
+			/* 5. Land the eye. */
+			s.setAttribute('data-flash', '');
+			setTimeout(() => s.removeAttribute('data-flash'), 1600);
+			history.replaceState(null, '', '#tool-' + encodeURIComponent(id));
+		}
+
+		function scrollToAnchor(id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			selectTab('overview');
+			el.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
+		}
+
+		function setStripOpen(strip, open) {
+			strip.dataset.open = open ? '1' : '0';
+			const head = strip.querySelector('.autostrip-head, .band-head');
+			if (head) {
+				head.setAttribute('aria-expanded', String(open));
+				const exp = head.querySelector('.exp');
+				if (exp) exp.textContent = open ? '▾ hide' : '▸ show';
+			}
+		}
+
+		/* The shell bar wraps to two rows on narrow screens, so the
+		 * scroll-margin a deep link needs is measured, never hardcoded. */
+		function observeStickyHeight() {
+			const bar = document.getElementById('progress-bar-container');
+			if (!bar) return;
+			const set = () => document.documentElement.style
+				.setProperty('--sticky-h', bar.offsetHeight + 'px');
+			set();
+			if (window.ResizeObserver) new ResizeObserver(set).observe(bar);
+			else window.addEventListener('resize', set);
+		}
+
+		/* ── Overview click actions (tiles, bar segments, bands) ─────────── */
+		function runOverviewAction(act, arg) {
+			switch (act) {
+				case 'filter-delta':
+					selectTab('tools');
+					/* A tile states the whole filter it names — composing it
+					 * onto whatever was already set makes a tile labelled 38
+					 * land on 19 sections. Same clear the sibling
+					 * 'filter-blocking' below has always done. */
+					clearFilters();
+					document.getElementById('filter-delta').value = arg;
+					applyFilters();
+					window.scrollTo({ top: 0, behavior: scrollBehavior() });
+					break;
+				case 'filter-blocking':
+					selectTab('tools');
+					clearFilters();
+					document.getElementById('filter-severity').value = 'incompatible';
+					applyFilters();
+					window.scrollTo({ top: 0, behavior: scrollBehavior() });
+					break;
+				case 'open-auto': {
+					const strip = document.getElementById(arg);
+					if (strip) setStripOpen(strip, true);
+					scrollToAnchor(arg);
+					break;
+				}
+				case 'scroll':
+					scrollToAnchor(arg);
+					break;
+				case 'show-all-highlights':
+					revealOverflow('hl-rest', 'hl-showall');
+					break;
+				case 'show-all-mixed':
+					revealOverflow('mix-rest', 'mix-showall');
+					break;
+				case 'clear-filters':
+					clearFilters();
+					break;
 			}
 		}
 
 		/* ── Decision button clicks + misc delegated actions ─────────────── */
 		document.addEventListener('click', e => {
+			/* Tab strip. An explicit tab click is not "arrived via jump", so
+			 * it clears the back pill. */
+			const tabBtn = e.target.closest('.tab-btn[data-tab]');
+			if (tabBtn) {
+				cameFromOverview = false;
+				selectTab(tabBtn.dataset.tab);
+				return;
+			}
+
+			if (e.target.id === 'backpill') {
+				cameFromOverview = false;
+				selectTab('overview');
+				return;
+			}
+
+			/* Mirror decision buttons (mixed cards, highlight rows) and the
+			 * single-toggle accept control (auto rows). Both route through
+			 * setDecision(), which writes the canonical card. */
+			const mirrorBtn = e.target.closest('.mirror[data-mirrors] .btn-d');
+			if (mirrorBtn) {
+				setDecision(mirrorBtn.closest('.mirror').dataset.mirrors, mirrorBtn.dataset.action);
+				return;
+			}
+			const accToggle = e.target.closest('.acc-toggle[data-mirrors]');
+			if (accToggle) {
+				setDecision(accToggle.dataset.mirrors, 'accept');
+				return;
+			}
+
+			/* Jump controls — buttons, not anchors (§Tab Shell). Checked
+			 * after the mirror controls so a chip's own dot never swallows
+			 * the click. */
+			const jumper = e.target.closest('[data-jump]');
+			if (jumper) {
+				jumpToTool(jumper.dataset.jump);
+				return;
+			}
+
+			/* Auto-strip and rollup-band toggles. */
+			const stripHead = e.target.closest('[data-toggle-strip]');
+			if (stripHead) {
+				const strip = document.getElementById(stripHead.dataset.toggleStrip);
+				if (strip) setStripOpen(strip, strip.dataset.open !== '1');
+				return;
+			}
+			const bandHead = e.target.closest('[data-toggle-band]');
+			if (bandHead) {
+				const band = bandHead.closest('.band');
+				if (band) setStripOpen(band, band.dataset.open !== '1');
+				return;
+			}
+
+			/* Copyable remediation command in the health band. Copies
+			 * without clobbering the chip's own text. */
+			const cmdChip = e.target.closest('.cmd[data-copy-text]');
+			if (cmdChip) {
+				writeClipboard(cmdChip.dataset.copyText || '');
+				cmdChip.classList.add('copied');
+				setTimeout(() => cmdChip.classList.remove('copied'), 1500);
+				return;
+			}
+
+			/* Tiles, proportion-bar segments and other declarative actions. */
+			const actor = e.target.closest('[data-act]');
+			if (actor && actor.dataset.act) {
+				runOverviewAction(actor.dataset.act, actor.dataset.arg || '');
+				return;
+			}
+
 			/* Turn-thread controls (#27/#28, references/rendering-results.md §Turn-Based Threads) —
 			 * shared by followup cards and failed-action debug threads.
 			 * Checked before the plain Report-tab decision-button branch
@@ -2334,16 +4409,15 @@
 			}
 
 			/* Report-tab decision buttons — toggle local state only; the
-			 * actual decision is sent later by the page-wide Submit button. */
+			 * actual decision is sent later by the page-wide Submit button.
+			 * Routed through setDecision() so the canonical card and its
+			 * Overview mirrors run identical code and can never diverge. */
 			const btn = e.target.closest('.btn-decision');
 			if (btn) {
 				const card = btn.closest('.suggestion-card');
-				const action = btn.dataset.action;
-				card.dataset.decision = card.dataset.decision === action ? '' : action;
-				updateStateLabel(card);
-				updateProgress();
-				const section = card.closest('.tool-section');
-				if (section) refreshDecisionBadge(section);
+				if (card && card.dataset.suggestionId) {
+					setDecision(card.dataset.suggestionId, btn.dataset.action);
+				}
 				return;
 			}
 
@@ -2407,15 +4481,22 @@
 		document.getElementById('btn-collapse-all').addEventListener('click', () => setAllCollapsed(true));
 		document.getElementById('btn-expand-all').addEventListener('click', () => setAllCollapsed(false));
 
-		/* ── Progress bar + submit gating ────────────────────────────────── */
+		/* ── Progress bar + submit gating ──────────────────────────────────
+		 * The gating rule is unchanged: Submit stays disabled until every
+		 * suggestion on an incompatible-severity tool has a decision. What
+		 * is new is that the gate is visible from *both* tabs — the shell
+		 * bar's "N blocking →" button and the Overview's blocking strip are
+		 * both refreshed from here, on every decision change. Mirrors are
+		 * structurally excluded from these selectors because they are never
+		 * .suggestion-card. */
 		function updateProgress() {
-			const allCards = Array.from(document.querySelectorAll('.suggestion-card'));
+			const allCards = Array.from(document.querySelectorAll('#main .suggestion-card'));
 			const total = allCards.length;
 			const decided = allCards.filter(c => c.dataset.decision !== '').length;
 
 			/* Count undecided suggestions specifically on incompatible tools */
 			let incompatibleUndecided = 0;
-			document.querySelectorAll('.tool-section[data-max-severity="incompatible"]').forEach(section => {
+			document.querySelectorAll('#main .tool-section[data-max-severity="incompatible"]').forEach(section => {
 				section.querySelectorAll('.suggestion-card').forEach(card => {
 					if (card.dataset.decision === '') incompatibleUndecided++;
 				});
@@ -2424,15 +4505,29 @@
 			const pct = total > 0 ? (decided / total) * 100 : 100;
 			document.getElementById('progress-fill').style.width = pct + '%';
 
+			/* Both strings always render; CSS picks one by viewport width. */
 			const progressText = document.getElementById('progress-text');
-			progressText.textContent = `${decided} of ${total} decided · ${incompatibleUndecided} incompatible undecided`;
+			progressText.innerHTML =
+				`<span class="long">${decided} of ${total} decided · ${incompatibleUndecided} incompatible undecided</span>` +
+				`<span class="short">${decided}/${total} · ${incompatibleUndecided} ⛔</span>`;
 			progressText.className = incompatibleUndecided > 0 ? 'has-incompatible' : '';
 
+			const blocking = blockingToolIds();
+			const gate = document.getElementById('gate-btn');
+			if (gate) {
+				gate.style.display = blocking.length ? 'inline-block' : 'none';
+				gate.textContent = `${blocking.length} blocking →`;
+				gate.dataset.jump = blocking[0] || '';
+			}
+			renderBlockStrip(blocking);
+
 			const submitBtn = document.getElementById('submit-btn');
-			submitBtn.disabled = incompatibleUndecided > 0;
-			submitBtn.title = incompatibleUndecided > 0
-				? `Decide all ${incompatibleUndecided} suggestion(s) on incompatible-severity tools first`
-				: '';
+			if (submitBtn) {
+				submitBtn.disabled = incompatibleUndecided > 0;
+				submitBtn.title = incompatibleUndecided > 0
+					? `Decide all ${incompatibleUndecided} suggestion(s) on incompatible-severity tools first`
+					: '';
+			}
 		}
 
 		/* ── Submit feedback ─────────────────────────────────────────────── */
@@ -2441,8 +4536,13 @@
 		async function submitFeedback() {
 			const reportId = document.querySelector('meta[name="report-id"]').content;
 
+			/* Scoped to #main: the canonical cards, and only those. Overview
+			 * mirrors are not .suggestion-card and carry no
+			 * data-suggestion-id, so the payload stays exactly one entry per
+			 * known suggestion id no matter how many mirrors are on screen
+			 * (references/rendering-report.md §Decision State and Mirrors). */
 			const decisions = {};
-			document.querySelectorAll('.suggestion-card[data-suggestion-id]').forEach(card => {
+			document.querySelectorAll('#main .suggestion-card[data-suggestion-id]').forEach(card => {
 				const decision = card.dataset.decision;
 				if (decision) {
 					decisions[card.dataset.suggestionId] = {
@@ -2493,8 +4593,18 @@
 		function showError(msg) {
 			const toast = document.getElementById('error-toast');
 			toast.textContent = msg;
+			toast.classList.remove('info');
 			toast.classList.add('visible');
 			setTimeout(() => toast.classList.remove('visible'), 9000);
+		}
+
+		/* Same slot, informational tone — used when a jump has to clear a
+		 * filter that was hiding its target. Not an error, so not red. */
+		function showToast(msg) {
+			const toast = document.getElementById('error-toast');
+			toast.textContent = msg;
+			toast.classList.add('info', 'visible');
+			setTimeout(() => toast.classList.remove('visible'), 4000);
 		}
 
 		/* ── Filters and sorting ─────────────────────────────────────────── */
@@ -2506,21 +4616,45 @@
 				.some(c => c.dataset.decision === '');
 		}
 
+		/* Every filter control, including Sort, back to its default. This is
+		 * what the banner's and the empty state's Clear filters buttons
+		 * call, and what jumpToTool() calls when a filter hides its target
+		 * (references/rendering-report.md §Filter Bar). */
+		const FILTER_SELECTS = ['filter-bucket', 'filter-delta', 'filter-source', 'filter-severity', 'filter-sort'];
+		const FILTER_CHECKS = ['filter-security', 'filter-relevant'];
+
+		function clearFilters() {
+			FILTER_SELECTS.forEach(id => {
+				const el = document.getElementById(id);
+				if (el) el.value = (id === 'filter-sort') ? 'needs-decision' : '';
+			});
+			FILTER_CHECKS.forEach(id => {
+				const el = document.getElementById(id);
+				if (el) el.checked = false;
+			});
+			applyFilters();
+		}
+
 		function applyFilters() {
+			const bucketFilter = document.getElementById('filter-bucket').value;
+			const deltaFilter = document.getElementById('filter-delta').value;
 			const srcFilter = document.getElementById('filter-source').value;
 			const sevFilter = document.getElementById('filter-severity').value;
+			const securityOnly = document.getElementById('filter-security').checked;
 			const relevantOnly = document.getElementById('filter-relevant').checked;
 			const sortBy = document.getElementById('filter-sort').value;
 
-			const mainEl = document.getElementById('main');
-			const overall = document.getElementById('overall-section');
-			const sections = Array.from(mainEl.querySelectorAll(':scope > .tool-section'));
+			const listEl = document.getElementById('tool-list');
+			const sections = Array.from(listEl.querySelectorAll(':scope > .tool-section'));
 
 			/* Determine visibility */
 			sections.forEach(s => {
 				let hide = false;
+				if (bucketFilter && s.dataset.bucket !== bucketFilter) hide = true;
+				if (deltaFilter && s.dataset.delta !== deltaFilter) hide = true;
 				if (srcFilter && s.dataset.source !== srcFilter) hide = true;
 				if (sevFilter && s.dataset.maxSeverity !== sevFilter) hide = true;
+				if (securityOnly && s.dataset.sec !== '1') hide = true;
 				if (relevantOnly && !s.dataset.maxSeverity) hide = true;
 				if (hide) s.setAttribute('data-hidden', '');
 				else s.removeAttribute('data-hidden');
@@ -2554,41 +4688,55 @@
 						return sc !== 0 ? sc : (a.dataset.name || '').localeCompare(b.dataset.name || '');
 					}
 					case 'major': {
-						/* Mirrors assemble.py's _LEADING_INT regex (^\s*v?(\d+)) so a
-						 * "v"-prefixed version (e.g. "v9.0.0") parses the same way here
-						 * as it does for risk_level server-side — a bare parseInt() on
-						 * a leading "v" returns NaN and silently zeroed out this tool's
-						 * delta, tying it with every unrelated tool instead of sorting
-						 * near the top of "Major delta first". */
-						const leadingMajor = v => {
-							const m = typeof v === 'string' && v.match(/^\s*v?(\d+)/);
-							return m ? parseInt(m[1], 10) : NaN;
-						};
-						const getMajorDelta = el => {
-							const tool = (REPORT.tools || []).find(t => t.id === el.getAttribute('data-tool-id'));
-							if (!tool) return 0;
-							const cur = leadingMajor(tool.current_version);
-							const lat = leadingMajor(tool.latest_version);
-							return (isNaN(cur) || isNaN(lat)) ? 0 : lat - cur;
-						};
-						return getMajorDelta(b) - getMajorDelta(a);
+						/* Reads the server-computed data-delta rather than
+						 * re-parsing version strings here. assemble.py's
+						 * compute_version_delta() already knows about calver,
+						 * date and opaque schemes, Homebrew revisions and the
+						 * 0.x rule; a client-side leading-integer diff agreed
+						 * with none of them, so the same tool could sort as
+						 * "major" here while the tiles and the delta pill
+						 * called it something else (references/schemas.md
+						 * §1.8). */
+						const rank = el => DELTA_RANK[el.dataset.delta] ?? 9;
+						const ra = rank(a), rb = rank(b);
+						if (ra !== rb) return ra - rb;
+						return (a.dataset.name || '').localeCompare(b.dataset.name || '');
 					}
 					default: return 0;
 				}
 			});
 
-			/* Re-order DOM: visible sorted, then hidden, all before overall-section */
-			const anchor = overall || null;
-			[...visible, ...hidden].forEach(s => mainEl.insertBefore(s, anchor));
+			/* Re-order DOM: visible sorted, then hidden */
+			[...visible, ...hidden].forEach(s => listEl.appendChild(s));
+
+			/* Filter-state visibility. Because the bar now lives inside the
+			 * All-tools panel rather than above every panel, "reachable" is
+			 * one click rather than zero — so the hidden count, the tab
+			 * chip, and a filtered-empty state that carries its own reset
+			 * close the "stuck looking at a filtered-empty report" failure
+			 * mode by construction. */
+			const note = document.getElementById('filter-note');
+			note.classList.toggle('on', hidden.length > 0);
+			document.getElementById('filter-note-text').textContent =
+				`${hidden.length} of ${sections.length} tools hidden by filters`;
+			document.getElementById('filter-empty')
+				.classList.toggle('on', sections.length > 0 && visible.length === 0);
+			refreshTabCount();
 		}
 
-		['filter-source', 'filter-severity', 'filter-sort'].forEach(id => {
+		FILTER_SELECTS.forEach(id => {
 			document.getElementById(id).addEventListener('change', applyFilters);
 		});
-		document.getElementById('filter-relevant').addEventListener('change', applyFilters);
+		FILTER_CHECKS.forEach(id => {
+			document.getElementById(id).addEventListener('change', applyFilters);
+		});
 
-		/* ── Keyboard navigation ─────────────────────────────────────────── */
-		let focusedIdx = -1;
+		/* ── Keyboard navigation ───────────────────────────────────────────
+		 * The existing keys keep working; the model generalizes from
+		 * "focused tool section" to "focused item in the active tab", so
+		 * focusedIdx is per-tab (references/rendering-report.md §Keyboard
+		 * Navigation). */
+		const focusedIdx = { overview: -1, tools: -1 };
 		const FILTER_PRESETS = [
 			{ severity: '', relevant: false },        /* All */
 			{ severity: 'incompatible', relevant: false }, /* Incompatible */
@@ -2597,35 +4745,98 @@
 		let filterPresetIdx = 0;
 
 		function getVisibleSections() {
-			return Array.from(document.querySelectorAll('.tool-section:not([data-hidden])'));
+			return Array.from(document.querySelectorAll('#tool-list > .tool-section:not([data-hidden])'));
 		}
 
-		function focusSection(idx) {
-			const sections = getVisibleSections();
-			if (!sections.length) return;
-			focusedIdx = Math.max(0, Math.min(idx, sections.length - 1));
-			sections.forEach((s, i) => {
-				if (i === focusedIdx) {
+		/* Overview cards in reading order: the mixed security cards, then
+		 * the highlight cards. */
+		function getOverviewCards() {
+			return Array.from(document.querySelectorAll('#panel-overview .mixcard, #panel-overview .hlcard'))
+				/* A card parked in a collapsed overflow is not on screen, so
+				 * focusing it would move the ring nowhere visible. */
+				.filter(c => {
+					const rest = c.closest(OVERFLOW_SEL);
+					return !rest || rest.style.display !== 'none';
+				});
+		}
+
+		function focusItems() {
+			return activeTab === 'overview' ? getOverviewCards() : getVisibleSections();
+		}
+
+		/* The item a/r/c and g act on. focusedIdx is a position in a list the
+		 * page can rebuild underneath it — revealOverflow() is the one place
+		 * that does, and it remaps the index itself, but an index is a cache
+		 * of the ring and the ring is what the user is looking at. Resolve
+		 * the rendered [data-focused] first and resync the index from it, so
+		 * j/k also continue from the ring; fall back to the index only when
+		 * nothing is ringed (Overview cards are the only focus items that
+		 * can be re-ordered without a re-render, so only they need this). */
+		function focusedItem() {
+			const items = focusItems();
+			if (activeTab === 'overview') {
+				const ring = document.querySelector('#panel-overview [data-focused]');
+				const i = ring ? items.indexOf(ring) : -1;
+				if (i !== -1) {
+					focusedIdx.overview = i;
+					return ring;
+				}
+			}
+			return items[focusedIdx[activeTab]] || null;
+		}
+
+		/* opts.scroll === false focuses without scrolling. j/k want the
+		 * minimal 'nearest' nudge that walks the ring down the page, but a
+		 * caller that has already committed to a scroll of its own must be
+		 * able to opt out: two scrollIntoView calls in one task do not
+		 * compose — the later one wins, computed from the offset the page is
+		 * still sitting at (see jumpToTool step 3). */
+		function focusSection(idx, opts) {
+			const items = focusItems();
+			if (!items.length) return;
+			const scroll = !opts || opts.scroll !== false;
+			const tab = activeTab;
+			focusedIdx[tab] = Math.max(0, Math.min(idx, items.length - 1));
+			items.forEach((s, i) => {
+				if (i === focusedIdx[tab]) {
 					s.setAttribute('data-focused', '');
-					s.focus({ preventScroll: true });
-					s.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					if (typeof s.focus === 'function') s.focus({ preventScroll: true });
+					if (scroll) s.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
 				} else {
 					s.removeAttribute('data-focused');
 				}
 			});
 		}
 
+		/* On the Overview an item's decision controls are mirrors, so "first
+		 * undecided" is resolved against the canonical cards they mirror —
+		 * never against any state held on the mirror itself. */
 		function actOnFocused(action) {
-			const sections = getVisibleSections();
-			const section = sections[focusedIdx];
-			if (!section) return;
-			const card = Array.from(section.querySelectorAll('.suggestion-card'))
+			const item = focusedItem();
+			if (!item) return;
+			if (activeTab === 'overview') {
+				const mirror = Array.from(item.querySelectorAll('[data-mirrors]')).find(m => {
+					const card = canonicalCard(m.dataset.mirrors);
+					return card && card.dataset.decision === '';
+				});
+				if (mirror) setDecision(mirror.dataset.mirrors, action);
+				return;
+			}
+			const card = Array.from(item.querySelectorAll('.suggestion-card'))
 				.find(c => c.dataset.decision === '');
-			if (!card) return;
-			card.dataset.decision = action;
-			updateStateLabel(card);
-			updateProgress();
-			refreshDecisionBadge(section);
+			if (card && card.dataset.suggestionId) setDecision(card.dataset.suggestionId, action);
+		}
+
+		function cycleFilterPreset() {
+			selectTab('tools');
+			filterPresetIdx = (filterPresetIdx + 1) % FILTER_PRESETS.length;
+			const preset = FILTER_PRESETS[filterPresetIdx];
+			document.getElementById('filter-severity').value = preset.severity;
+			document.getElementById('filter-relevant').checked = preset.relevant;
+			if (!preset.relevant && !preset.severity) {
+				document.getElementById('filter-source').value = '';
+			}
+			applyFilters();
 		}
 
 		document.addEventListener('keydown', e => {
@@ -2633,46 +4844,72 @@
 				closeLinkModal();
 				return;
 			}
+			if (e.key === 'Escape' && document.getElementById('help-overlay').classList.contains('visible')) {
+				document.getElementById('help-overlay').classList.remove('visible');
+				return;
+			}
 			/* Suppress when typing */
 			if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
 			if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+			/* Tab switching works in every phase — the frozen report and its
+			 * Overview stay inspectable behind the Results view. */
+			if (/^[1-9]$/.test(e.key)) {
+				const names = Object.keys(PANELS);
+				const target = names[Number(e.key) - 1];
+				if (target) { cameFromOverview = false; selectTab(target); e.preventDefault(); }
+				return;
+			}
+
+			if (e.key === '?') {
+				document.getElementById('help-overlay').classList.toggle('visible');
+				e.preventDefault();
+				return;
+			}
+
 			if (resultsActive) return; /* results view handles its own keys */
 
 			switch (e.key) {
 				case 'j': {
-					const secs = getVisibleSections();
-					focusSection(focusedIdx + 1 < secs.length ? focusedIdx + 1 : 0);
+					const items = focusItems();
+					const cur = focusedIdx[activeTab];
+					focusSection(cur + 1 < items.length ? cur + 1 : 0);
 					e.preventDefault();
 					break;
 				}
 				case 'k': {
-					const secs = getVisibleSections();
-					focusSection(focusedIdx - 1 >= 0 ? focusedIdx - 1 : secs.length - 1);
+					const items = focusItems();
+					const cur = focusedIdx[activeTab];
+					focusSection(cur - 1 >= 0 ? cur - 1 : items.length - 1);
 					e.preventDefault();
 					break;
 				}
 				case 'a': actOnFocused('accept');  e.preventDefault(); break;
 				case 'r': actOnFocused('reject');  e.preventDefault(); break;
 				case 'c': actOnFocused('discuss'); e.preventDefault(); break;
+				case 'g': {
+					/* Overview only: open the focused card's tool. */
+					if (activeTab !== 'overview') break;
+					const item = focusedItem();
+					const jumper = item && item.querySelector('[data-jump]');
+					if (jumper) jumpToTool(jumper.dataset.jump);
+					e.preventDefault();
+					break;
+				}
 				case 's':
 					if (!document.getElementById('submit-btn').disabled) submitFeedback();
 					e.preventDefault();
 					break;
-				case 'f': {
-					filterPresetIdx = (filterPresetIdx + 1) % FILTER_PRESETS.length;
-					const preset = FILTER_PRESETS[filterPresetIdx];
-					document.getElementById('filter-severity').value = preset.severity;
-					document.getElementById('filter-relevant').checked = preset.relevant;
-					if (!preset.relevant && !preset.severity) {
-						document.getElementById('filter-source').value = '';
-					}
-					applyFilters();
+				case 'f':
+					cycleFilterPreset();
 					e.preventDefault();
 					break;
-				}
-				case '?':
-					document.getElementById('help-overlay').classList.toggle('visible');
-					e.preventDefault();
+				case 'Escape':
+					if (activeTab === 'tools' && cameFromOverview) {
+						cameFromOverview = false;
+						selectTab('overview');
+						e.preventDefault();
+					}
 					break;
 			}
 		});
@@ -2709,13 +4946,30 @@
 					return;
 				}
 			} catch (_) { /* server not yet written status, or network error */ }
-			// Normal path: render the report review view
+			// Normal path: render the report review view.
+			// renderOverview() must run *after* renderTools(): its mirrors
+			// resolve against canonical cards that have to exist first.
+			renderTabStrip();
+			renderReportView();
+			observeStickyHeight();
+			const hash = location.hash.startsWith('#tool-')
+				? decodeURIComponent(location.hash.slice(6))
+				: '';
+			selectTab(hash ? 'tools' : 'overview');
+			if (hash) jumpToTool(hash);
+		}
+
+		/* Shared by the normal path and by transitionToResults()'s
+		 * "render the report so the frozen tabs have content" branch. */
+		function renderReportView() {
 			renderHeader();
 			renderTools();
-			updateProgress();
-			document.querySelectorAll('.tool-section').forEach(refreshDecisionBadge);
+			document.querySelectorAll('#main .tool-section').forEach(refreshDecisionBadge);
 			applyFilters();
 			collapseAllButFirst();
+			renderOverview();
+			syncAllMirrors();
+			updateProgress();
 		}
 
 		/* ── Transition to Results view ──────────────────────────────────── */
@@ -2725,47 +4979,66 @@
 
 			const mainEl = document.getElementById('main');
 
-			// Ensure report is rendered so the frozen Report tab has content
-			if (!mainEl.hasChildNodes()) {
-				renderHeader();
-				renderTools();
-				applyFilters();
-				collapseAllButFirst();
+			// Ensure report is rendered so the frozen tabs have content
+			if (!reportRendered) {
+				renderReportView();
+				observeStickyHeight();
 			}
 
-			// 1. Filter bar stays visible and interactive — it's a read-only
-			// navigation aid over the now-frozen Report tab, not a decision
-			// control, so a filter applied before Submit can still be
-			// cleared/inspected afterward instead of leaving the user stuck
-			// looking at a filtered-empty report.
+			// 1. The filter bar stays visible and interactive — it's a
+			// read-only navigation aid over the now-frozen tool list, not a
+			// decision control, so a filter applied before Submit can still
+			// be cleared/inspected afterward instead of leaving the user
+			// stuck looking at a filtered-empty report. It now lives inside
+			// #main, one tab click away, which is why the hidden-count
+			// banner and the tab count chip exist (§Filter Bar).
 
-			// 2. Replace progress-bar-container contents with tab strip
-			// (Results | Report | Changelog — #29 promotes Changelog to a
-			// sibling tab instead of a Results-panel subsection)
+			// 2. Rebuild the shell bar rather than replacing its innerHTML:
+			// strip out the decision controls, register the two new panels,
+			// and re-render the tab strip from the registry. The Overview
+			// survives as its own tab — it is the summary of what was just
+			// approved, and the most useful thing to look at while an apply
+			// runs (references/rendering-results.md §Element Detail).
 			const pbc = document.getElementById('progress-bar-container');
-			pbc.innerHTML =
-				'<div id="tab-strip">' +
-					'<button class="tab-btn active" id="tab-results">Results</button>' +
-					'<button class="tab-btn" id="tab-report">Report</button>' +
-					'<button class="tab-btn" id="tab-changelog">Changelog</button>' +
-					'<span id="tab-status">Applying…</span>' +
-				'</div>';
+			['progress-wrap', 'auto-run-toggle', 'submit-btn'].forEach(id => {
+				const el = document.getElementById(id);
+				if (el) el.remove();
+			});
+
+			const panel = document.createElement('div');
+			panel.id = 'results-panel';
+			const changelogPanel = document.createElement('div');
+			changelogPanel.id = 'changelog-panel';
+
+			PANELS = {
+				results:   { el: () => document.getElementById('results-panel'),   label: 'Results' },
+				overview:  { el: () => document.getElementById('panel-overview'),  label: 'Overview' },
+				tools:     { el: () => document.getElementById('main'),            label: 'All tools' },
+				changelog: { el: () => document.getElementById('changelog-panel'), label: 'Changelog' },
+			};
+			renderTabStrip();
+			pbc.insertAdjacentHTML('beforeend', '<span id="tab-status">Applying…</span>');
 
 			// 3. Freeze only the decision controls: Accept/Reject/Discuss,
-			// per-suggestion comments, per-tool notes, and the overall
-			// comment — not collapse toggles, not the command-chip copy
-			// button (still useful post-submit while an "upgrade" polls),
-			// and not the filter/sort controls (outside #main already).
+			// per-suggestion comments, per-tool notes, the overall comment —
+			// and the Overview's mirror controls, which live outside #main
+			// and so have to be disabled explicitly. Not collapse toggles,
+			// not the command-chip copy button (still useful post-submit
+			// while an "upgrade" polls), and not the filter/sort controls.
+			// Jump links, tiles, band toggles and the auto-strip toggle stay
+			// interactive: they are navigation, not decision.
 			mainEl.classList.add('report-frozen');
 			mainEl.querySelectorAll('.btn-decision, .card-comment, .tool-note-textarea, #overall-comment')
 				.forEach(el => { el.disabled = true; });
+			const overviewEl = document.getElementById('panel-overview');
+			overviewEl.classList.add('report-frozen');
+			overviewEl.querySelectorAll('.btn-d, .acc-toggle')
+				.forEach(el => { el.disabled = true; });
 
-			// 4. Create and insert results panel. Show an immediate loading
+			// 4. Fill the results panel. Show an immediate loading
 			// placeholder — there is real network + apply latency before the
 			// first /status fetch resolves, and a blank panel during that
 			// gap reads as broken.
-			const panel = document.createElement('div');
-			panel.id = 'results-panel';
 			const loadingRowHtml = initialData ? '' :
 				'<div class="action-row" id="loading-placeholder-row">' +
 					'<div class="action-main-line">' +
@@ -2806,16 +5079,16 @@
 
 			// Changelog is its own tab now (#29), not a Results-panel
 			// subsection — a sibling panel to #main/#results-panel.
-			const changelogPanel = document.createElement('div');
-			changelogPanel.id = 'changelog-panel';
 			changelogPanel.innerHTML =
 				'<div id="changelog-date-heading"></div>' +
 				'<div id="changelog-entries"></div>';
 
-			// 5. Insert after progress-bar-container; show panel, hide report
+			// 5. Insert after progress-bar-container, then let the registry
+			// decide what is visible.
 			pbc.insertAdjacentElement('afterend', changelogPanel);
 			pbc.insertAdjacentElement('afterend', panel);
-			mainEl.style.display = 'none';
+			cameFromOverview = false;
+			selectTab('results');
 
 			// references/rendering-results.md §Element Detail: the Changelog tab shows "an empty
 			// state rather than being disabled" whenever changelog_entries is
@@ -2844,18 +5117,8 @@
 				}, 120);
 			}
 
-			// Tab switching (Results | Report | Changelog — three mutually
-			// exclusive panels sharing one tab strip).
-			function selectTab(name) {
-				const panels = { results: panel, report: mainEl, changelog: changelogPanel };
-				['results', 'report', 'changelog'].forEach(n => {
-					document.getElementById('tab-' + n).classList.toggle('active', n === name);
-					panels[n].style.display = (n === name) ? 'block' : 'none';
-				});
-			}
-			document.getElementById('tab-results').addEventListener('click', () => selectTab('results'));
-			document.getElementById('tab-report').addEventListener('click', () => selectTab('report'));
-			document.getElementById('tab-changelog').addEventListener('click', () => selectTab('changelog'));
+			// Tab switching is the shared registry-driven selectTab() and the
+			// document-level .tab-btn delegate — no per-transition wiring.
 
 			// Finish button
 			document.getElementById('finish-btn').addEventListener('click', async () => {
