@@ -690,6 +690,124 @@
 		.jump:hover { text-decoration: underline; }
 		.jump:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
+		/* ── The compact security summary strip ─────────────────────────────
+		 * One line, three sizes, one component. It replaces the enumerated
+		 * CVE-id chip cloud that used to sit in the mixed card's column head
+		 * and in every auto-strip row. */
+		.sevmeter {
+			display: flex;
+			gap: 5px;
+			align-items: baseline;
+			flex-wrap: wrap;
+			min-width: 0;
+			font-family: var(--mono);
+			font-size: 11px;
+		}
+
+		.sevmeter .lead  { color: var(--base00); white-space: nowrap; }
+		.sevmeter .grade { color: var(--base01); white-space: nowrap; }
+
+		/* Values wear ink (§Palette, rationing corollary). Identity is
+		 * carried by the 3px rail, the fixed worst-first order and the class
+		 * word — never by hue alone. */
+		.sevmeter .sv {
+			display: inline-flex;
+			align-items: baseline;
+			gap: 4px;
+			padding: 0 5px 1px 4px;
+			border: 1px solid var(--hair);
+			border-left: 3px solid var(--m, var(--base01));
+			border-radius: 3px;
+			color: var(--base00);
+			white-space: nowrap;
+		}
+
+		.sevmeter .sv b {
+			color: var(--base2);
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* critical is the only *filled* chip. --red and --orange measure ΔE
+		 * 5.3 apart for normal vision and 1.4 under deuteranopia, so the one
+		 * pair Solarized cannot separate by hue is separated by fill — a
+		 * channel colour-vision deficiency does not touch. */
+		.sevmeter .sv.c { --m: var(--red);    background: var(--tint-red); }
+		.sevmeter .sv.h { --m: var(--orange); }
+		.sevmeter .sv.m { --m: var(--yellow); }
+		.sevmeter .sv.l { --m: var(--base00); }
+
+		/* In an auto-strip row the strip sits in the grid's one flexible
+		 * track, which a needs_sudo chip can squeeze below the strip's own
+		 * width. Let the lead wrap inside its cell there rather than overflow
+		 * into the impact column next to it. */
+		.autorow .sevmeter .lead { white-space: normal; }
+
+		/* The section-heading instance. Same component, larger numerals —
+		 * being adjacent and direct-labelled makes it the legend for every
+		 * card instance below, so no legend box exists. */
+		.sevmeter.wide { font-size: 12px; gap: 7px; margin: 2px 0 12px; }
+		.sevmeter.wide .sv { padding: 1px 7px 2px 5px; }
+		.sevmeter.wide .sv b { font-size: 14px; }
+
+		/* ── The collapsed security detail ──────────────────────────────────
+		 * Third disclosure on this page, and deliberately built from the
+		 * second one's parts: same data-open attribute, same setStripOpen(),
+		 * same ▸ show / ▾ hide label. Its body is CVE chips, item lines and a
+		 * sentence — see the invariant in §The collapsed security detail. */
+		.secdetail { border-top: 1px solid var(--hair); }
+
+		.secdetail-head {
+			display: flex;
+			align-items: baseline;
+			gap: 8px;
+			width: 100%;
+			padding: 7px 13px;
+			background: none;
+			border: none;
+			font: inherit;
+			color: inherit;
+			text-align: left;
+			cursor: pointer;
+		}
+
+		.secdetail-head:hover { background: rgba(255,255,255,0.03); }
+		.secdetail-head:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+		.secdetail-head .sh  { font-size: 11px; }
+		.secdetail-head .lb  { font-size: 11.5px; font-family: var(--mono); color: var(--base00); }
+		.secdetail-head .exp { margin-left: auto; font-size: 11px; color: var(--base00); }
+
+		.secdetail[data-open="0"] .secdetail-body { display: none; }
+		.secdetail-body { padding: 0 13px 11px; }
+		.secdetail-body .cve-chips { margin-bottom: 9px; }
+
+		.secdetail-body .claimnote {
+			font-size: 11px;
+			line-height: 1.45;
+			color: var(--base01);
+			margin-top: 7px;
+		}
+
+		/* The security content group's copy of the control sits inside a
+		 * tool section, where the surrounding padding is already generous. */
+		.content-group .secdetail { margin-top: 8px; }
+		.content-group .secdetail-head { padding-left: 0; padding-right: 0; }
+		.content-group .secdetail-body { padding-left: 0; padding-right: 0; }
+
+		/* "affects this setup" — the highest-value bit on a security item, so
+		 * it is loud on purpose and should stay rare. Same micro-tag shape as
+		 * .sudo-chip: no new component grammar, no new colour. */
+		.mine-chip {
+			font-family: var(--mono);
+			font-size: 10px;
+			letter-spacing: 0.04em;
+			color: var(--red-text);
+			border: 1px solid rgba(220,50,47,0.5);
+			border-radius: 3px;
+			padding: 0 5px;
+			white-space: nowrap;
+		}
+
 		/* ── Security group (b): security + other changes, side by side ──── */
 		.mixcard {
 			border: 1px solid var(--hair);
@@ -712,12 +830,31 @@
 		.mixhead .vd { font-size: 12px; color: var(--base00); }
 		.mixhead .spacer { flex: 1; }
 
+		/* The head row's right-hand column: security summary then impact, so
+		 * "how bad is this one" reads as one right-aligned block down the
+		 * whole stack of cards. This is why the summary lives in the head and
+		 * not in a body row — a body row sitting above a single Changes list
+		 * would read as that list's heading, which it is not. */
+		.mixhead .secsum {
+			display: flex;
+			align-items: baseline;
+			gap: 10px;
+			flex-wrap: wrap;
+			min-width: 0;
+		}
+
 		/* Equal columns, deliberately: the asymmetry between a one-item
 		 * security column and a five-item other column *is* the information
 		 * ("one CVE, five unrelated changes"), and ragged column widths
 		 * across nine cards destroy the side-by-side read. */
 		.mixcols { display: grid; grid-template-columns: 1fr 1fr; }
 		.mixcol { padding: 10px 13px 12px; min-width: 0; }
+
+		/* No notable security item to show → the security column is not
+		 * rendered at all (not hidden), and the one remaining column takes
+		 * the full width. Nothing to reconcile with the 760px query below,
+		 * which sets the same declaration for a different reason. */
+		.mixcard.onecol .mixcols { grid-template-columns: 1fr; }
 
 		.mixcol.sec {
 			background: linear-gradient(var(--tint-red), var(--tint-red)), transparent;
@@ -750,6 +887,19 @@
 		 * in an agent-written headliner — a sha256: digest is 71 — scrolls
 		 * the page body sideways. */
 		.itemline > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+		/* Two-line clamp, on the triage cards only. A mixed card is for
+		 * confirming, not reading: a 300-character headliner used to render
+		 * four lines here. The full text is one click away in the tool
+		 * section, and — for security items — one click away in place, in the
+		 * detail below, which is deliberately *not* clamped. */
+		.mixcol .itemline > span:last-child {
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
+			overflow: hidden;
+		}
 		.itemline .ic { flex: 0 0 auto; font-size: 11px; line-height: 1.6; }
 		.itemline.dash { color: var(--base01); }
 
@@ -2397,6 +2547,11 @@
 		#panel-overview.report-frozen .band-head,
 		#panel-overview.report-frozen .autostrip-head,
 		#panel-overview.report-frozen .btn-bar-action,
+		/* Reading is navigation, not decision — same reasoning that keeps the
+		 * two "show all" controls live in a frozen report, and the same
+		 * failure mode (content unreachable for the rest of the page's life)
+		 * if it were left out. */
+		#panel-overview.report-frozen .secdetail-head,
 		#panel-overview.report-frozen .deltabar span {
 			pointer-events: auto;
 		}
@@ -2416,6 +2571,9 @@
 			/* Security on top, with a bottom hairline instead of a right one. */
 			.mixcols { grid-template-columns: 1fr; }
 			.mixcol.sec { border-right: none; border-bottom: 1px solid var(--hair); }
+			/* The summary is a sentence, not a badge — give it its own row
+			 * rather than letting it fight the name for the first line. */
+			.mixhead .secsum { flex: 1 0 100%; }
 
 			/* Stacked: toggle | name + versions, then source + impact, then
 			 * CVEs, the admin-password chip and the jump on their own lines.
@@ -2430,10 +2588,10 @@
 			.autorow .vd           { grid-area: 1 / 3 / 2 / 4; }
 			.autorow .source-badge { grid-area: 2 / 2 / 3 / 3; justify-self: start; }
 			.autorow .impact       { grid-area: 2 / 3 / 3 / 4; justify-self: end; }
-			.autorow .cve-chips    { grid-area: 3 / 2 / 4 / 4; }
+			.autorow .sev-slot     { grid-area: 3 / 2 / 4 / 4; }
 			.autorow .sudo-slot    { grid-area: 4 / 2 / 5 / 4; justify-self: start; }
 			.autorow .jump         { grid-area: 5 / 2 / 6 / 4; justify-self: end; }
-			.autorow .cve-chips:empty,
+			.autorow .sev-slot:empty,
 			.autorow .sudo-slot:empty { display: none; }
 		}
 
@@ -2722,20 +2880,133 @@
 		const EMPTY_SECURITY = {
 			cve_ids: [], cve_count: 0, has_security: false,
 			security_only: false, impact: 'unknown',
+			cve_claimed_count: null, severity_counts: null, notable: null,
 		};
 
+		/* The CVE-severity vocabulary, worst first. `unknown` is a real class
+		 * — "nobody published a rating" — and is never folded into `low`: the
+		 * two are different claims and the page must not upgrade one into the
+		 * other. */
+		const CVSS_GRADED = ['critical', 'high', 'medium', 'low'];
+		const CVSS_ALL = CVSS_GRADED.concat(['unknown']);
+
+		/* notable[].severity arrives in either vocabulary — the CVE classes
+		 * above, or the page's own item severities, since a notable can be
+		 * promoted straight out of a relevancy item. Both map onto the
+		 * existing icon/colour table (§Per-Item Severity), so no new icon and
+		 * no new colour enters the page.
+		 *
+		 * `unknown` paints as `notable`, not as `info`. It does not mean "a
+		 * small flaw", it means "research selected this item and nobody
+		 * published a grade for it" — and every route into notable[] that can
+		 * leave the grade absent already cleared a bar at least this high: R5's
+		 * third clause takes the subject of a `security` relevancy item at
+		 * `notable`+, and its fourth takes something exploited in the wild.
+		 * Painting it `·` grey put the id-less, ungraded, machine-touching item
+		 * — the class R5 clause 3 exists for — at the bottom of the card in the
+		 * lightest ink on it. `low` keeps `info`: a graded-low CVE really is
+		 * the least of what a card shows. */
+		const NOTABLE_SEV = {
+			critical: 'incompatible', high: 'warning', medium: 'notable', low: 'info',
+			unknown: 'notable',
+			incompatible: 'incompatible', warning: 'warning', notable: 'notable', info: 'info',
+		};
+		/* Ordering rank, and it must agree with assembly's `_NOTABLE_SEVERITY_RANK`
+		 * (scripts/assemble.py) tier for tier — the page re-sorts a list assembly
+		 * already ordered *and evicted by*, so a disagreement here silently
+		 * reshuffles the three entries assembly chose. `unknown` therefore sits
+		 * above `low`, matching that map, and does so even though NOTABLE_SEV
+		 * paints it the same colour as `medium`: four display classes cover five
+		 * ordering tiers, so the two cannot be one table. */
+		const NOTABLE_RANK = {
+			critical: 0, incompatible: 0, high: 1, warning: 1, medium: 2, notable: 2,
+			unknown: 3, low: 4, info: 4,
+		};
+
+		function isCount(v) {
+			return typeof v === 'number' && Number.isInteger(v) && v >= 0;
+		}
+
+		/* Whole-object validation, deliberately. A breakdown with one garbage
+		 * value is not a breakdown that can be trusted about the others, and
+		 * rendering the survivors would state a total the report never
+		 * carried. A missing key *is* well defined and reads as zero; an
+		 * all-zero object is null, because there is nothing to break down. */
+		function normSeverityCounts(raw) {
+			if (!raw || typeof raw !== 'object') return null;
+			const out = {};
+			let any = false;
+			for (const k of CVSS_ALL) {
+				const v = raw[k];
+				if (v === undefined || v === null) { out[k] = 0; continue; }
+				if (!isCount(v)) return null;
+				out[k] = v;
+				if (v) any = true;
+			}
+			return any ? out : null;
+		}
+
+		/* notable[] is the only security list a mixed card shows by default,
+		 * so a malformed entry must never be able to occupy one of its three
+		 * slots. An entry with no summary carries no claim and is dropped; an
+		 * unrecognised severity degrades to `unknown` rather than being
+		 * guessed upward. The page re-caps at 3 rather than trusting the
+		 * contract's cap — exactly as it already does for highlights[] — but
+		 * it caps in notableItems(), *after* the ranking sort. Capping
+		 * here would cap in array order, which is not a ranking: a fourth
+		 * entry marked `critical` was being dropped in favour of a first one
+		 * marked `unknown`, and the card lost the only item that mattered.
+		 *
+		 * `null` (no field at all) and `[]` (assembly found nothing notable)
+		 * are different answers and stay different: null falls back to the
+		 * old derivation, [] is the single-column card. */
+		function normNotable(raw) {
+			if (!Array.isArray(raw)) return null;
+			return raw
+				.filter(n => n && typeof n === 'object'
+					&& typeof n.summary === 'string' && n.summary.trim())
+				.map(n => ({
+					summary: n.summary.trim(),
+					cve_id: (typeof n.cve_id === 'string' && n.cve_id.trim())
+						? n.cve_id.trim().slice(0, 40) : '',
+					severity: NOTABLE_SEV[n.severity] ? n.severity : 'unknown',
+					affects_me: n.affects_me === true,
+				}));
+		}
+
+		/* A whitelisting normalizer: a field this function does not copy out
+		 * does not exist as far as the page is concerned, and every reader
+		 * below has a designed fallback — which is exactly why forgetting to
+		 * add a field here ships a page that renders as it always did and
+		 * looks entirely correct. Add the field *and* its shape check. */
 		function toolSecurity(tool) {
 			const s = tool.security;
 			if (!s || typeof s !== 'object') return EMPTY_SECURITY;
 			const ids = Array.isArray(s.cve_ids) ? s.cve_ids : [];
+			/* references/schemas.md §Security: cve_count is ALWAYS len(cve_ids)
+			 * — an id-backed count, never a claim. So there is exactly one
+			 * place on this page to count, and it is the list. A stored count
+			 * that disagrees with the list it is defined as counting is not a
+			 * second opinion, it is malformed: `typeof === 'number'` used to
+			 * wave a negative through, which is how one card carried a badge
+			 * reading "🛡 -5 CVE" beside a strip reading "no CVE ids
+			 * published". A vendor's unbacked number has its own field. */
+			const count = ids.length;
 			return {
 				cve_ids: ids,
-				cve_count: typeof s.cve_count === 'number' ? s.cve_count : ids.length,
+				cve_count: count,
 				has_security: s.has_security === true,
 				security_only: s.security_only === true,
 				/* "unknown" is a real value in the contract, and the honest
 				 * default when the field is missing entirely. */
 				impact: ['none', 'possible', 'unknown'].includes(s.impact) ? s.impact : 'unknown',
+				/* A claim smaller than what research actually found is not a
+				 * claim about a larger total — it is a contradiction, and
+				 * "18 of 4 stated" is worse than saying nothing. */
+				cve_claimed_count: (isCount(s.cve_claimed_count) && s.cve_claimed_count > count)
+					? s.cve_claimed_count : null,
+				severity_counts: normSeverityCounts(s.severity_counts),
+				notable: normNotable(s.notable),
 			};
 		}
 
@@ -3071,16 +3342,32 @@
 			const groups = buildContentGroups(tool);
 			const links = tool.links || [];
 			const silent = new Set(tool.vendor_silent_categories || []);
+			const sec = toolSecurity(tool);
 			return CATEGORY_ORDER.map(cat => {
 				const items = groups[cat];
-				if (!items.length && !silent.has(cat)) return '';
+				/* The Security group carries the same collapsed detail the
+				 * Overview card does — and this is now the *only* place
+				 * cve_ids[] is enumerated on the All-tools tab, since the card
+				 * head and the auto-strip row both stopped listing them. The
+				 * items are already rendered above in full, so this instance
+				 * passes none: it is the id list and the claim note.
+				 *
+				 * Built *before* the early return, and part of its condition: a
+				 * tool can carry cve_ids or a vendor claim while its security
+				 * category renders no item at all, and returning first dropped
+				 * that detail on the floor. */
+				const detail = cat === 'security' ? secDetailHtml(sec, [], 0) : '';
+				if (!items.length && !silent.has(cat) && !detail) return '';
 				const body = items.length
 					? items.map(item => renderContentItem(item, cat, links)).join('')
-					: `<span class="vendor-silent-tag">No detailed changelog published</span>`;
+					: (silent.has(cat)
+						? `<span class="vendor-silent-tag">No detailed changelog published</span>`
+						: '');
 				return `
 			<div class="content-group cat-${cat}">
 				<div class="content-group-title">${CATEGORY_META[cat].label}${items.length ? ` <span class="content-group-count">${items.length}</span>` : ''}</div>
 				${body}
+				${detail}
 			</div>`;
 			}).join('');
 		}
@@ -3374,7 +3661,13 @@
 
 		/* CVE chips are plain text unless the data itself carries a link.
 		 * The report contract carries ids only; fabricating an NVD URL is
-		 * the made-up authority references/research.md forbids. */
+		 * the made-up authority references/research.md forbids.
+		 *
+		 * The ids are enumerated in exactly two places now — inside the
+		 * collapsed security detail on a mixed card, and inside the same
+		 * control at the foot of a tool's Security content group. They used
+		 * to sit uncollapsed in the card head and in every auto-strip row,
+		 * which is the wall of text this revision removes. */
 		function cveChipsHtml(sec) {
 			return (sec.cve_ids || []).map(c =>
 				`<span class="cve">${esc(c)}</span>`).join('');
@@ -3382,12 +3675,115 @@
 
 		/* has_security can be true with zero named ids — a vendor that says
 		 * "security fixes" without publishing CVEs. Saying "0 CVE" there is
-		 * worse than saying nothing, so the badge drops the count. */
+		 * worse than saying nothing, so the badge drops the count. When the
+		 * vendor states a total that research could not itemize, the badge
+		 * frames the ids as the sample they are rather than as the total. */
 		function cveBadgeHtml(sec) {
 			if (!sec.has_security) return '';
-			return sec.cve_count
-				? `<span class="cve-badge" title="${sec.cve_count} CVE id${sec.cve_count === 1 ? '' : 's'} named in this update's research">🛡 ${sec.cve_count} CVE</span>`
-				: `<span class="cve-badge" title="Security content with no CVE id published">🛡 security</span>`;
+			const n = sec.cve_count || 0;
+			const claimed = isCount(sec.cve_claimed_count) && sec.cve_claimed_count > n
+				? sec.cve_claimed_count : 0;
+			if (!n) {
+				return claimed
+					? `<span class="cve-badge" title="The vendor states ${claimed} security fixes across this range; none were itemized as CVE ids.">🛡 ${claimed} fixes stated</span>`
+					: `<span class="cve-badge" title="Security content with no CVE id published">🛡 security</span>`;
+			}
+			return claimed
+				? `<span class="cve-badge" title="The vendor states ${claimed} security fixes across this range; ${n} CVE id${n === 1 ? ' was' : 's were'} identified in research.">🛡 ${n} of ${claimed} CVE</span>`
+				: `<span class="cve-badge" title="${n} CVE id${n === 1 ? '' : 's'} named in this update's research">🛡 ${n} CVE</span>`;
+		}
+
+		/* ── The compact security summary strip ─────────────────────────────
+		 * (references/rendering-report.md §Overview Tab → The security
+		 * summary strip.) Replaces the enumerated CVE-id list.
+		 *
+		 * Design for the *default* state, which is mostly ungraded: research
+		 * grades only the severities a vendor already states plus the handful
+		 * of items it promotes into notable[], so on the live report 24 of 41
+		 * security-bearing tools carry no CVE id at all and most of the rest
+		 * are graded three deep at best. A five-slot meter would render as
+		 * one enormous "unrated" chip on nearly every card — a shape with no
+		 * signal in it. So:
+		 *
+		 *   · the id count and the graded count are stated in words;
+		 *   · `unknown` is never a chip. It is the residual between those two
+		 *     numbers, and a chip reading "48 unrated" adds nothing the
+		 *     subtraction does not already say;
+		 *   · a chip renders only for a graded class that is non-zero, so any
+		 *     colour at all on the strip means something really was graded.
+		 *
+		 * Colour is a three-band reinforcement (severe / moderate /
+		 * negligible), never the encoding — see the .sevmeter CSS for the
+		 * measured ΔE numbers. Never invent or infer a severity to fill it. */
+		const SEV_CHIP = [
+			['critical', 'c', 'crit'], ['high', 'h', 'high'],
+			['medium', 'm', 'med'], ['low', 'l', 'low'],
+		];
+
+		function gradedTotal(sc) {
+			return sc ? CVSS_GRADED.reduce((a, k) => a + sc[k], 0) : 0;
+		}
+
+		function sevMeterHtml(sec, opts) {
+			opts = opts || {};
+			/* Returns '' for a tool with no security content, and something
+			 * for every tool that has any — a security card must never render
+			 * a blank or an all-zero strip. */
+			if (!sec || sec.has_security !== true) return '';
+			const n = isCount(sec.cve_count) ? sec.cve_count : 0;
+			const claimed = isCount(sec.cve_claimed_count) && sec.cve_claimed_count > n
+				? sec.cve_claimed_count : 0;
+			/* Normalised here as well as in toolSecurity(), because the
+			 * section-heading instance is fed summary.security directly. */
+			const sc = normSeverityCounts(sec.severity_counts);
+			const graded = gradedTotal(sc);
+
+			let lead, title;
+			if (n) {
+				lead = `🛡 ${n} CVE id${n === 1 ? '' : 's'}`;
+				if (claimed) {
+					/* Honestly framed as a sample of a larger stated total,
+					 * never as the total. */
+					lead += ` of ${claimed} stated`;
+					title = `The vendor states ${claimed} security fixes across this range; ${n} CVE id${n === 1 ? ' was' : 's were'} identified in research.`;
+				} else {
+					title = `${n} CVE id${n === 1 ? '' : 's'} named in this update's research`;
+				}
+			} else if (claimed) {
+				/* Real information the page used to throw away entirely:
+				 * cask:brave-browser ships 370 claimed fixes and zero
+				 * extracted ids, and rendered as if it had no security
+				 * content at all. */
+				lead = `🛡 ${claimed} fixes claimed upstream · none itemized here`;
+				title = `The vendor states ${claimed} security fixes across this range but itemizes no CVE ids research could resolve.`;
+			} else {
+				/* The majority case. It must not be silence — silence makes a
+				 * security card look like it has no security content — and it
+				 * must not be loud, because no ids and no severities is
+				 * genuinely low information. Same words cveBadgeHtml() has
+				 * always used for this case. */
+				lead = '🛡 security fixes · no CVE ids published';
+				title = 'Security content with no CVE id published';
+			}
+
+			/* The graded clause never restates n, so it stays correct even
+			 * when a malformed severity_counts grades more than there are ids
+			 * to grade — it says only what the chips themselves support. */
+			let grade = '';
+			if (graded && graded !== n) grade = `· ${graded} graded`;
+			else if (n && !graded) grade = '· none graded';
+
+			const chips = sc
+				? SEV_CHIP.filter(([k]) => sc[k]).map(([k, cls, label]) =>
+					`<span class="sv ${esc(cls)}" title="${sc[k]} ${k}-severity">` +
+					`<b>${sc[k]}</b>${label}</span>`).join('')
+				: '';
+
+			return `<span class="sevmeter${opts.wide ? ' wide' : ''}">` +
+				`<span class="lead" title="${esc(title)}">${esc(lead)}</span>` +
+				(grade ? `<span class="grade">${esc(grade)}</span>` : '') +
+				chips +
+				`</span>`;
 		}
 
 		const IMPACT_WORD = {
@@ -3454,17 +3850,43 @@
 			if (!anyToolHas(t => t.security)) return null;
 			const ids = new Set();
 			let withSec = 0;
+			const agg = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+			let anyGraded = false;
 			(REPORT.tools || []).forEach(t => {
 				const sec = toolSecurity(t);
 				(sec.cve_ids || []).forEach(c => ids.add(c));
 				if (sec.has_security) withSec++;
+				if (sec.severity_counts) {
+					anyGraded = true;
+					CVSS_ALL.forEach(k => { agg[k] += sec.severity_counts[k]; });
+				}
 			});
 			return {
 				cve_count: ids.size,
 				tools_with_security: withSec,
 				auto_count: buckets.security_auto.length,
 				mixed_count: buckets.security_mixed.length,
+				/* Absent rather than all-zero when nothing was graded — the
+				 * strip's own "none graded" wording is the honest render, and
+				 * a fabricated zero object would suppress it. */
+				severity_counts: anyGraded ? agg : null,
 			};
+		}
+
+		/* Tile 4's secondary line names the two worst non-zero graded classes
+		 * when there are any, and stays plain --base01 micro-type with no
+		 * colour of its own: the one colour-carrying instance of the severity
+		 * scale lives on the section heading a couple of hundred pixels
+		 * below, and two coloured severity scales in one viewport saying the
+		 * same thing is the duplication this revision exists to remove. */
+		function tileSecSecondary(SEC) {
+			const sc = normSeverityCounts(SEC.severity_counts);
+			if (sc) {
+				const parts = SEV_CHIP.filter(([k]) => sc[k]).slice(0, 2)
+					.map(([k]) => `${sc[k]} ${k}`);
+				if (parts.length) return parts.join(' · ');
+			}
+			return `across ${SEC.tools_with_security} tools`;
 		}
 
 		/* ── Security group (a): the collapsed auto-approved strip ───────── */
@@ -3481,7 +3903,7 @@
 					<span class="nm" title="${esc(t.name)}">${esc(t.name)}</span>
 					${versionsHtml(t, 'vd')}
 					<span class="source-badge ${esc(t.source)}">${esc(t.source)}</span>
-					<span class="cve-chips">${cveChipsHtml(sec)}</span>
+					<span class="sev-slot">${sevMeterHtml(sec)}</span>
 					${impactHtml(sec, false)}
 					<span class="sudo-slot">${sudoChipHtml(sug)}</span>
 					${jumpHtml(t.id, 'details →')}
@@ -3500,15 +3922,159 @@
 
 		/* ── Security group (b): security and other changes, side by side ──
 		 * Summary lines only — the per-CVE prose lives in the tool section,
-		 * one click away. These need confirming, not reading. */
-		function mixColHtml(items, cls, label, extra, toolId, silent) {
+		 * one click away. These need confirming, not reading.
+		 *
+		 * The security column renders `security.notable[]` and nothing else:
+		 * the two or three items that could actually change a decision, not
+		 * every security sentence the run produced. Everything it leaves out
+		 * is still reachable, in place, in the collapsed detail below the
+		 * columns. */
+		function notableItems(sec, tool) {
+			if (Array.isArray(sec.notable)) {
+				/* `affects_me` first, then worst severity — assembly's own key
+				 * (references/schemas.md §1.9), because assembly both orders and
+				 * *evicts* by it and this list is what survived. An item with a
+				 * concrete touchpoint here is never pushed down the card by a
+				 * higher-rated one that misses this machine. Array order is the
+				 * last key, and since assembly's remaining keys only refine these
+				 * two, it reproduces assembly's order exactly rather than
+				 * approximating it — so the order is total and two renders of one
+				 * report cannot differ. */
+				return sec.notable
+					.map((n, i) => ({ n, i }))
+					.sort((a, b) =>
+						(Number(!!b.n.affects_me) - Number(!!a.n.affects_me))
+						|| ((NOTABLE_RANK[a.n.severity] ?? 9) - (NOTABLE_RANK[b.n.severity] ?? 9))
+						|| (a.i - b.i))
+					.slice(0, 3)
+					.map(x => ({
+						text: x.n.summary,
+						cve: x.n.cve_id,
+						severity: NOTABLE_SEV[x.n.severity] || 'info',
+						mine: x.n.affects_me,
+					}));
+			}
+			/* No notable[] at all — a report from an older assembly. Fall
+			 * back to the derivation this column used before, capped the same
+			 * way. The card's shape does not change; only its source does. */
+			return buildContentGroups(tool).security.slice(0, 3).map(i =>
+				({ text: i.title, cve: '', severity: i.severity, mine: false }));
+		}
+
+		function itemLineHtml(i) {
+			/* The two chips lead the line rather than trailing it: the text
+			 * is clamped to two lines on a card, and a trailing chip is
+			 * exactly the thing a clamp eats. */
+			const chips = (i.mine ? `<span class="mine-chip">affects this setup</span> ` : '')
+				+ (i.cve ? `<span class="cve">${esc(i.cve)}</span> ` : '');
+			return `<div class="itemline"><span class="ic ${esc(i.severity)}">${SEV_ICON[i.severity]}</span>` +
+				`<span>${chips}${esc(i.text)}</span></div>`;
+		}
+
+		/* ── The collapsed security detail ──────────────────────────────────
+		 * Closed by default, expands in place, and its label states how much
+		 * is behind it. Rendered between the columns and the foot in *both*
+		 * card variants, so nothing about it moves when a card changes shape.
+		 *
+		 * INVARIANT — the detail body contains no [data-mirrors], no
+		 * [data-mirror-dot], no .suggestion-card, no [data-jump] and no
+		 * [data-act]. It is CVE chips, item lines and a sentence. That is
+		 * what makes it safe to sit outside OVERFLOW_SEL / revealOverflow(),
+		 * which exist because #mix-rest and #hl-rest hide *cards* that carry
+		 * decision mirrors and can take the j/k focus ring. If a future
+		 * change ever needs an interactive control in here, that change must
+		 * first make the detail a revealOverflow() participant — because
+		 * actOnFocused() resolves [data-mirrors] with a querySelector inside
+		 * the focused card and would happily write a decision through a
+		 * control nobody can see.
+		 *
+		 * Nothing else about the collapse machinery is touched: MIX_CAP and
+		 * compareMixedTools() are unchanged, detail state is per-card and
+		 * independent of whether its card is revealed, and jumpToTool()
+		 * targets a tool section in #main rather than an Overview detail —
+		 * so a deep link into a card parked inside #mix-rest still reveals
+		 * the overflow, switches tab, expands the section and lands on it. */
+		function secDetailHtml(sec, detailLines, shownCount) {
+			/* One population, not two. `lines` are the security lines this
+			 * detail will render, already in itemLineHtml() shape, and
+			 * `shown` counts how many of them the card also drew above — so
+			 * the two numbers are commensurable. They were not: `shown`
+			 * counted notable[] entries while `items` held
+			 * buildContentGroups().security, and `items.length > shown`
+			 * compared a tool's security notes against a different list's
+			 * length. Six tools in the live report have three security notes
+			 * and no CVE ids at all; 3 > 3 is false, so every one of them
+			 * rendered no control and left its notes clamped to two lines
+			 * with nowhere to open them. The test is now simply "is there a
+			 * line to show". */
+			const lines = detailLines || [];
+			const shown = shownCount || 0;
+			const showItems = lines.length > 0;
+			/* One source of truth for the count — sec.cve_count, which
+			 * toolSecurity() derives from cve_ids. This used to count `ids`
+			 * itself and could state a different number from the strip on the
+			 * same card. */
+			const n = isCount(sec.cve_count) ? sec.cve_count : 0;
+			const claimed = isCount(sec.cve_claimed_count) && sec.cve_claimed_count > n
+				? sec.cve_claimed_count : 0;
+
+			const parts = [];
+			if (n) parts.push(`${n} CVE id${n === 1 ? '' : 's'}`);
+			/* Zero ids and a vendor claim is the one case where the claim is
+			 * the whole content: cask:brave-browser states 370 fixes and
+			 * itemizes none, and with no id part and no note part the control
+			 * never rendered — so the 370 reached the Overview strip and then
+			 * vanished before the All-tools tab, which builds its detail from
+			 * ids alone. Let the claim carry its own part instead. */
+			else if (claimed) parts.push(`${claimed} fixes stated upstream`);
+			/* "in full" only when the card really is showing a clamped subset
+			 * above — these lines are unclamped, so the overlap with what is
+			 * already visible is the point. On a single-column card nothing
+			 * was shown, so the label says plainly how many there are. */
+			if (showItems) {
+				parts.push(`${lines.length} security note${lines.length === 1 ? '' : 's'}`
+					+ (shown ? ' in full' : ''));
+			}
+			/* An expand control that opens onto nothing is worse than no
+			 * control — the same rule §Per-Item Detail Collapse follows. */
+			if (!parts.length) return '';
+
+			/* Two sentences, because there are two situations and the strip
+			 * already says which one this is. Claiming "the breakdown above
+			 * covers only those" when the breakdown is empty contradicted the
+			 * strip's own "none itemized here" on the same card. */
+			const claimNote = !claimed ? ''
+				: n
+					? `<p class="claimnote">The vendor states ${claimed} security fixes across this range; ${n} CVE id${n === 1 ? ' was' : 's were'} identified in research. The breakdown above covers only those.</p>`
+					: `<p class="claimnote">The vendor states ${claimed} security fixes across this range and itemizes no CVE ids, so research resolved none of them. There is no breakdown to show — the number is the vendor's own.</p>`;
+
+			return `<div class="secdetail" data-open="0">
+				<button type="button" class="secdetail-head" data-toggle-detail aria-expanded="false">
+					<span class="sh">🛡</span>
+					<span class="lb">${esc(parts.join(' · '))}</span>
+					<span class="exp">▸ show</span>
+				</button>
+				<div class="secdetail-body">
+					${n ? `<div class="cve-chips">${cveChipsHtml(sec)}</div>` : ''}
+					${lines.map(itemLineHtml).join('')}
+					${claimNote}
+				</div>
+			</div>`;
+		}
+
+		function mixColHtml(items, cls, label, toolId, silent) {
 			let body;
-			if (silent) {
+			/* Vendor silence is a statement about the *changelog*, not about
+			 * the tool: research can promote a notable item for a vendor that
+			 * published nothing (an NVD entry, a downstream advisory). The
+			 * pill therefore only wins when there is genuinely nothing to
+			 * show — it used to win outright, and swallowed notable[] whole:
+			 * a critical, affects-me item rendered as no chip, no CVE and no
+			 * detail control on a card that looked entirely normal. */
+			if (silent && !items.length) {
 				body = `<span class="vendor-silent-tag">No detailed changelog published</span>`;
 			} else if (items.length) {
-				body = items.slice(0, 3).map(i =>
-					`<div class="itemline"><span class="ic ${esc(i.severity)}">${SEV_ICON[i.severity]}</span><span>${esc(i.text)}</span></div>`
-				).join('');
+				body = items.slice(0, 3).map(itemLineHtml).join('');
 				if (items.length > 3) {
 					body += `<button type="button" class="more" data-jump="${esc(toolId)}">+${items.length - 3} more →</button>`;
 				}
@@ -3518,7 +4084,7 @@
 				body = `<div class="itemline dash">—</div>`;
 			}
 			return `<div class="mixcol ${cls}">
-				<div class="colhead"><span class="slabel">${esc(label)}</span>${extra || ''}</div>
+				<div class="colhead"><span class="slabel">${esc(label)}</span></div>
 				${body}
 			</div>`;
 		}
@@ -3557,36 +4123,74 @@
 		function mixCardHtml(tool) {
 			const sec = toolSecurity(tool);
 			const silent = new Set(tool.vendor_silent_categories || []);
-			const secItems = [], othItems = [];
-			/* relevancy items sort first within a column — they are about
-			 * *this machine*. */
+			const secSilent = silent.has('security');
+
+			/* Left column: notable[] only. */
+			const secItems = notableItems(sec, tool);
+
+			/* Right column: every non-security item, relevancy first — they
+			 * are about *this machine*. */
+			const othItems = [];
 			(tool.relevancy || []).forEach(r => {
-				const item = { text: r.summary, severity: normalizeSeverity(r.severity) };
-				(normalizeCategory(r.category) === 'security' ? secItems : othItems).push(item);
+				if (normalizeCategory(r.category) === 'security') return;
+				othItems.push({ text: r.summary, severity: normalizeSeverity(r.severity) });
 			});
 			(tool.headliners || []).forEach(h => {
 				const raw = typeof h === 'string' ? { text: h } : (h || {});
-				const item = { text: raw.text || '', severity: normalizeSeverity(raw.severity) };
-				(normalizeCategory(raw.category) === 'security' ? secItems : othItems).push(item);
+				if (normalizeCategory(raw.category) === 'security') return;
+				othItems.push({ text: raw.text || '', severity: normalizeSeverity(raw.severity) });
 			});
+
+			/* The single-column variant. Nothing was judged notable, so there
+			 * is no security column to draw — and an empty one would be a
+			 * panel that says nothing, on a third of the stack.
+			 *
+			 * A vendor-silent tool keeps its column: the "No detailed
+			 * changelog published" pill *is* the information there. The right
+			 * column's emptiness never collapses the card either — a security
+			 * card with nothing else in it is a real thing to say, and it
+			 * keeps its dash. Only the left column is droppable. */
+			const oneCol = !secItems.length && !secSilent;
+
+			/* The card is still visibly a security card without that column:
+			 * it keeps the 3px --red rail and the head-row summary strip. */
+			const allSecItems = buildContentGroups(tool).security;
+
+			/* What the detail opens onto. The .mixcol clamp cuts every line
+			 * above at two lines, and the security items it clamps run to a
+			 * median of 185 characters and a maximum of 625 in the live
+			 * report — so the clamp is routinely eating real text. The CSS
+			 * comment on that clamp promises the full text is "one click away
+			 * in place, in the detail below"; this is the line that makes the
+			 * promise true. The detail therefore renders *these* lines —
+			 * notable[] summaries, chips and all — and not a parallel list
+			 * built from buildContentGroups(), which is what it used to
+			 * render and which shares no entry with notable[] in general.
+			 * Security items the left column had no room for are appended,
+			 * matched on text so the fallback derivation (where the two lists
+			 * *are* the same items) does not print everything twice. */
+			const shownText = new Set(secItems.map(i => i.text));
+			const detailLines = secItems.concat(
+				allSecItems.filter(i => !shownText.has(i.title)).map(i =>
+					({ text: i.title, cve: '', severity: i.severity, mine: false })));
 
 			const sug = baselineSuggestion(tool);
 			const extras = ((tool.suggestions || []).length) - (sug ? 1 : 0);
 			const delta = versionDelta(tool);
-			return `<article class="mixcard" data-tool="${esc(tool.id)}" tabindex="-1">
+			return `<article class="mixcard${oneCol ? ' onecol' : ''}" data-tool="${esc(tool.id)}" tabindex="-1">
 				<div class="mixhead">
 					<span class="nm">${esc(tool.name)}</span>
 					${versionsHtml(tool, 'vd')}
 					<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
 					${hasVersionDelta(tool) ? `<span class="delta-badge ${esc(delta)}">${esc(delta)}</span>` : ''}
 					<span class="spacer"></span>
-					${impactHtml(sec, true)}
+					<span class="secsum">${sevMeterHtml(sec)}${impactHtml(sec, true)}</span>
 				</div>
 				<div class="mixcols">
-					${mixColHtml(secItems, 'sec', sec.cve_count ? `Security · ${sec.cve_count} CVE` : 'Security',
-						`<span class="cve-chips">${cveChipsHtml(sec)}</span>`, tool.id, silent.has('security'))}
-					${mixColHtml(othItems, '', `Other changes · ${othItems.length}`, '', tool.id, false)}
+					${oneCol ? '' : mixColHtml(secItems, 'sec', 'Security', tool.id, secSilent)}
+					${mixColHtml(othItems, '', `${oneCol ? 'Changes' : 'Other changes'} · ${othItems.length}`, tool.id, false)}
 				</div>
+				${secDetailHtml(sec, detailLines, secItems.length)}
 				<div class="mixfoot">
 					${sug ? mirrorHtml(sug.id) : ''}
 					${sug ? sudoChipHtml(sug) : ''}
@@ -3748,7 +4352,7 @@
 				groupB = `<div class="tilegroup">
 					<span class="slabel">Security — ${SEC.tools_with_security} of ${total} tools affected</span>
 					<div class="tiles">
-						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: `across ${SEC.tools_with_security} tools`, accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
+						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: tileSecSecondary(SEC), accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
 						${tileHtml({ v: SEC.auto_count, l: 'Security only', s: 'no impact here · accepted', accent: 'cyan', act: 'open-auto', arg: 'sec-auto', title: 'Open the auto-approved list' })}
 						${tileHtml({ v: SEC.mixed_count, l: 'Security + other', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the tools that mix security with other changes' })}
 					</div>
@@ -3783,6 +4387,8 @@
 					<h2><span class="shield">🛡</span> Security patches
 						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.auto_count} auto-approved · ${SEC.mixed_count} need a look</span>
 					</h2>
+					${sevMeterHtml({ has_security: true, cve_count: SEC.cve_count,
+						severity_counts: SEC.severity_counts }, { wide: true })}
 					${autoStripHtml(auto)}
 					<div id="sec-mixed">${mixedBody}</div>
 				</section>`;
@@ -4239,7 +4845,7 @@
 
 		function setStripOpen(strip, open) {
 			strip.dataset.open = open ? '1' : '0';
-			const head = strip.querySelector('.autostrip-head, .band-head');
+			const head = strip.querySelector('.autostrip-head, .band-head, .secdetail-head');
 			if (head) {
 				head.setAttribute('aria-expanded', String(open));
 				const exp = head.querySelector('.exp');
@@ -4346,6 +4952,16 @@
 			if (stripHead) {
 				const strip = document.getElementById(stripHead.dataset.toggleStrip);
 				if (strip) setStripOpen(strip, strip.dataset.open !== '1');
+				return;
+			}
+			/* The third disclosure. Same attribute, same state function, same
+			 * label — resolved with closest('.secdetail') exactly as the band
+			 * branch resolves with closest('.band'). No id: there are up to
+			 * 41 of these on one page. */
+			const detailHead = e.target.closest('[data-toggle-detail]');
+			if (detailHead) {
+				const detail = detailHead.closest('.secdetail');
+				if (detail) setStripOpen(detail, detail.dataset.open !== '1');
 				return;
 			}
 			const bandHead = e.target.closest('[data-toggle-band]');

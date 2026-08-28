@@ -79,7 +79,7 @@ introduces no new colors" still holds.
 | `--tint-red` / `--tint-yellow` / `--tint-cyan` / `--tint-blue` / `--tint-orange` | 10%-alpha `rgba()` of the matching hex | Panel tints for status surfaces. Written as literal `rgba()` of the existing hexes rather than `color-mix()`, which Safari < 16.2 drops — taking the whole rule with it. |
 | `--hair` | `rgba(147, 161, 161, .14)` (14% `--base1`) | Internal division. `--base01` stays for structural card edges; a 77-row page ruled entirely in `--base01` reads as a spreadsheet grid. |
 | `--base01-dim` | `#3f5b62` | `--base01` stepped toward `--base03`, so a proportion bar gets a fourth, quieter step without inventing a hue. |
-| `--red-text` | `#e6706e` | `--red` #dc322f on `--base02` is ~3.6:1 — fine for a 26px numeral, under AA for an 11px CVE chip. |
+| `--red-text` | `#e6706e` | `--red` #dc322f on `--base02` is ~3.6:1 — fine for a 26px numeral, under AA for an 11px CVE chip. It is the small-text red: the CVE chip and the `affects this setup` chip wear it. The severity strip's counts are `--base2` ink, not this. |
 | `--mono` | `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace` | Tabular numerals for every number, version, count and CVE id. A review page reads as an instrument when its numbers line up in columns; prose stays in the system sans stack. |
 | `--sticky-h` | `104px` initially, **measured at runtime** | Scroll offset for deep links. The shell bar wraps to two or three rows on narrow screens, so this cannot be a constant — see §Tab Shell. |
 
@@ -96,6 +96,30 @@ coloring the numeral itself. Rendering both side by side settled it: the
 ink-value version is calmer and the tinted security tiles still take the eye
 first, which is the intended reading order. It also dodges the `--red`
 small-text contrast problem above.
+
+**The CVE severity strip is this rule's canonical case, and also its
+measured limit.** Warm reserved for security content is exactly what a CVE
+severity scale is, so the strip earns its `--red` / `--orange` / `--yellow`.
+But those three cannot carry the classes on their own:
+`dataviz/scripts/validate_palette.js` in dark mode scores `#dc322f` against
+`#cb4b16` at **ΔE 5.3 for normal vision — below the 15 floor — and ΔE 1.4
+under deuteranopia**. Solarized's red and orange are near-indistinguishable
+even with full colour vision, and "Solarized Dark tokens only" means they
+cannot be re-stepped. So the strip does not ask them to:
+
+- every chip carries **its count and its class word**; a status colour never
+  ships alone;
+- the order is **fixed and severity-descending**, so class is readable from
+  position;
+- **`critical` is the only filled chip**, separating the one pair the
+  validator calls hopeless by a channel colour-vision deficiency does not
+  touch.
+
+Colour is a three-band reinforcement (severe / moderate / negligible), not
+the encoding — collapsed to `#b58900,#dc322f,#657b83` the three *bands* pass
+the normal-vision floor at `[WARN] ΔE 6.5 deutan`. **Do not "fix" this by
+inventing a hue**; the palette has none to add, and the reason it looks
+fixable is the reason it is not.
 
 Single file: all CSS and JS inline. Zero CDN calls; system font stacks only.
 Must render correctly offline. `rendering-results.md`'s elements reuse these
@@ -330,12 +354,20 @@ faking them with alpha reads as "disabled" in Solarized Dark.
 
 | Tile | Value | Label | Secondary | Accent | Click |
 |---|---|---|---|---|---|
-| 4 | `summary.security.cve_count` | CVEs fixed | `across N tools` | `--red` + `--tint-red` | scroll to `#sec-section` |
+| 4 | `summary.security.cve_count` | CVEs fixed | two worst non-zero **graded** classes in words (`3 critical · 30 high`), falling back to `across N tools` | `--red` + `--tint-red` | scroll to `#sec-section` |
 | 5 | `summary.security.auto_count` | Security only | `no impact here · accepted` | `--cyan` | scroll to `#sec-auto` **and expand it** |
 | 6 | `summary.security.mixed_count` | Security + other | `decide these` | `--yellow` + `--tint-yellow` | scroll to `#sec-mixed` |
 
 `--cyan` on tile 5 is not decorative: cyan is already this page's "Accept
 confirmed" color, so the tile is literally the color of the state it reports.
+
+**Tile 4's secondary line stays uncoloured** even though it names severity
+classes. The one colour-carrying instance of the severity scale lives on the
+security section heading a couple of hundred pixels below; two coloured
+severity scales in one viewport saying the same thing is precisely the
+duplication this layout exists to remove. It falls back to `across N tools`
+whenever `summary.security.severity_counts` is absent or grades nothing —
+never to a row of zeros.
 
 Shared tile rules:
 
@@ -371,7 +403,109 @@ fabricated zero.
 ### Security Section
 
 Anchor `#sec-section`. Heading: 🛡 **Security patches** with a `--mono`
-sub-line — `N CVEs · M tools · A auto-approved · X need a look`.
+sub-line — `N CVEs · M tools · A auto-approved · X need a look` — and, below
+it, the report-level instance of the severity strip described next.
+
+#### The security summary strip
+
+`sevMeterHtml(sec, opts)`. One component, three placements, and **the
+replacement for every enumerated CVE-id list this page used to draw**. It
+returns `''` for a tool with no security content and *something* for every
+tool that has any: a security card must never render a blank or an all-zero
+summary.
+
+| Where | Variant | Purpose |
+|---|---|---|
+| under the `#sec-section` heading | `.sevmeter.wide` | Aggregate over `summary.security.severity_counts`. **This is the legend** for every card instance below it — adjacent, direct-labelled, same colours — so no legend box exists. |
+| the **head row** of every mixed card | default | Per tool, sitting immediately left of `impact:`. |
+| every auto-approved strip row | default | Replaces the CVE-chip cloud, which is what returns those rows to one line each. |
+
+**Why the head row and not a body row.** Three reasons, in order of weight.
+(1) It survives the single-column variant below: a third of the cards lose
+their security column entirely, and for those the strip is the only per-card
+security signal left — a body row sitting above a lone `Changes · N` list
+would read as that list's heading, which it is not. (2) It inherits a vacated
+slot: the CVE chips lived in the security column's `colhead`, and that column
+is going away for many cards, so the head absorbing the summary keeps one
+clean split — **head = what this is and how bad, body = what changed**.
+(3) The head row's existing `.spacer` (`flex: 1`) pushes the strip and
+`impact:` into a right-hand block that lines up down the whole stack —
+measured at 1440px, every visible card's block ends on the same x — so "how
+bad is this one" is a single vertical scan.
+
+**Design for the ungraded case, because it is the common one.** Research
+grades only the severities a vendor already states in the text it is reading
+and the handful of items it promotes into `notable[]` — it never goes CVE
+hunting to fill a meter. On the live report that leaves **24 of 41
+security-bearing tools with no CVE id at all** and most of the rest graded
+three deep. So:
+
+- the id count and the graded count are **stated in words**;
+- **`unknown` is never a chip.** It is the residual between those two numbers,
+  and a chip reading `48 unrated` adds nothing the subtraction already says.
+  It is equally never folded into `low`: "we don't know" and "it's minor" are
+  different claims and the page must not upgrade one into the other;
+- **a chip renders only for a graded class that is non-zero**, so any colour
+  at all on the strip means something really was graded.
+
+This deliberately differs from the stat tiles' "no dead numbers — a zero tile
+renders `disabled`" rule, and the difference is not an inconsistency. The
+tiles are a 3+3 grid read *once* per run, where a stable shape helps
+run-over-run comparison. The strip is read *41 times* in one scroll, where
+stability is bought instead by fixed worst-first order and right-edge
+alignment. It matches the rule §Header Badges already follows for the
+severity-tier counts ("omit a tier with zero items rather than showing 0").
+
+Chip form: 3px left rail in the class colour, `--hair` box, count in `--base2`
+`--mono` ink, class word in `--base00`. `critical` is `--red` + `--tint-red`
+(the only filled chip), `high` `--orange`, `medium` `--yellow`, `low`
+`--base00`. See §Palette → The Colour-Rationing Rule for the measured reason
+colour is not carrying the class.
+
+The states, all of them:
+
+| Data | Renders |
+|---|---|
+| `has_security: false` | nothing at all |
+| ids, fully graded | `🛡 3 CVE ids` + chips summing to 3 |
+| ids, partly graded | `🛡 18 CVE ids · 3 graded` + the three chips |
+| ids, nothing graded | `🛡 18 CVE ids · none graded`, no chips. **Never a fabricated `low`.** |
+| `cve_claimed_count > cve_count` | `🛡 18 CVE ids of 370 stated · …` — honestly framed as a **sample of a larger stated total**, never as the total, with the full sentence in `title` |
+| zero ids, a claim (`cask:brave-browser`: 0 extracted, 370 claimed) | `🛡 370 fixes claimed upstream · none itemized here` — real information the page used to throw away entirely |
+| zero ids, no claim — **the majority case** | `🛡 security fixes · no CVE ids published`. It must not be silence, which would make a security card look like it has no security content; it must not be loud, because no ids and no severities is genuinely low information |
+| `severity_counts` grading **more** than there are ids | the graded clause says only `· N graded` and never restates the id count — it states what the chips themselves support and lets the contradiction show rather than repairing it |
+
+`toolSecurity()` is a **whitelisting normalizer**, so every one of these
+fields had to be added to it explicitly *and* shape-checked. This is the
+silent-failure trap in this whole change: each new field has a designed
+fallback, so an implementation that forgets one ships a page that renders
+exactly as it did before and looks entirely correct.
+
+- `cve_count` — **not read from the report at all; it is `len(cve_ids)`**,
+  which is what the contract already defines it as (`schemas.md` §Security:
+  an id-backed count, never a claim). A stored count that disagrees with the
+  list it counts is malformed, not a second opinion, and every reader on the
+  page — strip, badge, detail, mixed-card sort — takes the number from this
+  one place. A vendor's unbacked number has its own field.
+- `cve_claimed_count` — a non-negative integer **strictly greater than
+  `cve_count`**, else `null`. A claim smaller than what research found is not
+  a claim about a larger total, it is a contradiction, and `18 of 4 stated`
+  is worse than saying nothing.
+- `severity_counts` — validated **as a whole object**: a missing key reads as
+  zero (that much is well defined), but any value that is not a non-negative
+  integer rejects the entire object, because a breakdown with one garbage
+  value is not a breakdown that can be trusted about the others. An all-zero
+  object is `null` — there is nothing to break down.
+- `notable[]` — entries with no `summary` are dropped; an unrecognised
+  `severity` degrades to `unknown` rather than being guessed upward; the page
+  re-caps at 3 rather than trusting the contract's cap, exactly as it does
+  for `highlights[]` — but it caps in `notableItems()`, **after** the ranking
+  sort, never in the normalizer. Array order is not a ranking: capping first
+  drops a fourth entry marked `critical` in favour of a first one marked
+  `unknown`, which is the one item the card existed to show. **`null` (no
+  field) and `[]` (assembly found nothing notable) are different answers and
+  stay different**: `null` falls back to the old derivation, `[]` is the
+  single-column card.
 
 Rendered order is **(a) auto-approved as a single collapsed one-line strip,
 then (b) mixed, expanded**. Group (a) still comes first in reading order, but
@@ -397,14 +531,16 @@ tool:
 | Name | `--base1`. The row is *not* itself clickable — a whole-row click would fight the toggle. The toggle acts; `details →` navigates. |
 | Versions | `--mono`, new version in `--green`, truncated per §Long Strings and Overflow with the full value in `title`. |
 | Source badge | the existing `.source-badge` colors. |
-| CVE chips | `--mono` 11px, `--base03` background, 40%-alpha `--red` border, text `--red-text`. **Plain text, never a fabricated link** — the report contract carries `cve_ids[]` only, and inventing an NVD URL is exactly the made-up authority `research.md` forbids. A chip becomes an anchor only when the data itself carries a real link. |
+| Security summary | the strip above, in its default size. It replaced a CVE-chip cloud that pushed most rows onto a second line. In this grid the strip sits in the single flexible track, so a row holds to one line until a `needs_sudo` chip squeezes that track — there the lead is allowed to wrap inside its own cell rather than overflow into `impact:`, and the row takes a second line on its own terms instead of being pushed onto one. |
 | `needs_sudo` chip | rendered here too — see §Suggestion Card; a pre-accepted admin-password upgrade must not be silent in *any* of its appearances. |
 | Impact | `no impact here` (`--cyan`) / `possible impact` (`--yellow`) / `impact unknown` (`--base01`). Group (a) should be all-`none` by the data contract; render defensively anyway. |
 | `details →` | `data-jump` to the tool. |
 
-This group shows **counts and CVE ids only**. The per-CVE prose lives in the
-tool's Security content group, one click away — the whole point of the group
-is that these need confirming, not reading.
+This group shows **counts only**. The ids themselves are no longer here — see
+§Page Layout → Content Groups for the one place on the All-tools tab that
+enumerates them. The per-CVE prose lives in the tool's Security content group,
+one click away; the whole point of the group is that these need confirming,
+not reading.
 
 **Group (b) — `security_mixed`** (`#sec-mixed`, one `.mixcard` per tool):
 `--base02`, 3px `--red` left rail, `--hair` border. Head row is name,
@@ -418,16 +554,167 @@ for.
 Under 760px the grid collapses to one column, security on top with a bottom
 hairline instead of a right one.
 
-- Which items go where: `category === 'security'` → left, everything else →
-  right, drawing from `headliners[]` and `relevancy[]` alike, with relevancy
-  items first within a column — they are about *this machine*.
+- **The left column renders `security.notable[]` and nothing else** — the two
+  or three items that could actually change a decision, not every security
+  sentence the run produced. `notableItems()` orders them by **assembly's own
+  key** (`schemas.md` §1.9): **`affects_me: true` first, then worst severity**,
+  then original array index so the order is total. It has to be assembly's
+  key and not a second opinion, because assembly both orders *and evicts* by
+  it — this list is what survived a cap — and because the page's remaining
+  key (array index) then reproduces assembly's order exactly rather than
+  approximating it. `NOTABLE_RANK` therefore ranks `unknown` **above** `low`,
+  matching `_NOTABLE_SEVERITY_RANK` tier for tier; `scripts/test_assemble.py`
+  §7 pins the two tables against each other, because this is precisely where
+  the two sides drifted apart once already.
+- `notable[].severity` may arrive in the CVE vocabulary or the page's own
+  item vocabulary; both map onto §Per-Item Severity through `NOTABLE_SEV`, so
+  no new icon or colour enters the page. `critical`→`incompatible`,
+  `high`→`warning`, `medium`→`notable`, `low`→`info` — and **`unknown` →
+  `notable`, not `info`.** An absent grade means "research selected this item
+  and nobody published a rating", never "a small flaw", and every route into
+  `notable[]` that can leave the grade absent already cleared a bar at least
+  this high: `research.md` §Selecting Notable Security Items admits an
+  ungraded item only as the subject of a `security` relevancy at `notable`+,
+  or as something exploited in the wild. Painting it `·` `--blue` put the
+  id-less, ungraded, machine-touching item — the class that clause exists for
+  — at the bottom of the card in the lightest ink on it. `low` keeps `info`:
+  a graded-low CVE really is the least of what a card shows. The display
+  table and the rank table are deliberately not one table: four display
+  classes cover five ordering tiers, so `unknown` paints like `medium` while
+  still sorting below it.
+- A report from an older assembly with **no** `notable` field falls back to
+  the previous derivation, `buildContentGroups(tool).security.slice(0, 3)` —
+  the card's shape does not change, only its source. `notable: []` is *not*
+  that case: it is assembly's answer that nothing qualified, and it draws the
+  single-column card. See §1.9 for which of the two assembly emits when.
+- An item line is: severity icon · the `affects_me` chip when true · the
+  `cve_id` chip when non-null · the summary. **Both chips lead the line rather
+  than trailing it**, because the text is clamped and a trailing chip is
+  exactly what a clamp eats. `affects this setup` is the `.mine-chip` — the
+  `.sudo-chip` micro-tag shape in `--red-text`, no new component grammar and
+  no new colour. It is loud on purpose and should stay rare; a run that marks
+  a third of items `affects_me` is an assembly bug to fix on the data side,
+  not a style to soften here.
+- The right column takes every non-security item, `headliners[]` and
+  `relevancy[]` alike, relevancy first — they are about *this machine*.
 - Items are **summary line only**: one severity icon plus the text. No
   `detail`, no evidence, no per-item link — those live in the tool section.
+- **Both columns clamp item text to two lines** (`-webkit-line-clamp: 2`,
+  scoped to `.mixcol` so the detail below stays unclamped). A triage card is
+  for confirming, not reading; a 300-character headliner used to render four
+  lines here.
 - **Cap 3 items per column**, then `+N more →` (a `data-jump`). An empty
   column renders a `—` in `--base01`, never a collapsed zero-height panel.
-- If `vendor_silent_categories` contains `security`, the left column shows the
-  existing "No detailed changelog published" pill instead of items, with the
-  CVE chips still in its head.
+- The `colhead` no longer carries a CVE-chip slot and the security heading is
+  plain `Security` — the count moved into the head-row strip.
+- If `vendor_silent_categories` contains `security` **and there is nothing to
+  show**, the left column shows the existing "No detailed changelog published"
+  pill. The pill is a fallback for an empty column, never an override: vendor
+  silence is a statement about the changelog, and research can still promote a
+  `notable[]` item for a silent vendor from an NVD entry or a downstream
+  advisory. Items always win — a silent tool with notable items renders them.
+
+#### The collapsed security detail
+
+`secDetailHtml()`. One full-width row, **always between `.mixcols` and
+`.mixfoot`**, in both card variants — same place in both, so nothing about it
+moves when a card changes shape and there is no "which container owns it" bug
+waiting to happen. Closed by default; expands in place.
+
+```
+🛡  18 CVE ids · 4 security notes in full                          ▸ show
+```
+
+**The label states what is behind the control**, joined with `·`: the id
+count when there are ids, and the security-note count whenever there is a note
+to show at all. The note part is *not* conditioned on the card having hidden
+something — the lines above are clamped to two lines and these are not, so a
+note the card already drew is still only reachable in full here. Testing
+"more notes than the card showed" compared two different lists (`notable[]`
+against `buildContentGroups().security`) and left six tools in the live report
+— three notes, no ids — with no control and no way to read their own text.
+The trailing `in full` appears only when the card really did draw a subset
+above; on a single-column card nothing was shown, so the label says plainly
+how many there are.
+
+Expanded: the `.cve` chip cloud, then **the card's own security lines at full,
+unclamped length** — the `notable[]` summaries with their `affects this setup`
+and `.cve` chips, exactly as the column drew them, plus any security item the
+column had no room for — then, when `cve_claimed_count` exceeds the id count,
+one prose line saying so. The body renders *those* lines and not a parallel
+list derived from `buildContentGroups()`, which shares no entry with
+`notable[]` in general and so made the clamp's promise of "the full text, one
+click away in place" unkeepable.
+
+**Zero ids with a vendor claim is its own case.** `cve_claimed_count` alone
+carries a label part (`370 fixes stated upstream`), so the control renders on
+a tool that itemizes nothing — `cask:brave-browser` states 370 fixes and
+resolves none, and with the label built from ids alone that number reached the
+Overview strip and then vanished before the All-tools tab. The prose line
+changes with it: with ids it says the breakdown above covers only those;
+without ids it says there is no breakdown to show and the number is the
+vendor's own. Asserting a breakdown that does not exist contradicted the
+strip's own `none itemized here` on the same card.
+
+**When nothing is hidden, no control renders at all.** That is §Per-Item
+Detail Collapse's rule ("don't add one that opens onto nothing") applied here.
+
+**Invariant, and the reason this is safe: the detail body contains no
+`[data-mirrors]`, no `[data-mirror-dot]`, no `.suggestion-card`, no
+`[data-jump]` and no `[data-act]`.** It is CVE chips, item lines and a
+sentence. That is what lets it sit outside `OVERFLOW_SEL` / `revealOverflow()`
+— see §Overflow Lists. If a future change needs an interactive control in
+here, **that change must first make the detail a `revealOverflow()`
+participant**, because `actOnFocused()` resolves `[data-mirrors]` with a
+`querySelector` inside the focused card and would happily write a decision
+through a control nobody can see.
+
+Nothing else about the collapse machinery moves. `MIX_CAP` and
+`compareMixedTools()` are untouched; detail state is per-card and independent
+of whether its card is revealed, so `revealOverflow('mix-rest')` splices in 25
+cards whose details are all still collapsed — the right default for cards the
+reader has just asked to see for the first time. `getOverviewCards()` returns
+the same list across a toggle, since the toggle adds and removes no card.
+`jumpToTool()` targets a tool section in `#main`, never an Overview detail, so
+a deep link out of a card parked inside `#mix-rest` still reveals the
+overflow, switches tab, expands the section, flashes it and writes the hash
+exactly as before.
+
+**Mechanism: reuse, do not invent.** This is the page's third disclosure and
+it is built from the second one's parts — `data-open`, `setStripOpen()` (whose
+head lookup gains `.secdetail-head`), and a `[data-toggle-detail]` branch in
+the existing click delegate that resolves with `closest('.secdetail')` exactly
+as the band branch resolves with `closest('.band')`. No id: there are up to 41
+of these on one page. A native `<details>` was rejected — it would be the only
+one on the page, and consistency with two existing disclosures is worth more
+than free find-in-page expansion of content that is CVE ids nobody Ctrl-Fs.
+
+#### The single-column variant
+
+**Applies exactly when `notableItems()` is empty and
+`vendor_silent_categories` does not contain `security`.** The `.mixcol.sec`
+element is **not rendered** (not hidden), the card carries `.onecol`, and
+`.mixcard.onecol .mixcols { grid-template-columns: 1fr }` — nothing to
+reconcile with the 760px query, which sets the same declaration for a
+different reason.
+
+- **Column heading becomes `Changes · N`**, not `Other changes · N`: "other"
+  has nothing to be other than, and saying it anyway is a sentence the reader
+  has to resolve.
+- A **vendor-silent** tool keeps its left column — the "No detailed changelog
+  published" pill *is* the information there.
+- The **right** column's emptiness never collapses the card. An empty "Other
+  changes" column keeps its `—`, because there the asymmetry is the message
+  ("this tool ships security fixes and nothing else"). Only the left column is
+  droppable.
+- The card is still visibly a security card: it keeps its 3px `--red` rail and
+  its head-row summary strip, and everything the column would have held is one
+  click away in the detail below it.
+
+**An empty `notable[]` is a legitimate answer, not a data gap**, and this
+variant is the whole point of it — so nothing anywhere may force-promote a
+headliner into `notable[]` to keep two columns. Doing that would make this
+variant unreachable.
 - Foot row: mirror decision controls for the tool's **baseline upgrade**
   suggestion, the `needs_sudo` chip when it applies, then
   `+N more decision(s)` in `--base01` when the tool has more than one
@@ -445,13 +732,15 @@ Assembly ranks `highlights[]` but writes no ranking onto `tools[]`, so there
 is nothing to read here; the page derives one from the triage fields the
 contract does guarantee. `compareMixedTools(a, b)`, first non-zero wins:
 
-1. **worst security-item severity**, taken from the same
-   `buildContentGroups(tool).security` list the card's left column renders —
-   so the ranking matches what the reader sees. A tool with no security item
-   at all ranks below `info` rather than tying with it. (That list sorts
-   relevancy above a headliner of equal severity via a half-step; the half is
-   floored away here, so this stays exactly "max severity" and the next key
-   breaks the tie.)
+1. **worst security-item severity**, taken from `buildContentGroups(tool).security`.
+   A tool with no security item at all ranks below `info` rather than tying
+   with it. (That list sorts relevancy above a headliner of equal severity via
+   a half-step; the half is floored away here, so this stays exactly "max
+   severity" and the next key breaks the tie.) **This deliberately keeps
+   reading the undeduped, unfiltered list rather than `notable[]`** — the
+   order in which cards are cut by the cap must not shuffle because assembly
+   changed which items it promoted. It is exactly the kind of coupling that
+   gets added by accident later.
 2. **higher `security.cve_count`** first;
 3. **worse `security.impact`** first — `possible` < `unknown` < `none`;
 4. **bigger `version_delta`** first, by the same
@@ -510,6 +799,18 @@ applied — uncapped, a pathological report rendered a two-row wall of links.
 of the array — with one exception, any highlight whose tool is in the live
 blocking set floats to the top. No other client-side re-sorting.
 
+**Highlights must not duplicate the security patches section — and that
+de-duplication happens in assembly, not here.** When a highlight would repeat
+a security item already shown on that tool's card, assembly drops the
+*highlight* and backfills with the next-ranked candidate, so this section
+still carries eight distinct decision drivers and the security card keeps its
+single most important sentence. The page does not re-derive that: matching on
+normalized `why` text would be silently wrong the moment `_truncate_why`
+clips a long summary, and a page-side filter would delete the better rendering
+of the two. **If assembly emits nothing new, the page degrades to today's
+behaviour** — both render, which is exactly what happens on a report from an
+older assembly — so nothing here has to know whether the dedupe ran.
+
 **Cap**: assembly caps `highlights[]` at 8 (`assembly.md` §Highlights), but
 the page does not assume it did: it renders the first 8 and parks any
 remainder behind a `show all N →` expander (§Overflow Lists below).
@@ -526,6 +827,13 @@ and they expand through **one** mechanism (`revealOverflow()`) so their
 behavior can't diverge. Each renders its prefix inline and parks the remainder
 in a hidden sibling (`#mix-rest`, `#hl-rest`) behind a `show all N →` button,
 which removes itself once used.
+
+The collapsed security detail (§Security Section) is the page's **third**
+disclosure and is deliberately *outside* this mechanism. `revealOverflow()`
+exists because `#mix-rest` and `#hl-rest` hide *cards* that hold decision
+mirrors and can take the `j`/`k` focus ring; a detail body holds none of that,
+by an invariant stated there. Never add `.secdetail` to `OVERFLOW_SEL`, and
+never put an interactive control inside one without first doing so.
 
 Two properties this has to preserve:
 
@@ -653,7 +961,10 @@ the Overview's tiles use, so the two read as one system:
 - **CVE badge** — `🛡 N CVE` in `--red` when `security.has_security`. When
   `has_security` is true with **zero** named ids (a vendor that says "security
   fixes" without publishing CVEs), the badge drops the count and reads
-  `🛡 security`: saying "0 CVE" there is worse than saying nothing.
+  `🛡 security`: saying "0 CVE" there is worse than saying nothing. When
+  `cve_claimed_count` exceeds the id count it reads `🛡 18 of 370 CVE`, and
+  with a claim but no ids at all, `🛡 370 fixes stated` — same framing as the
+  summary strip, so the ids are never presented as the total.
 
 Both badges, and the `data-*` attributes, degrade quietly on a report from an
 older assembly that lacks the fields — the readers fall back coarsely and
@@ -728,6 +1039,23 @@ wherever it lands. Lead with title + one-line description for each item;
 push its changelog/release link into a compact footer-style reference per
 item (a direct deep link where the source supports line-level anchors, e.g.
 a CHANGELOG.md section) rather than a shared links block.
+
+**The Security group carries the same collapsed detail the Overview card
+does**, at its foot, listing `cve_ids[]` as chips plus the
+`cve_claimed_count` note. This is now the **only** place on the All-tools tab
+where the ids are enumerated — the mixed card's head and the auto-strip row
+both stopped listing them — so removing it would make them unreachable. Same
+markup, same handler, same invariant (no interactive control in the body).
+The group's items are already rendered above in full, so this instance passes
+none: it is the id list and the note.
+
+**The detail is built before the group's empty check, and is part of it.** A
+tool can carry `cve_ids[]` or a `cve_claimed_count` while its Security
+category renders no item at all; returning early on "no items and not
+vendor-silent" dropped that detail on the floor. A group with a detail and no
+items renders the detail — and, when the tool is not vendor-silent, no pill:
+the pill states that the vendor published nothing, which is a different claim
+from the group simply having no item in it.
 
 Within a group, items sort **worst severity first**, with a relevancy item
 placed just above a headliner of the same severity — a finding about *this
@@ -936,7 +1264,7 @@ of horizontal scroll on a 390px viewport**.
    long unbreakable token set the track's min-content width, which is the
    whole mechanism above. Applied to `.hlcard > *`, `.mixcol`, `.autorow > *`,
    `.hlsug .t`, `.tool-header > *`, `.itemline > span:last-child`,
-   `.cve-chips`, `.autostrip-head .names` and `#progress-text`.
+   `.cve-chips`, `.sevmeter`, `.autostrip-head .names` and `#progress-text`.
 2. `.version-delta, .vd { max-width: 34ch; overflow: hidden; text-overflow:
    ellipsis; white-space: nowrap }`, with the full string in `title`.
 3. `.chip { max-width: 230px }` with the same truncation and a `title`
@@ -1054,12 +1382,14 @@ without the exceptions below it takes the whole report with it:
   what makes a decision live again. `#overall-section` is *not* restored — it
   holds nothing but the overall comment box, which is a decision.
 - `#panel-overview` restores pointer events on `.jump`, `.more`, `.tile`,
-  `.chip`, `.cmd`, `.band-head`, `.autostrip-head`, `.btn-bar-action` and the
-  proportion-bar segments — a list rather than a block, because this panel's
+  `.chip`, `.cmd`, `.band-head`, `.autostrip-head`, `.secdetail-head`,
+  `.btn-bar-action` and the proportion-bar segments — a list rather than a block, because this panel's
   decision mirrors sit among its navigation controls. **The `.btn-bar-action`
   entry is load-bearing**: it is what the two `show all N →` controls are, and
   without it every card parked behind a cap (§Overview Tab → Overflow Lists)
-  would be unreachable for the rest of the page's life.
+  would be unreachable for the rest of the page's life. **`.secdetail-head` is
+there for the same reason**: reading is navigation, not decision, and without
+it every collapsed CVE list on the page stays shut forever.
 
 ## Template Variables
 
