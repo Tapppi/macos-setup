@@ -1,7 +1,7 @@
 # Rendering: Results View
 
 Everything that happens after Submit: the view transition out of the frozen
-Report tab, the tab strip and unified status header, the action list,
+report tabs, the tab strip and unified status header, the action list,
 followups and turn-based threads, the Changelog tab, the Finish button, the
 polling lifecycle, markdown rendering, and — because it shares the same
 design language and state-icon vocabulary — the pre-report loading page
@@ -25,7 +25,7 @@ Table of contents:
 - View Transition
 - Layout
 - Wireframes
-- Element Detail (tab strip, unified status header, followups section,
+- Element Detail (four-tab strip, unified status header, followups section,
   action list, recap section, changelog tab, Finish button)
 - Polling Lifecycle
 - Render Update Cycle
@@ -82,21 +82,51 @@ if (resp.ok) {
 `transitionToResults(initialData)`:
 
 1. Leave `#filter-bar` visible and interactive — it's a read-only navigation
-   aid over the now-frozen Report tab, not a decision control, so a filter
+   aid over the now-frozen tool list, not a decision control, so a filter
    applied before Submit can still be cleared/inspected afterward instead of
    leaving the user stuck looking at a filtered-empty report with no way to
-   reset it.
-2. Replace `#progress-bar-container` contents with the tab strip + results
-   status bar (see §Layout below). Do not remove the element; keep it
-   sticky.
-3. Freeze only the decision controls in the report view: `.btn-decision`,
-   `.card-comment`, `.tool-note-textarea`, and `#overall-comment` inside
-   `#main` get `disabled`; add a CSS class `report-frozen` to `#main` that
-   reduces opacity to 0.5. Collapse toggles, the command-chip copy button,
-   and the filter/sort controls (outside `#main`) stay interactive.
-4. Create `#results-panel` div (see §Layout), insert it into the DOM after
-   `#progress-bar-container` and before `#main`.
-5. Show `#results-panel`, hide `#main` (the Report tab will toggle these).
+   reset it. It now lives *inside* `#main`, one tab click away rather than
+   zero, which is why the hidden-count banner and the tab count chip exist
+   (`rendering-report.md` §Filter Bar).
+2. **Rebuild** the sticky `#progress-bar-container` rather than replacing its
+   contents: remove the progress wrap, the auto-run-upgrades toggle and the
+   Submit button, register the two new panels, re-render the tab strip from
+   the registry, and append the right-aligned `#tab-status`. Do not remove the
+   container; keep it sticky.
+3. Freeze the decisions, and only the decisions. Every decision control gets
+   the `disabled` attribute: `.btn-decision`, `.card-comment`,
+   `.tool-note-textarea` and `#overall-comment` inside `#main`, plus
+   `#panel-overview`'s mirror controls (`.btn-d`, `.acc-toggle`), which live
+   outside `#main` and so are not reached by that selector. Then add the CSS
+   class `report-frozen` (`opacity: 0.5; pointer-events: none`) to **both**
+   `#main` and `#panel-overview`, each of which carves its readable and
+   navigable parts back out of that blanket rule — see `rendering-report.md`
+   §Transition to Results View for what each panel restores and why.
+
+   The behavior the user must end up with, which is what those carve-outs
+   exist to produce:
+
+   | After Submit | State |
+   |---|---|
+   | Tool-header collapse/expand, the collapse control at the foot of a card | live |
+   | Copy buttons and command chips | live |
+   | Changelog links, and the embedded-changelog modal (§Link Click Behavior in `rendering-report.md`) | live |
+   | Context/item disclosures | live |
+   | Filter and sort controls, hidden-count banner, filtered-empty reset | live |
+   | Overview jumps, stat tiles, band and auto-strip toggles, `show all N →` expanders | live |
+   | Mouse text selection anywhere in the report | live |
+   | Accept/Reject/Discuss, per-card comment box, tool-note textarea, overall comment — on the cards **and** on their Overview mirrors | inert |
+
+   The frozen report is dimmed, not dead: it is the evidence the user is
+   reading while the apply runs, so anything that only *reads* or *moves
+   around* keeps working, and a control that would change a decision does
+   nothing. A whitelist of individual buttons is the wrong shape for this —
+   it leaves every run of prose unselectable, and a report you cannot copy a
+   version string out of is read-only in name only.
+4. Create `#results-panel` and `#changelog-panel` divs (see §Layout) and
+   insert them into the DOM.
+5. `selectTab('results')` — the registry hides every other panel. The Overview
+   and the tool list stay inspectable behind it as their own tabs.
 
 `transitionToResults(initialData)` accepts the first status blob or null. If
 non-null, render it immediately before the first poll arrives.
@@ -117,7 +147,7 @@ glanceable as it grows.
 ```
 #progress-bar-container (repurposed — stays sticky):
 ┌──────────────────────────────────────────────────────────────────┐
-│  [Results ●]  [Report]  [Changelog]      Applying… · updated 0s │
+│ [Results ●] [Overview] [All tools] [Changelog]  Applying… · 0s   │
 └──────────────────────────────────────────────────────────────────┘
 
 #results-panel:
@@ -228,12 +258,23 @@ glanceable as it grows.
 
 ## Element Detail
 
-**Tab strip** (replaces progress-bar-container contents):
-- Three buttons: "Results", "Report", "Changelog" (Changelog is a sibling
-  tab, not a Results-panel subsection, since it's audit-trail content
-  someone browses independently of live apply progress). Active tab uses
-  `--cyan` underline or filled background. Clicking one shows its panel,
-  hides the other two (`#main`, `#results-panel`, `#changelog-panel`).
+**Tab strip** (rebuilt in place, inside the sticky shell bar):
+- Four buttons: "Results", "Overview", "All tools", "Changelog". The old
+  single "Report" tab split into Overview + All tools when the report page
+  gained its triage view — the strip is flat rather than nesting an
+  Overview/Tools switcher inside a Report tab, because nested tabs are worse
+  to use and the frozen Overview is the most useful thing to look at while an
+  apply runs (it is the summary of what was just approved). Changelog remains
+  a sibling tab, not a Results-panel subsection, since it's audit-trail
+  content someone browses independently of live apply progress. Active tab
+  uses `--cyan` underline or filled background. Clicking one shows its panel
+  and hides the rest (`#panel-overview`, `#main`, `#results-panel`,
+  `#changelog-panel`).
+- **The strip is rendered from the page's panel registry**, not by replacing
+  `#progress-bar-container.innerHTML`: `transitionToResults()` registers
+  `results` and `changelog` in `PANELS` and re-renders. See
+  `rendering-report.md` §Tab Shell for the registry, `selectTab()`, and the
+  pre-Submit two-tab form of the same strip.
 - Right-aligned status text: phase label + "updated N s ago" computed from
   `written_at`. Turn red if `written_at` is >120 s ago and `done` is false
   (stale session hint).
@@ -245,7 +286,7 @@ separate displays into one, always visible at the top of `#results-panel`):
   `"· updated N s ago"`, plus `"· session may have stopped"` in yellow when
   stale (>120s, `done` false).
 - Line 2 — a progress bar (`#results-progress-track`/`#results-progress-fill`,
-  same visual language as the Report tab's sticky progress bar,
+  same visual language as the report page's sticky shell bar,
   `rendering-report.md` §Sticky Progress Bar and Submit Gating) whose fill
   width is `doneCount / totalActions` and which dynamically absorbs the
   row's leftover horizontal space (`flex: 1`) rather than a fixed width; a
@@ -448,7 +489,7 @@ mid-apply, `apply.md` §Agent-Initiated Followups) renders through this exact
 same `renderCard(sug, {followup: true})` path as any other followup — `kind`
 only changes which body function runs (`rendering-report.md` §Suggestion
 Card's `renderWatchItemBody` instead of a diff/command), same as it does on
-the pre-Submit Report tab. Accept/Reject/Discuss and the turn-thread
+the pre-Submit report page. Accept/Reject/Discuss and the turn-thread
 mechanism below are unaffected by `kind` either way.
 
 ## Markdown Rendering
@@ -490,4 +531,3 @@ per-item severity icons. Polls `GET {base}/research-status` on the same
 growing-backoff pattern as this doc's own `/status` poll (§Polling
 Lifecycle); on `phase: "ready"`, calls `location.reload()` — the next `GET
 /` finds `index.html` and serves the real report.
-</content>

@@ -23,6 +23,10 @@ Table of contents:
   - [1.5 `config_status.state` semantics](#15-config_statusstate-semantics)
   - [1.6 `kind: "upgrade"` field semantics](#16-kind-upgrade-field-semantics)
   - [1.7 `kind: "watch-item"` field semantics](#17-kind-watch-item-field-semantics)
+  - [1.8 `version_delta` semantics](#18-version_delta-semantics)
+  - [1.9 `security` semantics](#19-security-semantics)
+  - [1.10 `review_bucket` semantics](#110-review_bucket-semantics)
+  - [1.11 `highlights` semantics](#111-highlights-semantics)
 - [2. Feedback Object (feedback.json)](#2-feedback-object-feedbackjson)
   - [2.1 Schema](#21-schema)
   - [2.2 `decision` semantics](#22-decision-semantics)
@@ -55,10 +59,28 @@ mechanism).
 		"hostname": "your-mac"
 	},
 	"summary": {
-		"total_outdated":      14,
+		"total_outdated":      14,       // version-outdated tools only (excludes brew-health)
 		"incompatible_count":  2,
 		"warning_count":       3,
-		"suggestions_count":   7
+		"suggestions_count":   7,
+		"health_count":        3,        // source "brew-health" tools (references/assembly.md §Brew-Health Assembly)
+
+		// ── Triage rollups (assembly-computed; additive, so a page must
+		// tolerate all three being absent when a user reopens an older
+		// session dir) ──
+		"by_delta":  {                   // §1.8 — version updates ONLY
+			"major": 2, "minor": 6, "patch": 5, "revision": 1, "unknown": 0
+		},                               // sum (14) == total_outdated, always
+		"by_bucket": {                   // §1.10 — EVERY tool, brew-health included
+			"security_auto": 2, "security_mixed": 4, "attention": 5, "routine": 6
+		},                               // sum (17) == total_outdated + health_count
+		"security": {                    // §1.9
+			"cve_count":                9,   // size of the UNION of cve_ids across tools, never the sum
+			"tools_with_security":      6,
+			"auto_count":               2,   // == by_bucket.security_auto
+			"mixed_count":              4,   // == by_bucket.security_mixed
+			"tools_with_unlisted_cves": 1    // vendor claims more advisories than we could extract ids for
+		}
 	},
 	// ── Repo freshness (see references/collection.md §Repo Freshness) ──
 	"repo_context": {
@@ -76,9 +98,36 @@ mechanism).
 			"recent_commits": [ "81f5be1 tool-update-review: add Results view and live status tracking" ]
 		}
 	},
+	// ── Highlights (assembly-computed, §1.11 below) ──
+	// "The biggest decision drivers / inputs needed / major patches",
+	// ranked by a fixed deterministic score — never a per-run LLM judgment.
+	// At most 8 entries; may be absent on an older report.
+	"highlights": [
+		{
+			"tool_id":  "cask:google-chrome",
+			"title":    "google-chrome 150.0.7871.129 → 151.0.7922.174",
+			"why":      "Chrome 151 shipped 370 security fixes, 7 of them Critical…",   // ≤ 220 chars
+			"severity": "warning",           // relevancy's vocabulary, so the page reuses one palette
+			"suggestion_ids": [               // every suggestion on the tool, in array order
+				"cask:google-chrome:upgrade",
+				"cask:google-chrome:add-intel-note"
+			],
+			"reasons":  ["config_stale", "warning_finding", "major_bump", "cves"],  // stable codes → chips
+			"score":    250                   // exposed for debuggability; the UI need not show it
+		}
+	],
 	"tools": [ /* Tool[] — see §1.2 below */ ]
 }
 ```
+
+**`by_bucket` and `by_delta` have different denominators, deliberately.**
+`by_delta` counts the version updates only (14 above); `by_bucket` counts
+every tool, brew-health findings included (17 above), because `review_bucket`
+is defined for every Tool object while a health finding has no version delta
+to classify. Never mix them in one percentage —
+`by_bucket.routine / total_outdated` is a number that means nothing. See
+§1.10 and `references/assembly.md` §Summary Counts and Output for the
+invariants that hold instead.
 
 ### 1.2 Tool object
 
@@ -93,9 +142,31 @@ mechanism).
 	// ── Versions ──────────────────────────────────────────────────────
 	"current_version": "4.9.3",
 	"latest_version":  "5.5.1",
+	// Assembly-computed classification of the pair above (§1.8 below).
+	// One shared classifier, so the report never carries two different
+	// answers to "how big is this bump".
+	"version_delta":      "major",      // "major"|"minor"|"patch"|"revision"|"unknown"
+	"version_scheme":     "semver",     // "semver"|"calver"|"date"|"opaque"|"none"
+	"version_delta_note": "index 0",    // one short phrase; tooltip text and debugging handle
 
 	// ── Risk assessment (assembly-computed — see §1.4 below) ────────────
 	"risk_level": "elevated",           // "low" | "elevated"
+
+	// ── Security content of this update (assembly-computed, §1.9) ───────
+	"security": {
+		"cve_ids":           ["CVE-2026-9595", "CVE-2026-12143"],  // deduped, sorted by (year, sequence)
+		"cve_count":         2,          // ALWAYS len(cve_ids) — id-backed, never a claim
+		"cve_claimed_count": 33,         // int|null — the vendor's own largest stated count
+		"has_security":      true,
+		"security_only":     false,
+		"impact":            "possible"  // "none" | "possible" | "unknown"
+	},
+
+	// ── Review effort (assembly-computed, §1.10) ────────────────────────
+	// "security_auto" | "security_mixed" | "attention" | "routine".
+	// A review-effort axis, orthogonal to `source` — the page groups
+	// brew-health cards by source, never by bucket.
+	"review_bucket": "security_mixed",
 
 	// ── Research ──────────────────────────────────────────────────────
 	"research_error": null,             // null | string — set if subagent failed
@@ -249,6 +320,8 @@ mechanism).
 			                                                 // references/apply.md)
 			"needs_sudo": true,                              // hints the askpass path is needed — this cask's pkg
 			                                                 // installers (ChmodBPF, PATH helper) require admin
+			"pre_accept": true,                              // assembly-computed; the page reads this instead of
+			                                                 // re-deriving pre-accept from risk_level (§1.6)
 			"rationale": "Picks up the changes described in headliners[] above.",
 			"motivating_link": {
 				"type":  "release",
@@ -346,7 +419,10 @@ dependency — **not** a version delta; see `references/collection.md`
 `current_version` for `macos` entries is the running `sw_vers
 -productVersion`, not a per-update version — research should treat it as
 "what's currently installed system-wide" context rather than a strict
-current→latest delta for that specific update. `brew-health` findings have
+current→latest delta for that specific update. For the same reason
+`version_delta` is forced to `"unknown"` (scheme `"none"`) for every `macos`
+tool: a delta computed from a version that isn't this update's would be
+fiction, so assembly short-circuits rather than classifying it (§1.8). `brew-health` findings have
 **no** `current_version`/`latest_version` at all (both `null`) and get **no**
 synthesized `upgrade` baseline — their action is the finding's own
 remediation (`references/assembly.md` §Brew-Health Assembly).
@@ -372,20 +448,40 @@ max, focus on breaking changes only).
 Computed entirely by `scripts/assemble.py` from signals already present in
 the assembled Tool object — not a subjective per-tool judgment call left to
 the research subagent, so every run applies the same rule the same way.
-`"elevated"` if any of: `pinned` is true, any `relevancy[]` item has
-severity `warning`/`incompatible`, any `edit`-kind suggestion exists for
-this tool, or the version delta is a major bump (semver-aware — an
-unparseable version pair defaults to `"elevated"`, since an unknown delta
-size is never treated as low-risk). Otherwise `"low"`. Used by assembly to
-pre-set the baseline `upgrade` suggestion's initial decision (§2 below) — a
-`"low"` tool starts `accept`ed instead of undecided; an `"elevated"` one
-starts undecided as before. This only ever affects the *baseline* `upgrade`
-suggestion; research-authored `edit` suggestions always start undecided
-regardless of the tool's risk_level.
+`"elevated"` if any of:
+
+- `pinned` is true;
+- any `relevancy[]` item has severity `warning`/`incompatible`;
+- any `edit`-kind suggestion exists for this tool (`kind` defaults to
+  `"edit"` when omitted);
+- `version_delta` is `"major"` or `"unknown"` (§1.8) — the *one shared
+  classifier*, so the report never carries two answers to how big the bump
+  is, and an unknown delta size is still never treated as low-risk;
+- `research_error` is set;
+- the tool has no `headliners[]` **and** an empty `vendor_silent_categories`
+  — research returned an object but wrote nothing and didn't say the vendor
+  was silent.
+
+Otherwise `"low"`. The last two conditions extend the "an unknown delta size
+is never low-risk" doctrine to unknown *content*: a tool whose research
+subagent failed has no headliners, no relevancy and no edit suggestions, so
+without them it scores `"low"` and gets pre-accepted — the skill would
+silently auto-approve exactly the updates it understands least. Documented
+silence is different and stays `"low"`: a vendor that publishes nothing, ever
+(`vendor_silent_categories` non-empty, no `research_error`), is noise the user
+can't act on.
+
+`risk_level` feeds the assembly-computed `pre_accept` flag (§1.6), which is
+the single pre-accept mechanism: a suggestion renders pre-accepted iff
+`pre_accept` is true, and assembly sets that from `risk_level == "low"` **or**
+`review_bucket == "security_auto"` (§1.10), on the baseline `upgrade`
+suggestion only. Research-authored `edit` and `watch-item` suggestions always
+start undecided regardless of the tool's `risk_level`.
 
 See `references/assembly.md` §Risk Level for the computation's place in
-`assemble.py`'s flow, and `references/rendering-report.md` §Page Layout for
-how `risk_level`-driven pre-accept state renders.
+`assemble.py`'s flow and §Review Buckets and Pre-Accept for the union, and
+`references/rendering-report.md` §Suggestion Card for how pre-accept state
+renders.
 
 ### 1.5 `config_status.state` semantics
 
@@ -445,6 +541,32 @@ mechanism.)
   Suggestions) instead of a bare subprocess call. Default to `true` when
   genuinely unsure — assuming `false` and hitting an un-satisfiable
   password prompt is worse than an unnecessary askpass popup.
+- `pre_accept` (bool, assembly-computed): whether this suggestion renders
+  already-accepted before the user touches anything. Written onto **every**
+  suggestion on every tool (so a consumer never has to distinguish "false"
+  from "absent"), but only ever `true` on the tool's baseline
+  `{source}:{name}:upgrade` suggestion, and only when `auto_runnable` is
+  true and either `risk_level == "low"` (§1.4) or
+  `review_bucket == "security_auto"` (§1.10). The page reads this field and
+  never re-derives the decision — a second derivation in the page is exactly
+  how the rendered state and the submitted payload drift apart. Absent field
+  ⇒ treat as `false`. Three consequences worth stating explicitly:
+  **`auto_runnable: false` is a hard exclusion** — a `macos` or `standalone`
+  baseline, or a brew-health remediation the user must run themselves, never
+  pre-accepts: "accepted" would claim a decision about something the skill
+  cannot execute. **`needs_sudo: true` does *not* block it**, and that
+  combination looks wrong until you know why: blocking it would un-pre-accept
+  nearly every cask (the heuristic defaults casks to `true` unless research
+  sets `cask_sudo_hint: false`), and it isn't silent — the card renders
+  visibly as ACCEPTED before Submit, and at apply time `needs_sudo` routes
+  through the askpass prompt (`references/apply.md` §Executing Upgrade
+  Suggestions) the user answers interactively. The page must render an
+  explicit "needs admin password" chip on such a suggestion
+  (`references/rendering-report.md` §Suggestion Card). A brew-health
+  suggestion can never pre-accept either, including an `auto_runnable: true`
+  one like `brew install dtc`: its id ends `:remediate`, not `:upgrade`, so
+  it is not a baseline. Still an ordinary toggle afterward — the user can
+  un-accept it like any other decision.
 
 ### 1.7 `kind: "watch-item"` field semantics
 
@@ -479,6 +601,205 @@ actually does.
 - Never elevates a tool's `risk_level` (`references/assembly.md` §Risk
   Level's edit-kind check only matches `kind: "edit"`) — proposing a watch
   item is not itself a risky change.
+
+### 1.8 `version_delta` semantics
+
+Assembly's answer to "how big is this bump", computed once from
+`current_version`/`latest_version` and reused everywhere — the tiles, the
+header delta pill, the "Major delta first" sort, `risk_level` (§1.4) and
+`review_bucket` (§1.10) all read this field rather than re-parsing versions.
+
+| Value | Means |
+|---|---|
+| `major` | first differing component is the semver major position (or a 0.x position shifted up — see below) |
+| `minor` | a real upstream release with no compatibility promise either way |
+| `patch` | a bugfix-position bump, a same-number suffix change (`3.7b → 3.7c`), or a pre-release → final |
+| `revision` | **packaging only** — a Homebrew `_N` rebuild or a cask build-half bump with an identical upstream version |
+| `unknown` | not interpretable: an opaque/build-number scheme, a missing version, or a non-version source |
+
+`version_scheme` says how the pair was parsed, so the page can caption an
+`unknown` honestly ("build-number scheme") rather than implying we failed:
+
+| Scheme | Detected when | Positional mapping |
+|---|---|---|
+| `date` | both cores are 8 digits parsing as `YYYYMMDD` (1990‥2099) | any difference → `minor` |
+| `calver` | both cores' first component is a 4-digit int in 2000‥2099 **and** each has ≥2 components | index 0 or 1 → `minor`, ≥2 → `patch` |
+| `opaque` | either core's first component is non-numeric, or ≥ 1000 and not a calendar year | any difference → `unknown` |
+| `semver` | anything else that parsed | 0 → `major`, 1 → `minor`, 2 → `patch`, ≥3 → `patch` |
+| `none` | unparseable, missing, or a `brew-health`/`macos` source | `unknown` |
+
+`version_delta_note` is one short human phrase — `"index 1"`,
+`"index 2 (0.x rule)"`, `"calver index 2"`, `"packaging revision only"`,
+`"build-number scheme, not interpretable"`, `"date-versioned release"`,
+`"suffix change at index 1"`, `"missing version"`,
+`"no numeric component"`, `"versions compare equal"`, or
+`"no version delta for this source"`. It is tooltip text on the delta pill,
+and the debugging handle when a classification looks wrong.
+
+Four rules worth knowing before touching the classifier:
+
+- **A false `patch` is the dangerous direction**, because `patch` reads as
+  "nothing to think about" and feeds the pre-accept path. So a scheme that
+  can't be interpreted returns `unknown`, and every ambiguous positional call
+  rounds **up** in significance, never down (nmap's `7.99 → 7.991` is
+  `minor`, not `patch`).
+- **Calendar versioning never produces `major`.** A calver year rolls over on
+  the calendar, not on a compatibility promise; mapping it to `major` would
+  put `yt-dlp`, `mise` and `bitwarden` in the major box every January and
+  destroy the box's meaning. `minor` is the honest middle, and it never
+  reaches the pre-accept path on delta grounds.
+- **The ≥1000 guard keeps build numbers out of `major`.** Microsoft Teams'
+  `26163.407.4839.8659 → 26213.1006.5011.1671` would otherwise read as a
+  major bump of "version 26163"; instead the pair is `opaque` and the tool
+  lands in `unknown` — visible, never pre-accepted, never mislabeled `patch`.
+- **0.x shifts every position up one** (semver §4, "anything MAY change"):
+  index 0 → `major`, 1 → `major`, 2 → `minor`, ≥3 → `patch`. `uv`'s
+  `0.11.29 → 0.12.5` and `codex`'s `0.144.6 → 0.149.0` (which removed a
+  documented flag) are majors.
+
+Rolling-major schemes stay honest — Chrome `150 → 151` and gcloud
+`576 → 581` classify as `major` because upstream calls them major versions.
+There is no per-tool override table; the resulting noise is handled in
+highlight *ranking* instead (§1.11: a bare major scores 25, below the
+threshold of 40). `brew-health` findings always carry
+`version_delta: "unknown"`, `version_scheme: "none"` and are excluded from
+`summary.by_delta`. Full algorithm and the worked-example matrix:
+`references/assembly.md` §Version Delta.
+
+### 1.9 `security` semantics
+
+Every Tool object carries a `security` object with all six keys present.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `cve_ids` | string[] | Distinct CVE ids found in this tool's research text, deduped and sorted by `(year, sequence)` as integers — so `CVE-2026-9595` precedes `CVE-2026-12143`, which a lexical sort gets wrong and the page renders verbatim. |
+| `cve_count` | int | **Always** `len(cve_ids)`. An id-backed count, never a claim, so the page can attach every counted CVE to something concrete. |
+| `cve_claimed_count` | int\|null | The vendor's own **largest** stated count when it says "fixes 33 CVEs" without listing them. Max wins, never sum. Emitted whether or not ids were found — "7 of 33 listed" is more honest than either number alone. Render it as secondary text, never as the headline count. |
+| `has_security` | bool | This release has security content. |
+| `security_only` | bool | Its substantive content is security/patch material and nothing else. |
+| `impact` | string | `"none"` \| `"possible"` \| `"unknown"` — does anything here touch *this* setup. |
+
+**Extraction scope.** CVE ids are scanned from `headliners[].text`,
+`relevancy[].summary`/`.detail`/`.motivating_change`, and `context[].title`/
+`.detail`. Deliberately excluded: `links[].embedded_content` and
+`links[].url` (an unbounded changelog excerpt can cover releases outside the
+current→latest range, inflating the count with CVEs the user isn't being
+asked about), `suggestions[]` (derived text restating headliners), and
+`config_status.detail` (backward-looking audit prose, where an id is usually
+a *prior* run's finding). The claim scan (`cve_claimed_count`) is narrower
+still — `context[]` is out of it. The exclusions are safe because
+`has_security` never depends on ids: a missed id understates `cve_count`, it
+can't flip a security release into a non-security one. Rationale per
+boundary: `references/assembly.md` §Security Extraction.
+
+**`has_security`** is true when any `headliners[]`/`relevancy[]` item has
+`category: "security"`, **or** `vendor_silent_categories` contains
+`"security"`, **or** any CVE id was extracted — and false unconditionally for
+`source: "brew-health"` (§1.10).
+
+**`security_only`** requires `has_security` *and* that research actually
+produced content, then allows only these `(category, severity)` pairs across
+`headliners + relevancy`: `security` at **any** severity, `fixes` at
+`info`/`notable`, `notes` at `info`. Everything else disqualifies —
+`features` at any severity (a new feature is not a security patch), `notes`
+above `info` (codex's breaking "`codex exec --full-auto` was removed" is
+filed as `notes/notable`; category alone would have waved it through),
+`fixes` at `warning`/`incompatible`, and a non-`security` entry in
+`vendor_silent_categories`. `context[]` never disqualifies — those are
+present-tense repo-scope notes carrying no severity by design. A malformed
+item disqualifies, since only an explicit allowed pair passes.
+
+**`impact`** grounds "does this touch me" in `relevancy[]`, which is exactly
+that claim (§1.2). `"possible"` when the tool is `pinned`, or
+`config_status.state == "needs_attention"`, or it carries any `edit`/
+`watch-item` suggestion, or any `incompatible` relevancy, or any
+**non-security** relevancy at `notable`+, or any **non-security** headliner
+at `warning`+. Otherwise `"none"`.
+
+Two "never" rules hold the whole thing up:
+
+- **No research ⇒ never `security_only`, and `impact` is `"unknown"`.** A
+  subagent that failed, timed out, or returned an empty shell told us
+  nothing; "we know nothing" must never be reported as "nothing but security
+  fixes".
+- **A `security`-category relevancy is not by itself impact.** "CVE-2026-18408
+  turns any dump this machine restores into a shell-execution vector" is a
+  reason to *take* the update, not a risk of taking it. Counting it as impact
+  made the `security_auto` bucket permanently empty across a whole live run.
+
+### 1.10 `review_bucket` semantics
+
+The review-effort axis: how much of a human does this tool need. Strict
+precedence, first match wins.
+
+| Bucket | Means | Renders as |
+|---|---|---|
+| `security_auto` | Security content only, no impact here, delta not `major`/`unknown`, and a runnable baseline | The auto-approved list in the Overview's security section; its baseline is pre-accepted (§1.6) |
+| `security_mixed` | Has security content **plus** something else — other changes, a possible impact, an unknown, an elevated risk | The side-by-side card: security items and other items shown together so the user decides fast |
+| `attention` | No security content, but something needs a human: elevated `risk_level`, stale `config_status`, a proposed `edit`/`watch-item`, or nothing runnable | The "needs you" list |
+| `routine` | No security content, low risk, only the baseline upgrade to decide | The long tail, collapsed by default |
+
+Order of evaluation: `brew-health` first (`routine` when `health_expected`,
+else `attention`), then `security_auto`, then `security_mixed`, then
+`attention`, then `routine`. Because `risk_level` is computed before the
+bucket, the `attention` test doesn't re-check the major/unknown delta or
+`research_error` conditions — `risk_level` already returned `"elevated"` for
+both.
+
+**`review_bucket` is orthogonal to `source`.** The page groups brew-health
+cards by `source == "brew-health"` and counts them with
+`summary.health_count` — **never** by bucket. `routine` on the one expected
+GNU-utils PATH note means "nothing to decide here", not "hide it"; structural
+findings land in `attention` and, when their severity warrants, in
+`highlights` too.
+
+A `macos` or `standalone` tool has `auto_runnable: false` on its baseline, so
+the runnable guard bars it from `security_auto` unconditionally: a
+security-only macOS update lands in `security_mixed` and one with no security
+content lands in `attention`. That is deliberate — there is nothing to
+auto-approve when the skill cannot run the command; render such a card with
+the baseline's `manual_reason` instead of an approve control.
+
+Computation and the bucket-by-bucket rationale: `references/assembly.md`
+§Review Buckets and Pre-Accept.
+
+### 1.11 `highlights` semantics
+
+A ranked, capped list of "the biggest decision drivers / inputs needed /
+major patches", computed by a fixed score — `assemble.py` is a plain script,
+so the ranking is reproducible from the data alone, with no per-run LLM
+judgment anywhere in it.
+
+Object shape (all keys always present):
+
+- `tool_id` — resolves in `tools[]`.
+- `title` — `"{name} {current_version} → {latest_version}"`, or just the
+  finding's `name` for a `brew-health` tool, which has no versions.
+- `why` — one line, ≤ 220 chars, truncated on a word boundary with `…`.
+- `severity` — max severity across `headliners + relevancy`, in relevancy's
+  vocabulary so the page reuses one palette. With no items at all:
+  `needs_attention` → `"warning"`; `research_error` or a `major`/`unknown`
+  delta → `"notable"`; else `"info"`.
+- `suggestion_ids` — **every** suggestion id on the tool, in array order
+  (baseline first when present), read after assembly's id-uniqueness pass so
+  the ids are the final ones. The page looks each up in `tools[]`.
+- `reasons` — stable machine-readable codes in a fixed emission order, meant
+  to be rendered as chips (`why` is the prose).
+- `score` — the ranking score, exposed for debuggability and stable
+  client-side re-sorts; the UI need not show it.
+
+Scoring, threshold 40, cap 8, and the sort key are in
+`references/assembly.md` §Highlights. Two properties consumers depend on: a
+bare `major` bump scores 25 and a bare CVE count scores 10, so neither
+qualifies alone (this is what keeps Chrome/Firefox/gcloud's rolling majors
+out of highlights while leaving them counted in `summary.by_delta.major`);
+and `security_auto` contributes nothing, being by definition the bucket that
+needs no decision.
+
+`highlights` is agent-independent but not authoritative about what *blocks
+Submit* — the page recomputes the blocking set live from undecided
+suggestions on `incompatible`-severity tools rather than reading it from here
+(`references/rendering-report.md` §Overview Tab → Highlights).
 
 ---
 

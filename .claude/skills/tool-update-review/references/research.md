@@ -399,12 +399,30 @@ cross-links back here): before researching, check whether your assigned
 tool(s) have any `watch-items.json` entries and include their `topic`/`note`
 in your own context. If this run's headliners/changelog touch a watched
 topic, that's not a normal `info` relevancy finding — bump it to at least
-`notable` severity (`references/schemas.md` §Report Object) and prefix the
-summary so it reads as a highlight (e.g. "⚠ Watch item hit: ..."), citing
-the watch item's `note` as part of the evidence. This is the one case where
-relevancy severity is elevated by something *other* than the changelog
-content's own weight — a topic the user asked to be told about earns extra
-prominence regardless of how minor the change looks on its own.
+`notable` severity (`references/schemas.md` §Report Object), prefix the
+summary with the literal phrase below, and cite the watch item's `note` as
+part of the evidence. This is the one case where relevancy severity is
+elevated by something *other* than the changelog content's own weight — a
+topic the user asked to be told about earns extra prominence regardless of
+how minor the change looks on its own.
+
+**The prefix is mandatory and exact.** The relevancy item's `summary` **must**
+contain the literal phrase `Watch item hit:` — write it as
+`⚠ Watch item hit: <what changed>`:
+
+```jsonc
+"summary": "⚠ Watch item hit: install-shell-integration now writes to ~/.zprofile as well"
+```
+
+This is not a formatting preference. `assemble.py` detects watch-item hits
+**textually**, matching `/watch[\s\-]?item hit/i` against each relevancy
+item's `summary` + `detail`, and scores a hit at 70 points in `highlights[]`
+(`references/assembly.md` §Highlights) — enough to clear the threshold on its
+own. Nothing in the schema marks a hit structurally, so the phrase *is* the
+signal: paraphrase it ("this matches a watched topic", "flagged per the watch
+item") and the hit becomes invisible to assembly, the highlight silently never
+renders, and the one thing the user explicitly asked to be told about is the
+thing that gets buried.
 
 ### Watch Items (Proposing)
 
@@ -534,6 +552,23 @@ prompt): `evidence` is always an array, suggestions always use
 `title`/`target_files`/`rationale`/`motivating_link`/`diff_preview`. Loose
 shapes (bare strings, ad-hoc `description` fields) force hand
 normalization during assembly and have caused real rework.
+
+**Assembly tolerates a drifted shape; that does not make it acceptable.**
+Every array the schema declares — `headliners`, `links`, `relevancy`,
+`context`, `release_inventory`, `suggestions`, `vendor_silent_categories` — is
+coerced at the boundary by `as_item_list()` (`references/assembly.md`
+§Loading and Merging → Shape Normalization): a non-list becomes `[]`, a
+wrong-typed member is dropped, and each case prints a warning naming the tool
+and the field. That exists because one report is assembled from ~22 research
+files covering ~77 tools, and a single drifted file used to abort the whole
+run *after* the expensive part of the session was already spent — the
+tolerance buys a warned-about tool instead of a destroyed report.
+
+What it does **not** buy is your content surviving. A `"headliners": "no
+notable changes"` string is not parsed into a headliner; it is discarded, and
+the tool then classifies as "research told us nothing" — `risk_level` elevates
+and the card ships with no changelog at all. Writing the array correctly is
+still the only way the work you did reaches the user.
 
 ### Depth by Tool
 

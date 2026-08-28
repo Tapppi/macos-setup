@@ -1,25 +1,40 @@
 # Rendering: Report Page
 
-The pre-Submit report page design: the Solarized Dark palette, full page
-layout (header, filter bar, sticky progress bar, per-tool sections, content
-groups, suggestion cards), keyboard navigation, and the template-variable
-injection mechanism `render.py` uses to turn a report object into
-`index.html`.
+The pre-Submit report page design: the Solarized Dark palette, the two-tab
+shell (an Overview that triages and an All-tools list that details), the
+per-tool sections and suggestion cards inside it, how a decision stays in one
+place while being controllable from two, keyboard navigation, and the
+template-variable injection mechanism `render.py` uses to turn a report
+object into `index.html`.
 
-This doc renders the shapes defined in `schemas.md` (§Report Object) — read
-that first if you need a field's exact meaning rather than how it's drawn.
-`assembly.md` is the source of truth for `risk_level` and which suggestions
-start pre-accepted; this doc only describes how that state is *displayed*.
-For everything that happens after the user clicks Submit, see
+This doc renders the shapes defined in `schemas.md` (§Report Object, and
+§1.8–§1.11 for the triage fields) — read that first if you need a field's
+exact meaning rather than how it's drawn. `assembly.md` is the source of
+truth for `version_delta`, `security`, `review_bucket`, `risk_level` and
+which suggestions carry `pre_accept`; this doc only describes how that state
+is *displayed*. For everything that happens after the user clicks Submit, see
 `rendering-results.md`.
 
+**The problem this layout exists to solve**: 77 heterogeneous entries in one
+flat list make everything look equally important, so nothing is. The page has
+to answer *"what do I need to think about, and what can I wave through"* in
+the first five seconds, then hand off to the (good) per-tool detail view for
+anything needing a real read. Every rule below either serves that or protects
+something the flat list already got right.
+
 Table of contents:
-- Palette
-- Page Layout (header/counts, filter bar, sticky progress bar + Submit
-  gating, per-tool section, header badges, collapse controls, content
-  groups, per-item severity mapping, link click behavior, Context section,
-  Release Inventory section, vendor-silent tag, per-item detail collapse,
-  suggestion cards, Submit behavior)
+- Palette (tokens, derived tokens, the colour-rationing rule)
+- Tab Shell (panel registry, the sticky shell bar + Submit gating, deep
+  linking, back pill)
+- Header and Counts
+- Overview Tab (lede, stat tiles, security section, highlights, overflow
+  lists, everything else)
+- Page Layout — the All-tools tab (filter bar, per-tool section, header
+  badges, collapse controls, content groups, per-item severity mapping, link
+  click behavior, Context section, Release Inventory section, vendor-silent
+  tag, per-item detail collapse, suggestion cards, Submit behavior)
+- Decision State and Mirrors
+- Long Strings and Overflow
 - Brew-Health Rendering
 - Keyboard Navigation
 - Transition to Results View
@@ -53,43 +68,563 @@ dedicated colors, `macos` reuses `--base00` as a neutral "system-level, not a
 package manager" badge, and `brew-health` gets its own dedicated color (see
 §Brew-Health Rendering below).
 
+### Derived Tokens
+
+Seven values derived from the fifteen above — **not new hues**: alphas and
+steps of existing colors, so `rendering-results.md`'s claim that "this view
+introduces no new colors" still holds.
+
+| Token | Value | Why it exists |
+|---|---|---|
+| `--tint-red` / `--tint-yellow` / `--tint-cyan` / `--tint-blue` / `--tint-orange` | 10%-alpha `rgba()` of the matching hex | Panel tints for status surfaces. Written as literal `rgba()` of the existing hexes rather than `color-mix()`, which Safari < 16.2 drops — taking the whole rule with it. |
+| `--hair` | `rgba(147, 161, 161, .14)` (14% `--base1`) | Internal division. `--base01` stays for structural card edges; a 77-row page ruled entirely in `--base01` reads as a spreadsheet grid. |
+| `--base01-dim` | `#3f5b62` | `--base01` stepped toward `--base03`, so a proportion bar gets a fourth, quieter step without inventing a hue. |
+| `--red-text` | `#e6706e` | `--red` #dc322f on `--base02` is ~3.6:1 — fine for a 26px numeral, under AA for an 11px CVE chip. |
+| `--mono` | `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace` | Tabular numerals for every number, version, count and CVE id. A review page reads as an instrument when its numbers line up in columns; prose stays in the system sans stack. |
+| `--sticky-h` | `104px` initially, **measured at runtime** | Scroll offset for deep links. The shell bar wraps to two or three rows on narrow screens, so this cannot be a constant — see §Tab Shell. |
+
+### The Colour-Rationing Rule
+
+> **Warm color (red / orange / yellow) is reserved for security content and
+> for things blocking Submit. Everything else is blue, cyan, or neutral.**
+
+A page where 77 rows all carry a warm accent is the page this layout
+replaced. The corollary the Overview's tiles follow: **values wear ink, not
+the accent color** — identity is carried by a colored rail, a small colored
+mark beside the label, and (for status tiles) a 10%-alpha tint, never by
+coloring the numeral itself. Rendering both side by side settled it: the
+ink-value version is calmer and the tinted security tiles still take the eye
+first, which is the intended reading order. It also dodges the `--red`
+small-text contrast problem above.
+
 Single file: all CSS and JS inline. Zero CDN calls; system font stacks only.
 Must render correctly offline. `rendering-results.md`'s elements reuse these
 same tokens rather than introducing new ones.
 
-## Page Layout
+## Tab Shell
 
-### Header and Counts
+At most one panel is visible at a time. Four exist over the page's life:
 
-Header: title, date, machine context (arch highlighted when Intel — it gates
-compatibility). Counts row: tools with updates, incompatible, suggestions.
+| Panel id | Tab label | When it exists |
+|---|---|---|
+| `#panel-overview` | `Overview` | always |
+| `#main` | `All tools` | always (today's `#main`, unchanged in role) |
+| `#results-panel` | `Results` | created by `transitionToResults()` |
+| `#changelog-panel` | `Changelog` | created by `transitionToResults()` |
 
-### Filter Bar
+Pre-Submit the strip is `[Overview] [All tools · N]`, defaulting to
+**Overview**. Post-Submit it becomes
+`[Results] [Overview] [All tools] [Changelog]`, defaulting to **Results**.
 
-Source select (All|brew|cask|mise|standalone), severity select, "Only
-relevant to me" toggle (hides tools with empty `relevancy[]`), sort select
-(**Needs decision first** [new default] | Incompatible first | Name | Source
-| Major-delta first). "Needs decision first" sorts any tool with at least one
-undecided suggestion (including the baseline `upgrade` suggestion — nearly
-every tool has one) above tools whose suggestions are all decided/absent;
-incompatible severity breaks ties within that. Client-side only: toggle
-`display:none` and reorder DOM nodes. **The filter bar must stay reachable in
-the frozen Results view** (see `rendering-results.md`) so a filter applied
-before Submit can still be cleared/inspected afterward — never leave the user
-stuck looking at a filtered-empty report with no way to reset it.
+**The post-Submit strip is flat, not nested.** What used to be a single
+`Report` tab is two siblings, `Overview` and `All tools`, rather than a
+`Report` tab with an inner switcher: nested tabs are worse to use, and the
+frozen Overview is the *most* useful thing to look at while an apply runs —
+it is the summary of what was just approved.
+
+### Panel Registry
+
+Panels live in one `PANELS` registry (`{name: {el, label}}`), not a hardcoded
+triple; `transitionToResults()` adds to it and re-renders the strip.
+`selectTab(name)` sets `activeTab`, toggles `display` on every registered
+panel and `active`/`aria-selected` on every tab button, and shows the back
+pill only when `activeTab === 'tools' && cameFromOverview`.
+
+- Client-side only. **No `history.pushState` for tab changes** — a tab is not
+  a navigable location; only a tool deep link writes the hash (below).
+- Tab buttons carry `id="tab-<name>"` and `data-tab="<name>"` and are handled
+  by the existing document-level click delegate. `role="tablist"` /
+  `role="tab"` / `aria-selected`, panels `role="tabpanel"` with
+  `aria-labelledby`.
+- The `All tools` label carries a count chip: the total tool count normally,
+  `visible/total` while any filter is active — a second, always-visible signal
+  that something is hidden (§Filter Bar).
+- The strip is `overflow-x: auto; scrollbar-width: none`, so a four-tab
+  post-Submit strip never wraps.
+
+### The Sticky Shell Bar
+
+`#progress-bar-container` stays sticky at `top: 0` and **absorbs the tab
+strip**: it holds the strip, the progress track, the progress text, the
+`N blocking →` gate button, the auto-run-upgrades toggle, and Submit. Two
+stacked sticky bars (tabs plus progress) eat a quarter of a phone viewport;
+and Submit plus decision progress are *global* state that must be reachable
+from the Overview, where a user may well finish deciding. This also matches
+what `transitionToResults()` already did to this container, so pre- and
+post-Submit now use one mechanism instead of two.
+
+**The filter bar does not live here.** It moved inside `#main` as its first
+child, because it only ever governs the tool list and would be dead chrome on
+the Overview (§Filter Bar covers the three guarantees that compensate for it
+being one click away instead of zero).
+
+Under 600px the bar reflows by `order`: tabs and Submit (`margin-left: auto`)
+share the first row, then the progress track with a **compact** progress text
+(`52/85 · 4 ⛔` instead of `52 of 85 decided · 4 incompatible undecided`) takes
+a full-width row, then the auto-run toggle takes another. Both progress
+strings always render and CSS picks one, so no JS branch can get them out of
+sync.
 
 ### Sticky Progress Bar and Submit Gating
 
-Sticky progress bar (`position: sticky; top: 0`): thin progress bar (cyan
-decided / base01 remaining), text "N of M decided · K incompatible undecided"
-(red flash when K > 0), Submit button — disabled until every suggestion on an
-`incompatible`-severity tool has a decision; tooltip explains why.
-Non-incompatible suggestions may be left undecided.
+Inside that bar: a thin progress track (cyan decided / `--base01` remaining),
+the progress text "N of M decided · K incompatible undecided" (`--red` when
+K > 0), and the Submit button — **disabled until every suggestion on an
+`incompatible`-severity tool has a decision**; the tooltip explains why.
+Non-incompatible suggestions may be left undecided. The gate rule is
+unchanged from the flat layout, and so is the counting: `updateProgress()`
+walks `#main .tool-section[data-max-severity="incompatible"] .suggestion-card`,
+and Overview mirrors are structurally excluded from that selector (§Decision
+State and Mirrors).
+
+Two additions make the gate impossible to miss from either tab: a
+`N blocking →` button in the shell bar that jumps to the first blocking tool,
+and the Overview's own blocking strip (§Overview Tab → Highlights). Both are
+recomputed inside `updateProgress()` on every decision change and disappear
+when the gate clears.
+
+### Deep Linking: `#tool-<id>`
+
+Tool ids contain a colon (`brew:podman`), so **anchors are not used for the
+jump**. Every jump control is a `<button class="jump" data-jump="<tool id>">`
+handled by the click delegate — that avoids `querySelector` escaping problems
+and lets the jump run the multi-step behavior below. The hash is written
+purely for shareability and reload survival, with
+`history.replaceState(null, '', '#tool-' + encodeURIComponent(id))`:
+`replaceState`, not `pushState`, because a report is not a browser-history
+document and back-stack noise across 77 jumps is worse than useless. Sections
+also carry `id="tool-<encodeURIComponent(id)>"` so a pasted URL resolves after
+a reload.
+
+`jumpToTool(id)`, in order:
+
+1. Record whether we came from the Overview, then **reveal whichever capped
+   Overview list is hiding this tool's card** (§Overview Tab → Overflow
+   Lists) — before anything scrolls or takes focus, so the card the jump
+   refers to is really on screen when the back pill returns to it.
+2. Switch to the `tools` tab.
+3. **If the target is hidden by a filter, `clearFilters()` and toast**
+   `Filters cleared to show {name}.` — a jump must never silently fail
+   because a filter hides its destination — the same principle as step 1's
+   reveal, applied to the other thing that can hide a target.
+4. Expand the section. Auto-advance is *not* triggered; it fires on collapse
+   only.
+5. `focusSection(idx, {scroll: false})`, so `j`/`k` continue from where you
+   land rather than from where you were. **Scrolling is suppressed here on
+   purpose**: `focusSection()`'s own `scrollIntoView({block: 'nearest'})`
+   would be a second scroll issued in the same task, and the browser resolves
+   it against the pre-animation offset — with the target still below the fold,
+   `nearest` then means "align its *bottom* edge", which stranded the jump
+   `innerHeight − sectionHeight − scroll-margin` px too low. The `focus()`
+   call inside already passes `preventScroll`.
+6. `scrollIntoView({block: 'start'})` — **one motion, and the last word on
+   where the jump lands**. `.tool-section` carries
+   `scroll-margin-top: calc(var(--sticky-h) + 8px)`, and `--sticky-h` is
+   **measured at runtime** by a `ResizeObserver` on the shell bar
+   (`observeStickyHeight()`, with a `resize` listener as fallback) — the bar
+   wraps on narrow screens, so a hardcoded offset would tuck the target under
+   it.
+7. Set `[data-flash]` for 1.6s — a **static** `outline: 2px solid var(--cyan)`,
+   not an animation. A pulsing 77-row page is noise, and this is also the
+   `prefers-reduced-motion`-safe choice (`scrollIntoView`'s `behavior` drops
+   to `auto` under that query).
+8. `replaceState` the hash.
+
+On load the order is `renderTabStrip()` → `renderHeader()` → `renderTools()` →
+per-section decision badges → `applyFilters()` → `collapseAllButFirst()` →
+`renderOverview()` → `syncAllMirrors()` → `updateProgress()` →
+`observeStickyHeight()`, and only then does the page select `tools` and jump
+when `location.hash` starts with `#tool-`, else `overview`. **`renderOverview()`
+must run after `renderTools()`** — its mirrors resolve against canonical cards
+that have to exist first — and `syncAllMirrors()` after both, to pick up
+everything assembly pre-accepted. The hash jump runs on the post-Submit path
+too: in a frozen report it still works, because mirrors are disabled but
+navigation is not.
+
+**Back-to-overview pill** (`#backpill`, fixed bottom-left): visible only while
+`activeTab === 'tools' && cameFromOverview`. Clicking it — or pressing
+`Escape` with no modal open — returns to the Overview and clears the flag.
+Clicking a tab directly also clears it: an explicit tab click is not "arrived
+via jump".
+
+## Header and Counts
+
+`#page-header` compresses to one flex row: title, generation time, machine
+context (arch highlighted when Intel — it gates compatibility), and the
+repo-freshness note, which surfaces only when a repo is *behind* origin
+(`repo_context`; `recent_commits[]` is research context and is never
+rendered).
+
+**The counts row is gone.** `#header-counts` ("N tools with updates, K
+incompatible, S suggestions") is superseded by the Overview's stat tiles,
+which say the same thing better and are always one tab click away. Keeping
+both means two places to read one number and two places for them to disagree.
+`renderHeader()` lost only its counts branch; nothing else in the header
+changed.
+
+## Overview Tab
+
+`#panel-overview`, rendered by `renderOverview()` — the default pre-Submit
+panel. It answers the five-second question and then gets out of the way. It
+holds no decision state of its own: every control on it is a mirror
+(§Decision State and Mirrors).
+
+`renderOverview()` must run **after** `renderTools()`, because its mirrors
+resolve against canonical cards that have to exist first — see §Tab Shell →
+Deep Linking for the full load order.
+
+### Lede
+
+One sentence above the tiles, prose in `--base1` with numbers in
+`--mono`/`--base2`:
+
+> **42 of 74 updates need a decision.** The other **32** are patch-level or
+> security-only with no impact here — already accepted below.
+
+(Those figures are the recorded run's — `assembly.md` §Review Buckets and
+Pre-Accept — worked through the definitions below; every run splits
+differently.)
+
+- "need a decision" = `security_mixed` + `attention` tools, excluding
+  `brew-health` (counted separately in its own band).
+- "the other" = `routine` + `security_auto`.
+- Zero needing a decision reads *"Nothing needs a decision — all 74 updates
+  are routine or security-only with no impact here."*
+- **Both trailing clauses are conditional on the data.** The security clause
+  is dropped when the report has no security content at all, and "— already
+  accepted below" is dropped unless at least one suggestion actually carries
+  `pre_accept: true`. A lede that claims either without the data behind it is
+  the page inventing a fact.
+
+This is the five-second answer; everything below it is the evidence.
+
+### Stat Tiles
+
+Single headline numbers, so these are **stat tiles, not charts**. The delta
+axis is *ordinal magnitude* and the security axis is *status* — different
+jobs, so they sit in two labelled groups rather than one undifferentiated row
+of six, which would read as a wall.
+
+**Group A — "Change size — N updates"** (three tiles, then a proportion bar):
+
+| Tile | Value | Label | Secondary | Accent | Click |
+|---|---|---|---|---|---|
+| 1 | `summary.by_delta.major` | Major | `breaking-change candidates` | `--orange` | All-tools tab, `delta=major`, scroll to top |
+| 2 | `summary.by_delta.minor` | Minor | `feature releases` | `--blue` | All-tools tab, `delta=minor` |
+| 3 | `summary.by_delta.patch` | Patch | `+R revision, U unknown` | neutral (`--base01`) | All-tools tab, `delta=patch` |
+
+**Revision and unknown get no tiles of their own.** They fold into the Patch
+tile's secondary line (`+4 revision`, `+4 revision, 1 unknown`, or
+`fixes only` when both are zero) and keep their own segment in the proportion
+bar, which uses `--base01-dim` with a `title` distinguishing the two. For a
+reader they are the same question as patch — "nothing to think about" — and
+two more near-zero tiles is exactly the noise this layout exists to remove.
+
+The group's colors are an ordinal scale of *attention* mapped onto the page's
+existing severity vocabulary, not a new ramp: `--orange` is already `notable`,
+`--blue` is already `info`, and patch gets no color at all. A synthetic
+single-hue light→dark ramp was rejected — the palette has no ramp steps, and
+faking them with alpha reads as "disabled" in Solarized Dark.
+
+**Group B — "Security — N of M tools affected"**:
+
+| Tile | Value | Label | Secondary | Accent | Click |
+|---|---|---|---|---|---|
+| 4 | `summary.security.cve_count` | CVEs fixed | `across N tools` | `--red` + `--tint-red` | scroll to `#sec-section` |
+| 5 | `summary.security.auto_count` | Security only | `no impact here · accepted` | `--cyan` | scroll to `#sec-auto` **and expand it** |
+| 6 | `summary.security.mixed_count` | Security + other | `decide these` | `--yellow` + `--tint-yellow` | scroll to `#sec-mixed` |
+
+`--cyan` on tile 5 is not decorative: cyan is already this page's "Accept
+confirmed" color, so the tile is literally the color of the state it reports.
+
+Shared tile rules:
+
+- **Values wear ink** (`--base2`) on every tile, per the rationing rule in
+  §Palette. Identity comes from the 3px left rail, a small colored square
+  before the label, and the tint on the two status tiles.
+- A **zero value renders `--base01`** — an empty category should recede, never
+  shout.
+- **Every tile is a real `<button>`**, keyboard-focusable with a `--cyan`
+  `:focus-visible` outline. **No dead numbers**: a tile whose target is empty
+  renders `disabled` with a dimmed value rather than being hidden, because a
+  stable 3+3 grid is easier to re-read run over run than a grid that changes
+  shape.
+- Bar segments carry the same `data-act`/`data-arg` as their tile, so clicking
+  a segment does what clicking its tile does, and each segment's `title` gives
+  `label — N (P%)`. **The tiles are the bar's legend** — adjacent, direct-
+  labeled, same colors — so there is no separate legend box.
+- Group A's bar is out of the delta total (`sum(by_delta)`); Group B's is out
+  of `total_outdated`, with the remainder in `--base01-dim`. Those are the
+  same number by the invariant in `schemas.md` §1.1 — which is precisely why
+  **neither bar is ever drawn out of `by_bucket`**, whose denominator includes
+  the brew-health findings. Mixing the two produces a percentage that means
+  nothing.
+
+**Data fallbacks.** `summary.by_delta` absent → derive by counting
+`tool.version_delta` over non-`brew-health` tools; no tool carries the field
+either → **hide Group A entirely** rather than draw three zeros.
+`summary.security` absent → derive from `tool.security.*`; no tool carries it
+→ hide Group B *and* the whole security section, and the lede drops its
+security clause. Same principle throughout: degrade to silence, never to a
+fabricated zero.
+
+### Security Section
+
+Anchor `#sec-section`. Heading: 🛡 **Security patches** with a `--mono`
+sub-line — `N CVEs · M tools · A auto-approved · X need a look`.
+
+Rendered order is **(a) auto-approved as a single collapsed one-line strip,
+then (b) mixed, expanded**. Group (a) still comes first in reading order, but
+occupies one line until asked for, so the eye lands on the cards that
+actually need a decision. That is the resolution of "list them in this order"
+versus "triage first".
+
+**Group (a) — `security_auto`** (`.autostrip`, `#sec-auto`, `--cyan` rail +
+`--tint-cyan`). Collapsed head, always visible:
+
+```
+✓  5 security-only, no impact here — accepted    LIBPQ · OPENSSH · STUNNEL · …    ▸ show
+```
+
+The inline tool-name list is `--base01` uppercase micro-type that truncates
+with `…`; it exists so the collapsed state is still informative — you can see
+*which* tools were waved through without expanding. Expanded, one grid row per
+tool:
+
+| Element | Spec |
+|---|---|
+| Accept toggle | `.acc-toggle[data-mirrors]` — `✓` filled cyan when accepted, `○` outlined `--base01` when not. **This is how the user un-accepts.** `title` flips between `Accepted — click to un-accept` and `Not accepted — click to accept`. A single `○` row among `✓` rows is unmistakable at a glance. |
+| Name | `--base1`. The row is *not* itself clickable — a whole-row click would fight the toggle. The toggle acts; `details →` navigates. |
+| Versions | `--mono`, new version in `--green`, truncated per §Long Strings and Overflow with the full value in `title`. |
+| Source badge | the existing `.source-badge` colors. |
+| CVE chips | `--mono` 11px, `--base03` background, 40%-alpha `--red` border, text `--red-text`. **Plain text, never a fabricated link** — the report contract carries `cve_ids[]` only, and inventing an NVD URL is exactly the made-up authority `research.md` forbids. A chip becomes an anchor only when the data itself carries a real link. |
+| `needs_sudo` chip | rendered here too — see §Suggestion Card; a pre-accepted admin-password upgrade must not be silent in *any* of its appearances. |
+| Impact | `no impact here` (`--cyan`) / `possible impact` (`--yellow`) / `impact unknown` (`--base01`). Group (a) should be all-`none` by the data contract; render defensively anyway. |
+| `details →` | `data-jump` to the tool. |
+
+This group shows **counts and CVE ids only**. The per-CVE prose lives in the
+tool's Security content group, one click away — the whole point of the group
+is that these need confirming, not reading.
+
+**Group (b) — `security_mixed`** (`#sec-mixed`, one `.mixcard` per tool):
+`--base02`, 3px `--red` left rail, `--hair` border. Head row is name,
+versions, source badge, delta pill, spacer, `impact: <value>` right-aligned.
+Body is `grid-template-columns: 1fr 1fr` — **equal columns, deliberately**.
+The left (security) column gets `--tint-red` and a `--hair` right border; the
+right is untinted. Equal width even at a 1:5 item ratio: the asymmetry *is*
+the information ("one CVE, five unrelated changes"), and ragged column widths
+down a stack of cards destroy the side-by-side reading this section exists
+for.
+Under 760px the grid collapses to one column, security on top with a bottom
+hairline instead of a right one.
+
+- Which items go where: `category === 'security'` → left, everything else →
+  right, drawing from `headliners[]` and `relevancy[]` alike, with relevancy
+  items first within a column — they are about *this machine*.
+- Items are **summary line only**: one severity icon plus the text. No
+  `detail`, no evidence, no per-item link — those live in the tool section.
+- **Cap 3 items per column**, then `+N more →` (a `data-jump`). An empty
+  column renders a `—` in `--base01`, never a collapsed zero-height panel.
+- If `vendor_silent_categories` contains `security`, the left column shows the
+  existing "No detailed changelog published" pill instead of items, with the
+  CVE chips still in its head.
+- Foot row: mirror decision controls for the tool's **baseline upgrade**
+  suggestion, the `needs_sudo` chip when it applies, then
+  `+N more decision(s)` in `--base01` when the tool has more than one
+  suggestion — the Overview never shows a partial decision set as if it were
+  complete — then `full details →`.
+
+**Group (b) is capped at 8, worst first**, with the same `show all N →`
+expander highlights uses (§Overflow Lists below). The layout was verified
+against 9 mixed cards; real data brought 31, which made the Overview ~13
+viewport-heights tall and buried the very triage it exists to provide. **The
+cap is a rendering decision and never an accounting one** — the section
+heading, the Group B tile and the bar segment all keep counting the full set.
+
+Assembly ranks `highlights[]` but writes no ranking onto `tools[]`, so there
+is nothing to read here; the page derives one from the triage fields the
+contract does guarantee. `compareMixedTools(a, b)`, first non-zero wins:
+
+1. **worst security-item severity**, taken from the same
+   `buildContentGroups(tool).security` list the card's left column renders —
+   so the ranking matches what the reader sees. A tool with no security item
+   at all ranks below `info` rather than tying with it. (That list sorts
+   relevancy above a headliner of equal severity via a half-step; the half is
+   floored away here, so this stays exactly "max severity" and the next key
+   breaks the tie.)
+2. **higher `security.cve_count`** first;
+3. **worse `security.impact`** first — `possible` < `unknown` < `none`;
+4. **bigger `version_delta`** first, by the same
+   `major < minor < patch < revision < unknown` rank the sort select uses;
+5. **`tool_id`**, ascending — the last resort, and the reason the order is
+   total at all. Without it two renders of one report could cut differently.
+
+**Empty states.** No security content anywhere → the whole section and Group B
+of the tiles are omitted. `auto_count === 0` → the strip is omitted, not
+rendered empty. `mixed_count === 0` → `#sec-mixed` renders one line, *"No tool
+mixes security fixes with other changes this run."*
+
+### Highlights
+
+Anchor `#hl-section`. Heading **Highlights** · `biggest decision drivers`.
+
+**The blocking strip is client-derived, not read from `highlights[]`.**
+`highlights[]` is assembly-ranked and cannot be relied on to contain the tools
+that gate Submit, so the Overview renders its own strip whenever any
+`incompatible`-severity tool still has an undecided suggestion:
+
+```
+⛔ 2 tools with incompatible findings still block Submit:  cursor →   nnn →
+```
+
+`--red` border + `--tint-red`, recomputed inside `updateProgress()` on every
+decision change, gone when the gate clears. **Capped at 5 named tools**, then
+`+N more →`, which switches to the All-tools tab with `severity=incompatible`
+applied — uncapped, a pathological report rendered a two-row wall of links.
+
+**Highlight card** (`.hlcard`, grid `auto 1fr`, `> * { min-width: 0 }`):
+
+- Left rail: 3px border plus the severity icon, from `highlights[].severity`
+  through the existing mapping (`incompatible` → `--red`, `warning` →
+  `--yellow`, `notable` → `--orange`, `info` → `--blue`). An `incompatible`
+  card additionally gets `--tint-red`.
+- `h3` is `highlights[].title`; `.why` is `highlights[].why` at
+  **`max-width: 78ch`** — this is the one place on the page with real prose,
+  and it must not run to 1400px.
+- Meta row: source badge, versions, delta pill, the CVE badge when
+  `security.has_security`, then `open in tool list →`. **A `brew-health`
+  finding (or any tool with no `current_version`) renders its finding category
+  label in the versions slot and drops the delta pill** — the same rule the
+  tool header uses. Without it, a health finding reaching `highlights[]`
+  renders `null → null` as "→ UNKNOWN".
+- One `.hlsug` row per entry in `highlights[].suggestion_ids`: the
+  suggestion's own `title` (truncating, `min-width: 0`), its `needs_sudo` chip
+  when applicable, and mirror controls pushed right with `margin-left: auto`
+  so **every button group in the section aligns to one vertical column**.
+  Without that, the controls sat ragged and read as unrelated.
+- **A `suggestion_ids` entry with no matching suggestion renders the raw id as
+  its title rather than being dropped** — a silent drop hides an assembly bug.
+- Zero `suggestion_ids` → no rows, just the jump link.
+
+**Ordering**: `highlights[]` order, which is assembly's ranking and the point
+of the array — with one exception, any highlight whose tool is in the live
+blocking set floats to the top. No other client-side re-sorting.
+
+**Cap**: assembly caps `highlights[]` at 8 (`assembly.md` §Highlights), but
+the page does not assume it did: it renders the first 8 and parks any
+remainder behind a `show all N →` expander (§Overflow Lists below).
+
+**Empty state**: *"Nothing stood out as needing a decision beyond the security
+patches above."* in `--base01` (the trailing clause drops when there is no
+security section). The section header still renders — its absence would read
+as a rendering failure.
+
+### Overflow Lists
+
+The mixed-security cards and the highlights are the page's two capped lists,
+and they expand through **one** mechanism (`revealOverflow()`) so their
+behavior can't diverge. Each renders its prefix inline and parks the remainder
+in a hidden sibling (`#mix-rest`, `#hl-rest`) behind a `show all N →` button,
+which removes itself once used.
+
+Two properties this has to preserve:
+
+- **The overflow stays in the DOM.** Its mirrors keep tracking decisions and
+  its canonical cards in `#main` are untouched, so nothing about the
+  `/feedback` payload changes when a card is merely out of sight. A cap is
+  never allowed to become an accounting change.
+- **Nothing may land focus or a jump on a hidden card.** `jumpToTool()` calls
+  `revealOverviewCardFor(id)` as its very first step — before the tab switch,
+  the filter clear, or any scroll — so the card a jump refers to is really on
+  screen when the back pill returns to it. `getOverviewCards()`, which drives
+  `j`/`k`, filters out any card sitting inside a collapsed overflow, since
+  focusing one would move the ring nowhere visible.
+
+### Everything Else
+
+Without this, the Overview would show ~20 of 77 tools and the obvious
+question is "where did the other 57 go?". Three collapsed bands
+(`#else-section`) complete the accounting, each with a head carrying a live
+`N of M already accepted` count read off its own chips:
+
+1. **Routine updates** (`review_bucket === 'routine'`, excluding
+   `brew-health`) — a chip cloud, one `.chip` per tool: an accepted-state glyph
+   mirroring the baseline upgrade decision, the name, and the latest version.
+   Click jumps to the tool. Chips truncate at `max-width: 230px` with the full
+   text in `title` — real version strings hit 45 characters. A few dozen chips
+   wrap to five or six rows, and the cloud stays legible to ~100 before it
+   needs a scroll container.
+2. **Other tools needing attention** (`review_bucket === 'attention'`,
+   excluding `brew-health` and anything already in `highlights[]`) — same band
+   shape, chips show the `version_delta` instead of a version. This is the
+   honest home for "flagged by the bucket algorithm but not important enough
+   to be a highlight".
+3. **Homebrew environment** (`source === 'brew-health'`) — **expanded by
+   default**: there are only ever a handful and one is usually actionable. One
+   row per finding: severity icon, name, the remediation command in a copyable
+   `.cmd` chip (reusing the existing command-chip copy handler), `details →`.
+   Counted separately from `total_outdated`, exactly as `health_count` is.
+
+A band with no members is omitted rather than rendered empty; with no bands at
+all, the whole section is omitted.
+
+## Page Layout
+
+This is the **All-tools tab** (`#main`) — the flat per-tool report, unchanged
+in role and almost entirely unchanged in behavior. Everything in this section
+renders inside that panel; the Overview above is a separate panel that triages
+*into* it.
+
+### Filter Bar
+
+**The bar lives inside `#main`, as its first child** — it only ever governs
+the tool list, so on the Overview it would be dead chrome and would cost a
+sticky row on mobile.
+
+Controls, left to right: **Bucket** select (All | Security + other | Security
+only | Needs attention | Routine — matching `review_bucket`, `schemas.md`
+§1.10), **Delta** select (All | major | minor | patch | revision | unknown),
+Source select (All|brew|cask|mise|standalone|macos|brew-health), severity
+select, **Security only** checkbox (`data-sec="1"`), "Only relevant to me"
+toggle (hides tools with empty `relevancy[]`), sort select (**Needs decision
+first** [default] | Incompatible first | Name | Source | Major-delta first),
+the auto-advance toggle, and Collapse all / Expand all.
+
+"Needs decision first" sorts any tool with at least one undecided suggestion
+(including the baseline `upgrade` suggestion — nearly every tool has one)
+above tools whose suggestions are all decided/absent; incompatible severity
+breaks ties within that. **"Major delta first" reads the server-computed
+`data-delta`** and ranks `major < minor < patch < revision < unknown`; it never
+re-parses version strings, because a client-side leading-integer diff agrees
+with `assemble.py`'s classifier on neither calver, date, opaque, Homebrew
+revisions nor the 0.x rule — the same tool would sort as "major" here while
+the tiles and its own delta pill called it something else. Client-side only:
+`data-hidden` toggles visibility and DOM nodes are reordered.
+
+**The filter bar must stay reachable in the frozen Results view** (see
+`rendering-results.md`) so a filter applied before Submit can still be
+cleared/inspected afterward — never leave the user stuck looking at a
+filtered-empty report with no way to reset it. It is outside the
+`.report-frozen` disabling set and stays interactive after Submit. Because
+"reachable" is now one tab click rather than zero, three guarantees close that
+failure mode by construction rather than by adjacency:
+
+1. a **persistent banner** under the bar whenever anything is hidden —
+   `N of M tools hidden by filters  [Clear filters]`, `--yellow` outline on
+   `--tint-yellow`;
+2. the `All tools` **tab label shows `visible/total`** while filtered;
+3. the **filtered-empty state carries its own reset** — *"No tools match these
+   filters. [Clear filters]"* — never a blank panel.
+
+`clearFilters()` resets every control including Sort (back to
+`needs-decision`), and is also what `jumpToTool()` calls when a filter hides
+its target (§Tab Shell).
 
 ### Per-Tool Section
 
 Per-tool `<section>`: collapsible; header row with name, `current → latest`
-(latest in green), source badge, PINNED badge (yellow) when pinned, and a
+(latest in green), source badge, a **delta pill**, a **`🛡 N CVE` badge**,
+PINNED badge (yellow) when pinned, and a
 **`config_status` badge** when `state` isn't `"unknown"`: a quiet small green
 check + "config current" for `up_to_date` (hover/click for the
 `detail`/evidence), a visible orange/red banner for `needs_attention` ("⚠
@@ -99,9 +634,36 @@ to dig for. `config_status` is computed by research — see `research.md`
 §Config Status for how the verdict is reached; this section only covers how
 it's drawn.
 
+Each section carries `data-tool-id`, `data-name`, `data-source`,
+`data-max-severity` (unchanged) plus three new attributes the filter bar reads:
+`data-bucket`, `data-delta`, and `data-sec` (`0`|`1`). It also carries
+`scroll-margin-top: calc(var(--sticky-h) + 8px)` so a deep link doesn't land
+under the sticky shell bar (§Tab Shell).
+
+The two new header badges give the collapsed 77-row list the same vocabulary
+the Overview's tiles use, so the two read as one system:
+
+- **Delta pill** — `MAJOR` in `--orange`, `MINOR` in `--blue`, `PATCH` and
+  `REVISION` in `--base01`, with `version_delta_note` as its `title`. Omitted
+  for `brew-health` (no version pair) **and when `version_delta` is missing
+  entirely**: an explicit `"unknown"` is a real classification (an opaque or
+  build-number scheme) and earns its pill, but a *missing* field is not a
+  classification at all, and rendering it as UNKNOWN on every row of a
+  pre-triage report states something the data never said.
+- **CVE badge** — `🛡 N CVE` in `--red` when `security.has_security`. When
+  `has_security` is true with **zero** named ids (a vendor that says "security
+  fixes" without publishing CVEs), the badge drops the count and reads
+  `🛡 security`: saying "0 CVE" there is worse than saying nothing.
+
+Both badges, and the `data-*` attributes, degrade quietly on a report from an
+older assembly that lacks the fields — the readers fall back coarsely and
+never invent precision the data doesn't have.
+
 ### Header Badges
 
-At a glance without expanding:
+At a glance without expanding. The delta pill and CVE badge described in
+§Per-Tool Section sit in this same row; the two below are the older,
+decision-oriented pair and neither substitutes for the others.
 
 - **Decision-count badge**: while the tool has ≥1 undecided suggestion, show
   an attention-styled badge with the undecided count (colored icon — e.g.
@@ -166,6 +728,12 @@ wherever it lands. Lead with title + one-line description for each item;
 push its changelog/release link into a compact footer-style reference per
 item (a direct deep link where the source supports line-level anchors, e.g.
 a CHANGELOG.md section) rather than a shared links block.
+
+Within a group, items sort **worst severity first**, with a relevancy item
+placed just above a headliner of the same severity — a finding about *this
+setup* outranks the generic changelog line that motivated it. The Overview's
+mixed-card comparator reads the same ordering, so the two views agree about
+which item is a tool's worst (§Overview Tab → Security Section).
 
 ### Per-Item Severity → Color/Icon Mapping
 
@@ -259,10 +827,36 @@ toggles back to undecided.
 | Rejected | left border base01, card dimmed, "REJECTED" |
 | Discuss | left border + Discuss button filled yellow, "DISCUSS" |
 
-A baseline `upgrade` suggestion on a `"low"` `risk_level` tool renders
-pre-accepted (Accept button already shown active) instead of undecided — see
-`assembly.md` §Risk Level for the computation; this doc only covers the
-resulting visual.
+**Pre-accept is a field, not a client-side derivation.** A card renders
+pre-accepted (Accept button already active, `ACCEPTED` state label) **iff
+`suggestion.pre_accept` is true** — the page reads that flag and never
+re-derives the decision from `risk_level` plus an id suffix, as an earlier
+version did. Assembly computes it once, as the union of `risk_level == "low"`
+and `review_bucket == "security_auto"`, restricted to the tool's baseline
+`upgrade` suggestion with `auto_runnable` true (`assembly.md` §Review Buckets
+and Pre-Accept, `schemas.md` §1.6). A second derivation in the page is exactly
+how the rendered state and the submitted payload drift apart. An absent
+`pre_accept` reads as `false`; the card is a normal toggle afterward either
+way. **A followup card never pre-accepts**, whatever the flag says — a card
+surfaced mid-apply (`rendering-results.md` §Turn-Based Threads) posts turns to
+`/followup` rather than carrying a pre-Submit decision, so starting it
+accepted would assert a decision nobody made in that thread.
+
+**A pre-accepted `needs_sudo: true` suggestion must render a "needs admin
+password" chip** — `🔒 needs admin password`, `title` "Accepted by default,
+but applying it prompts for an admin password." This is not optional
+decoration: `needs_sudo` deliberately does *not* block pre-accept (blocking it
+would un-pre-accept nearly every cask, since the heuristic defaults casks to
+`true`), and the chip is the whole reason that is acceptable — it is what
+keeps a pre-accepted admin-password upgrade from being silent. It renders
+everywhere such a suggestion appears, **including its Overview mirrors** (auto
+strip rows, mixed-card feet, highlight suggestion rows), because a mirror the
+user decides from without ever opening the card is precisely the case the chip
+exists for.
+
+The chip is orthogonal to the existing `🔒 May prompt for an admin password
+during apply.` note in an `upgrade` card's body, which renders for any
+auto-runnable `needs_sudo` suggestion whether pre-accepted or not.
 
 ### Submit Behavior
 
@@ -271,24 +865,138 @@ submitted — return to your terminal"; on error keep data, show retry. (This
 is the pre-extension behavior; the current page instead transitions into the
 Results view on success — see §Transition to Results View below.)
 
+## Decision State and Mirrors
+
+The Overview and the tool list both offer Accept/Reject/Discuss for the same
+suggestions. The rule that keeps them from becoming two answers to one
+question:
+
+> **The canonical decision lives on
+> `.suggestion-card[data-suggestion-id]` inside `#main`, and nowhere else.
+> Everything on the Overview is a mirror: a control that writes to the
+> canonical card and re-reads its state.**
+
+There is no second decision store. Mirrors are *rendered* from `REPORT`, but
+their **state** is never read from `REPORT` — only from the DOM card.
+
+`setDecision(sid, action)` is the one place a decision changes; the tool
+card's own `.btn-decision` handler routes through it too, so canonical
+controls and mirrors run identical code. It looks up the canonical card,
+**no-ops when that card's buttons are disabled** (so a stale mirror click can
+never mutate a frozen post-Submit report), toggles
+`card.dataset.decision` — clicking the active decision returns to undecided,
+exactly as the tool card always behaved — then updates the state label, the
+tool's decision badge, every mirror of that id, the band accepted-counts, and
+the progress/gate/blocking strip.
+
+### The `data-mirrors` contract
+
+**Mirrors must not use the class `.suggestion-card` and must not carry
+`data-suggestion-id`.** They carry `data-mirrors="<suggestion id>"` (or
+`data-mirror-dot` for a read-only glyph). This single rule is what keeps three
+existing selectors correct without a single edit:
+
+- `submitFeedback()` walks `#main .suggestion-card[data-suggestion-id]` to
+  build the payload — mirrors are excluded, so the payload count is the
+  suggestion count no matter how many mirrors are on screen;
+- `updateProgress()` counts `#main .tool-section[data-max-severity=
+  "incompatible"] .suggestion-card` for the Submit gate;
+- `sectionNeedsDecision()` drives the "Needs decision first" sort.
+
+Three mirror variants, all reading the same canonical state:
+
+| Variant | Markup | Where |
+|---|---|---|
+| Three-button | `.mirror[data-mirrors]` containing three `.btn-d` | mixed-card feet, highlight suggestion rows |
+| Single toggle | `.acc-toggle[data-mirrors]` — `✓` / `○` | auto-strip rows |
+| Read-only dot | `[data-mirror-dot]` inside a chip | routine / attention bands |
+
+`.btn-d` reuses `.btn-decision`'s active-state colors exactly — accept →
+filled `--cyan`, reject → filled `--base01`, discuss → filled `--yellow` —
+with smaller metrics and no fourth state.
+
+`syncMirrors(sid)` refreshes every node for one id; `syncAllMirrors()` does a
+full pass and runs once after the initial render, to pick up everything
+assembly pre-accepted, and after any bulk change.
+
+**The `/feedback` payload shape is unchanged.** Pre-accepted and
+mirror-accepted items are ordinary `accept` decisions; there is no new
+decision vocabulary and no new payload field.
+
+## Long Strings and Overflow
+
+Required, not polish — this is a real layout failure with a real input. Cask
+versions are `version,build` tuples, and `cask:cursor`'s is
+`3.12.17,0fb762053c34788bb7760d5673f8a6d4c8589d52`. Untruncated it blew the
+tool header row apart and, through grid/flex `min-width: auto`, forced **737px
+of horizontal scroll on a 390px viewport**.
+
+1. **`min-width: 0` on every flex/grid child that can contain a version, a
+   suggestion title or a tool name.** The default `min-width: auto` lets a
+   long unbreakable token set the track's min-content width, which is the
+   whole mechanism above. Applied to `.hlcard > *`, `.mixcol`, `.autorow > *`,
+   `.hlsug .t`, `.tool-header > *`, `.itemline > span:last-child`,
+   `.cve-chips`, `.autostrip-head .names` and `#progress-text`.
+2. `.version-delta, .vd { max-width: 34ch; overflow: hidden; text-overflow:
+   ellipsis; white-space: nowrap }`, with the full string in `title`.
+3. `.chip { max-width: 230px }` with the same truncation and a `title`
+   carrying name + version.
+4. **The page body must never scroll horizontally at 390px.** Assert it
+   directly: `document.documentElement.scrollWidth === clientWidth`.
+
 ## Brew-Health Rendering
 
 The page treats a `brew-health` tool like any other card except the header's
 version-delta slot shows the finding category label (e.g. "untrusted tap")
-instead of `null → null`, the source badge uses the dedicated `brew-health`
-color (§Palette), and a `health_count` header badge counts them separately
-from `total_outdated` (they're environment issues, not updates). See
+instead of `null → null`, no delta pill renders (there is no version pair),
+and the source badge uses the dedicated `brew-health` color (§Palette). See
 `collection.md` §Brew-Health Collection for the finding taxonomy this
 renders, and `assembly.md` §Brew-Health Assembly for how a finding becomes a
 Tool object in the first place.
 
+**On the Overview**, health findings get their own band — *Homebrew
+environment*, **expanded by default**, one row per finding with a severity
+icon, the name, the remediation command in a copyable chip, and
+`details →` (§Overview Tab → Everything Else). They are grouped and counted
+by `source === 'brew-health'` and `summary.health_count`, **never** by
+`review_bucket`: bucket is a review-effort axis orthogonal to source, and
+`routine` on the one expected PATH note means "nothing to decide here", not
+"hide it". A health finding carries its severity on `headliners[]` rather than
+`relevancy[]`, so the band's row severity falls back to the headliners the
+same way `data-max-severity` does on the tool section.
+
+**The null-version rule also applies in `highlights[]`.** A health finding
+that scores high enough to be ranked renders its finding category label in the
+versions slot and drops the delta pill; without that it rendered
+`null → null` as "→ UNKNOWN".
+
 ## Keyboard Navigation
 
-Nice-to-have: `j`/`k` next/previous tool section (blue outline, scroll into
-view); `a`/`r`/`c` act on first undecided suggestion in focused tool
-(repeats cycle); `s` submit if ready; `f` cycle filter presets All →
-Incompatible → Relevant; `?` help overlay. Suppressed while typing in a
-textarea.
+The existing keys all keep working; the model generalizes from "focused tool
+section" to "focused item in the active tab", so `focusedIdx` is per-tab
+(`{overview: -1, tools: -1}`).
+
+| Key | Overview | All tools |
+|---|---|---|
+| `1` … `4` | switch tab (post-Submit the strip has four) | same |
+| `j` / `k` | next / previous Overview card — the mixed security cards, then the highlight cards | next / previous visible tool section (unchanged) |
+| `a` / `r` / `c` | act on the focused card's **first undecided mirror** | act on the focused tool's first undecided suggestion card (unchanged) |
+| `s` | Submit when enabled (unchanged) | same |
+| `f` | switch to All tools, then cycle the filter preset | cycle preset All → Incompatible → Relevant (unchanged) |
+| `g` | jump into the focused card's tool | — |
+| `Escape` | close modal / help | close modal / help; else back to Overview if you arrived by jump |
+| `?` | help overlay (unchanged) | same |
+
+On the Overview, "first undecided" is resolved against the **canonical cards**
+the mirrors point at, never against any state held on the mirror itself
+(§Decision State and Mirrors), and `j`/`k` skip any card parked in a collapsed
+overflow list — focusing one would move the ring nowhere visible. Focus is a
+blue outline plus
+`scrollIntoView({block: 'nearest'})`, the same treatment tool sections already
+had. Suppressed while typing in an `INPUT`/`TEXTAREA` and while any modifier
+is held; tab switching and `?` work in every phase, everything else defers to
+the Results view once it is active. The `?` overlay's table carries these rows
+under a "Tabs" grouping.
 
 ## Transition to Results View
 
@@ -296,9 +1004,62 @@ After Submit (or on page load if `feedback.json` was already submitted —
 `GET /status` returns 200), the page transitions into a Results view instead
 of the static success overlay described in §Submit Behavior above — this is
 the exact point where this doc hands off. Everything from here on (the
-Results panel layout, tab strip, action list, followups, polling, the
-pre-report loading page) is specified in full in `rendering-results.md`; it
-is not reproduced here.
+Results panel layout, action list, followups, polling, the pre-report loading
+page) is specified in full in `rendering-results.md`; it is not reproduced
+here.
+
+Three things about the transition belong on *this* side of the handoff,
+because they are consequences of the tab shell:
+
+- **The strip is rebuilt from the panel registry, not by replacing
+  `#progress-bar-container.innerHTML`.** `transitionToResults()` removes the
+  progress wrap, the auto-run toggle and the Submit button from the shell bar,
+  registers `results` and `changelog` in `PANELS`, re-renders the strip,
+  appends the right-aligned `#tab-status`, and selects `results`.
+- **The Overview survives as its own tab** rather than being replaced — it is
+  the summary of what was just approved, and the most useful thing to look at
+  while an apply runs.
+- **The Overview's mirror controls must be frozen explicitly.** They live
+  outside `#main`, so the existing freeze set
+  (`.btn-decision, .card-comment, .tool-note-textarea, #overall-comment`
+  inside `#main`) does not reach them: `#panel-overview .btn-d` and
+  `#panel-overview .acc-toggle` are disabled too, and `.report-frozen` is
+  added to `#panel-overview` as well as `#main`.
+
+`.report-frozen` is a blanket `opacity: 0.5; pointer-events: none`, and both
+panels then carve back out of it everything that is not a decision. The rule
+the carve-outs implement, stated once and specified control-by-control in
+`rendering-results.md` §View Transition: **a frozen report stays readable and
+navigable; only decision controls go inert.** It is the evidence the user
+reads while the apply runs, and the blanket rule inherits all the way down, so
+without the exceptions below it takes the whole report with it:
+
+- `#main` keeps full opacity and dims only `#tool-list` and
+  `#overall-section`, so the **filter bar, its hidden-count banner and the
+  filtered-empty state keep their pointer events** — §Filter Bar requires the
+  bar to stay interactive after Submit, and the blanket rule would otherwise
+  take it down with the list it sits inside.
+- **`#tool-list` gets its pointer events back wholesale** — dimmed, but live.
+  Left under the blanket rule it loses every collapse toggle, every copy
+  button and command chip, every changelog link, every embedded-excerpt
+  disclosure (§Link Click Behavior) *and* mouse text selection over the entire
+  report, for the rest of the page's life. It is restored as a block rather
+  than control-by-control on purpose: a whitelist of buttons leaves every run
+  of prose unhittable, and a report you cannot select a version string out of
+  is read-only in name only. The decision controls inside it — `.btn-decision`,
+  `.card-comment`, `.tool-note-textarea` — are killed again by their own rule,
+  deliberately redundant with the `disabled` attribute `transitionToResults()`
+  already set on them: a disabled control ignores clicks whatever its pointer
+  events, and the redundancy guarantees that restoring the list can never be
+  what makes a decision live again. `#overall-section` is *not* restored — it
+  holds nothing but the overall comment box, which is a decision.
+- `#panel-overview` restores pointer events on `.jump`, `.more`, `.tile`,
+  `.chip`, `.cmd`, `.band-head`, `.autostrip-head`, `.btn-bar-action` and the
+  proportion-bar segments — a list rather than a block, because this panel's
+  decision mirrors sit among its navigation controls. **The `.btn-bar-action`
+  entry is load-bearing**: it is what the two `show all N →` controls are, and
+  without it every card parked behind a cap (§Overview Tab → Overflow Lists)
+  would be unreachable for the rest of the page's life.
 
 ## Template Variables
 
@@ -328,13 +1089,15 @@ prematurely closing the `<script>` tag and corrupting the rest of the page.
 `rendering-results.md` §Markdown Rendering reuses this same escape-first
 discipline for agent-authored recap/changelog/turn text.
 
-Rendering is done in JS from `REPORT.tools[]`: sections carry `data-tool-id`
-and `data-max-severity` attributes; suggestion cards carry
-`data-suggestion-id` and `data-decision` (CSS attribute selectors drive
-visual state). Submit walks the DOM to build the feedback payload.
+Rendering is done in JS from `REPORT.tools[]`: sections carry `data-tool-id`,
+`data-name`, `data-source`, `data-max-severity`, `data-bucket`, `data-delta`
+and `data-sec`; suggestion cards carry `data-suggestion-id` and
+`data-decision` (CSS attribute selectors drive visual state); Overview mirrors
+carry `data-mirrors`/`data-mirror-dot` and deliberately carry *neither* of the
+suggestion-card attributes (§Decision State and Mirrors). Submit walks
+`#main`'s suggestion cards to build the feedback payload.
 
 Suggestion ids: `{source}:{name}:{slug}` — deterministic kebab-case slug of
 the action, never index-based, unique within the report (`-2`, `-3` suffix
 on collision). The session looks up accepted ids in its in-memory report to
 get `target_files`, `diff_preview`, `rationale` for the edit.
-</content>

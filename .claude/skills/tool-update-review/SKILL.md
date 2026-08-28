@@ -170,12 +170,16 @@ with versions only.
 ### 4. Assemble and render
 
 Run `scripts/assemble.py` to merge `collect.sh`'s output with every
-`research/*.json` file into the report object: it computes `summary`
-counts, ensures suggestion ids are unique, verifies evidence paths exist,
-assigns each tool a `risk_level`, applies a `needs_sudo` heuristic, and
-synthesizes a baseline `kind: "upgrade"` suggestion for every non-brew-health
-tool (research-authored `edit` suggestions are additional to this, never a
-replacement). Write `report.json` to the session dir, then:
+`research/*.json` file into the report object: it normalizes research's
+free-form arrays into schema shapes, ensures suggestion ids are unique,
+verifies evidence paths exist, applies a `needs_sudo` heuristic, synthesizes a
+baseline `kind: "upgrade"` suggestion for every non-brew-health tool
+(research-authored `edit` suggestions are additional to this, never a
+replacement), computes every derived triage field (`version_delta`,
+`security`, `risk_level`, `review_bucket`, per-suggestion `pre_accept`), ranks
+`highlights[]`, and computes the `summary` counts and rollups. Run
+`python3 scripts/test_assemble.py` after changing any of that. Write
+`report.json` to the session dir, then:
 
 ```sh
 python3 scripts/render.py /tmp/tool-update-review-{report_id}/report.json
