@@ -76,6 +76,9 @@ mechanism).
 		},                               // sum (17) == total_outdated + health_count
 		"security": {                    // §1.9
 			"cve_count":                9,   // size of the UNION of cve_ids across tools, never the sum
+			"severity_counts": {             // over that same union — never the sum of the per-tool counts
+				"critical": 1, "high": 2, "medium": 0, "low": 0, "unknown": 6
+			},                               // sum (9) == cve_count above
 			"tools_with_security":      6,
 			"auto_count":               2,   // == by_bucket.security_auto
 			"mixed_count":              4,   // == by_bucket.security_mixed
@@ -107,6 +110,8 @@ mechanism).
 			"tool_id":  "cask:google-chrome",
 			"title":    "google-chrome 150.0.7871.129 → 151.0.7922.174",
 			"why":      "Chrome 151 shipped 370 security fixes, 7 of them Critical…",   // ≤ 220 chars
+			"why_source": "relevancy_other", // which branch produced `why` (§1.11)
+			"why_ref":    "rel:0",           // string|null — the content item it came from
 			"severity": "warning",           // relevancy's vocabulary, so the page reuses one palette
 			"suggestion_ids": [               // every suggestion on the tool, in array order
 				"cask:google-chrome:upgrade",
@@ -152,14 +157,35 @@ invariants that hold instead.
 	// ── Risk assessment (assembly-computed — see §1.4 below) ────────────
 	"risk_level": "elevated",           // "low" | "elevated"
 
-	// ── Security content of this update (assembly-computed, §1.9) ───────
+	// ── Security content of this update (§1.9) ──────────────────────────
+	// Mixed provenance, and this is the first object in the report where that
+	// is true: cve_ids/cve_count/cve_claimed_count/has_security/security_only/
+	// impact/severity_counts are assembly-COMPUTED, while cve_severities and
+	// notable are research-SUPPLIED and assembly-validated. A consumer reads
+	// them all the same way; a writer must not.
 	"security": {
 		"cve_ids":           ["CVE-2026-9595", "CVE-2026-12143"],  // deduped, sorted by (year, sequence)
 		"cve_count":         2,          // ALWAYS len(cve_ids) — id-backed, never a claim
 		"cve_claimed_count": 33,         // int|null — the vendor's own largest stated count
 		"has_security":      true,
 		"security_only":     false,
-		"impact":            "possible"  // "none" | "possible" | "unknown"
+		"impact":            "possible", // "none" | "possible" | "unknown"
+		"severity_counts": {             // rolled up over cve_ids; sums to cve_count, always
+			"critical": 0, "high": 1, "medium": 0, "low": 0, "unknown": 1
+		},
+		"cve_severities": [              // the graded subset only; ids not here are `unknown`
+			{"cve_id": "CVE-2026-9595", "severity": "high", "basis": "vendor"}
+		],
+		"notable": [                     // ≤ 3; affects_me first, then worst. EMPTY IS THE COMMON CASE.
+			{
+				"cve_id":      "CVE-2026-9595",  // string|null when no CVE was assigned
+				"advisory_id": null,             // string|null — "wnpa-sec-2026-87", "TS-2026-011"
+				"severity":    "high",           // critical|high|medium|low|unknown — vocabulary UNCHANGED
+				"summary":     "Lands on the gh commands this machine pre-approves for agents.",
+				"affects_me":  true,             // a concrete touchpoint here — never auto-derived
+				"source_ref":  "rel:0"           // string|null — the item it restates (§1.11)
+			}
+		]
 	},
 
 	// ── Review effort (assembly-computed, §1.10) ────────────────────────
@@ -668,7 +694,15 @@ threshold of 40). `brew-health` findings always carry
 
 ### 1.9 `security` semantics
 
-Every Tool object carries a `security` object with all six keys present.
+Every Tool object carries a `security` object with eight keys always present,
+plus `notable` — the ninth — whose *presence* is itself information and which
+assembly emits only when it has an answer (see **`notable`: `[]` versus
+absent** below).
+Six are computed by assembly from the tool's own text; `cve_severities` and
+`notable` are supplied by research and validated by assembly;
+`severity_counts` is assembly's rollup of the first of those two. A consumer
+reads them uniformly — but a writer must not, and §1.2's jsonc block marks the
+split.
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -678,10 +712,18 @@ Every Tool object carries a `security` object with all six keys present.
 | `has_security` | bool | This release has security content. |
 | `security_only` | bool | Its substantive content is security/patch material and nothing else. |
 | `impact` | string | `"none"` \| `"possible"` \| `"unknown"` — does anything here touch *this* setup. |
+| `severity_counts` | object | `{critical, high, medium, low, unknown}`, all five keys always present as ints, over `cve_ids`. **Sums to `cve_count`, always** — never to `cve_claimed_count`. |
+| `cve_severities` | object[] | `{cve_id, severity, basis}` for the ids research actually graded — the *graded subset*, so an id absent here is `unknown`. Every `cve_id` resolves in `cve_ids`; sorted by `(year, sequence)`. |
+| `notable` | object[] | ≤ 3 security items worth showing inline, ordered `affects_me` first then worst severity (Ordering, below). **Empty is the common, correct case — and an absent key is not the same answer as an empty one.** |
 
 **Extraction scope.** CVE ids are scanned from `headliners[].text`,
-`relevancy[].summary`/`.detail`/`.motivating_change`, and `context[].title`/
-`.detail`. Deliberately excluded: `links[].embedded_content` and
+`relevancy[].summary`/`.detail`/`.motivating_change`, `context[].title`/
+`.detail`, and `security.notable[].cve_id`/`.summary` — the last pair because
+research selected those items from *this* range by construction, which is
+exactly the property the excluded fields lack. The **claim** scan is
+unchanged and does **not** include them: a notable summary reading "one of 28
+advisories" must not become a vendor claim of 28, which is the same trap the
+`context[]` exclusion exists for. Deliberately excluded: `links[].embedded_content` and
 `links[].url` (an unbounded changelog excerpt can cover releases outside the
 current→latest range, inflating the count with CVEs the user isn't being
 asked about), `suggestions[]` (derived text restating headliners), and
@@ -694,7 +736,9 @@ boundary: `references/assembly.md` §Security Extraction.
 
 **`has_security`** is true when any `headliners[]`/`relevancy[]` item has
 `category: "security"`, **or** `vendor_silent_categories` contains
-`"security"`, **or** any CVE id was extracted — and false unconditionally for
+`"security"`, **or** any CVE id was extracted, **or** `notable` is non-empty
+(a notable entry *is* security content, and a card carrying one whose security
+strip never rendered would be a lie) — and false unconditionally for
 `source: "brew-health"` (§1.10).
 
 **`security_only`** requires `has_security` *and* that research actually
@@ -726,6 +770,111 @@ Two "never" rules hold the whole thing up:
   turns any dump this machine restores into a shell-execution vector" is a
   reason to *take* the update, not a risk of taking it. Counting it as impact
   made the `security_auto` bucket permanently empty across a whole live run.
+
+**`severity_counts`** uses the CVSS qualitative bands
+(`critical|high|medium|low|unknown`), which are **not** relevancy's vocabulary
+— relevancy severity is "how much does this matter to this machine", CVE
+severity is "what did the issuer rate the flaw", and teamviewer's Linux-only
+CVSS 8.8 is the case that makes conflating them expensive. The sum invariant
+holds **by construction**, not by assertion: the rollup iterates `cve_ids` and
+every id lands in exactly one bucket, so an id research forgot to rate becomes
+`unknown` rather than a broken sum, and an id research rated but assembly
+never extracted is dropped with a warning rather than inflating the total.
+
+**`unknown` is a measured absence and routinely the majority.** Research
+grades only what the page it already read states, plus the ≤3 items it puts in
+`notable[]`; everything else is honestly `unknown`. On this run's text, 22 of
+99 ids carry a rating, and 24 of the 41 security-bearing tools have no
+extracted ids at all. A consumer must therefore render the *honest compact*
+form by default — ids count, graded count, and only the graded classes that
+are non-zero — and never fabricate a class to fill a meter. An all-`unknown`
+`severity_counts` is a correct report, not a broken one.
+
+**`cve_severities`** carries `basis ∈ vendor | nvd | cvss | unrated`, and a
+grade with no basis is read as `unknown`: a rating with no source is not a
+rating (`references/research.md` §CVE Severity Capture). It is keyed by CVE
+id, so a vendor-only advisory — wireshark's `wnpa-sec-*`, tailscale's `TS-`,
+teamviewer's `TV-` — never appears in it and never enters `severity_counts`;
+its severity rides on the `notable` entry instead. When two sources rate one
+id differently, assembly keeps the worse and warns; understating a severity is
+the failure mode with a cost.
+
+**`notable`** is the only security content a card shows inline. An item
+qualifies when its severity is `critical` (unconditionally); or `high` with a
+precondition this setup actually satisfies; or it is the subject of a
+`security`-category `relevancy[]` item at `notable`+, **with or without a
+CVE id** — which is what makes the 24 id-less tools representable; or it is
+being exploited in the wild.
+
+**Ordering: `affects_me: true` first, then worst severity, then the id's
+`(year, sequence)`, then id-less last.** Cap 3. Assembly re-sorts and re-caps
+by that key *after* validating every entry, so an over-long array loses its
+weakest entries rather than its last ones; a consumer should cap again rather
+than trust it.
+
+Two things about that key are deliberate, because the key both orders **and**
+evicts:
+
+- **`affects_me` outranks severity.** An entry with a concrete touchpoint here
+  is never evicted by a higher-rated one that misses this machine. R5's third
+  clause exists to surface id-less, ungraded, machine-touching flaws
+  (`brew:iproute2mac`'s never-assigned command injection is one of the two
+  most important security items in the recorded run) and severity-first
+  ordering evicted exactly those — three `low` CVEs nobody here can reach beat
+  it. Every entry cleared R5 on its own before it got here, so promoting one
+  cannot smuggle in a weak item.
+- **`unknown` sorts above `low`, not below it — and the `severity` vocabulary
+  is unchanged.** `critical|high|medium|low|unknown` is still exactly what
+  research may write and what a consumer must accept; only the *rank* moved.
+  Assembly keeps two rank maps for the one vocabulary and they disagree on
+  `unknown` on purpose: in `severity_counts`/`cve_severities` resolution
+  `unknown` means "no rating recorded" and must never beat a recorded one, so
+  it ranks lowest; on a `notable[]` entry it means "research selected this and
+  nobody published a grade", which is not evidence of a small flaw. A consumer
+  that re-sorts `notable[]` must use the second ordering, not the first.
+
+`affects_me` means a concrete touchpoint on this setup — a file, a service, a
+call site — and is **never derived** from the presence of a relevancy item: a
+third of one live run's security relevancy items exist precisely to say a fix
+does *not* reach this machine, and auto-deriving would invert every one of
+them. Assembly warns when `affects_me: true` has no security-category
+relevancy backing it, and warns only. It is a display flag on one item and has
+no relationship to `impact`, which is a bucket input (§1.9's second "never"
+rule).
+
+`source_ref` is the `"rel:{i}"` / `"hl:{i}"` identity of the
+`relevancy[]`/`headliners[]` item this entry restates, or `null`. It exists so
+the highlights de-duplication (§1.11) matches on a slot rather than on prose
+that `why`'s 220-char truncation may already have cut.
+
+`notable` is forced empty for `source: "brew-health"` and for a tool whose
+research failed or produced no headliners — the same doctrine as "No research
+⇒ never `security_only`", applied twice.
+
+**`notable`: `[]` versus absent.** These are two different answers and a
+consumer must keep them apart:
+
+- **`notable: []`** — the selection ran and nothing qualified. The card draws
+  its **single-column** variant: there is no security column, because an
+  empty one is a panel that says nothing.
+- **`notable` absent** — the question was never put to this tool, so there is
+  no answer to render. The consumer falls back to deriving the column from
+  the tool's own security content, exactly as it did before the field
+  existed.
+
+Assembly emits the key when it actually has an answer: research supplied a
+readable `security` block, **or** research supplied nothing at all
+(`research_error` / no headliners) and assembly forced `[]` under the
+doctrine above, **or** the tool is `brew-health`, where `[]` is likewise
+assembly's own decision. It omits the key for a research file that carried
+real content and no `security` block — such a file predates the field, and
+assembly must not answer "nothing here is notable" on its behalf. A block too
+drifted to read at its root (a bare string, a list, `null`) is not an answer
+either: the key is omitted and the consumer falls back, rather than reporting
+a silence research never uttered. **Emitting `[]` unconditionally is not a
+harmless default**: on the recorded run, whose 22 research files carry no
+`security` block at all, it deleted the security column from 77 of the 78
+cards.
 
 ### 1.10 `review_bucket` semantics
 
@@ -776,6 +925,13 @@ Object shape (all keys always present):
 - `title` — `"{name} {current_version} → {latest_version}"`, or just the
   finding's `name` for a `brew-health` tool, which has no versions.
 - `why` — one line, ≤ 220 chars, truncated on a word boundary with `…`.
+- `why_source` — which branch of the fixed order produced `why`:
+  `relevancy_security` | `relevancy_other` | `config_status` |
+  `research_error` | `headliner_security` | `headliner_other` | `major_bump` |
+  `none`. Provenance, not styling: a page may ignore it.
+- `why_ref` — the `"rel:{i}"` / `"hl:{i}"` identity of the content item `why`
+  came from, or `null` for the branches that synthesize their own text. It is
+  the other half of `security.notable[].source_ref` (§1.9).
 - `severity` — max severity across `headliners + relevancy`, in relevancy's
   vocabulary so the page reuses one palette. With no items at all:
   `needs_attention` → `"warning"`; `research_error` or a `major`/`unknown`
@@ -795,6 +951,17 @@ qualifies alone (this is what keeps Chrome/Firefox/gcloud's rolling majors
 out of highlights while leaving them counted in `summary.by_delta.major`);
 and `security_auto` contributes nothing, being by definition the bucket that
 needs no decision.
+
+**No highlight restates its own tool's security card.** When a candidate's
+`why_ref` matches a `source_ref` in that tool's `security.notable[]`, the
+**highlight** yields — it is dropped and the slot is backfilled from the next
+ranked candidate, so the section still carries up to 8 *distinct* decision
+drivers. The security card keeps the sentence, because on the tools where this
+fires it is usually the single most important line on the card
+(`cask:windows-app`'s RDP-client RCE, `brew:gh`'s pre-approved-command reach).
+The match is structural on both sides for a reason: `why` is already
+truncated, so a string comparison against it fails silently on any summary
+longer than 220 chars.
 
 `highlights` is agent-independent but not authoritative about what *blocks
 Submit* — the page recomputes the blocking set live from undecided

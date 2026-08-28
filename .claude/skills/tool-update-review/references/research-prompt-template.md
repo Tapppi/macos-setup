@@ -51,18 +51,25 @@ Audit trail to check for config_status and watch items (`references/research.md`
 
 Follow references/research.md's full research quality bar — headliner atomicity
 and category/severity classification, relevancy vs context vs
-release_inventory vs filler, the vendor-silent compact-tag exception, link
-quality and the embedded_content fallback, config_status and watch-item
-cross-referencing (reading *and*, rarely, proposing a new one — see
-`references/research.md` §Watch Items (Proposing)), bespoke tasks/*.sh setup
-handling (see `references/research.md` §Bespoke `tasks/*.sh` Setup Testing)
+release_inventory vs filler, the noise floor's eight classes and its hard
+deletion boundary, CVE severity capture (`basis`, the fetch budget, never
+deriving a severity from how a description reads) and selecting `notable[]`
+(cap 3, `affects_me` set from the direction of your own finding), the
+vendor-silent compact-tag exception, link quality and the embedded_content
+fallback, config_status and watch-item cross-referencing (reading *and*,
+rarely, proposing a new one — see `references/research.md` §Watch Items
+(Proposing)), bespoke tasks/*.sh setup handling (see
+`references/research.md` §Bespoke `tasks/*.sh` Setup Testing)
 — read it before you start, not after. Hold yourself to the exact schema
 shapes in `references/schemas.md` (headliners as {text,category,severity}
 objects, relevancy items with category+severity+motivating_change, evidence
-always an array, suggestions using
-title/target_files/rationale/motivating_link/diff_preview, and a proposed
-watch item using `kind: "watch-item"` with `watch_topic`/`watch_note`
-instead — §1.7)
+always an array, `security.cve_severities` as {cve_id,severity,basis} and
+`security.notable` as {cve_id,advisory_id,severity,summary,affects_me} (§1.9) —
+written even when nothing qualifies, as `[]`, since an omitted block and an
+empty one mean different things to the card,
+suggestions using title/target_files/rationale/motivating_link/diff_preview,
+and a proposed watch item using `kind: "watch-item"` with
+`watch_topic`/`watch_note` instead — §1.7)
 — loose shapes force hand-normalization during assembly.
 
 Write your findings as a JSON array to {{OUTPUT_PATH}} using the Write

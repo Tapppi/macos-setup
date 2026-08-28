@@ -25,15 +25,19 @@ Table of contents:
 - Part 2 — Subagent Quality Bar
   - Headliners
   - Category vs. Severity — Independent Axes
+  - CVE Severity Capture
+  - Selecting Notable Security Items
   - Links
   - Relevancy Is the Point
   - Classify Non-Changelog Findings Correctly
   - Don't Author "I Checked, Found Nothing"
+  - The Noise Floor
+  - Current → Target Is the Only Frame
   - Suggestions Are Always `kind: "edit"`
   - Config Status
   - Watch Items (Reading)
   - Watch Items (Proposing)
-  - Deduplicate Facts
+  - Deduplicate Facts (Across Arrays, and Within One)
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
   - Schema Strictness
@@ -182,6 +186,10 @@ assert_matches!/Copy-range-types, plus fixed two Cargo CVEs" got filed
 entirely under Security — the macro/feature content never showed up under
 Features at all). Split first, classify each resulting item independently;
 both can cite the same source link since they came from the same release.
+**The ≤6 budget is per tool, not per changelog section** — seen this run,
+`cask:gcloud-cli` spent five of its six `notes` slots on one deprecation
+family, leaving no room for an answer to "does anything I run break" (§The
+Noise Floor, N8).
 
 ### Category vs. Severity — Independent Axes
 
@@ -201,6 +209,179 @@ per-item priority, not moved category. For contrast, yt-dlp's "Minimum
 recommended Python raised to 3.11, Node to v22..." is a correctly-placed
 Notes item — genuine compatibility/requirements info that isn't
 Security/Fixes/Features by topic at all.
+
+### CVE Severity Capture
+
+The card shows `security.cve_ids` as a count, not a list — the user's own
+words, "no need to list the CVEs in per-tool, we need to trim those down to
+allow faster review". What replaces the list is a severity breakdown, and a
+breakdown assembly cannot compute on its own: it has no network and no
+advisory database. So research supplies the per-id ratings it read, in a
+`security.cve_severities` array of `{cve_id, severity, basis}`
+(`references/schemas.md` §1.9), and assembly rolls them up into
+`security.severity_counts`.
+
+**`severity` is `critical | high | medium | low | unknown`** — the CVSS
+qualitative bands, because every source below already speaks them. **This is
+deliberately not `relevancy[]`'s vocabulary.** Relevancy severity answers "how
+much does this matter to *this* machine"; CVE severity answers "what did the
+issuer rate the flaw". Seen this run: teamviewer's `CVE-2026-19042` carries
+CVSS 8.8 and is Linux-client-only, so it is `high` and irrelevant at the same
+time. Collapsing the two axes is how that item would have read as the most
+urgent thing on a macOS card.
+
+**`basis` is `vendor | nvd | cvss | unrated`** — where the rating came from.
+`cvss` means you banded a numeric score the source published (≥9.0 critical,
+7.0–8.9 high, 4.0–6.9 medium, 0.1–3.9 low); `unrated` means nobody published
+one. Assembly reads a grade with no basis as `unknown`, because a rating with
+no source is not a rating.
+
+**Where the severity comes from, in priority order:**
+
+1. **The page you already fetched for the headliners.** Free, so do it for
+   every id you see. Vendors publish ratings inline far more often than it
+   feels: Chrome's release blog tags each entry (`[$25000][…] Critical
+   CVE-…`), Firefox's MFSA lists an impact per advisory, Node's
+   security-release post lists a severity per CVE, MSRC gives a CVSS per CVE
+   (this run has 10.0 / 9.6 / 8.8 / 7.5 for `cask:microsoft-teams`, all from
+   one page), and PostgreSQL's advisory index gives CVSS for `brew:libpq`.
+2. **The vendor's own advisory page**, when the release notes list bare ids.
+3. **NVD**, when the vendor published no rating at all — and expect a dead end
+   as often as not: NVD analysis lags disclosure by days to weeks, so a CVE
+   published this month frequently has no score yet.
+4. **Nothing.** Record `unknown`/`unrated`. This is a correct outcome, not a
+   failure.
+
+**Never derive a severity from how the description reads.** "Remote code
+execution" is not evidence of `critical`, and "memory leak" is not evidence of
+`low`. This is the same doctrine as §Links' "confirm you actually fetched the
+page you're linking" and assembly's `cve_count`-vs-`cve_claimed_count` split:
+the report never carries a number it cannot attach to a source.
+
+**The fetch budget, because a tool with 18 ids cannot have 18 advisories
+fetched.** This run's real distribution — `cask:google-chrome` 18 ids,
+`cask:firefox` 14, `mise:node` 12, `brew:rsync` 10, `mise:go` 10,
+`brew:nmap` 6, `brew:gh` 5, `brew:libpq` 4, everything else ≤4; 99 ids across
+41 tools. So: **rate free from the page you already read, for every id; then
+at most 3 extra fetches per tool** (per tool, not per batch), spent on the ids
+going into `notable[]` — and on nothing else. Every other id is `unknown`.
+"The vendor's prose singles this one out" is not a fourth budget: an id worth
+a fetch on that basis is an id that belongs in `notable[]`, so decide that
+first and let the budget follow.
+
+**`unknown` dominating is the expected state, not a degraded one.** Measured
+on this run's text: 22 of 99 ids carry a rating the research had already read,
+and 24 of the 41 security-bearing tools have no extracted ids at all. The page
+is built for that: it shows the ids count, the graded count, and only the
+graded classes that are non-zero. A subagent that fetched 18 Chrome advisories
+to avoid an `unknown: 14` cell spent the run's budget on the number least
+likely to change a decision — the reviewer is taking Chrome either way.
+
+**Never rate an advisory that has no CVE.** `cve_severities` is keyed by CVE
+id and feeds a count of `cve_ids`; a vendor-only advisory has no id to key
+(this run: wireshark's 28 `wnpa-sec-*`, tailscale's `TS-2026-011`,
+teamviewer's `TV-2026-1009`, and iproute2mac's command-injection fix, which
+was never assigned one at all). Those carry their severity on the
+`notable[]` entry instead, with `cve_id: null` and the vendor's id in
+`advisory_id`.
+
+Shape and validation: `references/schemas.md` §1.9; the rollup and its sum
+invariant: `references/assembly.md` §Severity Rollup and the Sum Invariant.
+
+### Selecting Notable Security Items
+
+`security.notable[]` is the **only** security content shown inline on a tool's
+card. Everything else is compressed into the severity strip and a detail list
+that is collapsed by default. So the predicate has to be tight enough that two
+subagents pick the same ≤3 items.
+
+**An item qualifies when any of these holds:**
+
+- its `severity` is `critical` — unconditionally;
+- its `severity` is `high` **and** the flaw's precondition is something this
+  setup actually does (a network-facing service, untrusted input this machine
+  processes, code running as this user);
+- it is the subject of a `security`-category `relevancy[]` item at `notable`
+  or worse — **whether or not it names a CVE**. This clause is what makes the
+  24 tools with no extracted ids representable at all: `brew:iproute2mac`'s
+  reproduced command injection and `cask:wireshark-app`'s
+  `wnpa-sec-2026-87` are the two most important security items in this run
+  and neither has a CVE id;
+- the vendor or CISA reports in-the-wild exploitation, or it is a zero-day —
+  regardless of severity, because this is the one class where the reviewer's
+  *timing* changes.
+
+**Cap 3, ordered `affects_me: true` first**, then worst severity, then the CVE
+id's `(year, sequence)`, then an id-less entry last. Assembly re-sorts and
+re-caps by exactly this key *after* validating every entry, so an over-long
+array loses its weakest entries rather than its last ones — write your
+strongest item wherever it falls naturally.
+
+`affects_me` outranks severity because the key evicts as well as orders, and
+an ungraded item is not a weak one: `unknown` ranks above `low`, not below it.
+The third clause above is what makes that matter — `brew:iproute2mac`'s
+never-assigned command injection is id-less, ungraded and lands on a wrapper
+this machine runs, and severity-first ordering let three unreachable `low`
+CVEs push it off the card entirely. The `severity` vocabulary is unchanged
+(`critical|high|medium|low|unknown`); only the rank moved.
+
+**Empty is the common, correct result — do not pad to three.** This is the
+rule that does the actual shrinking: a tool with six medium CVEs and no
+touchpoint gets `notable: []` and renders as a severity strip with a single
+column of changes, which is exactly the layout the user asked for. Seen this
+run: `brew:redis` (its own `context[]` says "all nine of 8.10.1's fixes are
+server-side") and `brew:nmap` (six bundled-libssh2 CVEs, no touchpoint) are
+both correctly empty. On the projected run, 24 of the 41 security-bearing
+tools come out empty.
+
+**`affects_me` is a direction, and you set it explicitly.** It means a
+concrete touchpoint on this setup — a file, a service, a call site, a running
+process — in the same evidentiary sense `relevancy[]` demands. "The tool is
+installed" is not a touchpoint; if it were, the flag would be true everywhere
+and carry no information.
+
+The trap is assuming that a security item *with* a relevancy finding is
+therefore `affects_me: true`. **It is not.** A third of this run's
+security-category relevancy items exist precisely to say the fix does *not*
+reach this machine: openssh's sshd fix landing on Apple's `/usr/sbin/sshd`
+rather than Homebrew's, `cask:microsoft-teams`' patch that "carries no
+security benefit here", `brew:fd`'s terminal-gated sanitization,
+`mise:python`'s own bundled expat, `brew:rsync`'s rrsync/nixpkgs split. Those
+are **`affects_me: false` and still worth writing** — a negative-direction
+finding is the answer to a question the reviewer would otherwise have to ask,
+and it may still be `notable` if its severity qualifies. Read the direction of
+your own finding and set the flag from it.
+
+The converse does hold: if you can point at the touchpoint, you owe a
+`relevancy[]` item too — they are the same claim. Assembly warns when
+`affects_me: true` has no security-category relevancy backing it, and warns
+only: it never sets or clears the flag for you.
+
+**`affects_me` does not change `security.impact`.** `impact` is a bucket
+input; `affects_me` is a display flag on one item. A security-category
+relevancy is a reason to *take* the update, not a risk of taking it — treating
+it as impact emptied the `security_auto` bucket across a whole live run
+(`references/assembly.md` §`impact`). Nothing here touches that.
+
+**Worked selections from this run:**
+
+| Tool | ids | `notable[]` | Why |
+|---|---:|---|---|
+| `brew:libpq` | 4 (28 claimed) | 3 — `CVE-2026-18408`, `CVE-2026-19385`, `CVE-2026-6464` | its `context[]` already says 3 of 28 land in code this machine runs, and those are the three; the fourth id is server-side |
+| `brew:gh` | 5 | 1 — `CVE-2026-64654` | it "lands directly on gh commands this machine pre-approves for agents"; the other four are real and untouched here |
+| `brew:iproute2mac` | 0 | 1 — `cve_id: null`, `advisory_id: null` | the installed 1.7.4 executes injected shell commands, reproduced on this machine. The run's best example of a `notable` with no id at all |
+| `cask:teamviewer` | 3 | 2 — `CVE-2026-12703`, `CVE-2026-16444`, **not** `CVE-2026-19042` | the highest CVSS on the card is the Linux-only one. It stays on the card as a low-priority item and must never be promoted |
+
+That last row is the whole rule in one line.
+
+**Write the `security` block even when nothing qualifies — `"notable": []`.**
+An empty array and a missing key are different answers to the card
+(`references/schemas.md` §1.9): `[]` says you looked and nothing rose to the
+bar, and the card drops its security column rather than drawing an empty one;
+a missing key says the question was never put, and assembly makes the card
+fall back to listing every security sentence the run produced. Omitting the
+block on a tool you did assess therefore ships the noisy card the whole
+selection exists to replace.
 
 ### Links
 
@@ -288,6 +469,217 @@ this run: Slack's research produced two redundant SECURITY bullets citing
 the identical release-notes link, one restating the vendor's non-answer and
 one explicitly noting the vendor doesn't publish detail — should have been
 one compact tag.
+
+### The Noise Floor
+
+78 tools and 106 decisions in one run. Attention spent on a fact that cannot
+change a decision is attention taken from one that can, so:
+
+> **A fact earns a line only if a reviewer who believed the opposite would
+> decide differently.** Everything else is research you did, not information
+> the reviewer needs.
+
+Two corollaries. The first keeps the rule from over-firing; the second keeps
+it from changing a decision it has no business changing.
+
+**Route, trim or merge before you cut.** Most of what follows is not deletion
+— it is relocation into `release_inventory[]` (which releases exist) or
+`context[]` (what is true of this machine), or a trimmed clause on a bullet
+that keeps its load-bearing half, or two near-identical bullets becoming one.
+
+**Deletion has a hard boundary, and it is not editorial.** `security_only` is
+an `all()` over `headliners + relevancy`; `impact` and `risk_level` are
+`any()`s over the same items; `has_security` reads the security category and
+the CVE ids. All four feed `review_bucket` and then `pre_accept`, so a
+deletion can *approve an update*. Concretely: cut the last `security` item and
+the tool falls out of the security buckets into `routine`; cut the last
+`features` item and it walks the other way, from `security_mixed` into
+`security_auto`, and pre-accepts itself. **Delete only these, and only when
+the text carries no CVE id, no "fixes N CVEs" claim and no `Watch item hit:`,
+and never the tool's last headliner:**
+
+| Array | Deletable pairs |
+|---|---|
+| `headliners[]` | `fixes/info`, `fixes/notable`, `notes/info` |
+| `relevancy[]` | `fixes/info`, `notes/info` |
+
+**A `security`-category item is never deletable as noise, at any severity.**
+The only rule that may remove one is the dedup rule below, and only against
+another security item on the same tool. Everything the user named as noise is
+non-security by category, so this costs nothing.
+
+If the noise floor tells you to delete something outside that table, it is
+telling you the item's category or severity is wrong, not that the item should
+go. A cadence note filed `notes/notable` is a mis-rating — nothing that cannot
+change a decision is `notable`. A performance bullet filed `features/info` is
+a bullet to **trim**, because `features` is precisely the signal that says
+"this release is more than patches". The boundary is encoded as
+`noise_suppressible()` in `scripts/assemble.py`, and
+`scripts/test_assemble.py` §6 asserts the property it exists for: deleting
+every suppressible item on a tool moves no `review_bucket` and no
+`pre_accept`.
+
+Eight classes. N1–N4 are the ones the user named. Every one carries a
+**near-miss** — a real item from this run that looks like the class and must
+survive it. A class whose near-miss you cannot state is a class you are not
+ready to apply.
+
+**N1 — Release cadence and publication process.** Facts about *when and how
+the vendor published*: build numbers of releases you are not taking,
+patch-Tuesday chronology, "there is no 8.9", "18.5 was pulled", tag-vs-release
+bookkeeping, contributor counts. Seen this run, in `brew:libpq`'s `notes`:
+*"PostgreSQL 18.5 was never shipped — the project pulled it over a regression
+and went straight from 18.4 to 18.6."* Genuinely interesting to someone
+reading advisory metadata, and useless here: the reviewer is on 18.4 going to
+18.6, and there is no version choice for the fact to inform. Trim rather than
+cut when a bullet is part cadence — `mise:python`'s *"the seventh 3.14
+maintenance release — around 499 bugfixes … from 86 contributors … with no API
+or ABI changes"* is one load-bearing clause and three ornaments.
+**Near-miss:** cadence about the release you are *moving to* is a decision
+input — `cask:windows-app`'s *"11.4.0 has no published release notes yet, so
+its contents are undocumented"* is why that tool is in `attention` rather than
+waved through, and `brew:mpv`'s *"No upstream mpv release exists in this range
+… both steps are Homebrew revisions"* is the entire changelog for its update.
+The discriminator: does the sentence describe the release you are moving to
+(keep), or the sequence behind it (cut)?
+
+**N2 — Regressions in versions you step over.** A defect introduced *after*
+`current_version` and fixed at or before `latest_version` is invisible to this
+upgrade. Seen this run, `brew:pkgconf`'s `relevancy`: *"Going 3.0.3 → 3.0.6
+steps over 3.0.4's parse-time unescaping…"* — whose own detail text ends by
+admitting the point, *"this host never runs the 3.0.4-only behavior"*. It
+spent a relevancy slot and pushed the tool's `why` line. See §Current → Target
+Is the Only Frame for the general rule and the one carve-out. **Near-miss:**
+`brew:sops`' MAC-computation regression looks identical in shape and is the
+opposite, because 3.13.2 *is the installed version* — the regression is live
+right now and the upgrade is the fix.
+
+**N3 — Performance micro-details.** A speed or memory number is a fact only
+when it crosses a threshold the reviewer would act on. Seen this run, in
+`brew:fzf`'s `features`: *"0.74.3 optimizes non-ASCII input: reading accented
+Latin input up to 37% faster and CJK input using up to 29% less memory."* —
+while the same tool's `context[]` already says *"ffv/rfv run fzf with the
+matcher disabled, so neither release's speedups reach them"*. Nobody declines
+an upgrade because it got faster. **Near-miss:** a defect with an observable
+symptom is not an optimisation (`cask:yaak`'s *"constant high CPU usage while
+idle"*), and a step change is a fact in its own right (`brew:pkgconf`'s
+*"roughly six times faster … on a ~40-module graph"*). A workable bright line:
+an order of magnitude, on something you invoke repeatedly. 6× clears it; 37%
+does not. Remember these are `features` items, so the move is to trim to the
+load-bearing clause, not to delete.
+
+**N4 — Project-internal conventions, process, docs, packaging.** How the
+project runs itself is not a change in the software you run. Seen this run,
+`brew:yt-dlp`'s `notes`: *"Build: PyInstaller temporarily pinned to v6.22.0
+(#17478) and 38 dependencies updated across two PRs. Affects the released
+binaries' build, not the Homebrew formula this host installs."* A bullet that
+concludes with its own irrelevance should not have been written. **Near-miss:**
+a convention that changes how the reviewer reads the *rest* of the card stays
+— `brew:iproute2mac`'s *"No CVE was assigned — the maintainer judged the issue
+not major enough … so this fix will never surface in a vulnerability feed"*
+tells the reviewer not to read an absent CVE as absent risk, on a card whose
+`cve_count` is 0 and whose command injection was reproduced on this machine.
+The discriminator: would the fact still be true under a different maintainer,
+licence, docs toolchain or CI? Then it is about the project, not the software.
+
+**N5 — Dependency-bump inventory with no stated effect.** A list of bumped
+versions is inventory. Seen this run, `brew:azcopy`'s `notes`:
+*"golang.org/x/crypto → v0.54.0, golang.org/x/net → v0.57.0 … (routine
+dependency refresh; the vendor does not flag any of them as an advisory
+fix)"* — self-refuting in its own parenthesis. It becomes a fact when it names
+an advisory (`brew:helm`'s *"Bumped google.golang.org/grpc to v1.82.1 to
+address GO-2026-6061"*), crosses a boundary that changes what you run
+(`cask:podman-desktop`'s Electron 42→43 Chromium major; `mise:bun`'s
+*"NODE_MODULE_VERSION becomes 147, so every native addon … has to be
+rebuilt"*), or *is* the release (`brew:mpv`'s ffmpeg 9.0 relink, which makes
+mpv's card and ffmpeg's card one decision).
+
+**N6 — Changes that do not reach this platform.** An item whose own text
+scopes it to Windows, Linux, s390, or a server component of a client-only
+install is not a change here. Seen this run, `cask:codex`'s `security`:
+*"0.148.0 makes sandbox restrictions fail closed for denied or unreadable
+paths **on Linux and Windows** …"* — a security headliner on a macOS-only
+fleet. **Near-miss, and this is the important half:** when the item carries a
+CVE, a CVSS or a scary name a reviewer might meet elsewhere, the scoping *is*
+the finding. `cask:teamviewer`'s *"CVE-2026-19042 (CVSS 8.8) … is
+Linux-client-only and does not affect the macOS builds"* must stay — and must
+never be promoted into `notable[]`. Its aggregate form belongs in `context[]`,
+which is where `brew:libpq`'s *"Client-only install: 3 of the 28 CVEs land in
+code this machine runs, 25 do not"* correctly sits — the single most useful
+line on that card. Note that under the boundary above, a `security`-category
+platform-scoped item is trimmed (drop the Windows clause), never deleted.
+
+**N7 — Vacuous items and narrated due diligence.** §Don't Author "I Checked,
+Found Nothing" forbids the pure case; two mutations slipped past it this run.
+(a) A bullet whose whole content is "nothing notable" is still filler when it
+names where you looked: `brew:gcc`'s *"Upstream itemizes nothing in the
+announcement — the per-release fixed-PR list lives in the GCC 16 changes
+page's 16.2 section…"* documents your navigation of GCC's website. (b) A
+bullet with no concrete subject ("internal code cleanups", "various
+improvements") carries no fact. **Near-miss:** the same tool's *"16.2.0 is a
+bug-fix-only release from the GCC 16 branch: more than 102 regressions and
+serious bugs fixed since 16.1.0, with no new features"* is a real
+characterisation of the target, and the number is a scale cue. The
+discriminator: the keeper says what the release **is**; the cut says what you
+**did**.
+
+**N8 — One change spent as many bullets.** The ≤6 headliner budget is per
+tool, not per changelog section. Seen this run, `cask:gcloud-cli` spends
+**five** of six `notes` bullets on one theme — the retirement of the
+`api-registry mcp` / `beta services mcp` surfaces across 577–582 — so its six
+slots contain no answer to "does anything I run break". One bullet carries the
+same decision. **Near-miss:** `cask:tor-browser`'s two `security` bullets are
+identical in shape and different in content — two distinct ESR rebases
+carrying two distinct MFSA sets. N8 fires on redundancy, not on symmetry.
+
+### Current → Target Is the Only Frame
+
+The general rule behind N2, stated once so the rest of the bar can point at
+it.
+
+> Every finding is a statement about the difference between the version
+> installed **now** and the version this update would install. Nothing else in
+> the release history is a finding.
+
+For `current = C`, `target = T`, and an intermediate `I` with `C < I < T`:
+
+| Situation | Verdict | Why |
+|---|---|---|
+| Behaviour introduced at or before `C`, changed by `T` | **keep** | you have it now, you won't after |
+| Behaviour introduced after `C`, still present at `T` | **keep** | new to you |
+| Defect introduced at `I`, fixed at or before `T` | **cut** | never on this machine |
+| Behaviour added at `I` and removed by `T` | **cut** | end state equals start state |
+| Defect introduced at or before `C`, fixed at `I` | **keep** | live right now; the fix is the reason to upgrade |
+| Defect present at `T`, no fix yet | **keep** | you are taking it |
+
+Row four is subtler than it looks and produced this run's most misleading
+item: `cask:obsidian`'s *"The `obsidian://` confirmation dialog added in
+1.13.0 was removed again in 1.13.6, so the `to` alias steps over the gate
+entirely"*, filed as a **security** relevancy. A gate added and removed inside
+the range leaves the end state identical to the start state — the finding
+manufactured a security item out of a no-op.
+
+**Never write "going straight to X skips Y", "do not stop at Y", or "steps
+over Y's regression".** The reviewer is not choosing an intermediate version;
+the card offers exactly one target. All three phrasings appear in this run and
+all three are cuts. Equally: do not reconstruct intermediate history to
+explain a net-zero — if the reconstruction ends "so nothing changes here", it
+was not a finding. (A *pin* that would stop at an intermediate is a different
+thing: that is a relevancy finding about the pin, and the target is then the
+pinned version — see §Pinned Tools.)
+
+**The one carve-out: MAJOR security in an intermediate.** An intermediate
+security issue answers a different question — not "what changes" but "what was
+I exposed to while I sat on `C`" — so it is worth a line. It qualifies only if
+it meets **both** tests: severity `critical`, or `high` with a published CVSS
+≥ 7.0 (§CVE Severity Capture's recorded value, not an impression); **and** the
+exposure required something this setup actually does, evidenced as concretely
+as `relevancy[]` demands. A critical CVE in a code path this machine never
+enters is still a cut. Frame it explicitly as exposure, and keep it out of
+`security.notable[]`, which is about what this patch delivers. **No item in
+this entire run cleared that bar**, which is the expected frequency: a run
+where several items claim the carve-out is a run where the bar is being read
+too loosely.
 
 ### Suggestions Are Always `kind: "edit"`
 
@@ -466,7 +858,7 @@ yourself from research. At most one or two per run across the whole
 candidate set is the expected volume — if you're proposing one for most
 tools you research, you're almost certainly over-applying this.
 
-### Deduplicate Facts
+### Deduplicate Facts (Across Arrays, and Within One)
 
 **Deduplicate facts across headliners and relevancy for the same tool
 before returning.** It's easy to restate one underlying change twice — once
@@ -481,6 +873,55 @@ actionable placement — and drop or trim the headliner rather than shipping
 both. Do this self-check every time rather than assuming it won't happen;
 it happens by default when a change is both changelog-worthy and relevant
 to this setup.
+
+**The other axis: two headliners inside one tool restating one change.** The
+canonical pair, seen this run in `cask:1password-cli`, both `features/info`,
+both citing 2.38.1:
+
+> Reading an item with `op read` or `op item get` uses one fewer network
+> round-trip (2.38.1)
+>
+> Resolving an item or vault by name uses one fewer round-trip across
+> `op read`, `op item get`, `op item list` and `op vault get` (2.38.1)
+
+Same release, same mechanism, overlapping command set — two of six headliner
+slots on one optimisation. `brew:yq` did the same with two adjacent
+enumerations of 4.53.4's bugfix list.
+
+Run this as a bounded mechanical pass once both arrays are drafted, not as
+"be careful" — "I'll notice if it happens" is exactly what failed this run:
+
+1. **Key every item.** For each entry in `headliners + relevancy`, write a
+   three-part key in your reasoning: *(the release or version it cites, the
+   subject it changes as a noun phrase, the direction of the change)*. The
+   1Password pair keys as `(2.38.1, item/vault resolution, fewer
+   round-trips)` — twice.
+2. **Compare every pair.** ≤6 headliners plus typically ≤5 relevancy items is
+   ≤55 pairs; cheap and finite. Two items are candidates when they share the
+   **version** *and* the **subject**. Direction alone is not enough.
+3. **Apply the reader test.** Would a reader who had seen only item A ask a
+   question item B answers? If no, they are one item.
+4. **Merge, do not drop.** The survivor keeps the union of the specifics — the
+   1Password pair merges to one bullet naming all four commands. Merging is
+   also the safe move mechanically: it keeps the surviving item's category and
+   severity, so it cannot move a bucket the way a deletion can (§The Noise
+   Floor).
+5. **Re-run the budget.** A merge frees a slot; spend it on something not yet
+   covered, or ship five bullets. Do not backfill with an N1–N8 item to get
+   back to six.
+
+Two boundaries. The **version conjunction in step 2 is load-bearing**:
+`cask:tor-browser`'s two `security` bullets share subject and direction but
+name different releases (15.0.19 → ESR 140.13, 15.0.20 → ESR 140.14) carrying
+different MFSA sets, and a subject-only match would have merged two distinct
+security stories into one line. And **cross-tool duplication is not
+duplication**: `cask:brave-browser` restates `cask:google-chrome`'s Chromium
+numbers word for word and both must stay — two separate decisions on two
+separate casks. The rule is scoped to one tool, always.
+
+Within `security.notable[]` the same rule is the *only* thing allowed to
+remove a security item: two entries describing one advisory become one, and
+nothing else about a security item is ever cut for length (§The Noise Floor).
 
 ### Scope-vs-Changelog Separation
 
@@ -549,13 +990,17 @@ command for this tool is safely testable at all, which should be rare.
 
 **Hold yourself to the exact schema shapes** (spelled out in the research
 prompt): `evidence` is always an array, suggestions always use
-`title`/`target_files`/`rationale`/`motivating_link`/`diff_preview`. Loose
+`title`/`target_files`/`rationale`/`motivating_link`/`diff_preview`, and the
+security block is `security.cve_severities[{cve_id, severity, basis}]` plus
+`security.notable[{cve_id, advisory_id, severity, summary, affects_me}]`
+(`references/schemas.md` §1.9). Loose
 shapes (bare strings, ad-hoc `description` fields) force hand
 normalization during assembly and have caused real rework.
 
 **Assembly tolerates a drifted shape; that does not make it acceptable.**
 Every array the schema declares — `headliners`, `links`, `relevancy`,
-`context`, `release_inventory`, `suggestions`, `vendor_silent_categories` — is
+`context`, `release_inventory`, `suggestions`, `vendor_silent_categories`, and
+the `security` block's `cve_severities`/`notable` — is
 coerced at the boundary by `as_item_list()` (`references/assembly.md`
 §Loading and Merging → Shape Normalization): a non-list becomes `[]`, a
 wrong-typed member is dropped, and each case prints a warning naming the tool

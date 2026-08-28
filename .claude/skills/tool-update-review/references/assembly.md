@@ -379,9 +379,19 @@ CVE ids are scanned from exactly:
 - `headliners[].text`
 - `relevancy[].summary`, `.detail`, `.motivating_change`
 - `context[].title`, `.detail`
+- `security.notable[].cve_id`, `.summary`
 
 and the **claim** scan (`cve_claimed_count`) from the same set **minus
-`context[]`**.
+`context[]` and minus `security.notable[]`**.
+
+| Newly scanned | Why it is in scope |
+|---|---|
+| `security.notable[].cve_id` | A literal id field, taken as-is rather than regexed. Research selected the entry from this current→latest range by construction — the exact property `links[].embedded_content` lacks, which is why that one stays out. It is also what makes the mismatch warning in §Validating Research's `notable` effectively unreachable: any well-formed id there is in `cve_ids` because this scan put it there. |
+| `security.notable[].summary` | One short line research wrote about this range; same in-range guarantee, regex-scanned like the other prose fields. This is the fix for the 24 security-bearing tools in the live run whose ids appear nowhere a narrower scan would look. |
+
+The **claim** scan is deliberately *not* extended: a notable summary reading
+"one of 28 advisories" must not be read as a vendor claim of 28 — the same
+trap the `context[]` exclusion exists for.
 
 | Excluded field | Why |
 |---|---|
@@ -390,6 +400,7 @@ and the **claim** scan (`cve_claimed_count`) from the same set **minus
 | `suggestions[].title`/`.rationale` | Derived text restating headliners: doubles the false-positive surface and changes no result. |
 | `config_status.detail` | Backward-looking audit-trail prose ("reviewed at 5.0.0, commit a1b2c3d") — an id there is usually a *prior* run's finding. |
 | `context[]`, for the **claim** scan only | stunnel's real context note reads "Both 5.80 CVEs need a running service", which the claim pattern must not read as a claim of 80. |
+| `security.cve_severities[]` | A rating table, not prose about this range. An id that appears only there is a rating for something this range does not contain, so it is dropped with a warning rather than counted. |
 
 Validated on the live corpus: narrow-scope (headliners + relevancy)
 extraction found 58 distinct ids; adding `context` found 59 — the extra one
@@ -443,6 +454,144 @@ would inflate the one number the security section leads with. In the recorded
 run no id happened to repeat, so the union equals the sum — which is the point:
 the union makes that a measured fact rather than an assumption about a corpus
 that changes every month.
+
+### Severity Rollup and the Sum Invariant
+
+`security.severity_counts` is assembly's rollup, but the per-id ratings are
+**research's** input (`security.cve_severities`, see
+`references/research.md` §CVE Severity Capture). Assembly has no network and
+no advisory database; it can only count what it was given, and the one thing
+it must never do is invent a class to fill a meter.
+
+```python
+def rollup_severity_counts(cve_ids, severity_by_id):
+	counts = dict.fromkeys(_CVE_SEVERITIES, 0)
+	for cve_id in cve_ids:                 # iterate the IDS, not the map
+		counts[severity_by_id.get(cve_id, "unknown")] += 1
+	return counts
+```
+
+**`sum(severity_counts.values()) == cve_count` holds by construction, not by
+assertion** — the loop iterates `cve_ids`, and every id lands in exactly one
+bucket. That is the whole reason to build it this way: an id research forgot
+to rate becomes `unknown` instead of a broken sum, and an id research rated but
+assembly never extracted is dropped with a warning instead of inflating the
+total. `test_assemble.py` §6 asserts the sum anyway, because a future edit that
+iterates the map instead would break it silently.
+
+Three rules on the input side, all warn-and-continue:
+
+- **An id not in `cve_ids` is dropped.** A rating for something this range does
+  not contain is not a rating for this card.
+- **A grade with no `basis`, or a word outside the vocabulary, becomes
+  `unknown`.** A rating with no recorded source is not a rating — the same
+  doctrine as `cve_count` never carrying a claim.
+- **Two ratings for one id keep the worse.** Real once ratings come from a
+  vendor page and NVD; understating a severity is the failure mode with a cost.
+
+`cve_severities` is **emitted as the resolved, graded subset** — one entry per
+id assembly actually counted, sorted like `cve_ids`. That keeps `report.json`
+self-describing (a reviewer can rebuild `severity_counts` from it with `jq`)
+and lets `summarize_security()` rebuild the report-wide map without a private
+key. An id absent from it is `unknown`, which is why the emitted list is
+usually far shorter than `cve_ids`.
+
+Report-wide, `summary.security.severity_counts` counts over the **union** of
+ids, for exactly the reason `cve_count` does — never sum the per-tool counts,
+since one advisory can land on two tools. It therefore sums to
+`summary.security.cve_count`. Two tools rating one id differently is the same
+event as two sources rating it differently inside one tool, so it resolves the
+same way — **the worse wins, and it warns**, naming both ratings. It used to
+resolve in silence, which meant a header reading "1 critical" could come from
+one tool's page contradicting another's with nothing said about it.
+
+**`unknown` will dominate, and that is the designed steady state.** On the
+live run's text only 22 of 99 ids carry a rating anyone published in a page
+research had already read, and 24 of the 41 security-bearing tools have no
+extracted ids at all. A page must render the honest compact form by default.
+
+### Validating Research's `notable`
+
+`security.notable[]` is research-supplied and assembly-validated. Every rule
+is warn-and-continue; none of them aborts a run, because one report is
+assembled from ~22 model-written files.
+
+| Research supplied | Assembly does |
+|---|---|
+| a non-list, or a non-dict member | `as_item_list()` drops it with its existing warning |
+| a `summary` that is not a string (`{"text": …}`, `42`) | drop the entry, warn. Stringifying it renders the repr, and the page's `typeof === 'string'` guard passes it by then — this side is the only place the drift is visible |
+| an entry with no `summary` | drop it, warn — a notable with no line is nothing to render |
+| `severity` absent or outside the vocabulary | coerce to `"unknown"`, warn |
+| `severity` disagreeing with this id's `cve_severities` entry | **the map wins**, warn — one source of truth, and `severity_counts` must agree with what the card shows |
+| `severity` other than `unknown` on a `cve_id` **absent from** `cve_severities` | keep the grade, warn. The same disagreement as the row above, reached by omission: the card would read `critical` while `severity_counts` buckets that id as `unknown`, since the rollup is built from `cve_severities` alone. The grade is kept because it is the only one research found, and *not* promoted into the map because a `notable[]` rating carries no `basis` — inventing one is the unsourced rating §CVE Severity Capture forbids. The warning names the fix: put the grade in `cve_severities`, with a basis |
+| a `cve_id` that is not a resolvable id in `cve_ids` | null the id, keep the item, warn. Normally unreachable: `notable[].cve_id` is inside the id scan, so a well-formed id is in `cve_ids` by construction — this catches a malformed one and stops the page chipping an id the report cannot resolve |
+| a non-bool `affects_me` | coerce, warn |
+| `affects_me: true` with no `security`-category relevancy item on the tool | keep it, warn. The two are the same claim — but assembly **never** sets or clears the flag, because a third of one live run's security relevancy items are negative-direction findings whose whole point is that the fix does *not* reach this machine (openssh's sshd, microsoft-teams, fd, mise:python's expat, rsync). Auto-deriving would invert every one of them |
+| more than 3 entries | sort by the `notable` key (`affects_me` first, then worst severity, then `(year, sequence)`, then id-less last) and keep the first 3, warn with the count dropped. **Ordering strictly precedes the cap**, so research writing its strongest item last costs nothing |
+| any `notable` on a `brew-health` tool | drop silently — `has_security` is forced `false` there, and a notable would make the security section's count disagree with its cards |
+| a `notable` with `research_error` or no headliners | force `[]`, warn. Same doctrine as "No research ⇒ never `security_only`" |
+
+**The `notable` key orders and evicts with one comparison, which is why
+`affects_me` comes first.** Whatever the key ranks last is what a four-entry
+list loses. `affects_me: true` means a concrete touchpoint on *this* setup, so
+an item carrying one is never evicted by a higher-rated item that misses this
+machine — and R5 already cleared every entry on its own merits before the key
+sees it, so promoting one cannot smuggle in a weak item. With severity first,
+three `low` CVEs nobody here can reach evicted `brew:iproute2mac`'s reproduced
+command injection, which is precisely the item R5's third clause was written
+to surface.
+
+The severity tier uses `_NOTABLE_SEVERITY_RANK`, **not** `_CVE_SEVERITY_RANK`:
+one vocabulary, two ranks, disagreeing on `unknown` on purpose. In the rollup
+`unknown` means "no rating recorded" and must never beat a recorded one, so it
+ranks lowest; on a `notable[]` entry it means "research selected this and
+nobody published a grade", which is not evidence of a small flaw, so it ranks
+above `low`. The `severity` vocabulary itself is unchanged
+(`references/schemas.md` §1.9) — this is a ranking fix, not a schema change.
+
+Assembly also computes `source_ref` on each entry — the `"rel:{i}"`/`"hl:{i}"`
+identity of the content item it restates, resolved by CVE or advisory id
+first and only then by comparing *untruncated* summaries. That is the handle
+§Highlights matches on. Among relevancy items the id matches, it takes the
+**max-severity** one, because `_highlight_why_parts()` picks a highlight's
+`why` the same way and §Highlights compares the two refs — matching the first
+naming item instead misses the dedupe whenever two relevancy items name one
+CVE. An `advisory_id` is free-form vendor text, so a short one can substring-
+match prose that never mentioned it; that is a known, unguarded cost of one
+missed dedupe, not something a length-and-digit predicate fixes (`2026-11`
+against "Release 2026-11 ships the new resolver" defeats it, and word
+boundaries do not save it either).
+
+### Emitting `notable` at all: `[]` versus an absent key
+
+`compute_security()` emits the `notable` key only when assembly has an answer
+to give, because the page reads its **presence** as information
+(`references/schemas.md` §1.9, `references/rendering-report.md` §Group (b)):
+`[]` means "the selection ran and nothing qualified" and draws the
+single-column card, while an absent key means "the question was never put"
+and falls back to deriving the column from the tool's own security content.
+
+The key is emitted when research supplied a readable `security` block, when
+research supplied nothing at all (`research_error` / no headliners, where the
+table above forces `[]`), or on a `brew-health` tool, where `[]` is likewise
+assembly's own decision. It is omitted for a research file that carried real
+content and no `security` block — a file that predates the field, on whose
+behalf assembly must not claim "nothing here is notable" — and for a block
+too drifted to read at its root (a bare string, a list, `null`), which
+`normalize_research_security()` warns about for exactly this reason.
+
+This is not a hypothetical distinction. The recorded run's 22 research files
+carry no `security` block at all, so emitting `[]` unconditionally collapsed
+77 of its 78 cards to a single column and deleted the security column from
+every one of them. `test_assemble.py` §7 pins both halves.
+
+Note what is **not** here: nothing removes a security item for being noisy.
+`compute_security()` derives `has_security` from the security category and the
+ids, and that feeds `review_bucket` and then `pre_accept` — so a presentation
+rule that removed the last security item would silently move a tool to
+`routine` and auto-accept it. The noise floor is bounded to keep that
+impossible; the boundary lives in `noise_suppressible()` and is asserted in
+`test_assemble.py` §6 (`references/research.md` §The Noise Floor).
 
 ### `cve_count` vs. a vendor that says "fixes 33 CVEs"
 
@@ -823,6 +972,16 @@ assembly, and the user's own standing concern silently loses 70 points.
 a cross-tool id collision that renames a baseline costs a tool this one
 10-point signal (§Overview, ordering constraint 2). Bounded and warned about.
 
+**CVE severity is now available and `score_tool()` deliberately does not use
+it.** Weighting `critical` ids would push highlights *toward* the security
+content this design exists to stop them restating, and §Threshold is already
+explicit that a bare CVE count must not qualify a tool on its own. Measured
+before deciding: on the recorded run the flat 10-point `cves` signal fires on
+3 of the 8 highlights and changes the membership of none of them (lowest
+highlight 180 against a threshold of 40), so it is inert — and inert is the
+right amount of security in this ranking. Do not re-litigate it without a
+measurement that says otherwise.
+
 ### Threshold, cap, ordering
 
 - **Threshold: score ≥ 40.** A bare `major` (25) or a bare CVE count (10)
@@ -850,13 +1009,30 @@ a cross-tool id collision that renames a baseline costs a tool this one
   2. `config_status.detail`, when `state == "needs_attention"`;
   3. `"Research produced no changelog for this update."`, when
      `research_error`;
-  4. the first `security`-category headliner's `text`, when the bucket is
+  4. the first **non-security** headliner's `text`, when the bucket is
      `security_auto`/`security_mixed`;
+  4b. the first `security`-category headliner's `text`, only when the tool has
+     no non-security headliner to say instead;
   5. `f"Major version bump {current} → {latest}."`, when
      `version_delta == "major"`;
   6. the first headliner's `text`;
   7. `""` — nothing to say, only reachable for a health finding with no
      headliner, which can't happen since assembly synthesizes one.
+
+  Step 4 used to *be* 4b, and that guaranteed the duplication the whole
+  security redesign is about: it returned the same line the mixed card's
+  security column renders in full. Step 1 stays first even when the winning
+  relevancy is security-category — for `cask:windows-app` ("The installed
+  11.3.7 predates both security releases in this range, including the
+  CVE-2026-61352 RDP client RCE") that line *is* the decision, and demoting it
+  would leave a worse one. The duplication that step 1 can still produce is
+  handled by the drop-and-backfill below, not by picking a weaker line.
+- `why_source` — which of the branches above produced the line
+  (`relevancy_security` | `relevancy_other` | `config_status` |
+  `research_error` | `headliner_security` | `headliner_other` | `major_bump` |
+  `none`). Provenance for a reviewer and for the dedupe; a page may ignore it.
+- `why_ref` — the `"rel:{i}"`/`"hl:{i}"` identity of the content item `why`
+  came from, or `null` for the branches that synthesize their own text.
 - `severity` — max severity across `headliners + relevancy`, in relevancy's
   vocabulary so the page reuses one palette. With no items:
   `needs_attention` → `"warning"`; `research_error` or a `major`/`unknown`
@@ -866,6 +1042,27 @@ a cross-tool id collision that renames a baseline costs a tool this one
   decide whether to offer a jump or a decision control, and renders the raw
   id rather than dropping a row when the lookup fails — a silent drop would
   hide an assembly bug.
+
+**De-duplication against the security cards, with backfill.** After ranking,
+`build_highlights()` walks the sorted candidates and skips any whose `why_ref`
+matches a `source_ref` in that tool's `security.notable[]`, continuing down the
+list until the cap is filled. **The highlight yields, never the security
+card** — on the tools where this fires the duplicated line is usually the most
+important sentence on the card, and the section is supposed to carry eight
+*distinct* decision drivers rather than eight rows of which two repeat
+something 200px below. Each drop prints a `note:` naming the tool and the ref.
+
+The match is on the emitted identities on both sides, never on text. `why` has
+already been through `_truncate_why()`'s 220-char cut, and the live run
+carries a 222-char relevancy summary (`brew:mise`) — a string comparison would
+have failed there silently, which is the failure mode this design exists to
+avoid.
+
+Measured on the recorded run with the security block projected onto it: four
+candidates were dropped (`cask:windows-app`, `brew:gh`, `cask:teamviewer`,
+`brew:libpq`), two of them inside the visible top 8, and the section still
+returned 8 distinct tools — `cask:claude-code@latest` and `cask:libreoffice`
+backfilled the freed slots.
 
 Measured top 8 for the recorded run: `cask:google-chrome` (250),
 `cask:windows-app` (200), `cask:claude-code@latest` (195),
@@ -994,9 +1191,11 @@ the same guard runs in both code paths.
   **version-outdated tools only** (`brew-health` skipped).
 - `by_bucket` — `{security_auto, security_mixed, attention, routine}` over
   **every** tool, brew-health included.
-- `security` — `{cve_count, tools_with_security, auto_count, mixed_count,
-  tools_with_unlisted_cves}`, where `cve_count` is the size of the *union* of
-  `cve_ids` across tools (§Security Extraction), not the sum.
+- `security` — `{cve_count, severity_counts, tools_with_security, auto_count,
+  mixed_count, tools_with_unlisted_cves}`, where `cve_count` is the size of the
+  *union* of `cve_ids` across tools (§Security Extraction), not the sum, and
+  `severity_counts` is rolled up over that same union — never summed from the
+  per-tool counts (§Severity Rollup and the Sum Invariant).
 
 **`by_delta` and `by_bucket` have different denominators, deliberately.**
 `by_delta` sums to `total_outdated` (74 in the live run); `by_bucket` sums to
@@ -1021,6 +1220,15 @@ to end in `scripts/test_assemble.py` §5, against a session assembled through
   union ≤ sum, strictly less when one advisory hits two tools.
 - `len(highlights) <= 8`, and every `highlights[].tool_id` resolves in
   `tools[]`.
+- `sum(t.security.severity_counts.values()) == t.security.cve_count` for every
+  tool, and `sum(summary.security.severity_counts.values()) ==
+  summary.security.cve_count`.
+- `len(t.security.notable) <= 3`; every non-null `notable[].cve_id` and every
+  `cve_severities[].cve_id` resolves in `t.security.cve_ids`.
+- `t.security.notable == []` whenever `t.source == "brew-health"` or
+  `t.research_error` is set.
+- no `highlights[].why_ref` appears in its own tool's
+  `security.notable[].source_ref` set.
 
 `highlights[]` is a **top-level** key alongside `tools`, not part of
 `summary` — see §Highlights above.
@@ -1028,7 +1236,10 @@ to end in `scripts/test_assemble.py` §5, against a session assembled through
 `report.json` is written with `schema_version: 1` (see
 `references/schemas.md` §Report Object for the full top-level shape) and
 `report_id` taken from the session dir's basename. **The version stays `1`
-because every addition above is purely additive** — nothing was renamed or
+because every addition above is purely additive** — including the fields added
+for the severity rollup (`security.severity_counts`, `security.cve_severities`,
+`security.notable`, `summary.security.severity_counts`, and
+`highlights[].why_source`/`.why_ref`) — nothing was renamed or
 removed, `render.py` hard-fails on any other value, and every consumer
 (`write_status.py`, `server.py`'s `feedback.json` validation, the page) only
 ever reads keys it knows. The converse obligation is on the page: a report

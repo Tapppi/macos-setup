@@ -274,8 +274,9 @@ def cve_sort_key(cve_id: str) -> tuple:
 
 def _cve_scan_texts(tool: dict) -> list:
 	"""Every field a CVE id may be counted from: the claim scan's fields (see
-	_cve_claim_texts below) plus `relevancy[].motivating_change` and
-	`context[]` — that delta *is* the difference between the two scopes.
+	_cve_claim_texts below) plus `relevancy[].motivating_change`, `context[]`
+	and `security.notable[].cve_id`/`.summary` — that delta *is* the difference
+	between the two scopes.
 	Excluded deliberately:
 	links[].embedded_content (an unbounded changelog excerpt that can cover
 	releases outside this current→latest range, inflating the count with CVEs
@@ -291,6 +292,15 @@ def _cve_scan_texts(tool: dict) -> list:
 		texts.append(item.get("motivating_change"))
 	for item in tool.get("context") or []:
 		texts.extend((item.get("title"), item.get("detail")))
+	# security.notable[] — research selected these from *this* range by
+	# construction, which is the exact property links[].embedded_content lacks.
+	# cve_id is a literal id field taken as-is; summary is one short line about
+	# this range, regex-scanned like the other prose. Both are in the *id* scan
+	# only: a summary reading "one of 28 advisories" must not become a vendor
+	# claim of 28, which is the same trap the context[] exclusion exists for.
+	for item in research_security(tool).get("notable") or []:
+		if isinstance(item, dict):
+			texts.extend((item.get("cve_id"), item.get("summary")))
 	return [t for t in texts if isinstance(t, str)]
 
 
@@ -408,13 +418,307 @@ def compute_impact(tool: dict) -> str:
 	return "none"
 
 
+# ── CVE severity, notable security items, and the noise floor ───────────────
+# (references/assembly.md §Severity Rollup and the Sum Invariant, §Validating
+# Research's `notable`; references/research.md §CVE Severity Capture,
+# §Selecting Notable Security Items, §The Noise Floor)
+#
+# Two severity vocabularies meet here and must not be confused. Relevancy
+# severity (info/notable/warning/incompatible, `_SEVERITY_RANK` below) is "how
+# much does this matter to *this* machine"; CVE severity is "what did the
+# issuer rate the flaw". Conflating them is how teamviewer's Linux-only
+# CVSS 8.8 would end up reading as urgent on a macOS card.
+_CVE_SEVERITIES = ("critical", "high", "medium", "low", "unknown")
+_CVE_SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1, "unknown": 0}
+# Ordering rank for `notable[]`, deliberately NOT _CVE_SEVERITY_RANK. In that
+# map `unknown` is 0 because it means "no rating recorded", which is exactly
+# right for the worse-wins resolutions that read it — an absent grade must
+# never beat a present one. On a `notable[]` entry it means something else:
+# research picked this item under one of R5's clauses and *nobody published a
+# grade for it*. R5 clause 3 exists precisely for that case (`brew:iproute2mac`'s
+# command injection was never assigned a CVE, and is one of the two most
+# important security items in the recorded run), so ranking it below `low`
+# would evict the item the clause was written for. An absent grade is not
+# evidence of a small flaw. The vocabulary is unchanged — this is a ranking
+# fix, not a schema change (references/schemas.md §1.9).
+_NOTABLE_SEVERITY_RANK = {"critical": 5, "high": 4, "medium": 3, "unknown": 2, "low": 1}
+# Where the rating came from. A grade with no basis is not a grade — research
+# is forbidden from deriving a severity from how a description reads, and this
+# field is how assembly can tell a fetched rating from an impression.
+_SEVERITY_BASES = ("vendor", "nvd", "cvss", "unrated")
+_NOTABLE_CAP = 3
+# Below this length a summary/text comparison is not evidence of anything —
+# two 12-character bullets can collide by accident. Only used for the
+# no-id fallback in resolve_notable_ref().
+_REF_MATCH_MIN = 40
+
+
+def research_security(tool: dict) -> dict:
+	"""The research-supplied `security` block, read defensively. Until
+	compute_security() overwrites it, `tool["security"]` is whatever the
+	research file carried — including a bare string or null (§Shape
+	Normalization); every read of it goes through here."""
+	block = tool.get("security")
+	return block if isinstance(block, dict) else {}
+
+
+def _norm_text(value) -> str:
+	"""Whitespace-collapsed text, for the comparisons below. Never used to
+	*match* a highlight's `why` — that string is already truncated to 220
+	chars, so a comparison against it silently fails on a longer summary."""
+	return " ".join(str(value or "").split())
+
+
+def content_ref(kind: str, index: int) -> str:
+	"""The stable identity of one content item on a tool — `"rel:0"`,
+	`"hl:2"`. Emitted on both sides of the highlights↔security dedupe
+	(`highlights[].why_ref`, `security.notable[].source_ref`) so the match is
+	on a slot rather than on prose."""
+	return f"{kind}:{index}"
+
+
+def resolve_cve_severities(cve_ids: list, entries: list, tool_id: str) -> tuple:
+	"""→ (emitted_entries, {cve_id: severity}) for the ids research actually
+	graded. An id it graded but assembly never extracted is dropped with a
+	warning rather than inflating the rollup; a grade with no basis, or a word
+	outside the vocabulary, becomes `unknown` rather than a guess."""
+	id_set = set(cve_ids)
+	by_id: dict = {}
+	basis_by_id: dict = {}
+	for entry in entries:
+		cid = entry.get("cve_id")
+		cid = cid.upper() if isinstance(cid, str) else ""
+		if not cid:
+			print(f"warning: {tool_id}: cve_severities entry has no cve_id — dropping it: {entry!r}", file=sys.stderr)
+			continue
+		if cid not in id_set:
+			print(f"warning: {tool_id}: cve_severities rates {cid}, which is not in cve_ids — "
+				f"dropping it (a rating for something this range does not contain)", file=sys.stderr)
+			continue
+		sev, basis = entry.get("severity"), entry.get("basis")
+		if sev not in _CVE_SEVERITIES:
+			print(f"warning: {tool_id}: {cid} severity {sev!r} is not one of {_CVE_SEVERITIES} — reading it as unknown", file=sys.stderr)
+			sev = "unknown"
+		if sev != "unknown" and basis not in _SEVERITY_BASES:
+			print(f"warning: {tool_id}: {cid} is rated {sev!r} with basis {basis!r} — a rating with no "
+				f"recorded source is not a rating; reading it as unknown", file=sys.stderr)
+			sev = "unknown"
+		if sev == "unknown":
+			# Recording it would say nothing an absent entry doesn't already say.
+			continue
+		if cid in by_id and by_id[cid] != sev:
+			# Two sources disagreeing is real once ratings come from a vendor
+			# page and NVD. Understating a severity is the failure mode with a
+			# cost, so the worse wins.
+			print(f"warning: {tool_id}: {cid} rated both {by_id[cid]!r} and {sev!r} — keeping the worse", file=sys.stderr)
+			if _CVE_SEVERITY_RANK[sev] <= _CVE_SEVERITY_RANK[by_id[cid]]:
+				continue
+		by_id[cid], basis_by_id[cid] = sev, basis
+	emitted = [{"cve_id": cid, "severity": by_id[cid], "basis": basis_by_id[cid]}
+		for cid in sorted(by_id, key=cve_sort_key)]
+	return emitted, by_id
+
+
+def rollup_severity_counts(cve_ids: list, severity_by_id: dict) -> dict:
+	"""`{critical, high, medium, low, unknown}` over this tool's ids.
+
+	**The invariant `sum(counts.values()) == cve_count` holds by construction**,
+	because the loop iterates `cve_ids` and every id lands in exactly one
+	bucket — an id research forgot to rate becomes `unknown` instead of a
+	broken sum. Iterating the rating map instead would silently break it,
+	which is why test_assemble.py §6 asserts the sum anyway."""
+	counts = dict.fromkeys(_CVE_SEVERITIES, 0)
+	for cve_id in cve_ids:
+		counts[severity_by_id.get(cve_id, "unknown")] += 1
+	return counts
+
+
+def clean_notable(entries: list, tool_id: str) -> list:
+	"""Shape-normalize research's `notable[]` members. Never validates, orders
+	or caps — that is finalize_notable(), which runs after the CVE-id scan.
+
+	Running first is what makes the scan see every id research supplied,
+	including ones on entries the cap later drops: `cve_ids[]` is the range's
+	id inventory, not a list of what the card renders, so an id must not
+	vanish from `severity_counts` because its entry lost a `notable[]` slot."""
+	kept = []
+	for entry in entries:
+		raw_summary = entry.get("summary")
+		if raw_summary is not None and not isinstance(raw_summary, str):
+			# _norm_text() would stringify it — `{"text": "…"}` renders as its
+			# repr, `42` as "42" — and the page's `typeof === 'string'` guard
+			# then passes it, because by then it *is* a string. The drift has
+			# to be caught on this side or not at all.
+			print(f"warning: {tool_id}: security.notable summary was {type(raw_summary).__name__}, "
+				f"not a string — dropping the entry rather than rendering its repr: {entry!r}", file=sys.stderr)
+			continue
+		summary = _norm_text(raw_summary)
+		if not summary:
+			print(f"warning: {tool_id}: security.notable entry has no summary — dropping it: {entry!r}", file=sys.stderr)
+			continue
+		cve_id = entry.get("cve_id")
+		cve_id = cve_id.strip().upper() if isinstance(cve_id, str) and cve_id.strip() else None
+		advisory_id = entry.get("advisory_id")
+		advisory_id = advisory_id.strip() if isinstance(advisory_id, str) and advisory_id.strip() else None
+		affects_me = entry.get("affects_me")
+		if affects_me is not None and not isinstance(affects_me, bool):
+			print(f"warning: {tool_id}: security.notable affects_me was {type(affects_me).__name__}, "
+				f"not a bool — coercing: {affects_me!r}", file=sys.stderr)
+		kept.append({
+			"cve_id": cve_id,
+			"advisory_id": advisory_id,
+			"severity": entry.get("severity"),
+			"summary": summary,
+			"affects_me": bool(affects_me),
+		})
+	return kept
+
+
+def resolve_notable_ref(tool: dict, entry: dict):
+	"""→ the `content_ref()` of the headliner/relevancy item this notable
+	restates, or None. Resolved by a stable token first — the CVE or advisory
+	id, which is exactly the kind of handle prose comparison lacks — and only
+	then by comparing the *untruncated* summaries."""
+	rel = tool.get("relevancy") or []
+	hl = tool.get("headliners") or []
+	# HAZARD, deliberately unguarded: an `advisory_id` is free-form vendor text,
+	# so a short one ("2026-11") can substring-match prose that never mentioned
+	# it ("Release 2026-11 ships the new resolver"). The obvious guard —
+	# require length and a digit — admits that exact string, and word-boundary
+	# matching does not save it either; a real fix needs a stricter id shape,
+	# not a longer predicate. A false ref costs one deduped highlight, so this
+	# stays a known cost rather than a wrong guard.
+	token = (entry.get("cve_id") or entry.get("advisory_id") or "").upper()
+	if token:
+		matches = [i for i, item in enumerate(rel)
+			if token in _norm_text(" ".join(str(item.get(k) or "")
+				for k in ("summary", "detail", "motivating_change"))).upper()]
+		if matches:
+			# The **max-severity** match, not the first: _highlight_why_parts()
+			# picks the max-severity relevancy item for a highlight's `why`, and
+			# the R6 dedupe compares that ref against this one. Returning the
+			# first match instead misses the dedupe on any tool where two
+			# relevancy items name one CVE — the highlight then restates the
+			# security card in full, which is the duplication R6 exists to stop.
+			# max() keeps the first maximum, exactly as that function does.
+			return content_ref("rel", max(matches, key=lambda i: _SEVERITY_RANK.get(rel[i].get("severity"), -1)))
+		for i, item in enumerate(hl):
+			if token in _norm_text(item.get("text")).upper():
+				return content_ref("hl", i)
+	summary = _norm_text(entry.get("summary"))
+	if len(summary) >= _REF_MATCH_MIN:
+		for kind, items, field in (("rel", rel, "summary"), ("hl", hl, "text")):
+			for i, item in enumerate(items):
+				other = _norm_text(item.get(field))
+				if len(other) >= _REF_MATCH_MIN and (summary in other or other in summary):
+					return content_ref(kind, i)
+	return None
+
+
+def _notable_sort_key(entry: dict) -> tuple:
+	"""`affects_me` first, then worst severity, then the CVE id's
+	`(year, sequence)` so the order matches `cve_ids[]`, with an id-less entry
+	last inside its group.
+
+	**`affects_me` outranks severity, and the cap is why.** The key orders and
+	then evicts, so whatever it ranks last is what a four-entry list loses. An
+	item flagged `affects_me` has a concrete touchpoint on *this* setup; a
+	higher-rated one without a touchpoint is, on this card, the less useful of
+	the two — and R5 already guarantees every entry qualified on its own
+	before it got here, so promoting one never smuggles in a weak item. With
+	severity first, three `low` CVEs nobody can reach here evict a reproduced
+	command injection that lands on a wrapper this machine runs, which is the
+	exact inversion R5 clause 3 was written to prevent.
+
+	The severity tier uses `_NOTABLE_SEVERITY_RANK`, where `unknown` sits above
+	`low` — see the note there for why the two rank maps differ."""
+	return (
+		0 if entry["affects_me"] else 1,
+		-_NOTABLE_SEVERITY_RANK.get(entry["severity"], 0),
+		cve_sort_key(entry["cve_id"]) if entry["cve_id"] else (10 ** 9, 0),
+		entry["advisory_id"] or "",
+	)
+
+
+def finalize_notable(tool: dict, entries: list, cve_ids: list, severity_by_id: dict, tool_id: str) -> list:
+	"""Validate, order (`affects_me` first, then worst severity —
+	`_notable_sort_key`) and cap research's `notable[]`. Ordering strictly
+	precedes the cap, so an over-long array loses its weakest entries rather
+	than its last ones. The page caps again rather than trusting this, exactly
+	as it already does for `highlights[]`."""
+	id_set = set(cve_ids)
+	# R1: `affects_me` is research's call, from the *direction* of its finding —
+	# a third of one live run's security relevancy items exist precisely to say
+	# a fix does NOT reach this machine. Assembly warns when the claim has no
+	# supporting relevancy item; it never sets or clears the flag itself.
+	has_security_relevancy = any(r.get("category") == "security" for r in tool.get("relevancy") or [])
+	for entry in entries:
+		if entry["cve_id"] and entry["cve_id"] not in id_set:
+			# Normally unreachable: notable[].cve_id is inside the id scan, so a
+			# well-formed id is in cve_ids by construction. A malformed one is
+			# nulled rather than emitted, so the page never chips an id the
+			# report cannot resolve.
+			print(f"warning: {tool_id}: security.notable names {entry['cve_id']!r}, which is not a "
+				f"resolvable CVE id in this range — dropping the id, keeping the item", file=sys.stderr)
+			entry["cve_id"] = None
+		sev = entry["severity"]
+		if sev not in _CVE_SEVERITIES:
+			if sev is not None:
+				print(f"warning: {tool_id}: security.notable severity {sev!r} is not one of "
+					f"{_CVE_SEVERITIES} — reading it as unknown", file=sys.stderr)
+			sev = "unknown"
+		if entry["cve_id"]:
+			mapped = severity_by_id.get(entry["cve_id"])
+			if mapped and mapped != sev:
+				# One source of truth: severity_counts and the card must agree.
+				print(f"warning: {tool_id}: security.notable rates {entry['cve_id']} {sev!r} while "
+					f"cve_severities rates it {mapped!r} — the map wins", file=sys.stderr)
+				sev = mapped
+			elif mapped is None and sev != "unknown":
+				# Rated here and nowhere else. The rollup is built from
+				# cve_severities, so the card would read `critical` while
+				# severity_counts buckets the same id as `unknown` — the
+				# disagreement the row above exists to prevent, arrived at by
+				# omission instead of by contradiction. Warn and keep the grade:
+				# a notable[] rating carries no `basis`, so promoting it into
+				# the map would manufacture the unsourced rating R2 forbids,
+				# and dropping it would discard the only grade research found.
+				print(f"warning: {tool_id}: security.notable rates {entry['cve_id']} {sev!r} but "
+					f"cve_severities has no entry for it — severity_counts will bucket it as "
+					f"unknown; the grade belongs in cve_severities, with a basis", file=sys.stderr)
+		entry["severity"] = sev
+		if entry["affects_me"] and not has_security_relevancy:
+			print(f"warning: {tool_id}: security.notable claims affects_me with no security-category "
+				f"relevancy item backing it — the two are the same claim: {entry['summary']!r}", file=sys.stderr)
+		entry["source_ref"] = resolve_notable_ref(tool, entry)
+	entries.sort(key=_notable_sort_key)   # stable, so equal keys keep research's order
+	if len(entries) > _NOTABLE_CAP:
+		print(f"warning: {tool_id}: security.notable has {len(entries)} entries — keeping the worst "
+			f"{_NOTABLE_CAP}, dropping {len(entries) - _NOTABLE_CAP}", file=sys.stderr)
+		entries = entries[:_NOTABLE_CAP]
+	return entries
+
+
 def compute_security(tool: dict) -> dict:
+	"""The whole `security` object (references/schemas.md §1.9).
+
+	Self-consuming, like the rest of finalize_tool()'s fields: on entry
+	`tool["security"]` is whatever the *research* file supplied
+	(`cve_severities`, `notable`), and the returned object replaces it. Called
+	exactly once per tool, from finalize_tool() — a second call would read its
+	own output.
+
+	Eight keys are always present; `notable` is the ninth and is emitted only
+	when assembly has an answer to give — see the comment on the return."""
+	tool_id = tool.get("id", "<unknown>")
 	if tool["source"] == "brew-health":
 		# Forced false: the security section is about *patches* the user can
 		# take. An untrusted tap is a trust decision, not a shipped fix, and
 		# counting it in tools_with_security would make the section's count
 		# disagree with the cards it lists. Its security character still shows
 		# via the health→category map (untrusted_tap → a security headliner).
+		# A notable[] here is dropped silently for the same reason — the same
+		# doctrine as "No research ⇒ never security_only", applied twice.
 		return {
 			"cve_ids": [],
 			"cve_count": 0,
@@ -422,16 +726,42 @@ def compute_security(tool: dict) -> dict:
 			"has_security": False,
 			"security_only": False,
 			"impact": compute_impact(tool),
+			"severity_counts": dict.fromkeys(_CVE_SEVERITIES, 0),
+			"cve_severities": [],
+			"notable": [],
 		}
+	research_sec = research_security(tool)
+	# Read before the self-consuming assignment below overwrites it: whether
+	# research supplied a readable `security` block at all is itself an answer,
+	# and the emit decision at the bottom of this function turns on it.
+	research_answered = bool(research_sec)
+	notable = clean_notable(
+		as_item_list(research_sec.get("notable"), tool_id, "security.notable"), tool_id)
+	produced = research_produced_content(tool)
+	if notable and not produced:
+		# "We know nothing" is never "here is what matters most" — same rule
+		# security_only lives under.
+		print(f"warning: {tool_id}: research produced no headliners but supplied "
+			f"{len(notable)} security.notable entries — dropping them", file=sys.stderr)
+		notable = []
+	# Put the cleaned list back before the scan, so the ids counted are exactly
+	# the ids that will be emitted.
+	tool["security"] = {"notable": notable}
 	cve_ids = extract_cve_ids(tool)
+	cve_severities, severity_by_id = resolve_cve_severities(
+		cve_ids, as_item_list(research_sec.get("cve_severities"), tool_id, "security.cve_severities"), tool_id)
+	notable = finalize_notable(tool, notable, cve_ids, severity_by_id, tool_id)
 	# vendor_silent_categories == ["security"] counts: it is research's explicit
 	# statement "this release has security content the vendor refused to
-	# detail", which lands the tool in security_mixed and gets it looked at.
+	# detail", which lands the tool in security_mixed and gets it looked at. A
+	# notable[] entry counts for the same reason — it *is* security content, and
+	# a card carrying one whose security strip never rendered would be a lie.
 	has_security = bool(
 		any(i.get("category") == "security" for i in content_items(tool))
 		or "security" in (tool.get("vendor_silent_categories") or [])
-		or cve_ids)
-	return {
+		or cve_ids
+		or notable)
+	out = {
 		"cve_ids": cve_ids,
 		# ALWAYS len(cve_ids) — an id-backed count, never a claim, so the page
 		# can link every counted CVE to something.
@@ -440,7 +770,88 @@ def compute_security(tool: dict) -> dict:
 		"has_security": has_security,
 		"security_only": compute_security_only(tool, has_security),
 		"impact": compute_impact(tool),
+		# Sums to cve_count by construction (rollup_severity_counts). `unknown`
+		# dominating is the expected state, not a degraded one: research grades
+		# only what the page it already read states, plus the ≤3 notable items.
+		"severity_counts": rollup_severity_counts(cve_ids, severity_by_id),
+		"cve_severities": cve_severities,
 	}
+	# `notable: []` and an absent `notable` are two different answers, and the
+	# page renders two different cards from them (references/schemas.md §1.9):
+	# `[]` says the selection ran and nothing qualified — the single-column card
+	# — while an absent key says the question was never put to this tool, and
+	# the page falls back to deriving the column from the tool's security
+	# content the way it did before the field existed. So emit the key only when
+	# assembly actually has an answer: research supplied a readable `security`
+	# block, or research told us nothing at all (research_error / no
+	# headliners), where `[]` is forced by the same doctrine as "No research ⇒
+	# never security_only". A research file with real content and no `security`
+	# block predates the field, and asserting "nothing here is notable" on its
+	# behalf deletes the security column from every card it touches — 77 of the
+	# 78 in the recorded run, whose 22 research files carry no security block at
+	# all. A block too drifted to read (a bare string, a list) is not an answer
+	# either: it omits the key and falls back, rather than reporting a silence
+	# that research never uttered.
+	if research_answered or not produced:
+		out["notable"] = notable
+	return out
+
+
+# ── the noise floor's decision boundary (references/research.md §The Noise Floor) ──
+# The noise floor is a rule about what a research subagent writes, so nothing
+# in main() calls this. It exists because the rule has a hard edge that prose
+# alone gets wrong, and test_assemble.py §6 asserts the property that edge is
+# drawn to protect: **deleting every suppressible item on a tool changes no
+# decision.** A presentation rule must never be able to approve, or un-approve,
+# an update.
+#
+# The edge is not arbitrary. `security_only` is an all() over
+# headliners + relevancy, `impact` and `risk_level` are any()s over the same
+# items, and `has_security` reads the security category and the CVE ids. An
+# item is deletable only when it sits outside every one of those reads:
+#
+#   * not `security`-category (R3 — removing the last security item takes
+#     has_security with it, moving the tool to routine and pre-accepting it);
+#   * an (category, severity) pair `_allowed_for_security_only()` already
+#     passes, so removing it cannot flip that all() — which excludes `features`
+#     at any severity and `notes` above `info`;
+#   * contributing nothing to impact (no non-security relevancy at notable+,
+#     no non-security headliner at warning+) or to risk_level (no relevancy at
+#     warning+);
+#   * carrying no CVE id, no "N CVEs" claim and no watch-item hit — cutting any
+#     of those changes cve_count, cve_claimed_count or a 70-point highlight
+#     signal;
+#   * and never the tool's last headliner, which would read as "research told
+#     us nothing".
+#
+# Everything else the noise floor objects to is **trimmed or merged, never
+# deleted** — a merge keeps the surviving item's category and severity, so it
+# cannot move any of the reads above.
+_SUPPRESSIBLE_PAIRS = {
+	("headliners", "fixes", "info"), ("headliners", "fixes", "notable"),
+	("headliners", "notes", "info"),
+	("relevancy", "fixes", "info"), ("relevancy", "notes", "info"),
+}
+
+
+def noise_suppressible(tool: dict, item: dict, field: str) -> bool:
+	"""Is deleting this `headliners[]`/`relevancy[]` item provably decision-neutral?"""
+	if not isinstance(item, dict):
+		return False
+	if (field, item.get("category"), item.get("severity")) not in _SUPPRESSIBLE_PAIRS:
+		return False
+	if field == "headliners" and len(tool.get("headliners") or []) <= 1:
+		return False
+	if field == "headliners":
+		texts = [item.get("text")]
+	else:
+		texts = [item.get(k) for k in ("summary", "detail", "motivating_change")]
+	for text in texts:
+		if not isinstance(text, str):
+			continue
+		if _CVE_RE.search(text) or _CVE_CLAIM_RE.search(text) or _WATCH_HIT_RE.search(text):
+			return False
+	return True
 
 
 # ── risk_level (references/assembly.md §Risk Level, "default-accept low-risk upgrades") ──
@@ -668,6 +1079,25 @@ def normalize_config_status(research_obj: dict) -> dict:
 	return cs
 
 
+def normalize_research_security(research_obj: dict) -> dict:
+	"""The research-supplied `security` block, coerced to a dict at the one
+	boundary where research's free-form output becomes a Tool object. Both
+	arrays are normalized later, inside compute_security(), because their
+	validation needs `cve_ids` — which does not exist yet here."""
+	block = research_obj.get("security")
+	if isinstance(block, dict):
+		return dict(block)
+	if block is not None:
+		# Not merely dropped: an unreadable block leaves `notable` unemitted
+		# (compute_security()), so the card derives its security column instead
+		# of collapsing to one. Say so here, where the original shape is still
+		# in hand.
+		print(f"warning: {research_obj.get('id', '<unknown>')}: security was "
+			f"{type(block).__name__}, not an object — ignoring it; notable[] will not "
+			f"be emitted for this tool", file=sys.stderr)
+	return {}
+
+
 def as_evidence_list(evidence, tool_id: str, context: str) -> list:
 	"""references/schemas.md §Report Object says evidence is always an array. A research subagent
 	that instead returns a bare string would make `for ev in evidence`
@@ -836,6 +1266,9 @@ def build_health_tool(candidate: dict, research_obj: dict | None) -> dict:
 		"release_inventory": as_item_list(research_obj.get("release_inventory"), tool_id, "release_inventory"),
 		"vendor_silent_categories": as_item_list(
 			research_obj.get("vendor_silent_categories"), tool_id, "vendor_silent_categories", member_type=str),
+		# Research's own security block; compute_security() reads it here and
+		# replaces it with the computed object (§Security Extraction).
+		"security": normalize_research_security(research_obj),
 		"suggestions": suggestions,
 	}
 	# Same needs_attention-must-have-a-suggestion guard build_tool applies —
@@ -879,6 +1312,9 @@ def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 		"release_inventory": as_item_list(research_obj.get("release_inventory"), tool_id, "release_inventory"),
 		"vendor_silent_categories": as_item_list(
 			research_obj.get("vendor_silent_categories"), tool_id, "vendor_silent_categories", member_type=str),
+		# Research's own security block; compute_security() reads it here and
+		# replaces it with the computed object (§Security Extraction).
+		"security": normalize_research_security(research_obj),
 		"suggestions": as_item_list(research_obj.get("suggestions"), tool_id, "suggestions"),
 	}
 
@@ -990,30 +1426,53 @@ def _highlight_title(tool: dict) -> str:
 	return f"{tool.get('name')} {tool.get('current_version')} → {tool.get('latest_version')}"
 
 
-def _highlight_why(tool: dict) -> str:
-	"""First match in a fixed order, so the card's one line is the most
-	specific thing we know about this tool."""
+# Which branch of _highlight_why_parts() produced a highlight's one line. The
+# page renders `why`; `why_source` and `why_ref` exist so the de-duplication
+# below — and a reviewer reading report.json — can tell *where* the line came
+# from without re-deriving it from the prose.
+_WHY_SOURCES = ("relevancy_security", "relevancy_other", "config_status", "research_error",
+	"headliner_security", "headliner_other", "major_bump", "none")
+
+
+def _headliner_source(item: dict) -> str:
+	return "headliner_security" if item.get("category") == "security" else "headliner_other"
+
+
+def _highlight_why_parts(tool: dict) -> tuple:
+	"""→ (why, why_source, why_ref). First match in a fixed order, so the
+	card's one line is the most specific thing we know about this tool.
+	`why_ref` is the content_ref() of the item the line came from, or None for
+	the branches that synthesize their own text."""
 	rel = tool.get("relevancy") or []
 	if rel:
 		# Ties resolve to array order — max() keeps the first maximum.
-		best = max(rel, key=lambda r: _SEVERITY_RANK.get(r.get("severity"), -1))
+		best_i = max(range(len(rel)), key=lambda i: _SEVERITY_RANK.get(rel[i].get("severity"), -1))
+		best = rel[best_i]
 		if best.get("summary"):
-			return _truncate_why(best["summary"])
+			source = "relevancy_security" if best.get("category") == "security" else "relevancy_other"
+			return (_truncate_why(best["summary"]), source, content_ref("rel", best_i))
 	cs = tool.get("config_status") or {}
 	if config_needs_attention(tool) and cs.get("detail"):
-		return _truncate_why(cs["detail"])
+		return (_truncate_why(cs["detail"]), "config_status", None)
 	if tool.get("research_error"):
-		return "Research produced no changelog for this update."
+		return ("Research produced no changelog for this update.", "research_error", None)
 	if tool["review_bucket"] in ("security_auto", "security_mixed"):
-		for item in tool.get("headliners") or []:
-			if item.get("category") == "security" and item.get("text"):
-				return _truncate_why(item["text"])
+		# Non-security first. This step used to return the first *security*
+		# headliner, which is the same line the card's security column renders
+		# in full — a highlight slot spent restating what the reader has just
+		# read (brew:gh and cask:windows-app, on the recorded run). The security
+		# headliner is still the fallback when the tool has nothing else.
+		for kind in ("headliner_other", "headliner_security"):
+			for i, item in enumerate(tool.get("headliners") or []):
+				if _headliner_source(item) == kind and item.get("text"):
+					return (_truncate_why(item["text"]), kind, content_ref("hl", i))
 	if tool["version_delta"] == "major":
-		return _truncate_why(f"Major version bump {tool.get('current_version')} → {tool.get('latest_version')}.")
-	for item in tool.get("headliners") or []:
+		return (_truncate_why(f"Major version bump {tool.get('current_version')} → {tool.get('latest_version')}."),
+			"major_bump", None)
+	for i, item in enumerate(tool.get("headliners") or []):
 		if item.get("text"):
-			return _truncate_why(item["text"])
-	return ""
+			return (_truncate_why(item["text"]), _headliner_source(item), content_ref("hl", i))
+	return ("", "none", None)
 
 
 def _highlight_severity(tool: dict) -> str:
@@ -1030,10 +1489,13 @@ def _highlight_severity(tool: dict) -> str:
 
 
 def _highlight_object(score: int, reasons: list, tool: dict) -> dict:
+	why, why_source, why_ref = _highlight_why_parts(tool)
 	return {
 		"tool_id": tool["id"],
 		"title": _highlight_title(tool),
-		"why": _highlight_why(tool),
+		"why": why,
+		"why_source": why_source,
+		"why_ref": why_ref,
 		"severity": _highlight_severity(tool),
 		# Every suggestion on the tool, in array order (baseline first when
 		# present) — the page looks each id up in tools[] to decide whether to
@@ -1045,6 +1507,15 @@ def _highlight_object(score: int, reasons: list, tool: dict) -> dict:
 
 
 def build_highlights(tools: list) -> list:
+	"""Ranked, capped, and de-duplicated against the security cards.
+
+	When a highlight's `why` restates an item already shown in full on that
+	tool's `security.notable[]`, **the highlight yields and the slot is
+	backfilled** from the next-ranked candidate — the security card keeps the
+	sentence (it is often the single most important line on it) and the section
+	still carries `_HIGHLIGHT_CAP` distinct decision drivers. The match is on
+	the emitted `content_ref()` identity, never on `why`, which _truncate_why()
+	has already cut at 220 chars."""
 	scored = []
 	for tool in tools:
 		score, reasons = score_tool(tool)
@@ -1054,7 +1525,18 @@ def build_highlights(tools: list) -> list:
 	# (a missing dependency is a real "input needed"). The trailing tool id
 	# makes ties fully deterministic.
 	scored.sort(key=lambda x: (-x[0], -_max_sev_rank(x[2]), -x[2]["security"]["cve_count"], x[2]["id"]))
-	return [_highlight_object(score, reasons, tool) for score, reasons, tool in scored[:_HIGHLIGHT_CAP]]
+	highlights = []
+	for score, reasons, tool in scored:
+		if len(highlights) >= _HIGHLIGHT_CAP:
+			break
+		obj = _highlight_object(score, reasons, tool)
+		refs = {n.get("source_ref") for n in tool["security"].get("notable") or [] if n.get("source_ref")}
+		if obj["why_ref"] and obj["why_ref"] in refs:
+			print(f"note: {tool['id']}: highlight dropped — its \"why\" restates security.notable "
+				f"item {obj['why_ref']}; backfilling from the ranked list", file=sys.stderr)
+			continue
+		highlights.append(obj)
+	return highlights
 
 
 # ── report-level summary (references/assembly.md §Summary Counts and Output) ──
@@ -1091,10 +1573,34 @@ def summarize_security(tools: list) -> dict:
 	# hit several casks), and counting it twice would inflate the one number
 	# the security section leads with.
 	ids = set()
+	# Rebuilt from each tool's emitted cve_severities rather than summed from
+	# the per-tool severity_counts, for the same reason cve_count is a union:
+	# one advisory can land on two tools, and summing would count it twice.
+	# Two tools rating one id differently is real once ratings come from
+	# different pages — take the worse, since understating a severity in the
+	# report header is the failure mode with a cost.
+	severity_by_id: dict = {}
 	for tool in tools:
 		ids.update(tool["security"]["cve_ids"])
+		for entry in tool["security"].get("cve_severities") or []:
+			cve_id, severity = entry.get("cve_id"), entry.get("severity")
+			if severity not in _CVE_SEVERITY_RANK:
+				continue
+			prior = severity_by_id.get(cve_id)
+			if prior is not None and prior != severity:
+				# Its per-tool twin in resolve_cve_severities() warns on exactly
+				# this; the report-wide one used to resolve it silently, so a
+				# header reading "1 critical" could come from one tool's page
+				# disagreeing with another's with nothing said about it.
+				print(f"warning: {cve_id} is rated {prior!r} on one tool and {severity!r} on another — "
+					f"keeping the worse for the report-wide rollup", file=sys.stderr)
+			if _CVE_SEVERITY_RANK[severity] > _CVE_SEVERITY_RANK.get(prior or "unknown", 0):
+				severity_by_id[cve_id] = severity
 	return {
 		"cve_count": len(ids),
+		# Over the union of ids, so this sums to cve_count above — never to the
+		# sum of the per-tool counts.
+		"severity_counts": rollup_severity_counts(sorted(ids, key=cve_sort_key), severity_by_id),
 		"tools_with_security": sum(1 for t in tools if t["security"]["has_security"]),
 		"auto_count": sum(1 for t in tools if t["review_bucket"] == "security_auto"),
 		"mixed_count": sum(1 for t in tools if t["review_bucket"] == "security_mixed"),
