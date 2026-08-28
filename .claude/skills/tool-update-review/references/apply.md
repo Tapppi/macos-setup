@@ -7,6 +7,7 @@ Table of contents:
 - Heartbeat and Turn Sync
 - Executing `edit` Suggestions
 - Brew-Health Remediation
+- Skill-Drift Remediation
 - Executing Upgrade Suggestions
 - Executing `watch-item` Suggestions
 - Bespoke Setup Execution
@@ -146,6 +147,86 @@ decisions, not upgrades. A plain `brew install <missing-dep>` is
 **Never run a structural brew change on the strength of a default
 remediation alone** — only an explicit accept, same as anything else.
 
+## Skill-Drift Remediation
+
+A `skill-drift` finding's suggestion (see `references/assembly.md`
+§Skill-Drift Assembly for how it was built) is a `kind: "upgrade"` carrying
+one structural command:
+
+```sh
+bash config/agent-skills/sync-upstream.sh    # run from the dotfiles repo root
+```
+
+**It is `auto_runnable: false`, always, and there is no configuration that
+changes that.** Print the command and let the user run it; the session never
+runs it itself, whatever `auto_run_upgrades` says (§Executing Upgrade
+Suggestions' first gate). Three reasons, each sufficient on its own: the
+script refuses to start on a dirty tree, so it needs a working tree the
+session cannot promise; `git subtree pull` **writes commits** into the
+dotfiles submodule; and it can conflict with a local customisation, which
+needs the vendor's `CUSTOMISATION.md` in front of a human, not a merge
+driver. Assembly enforces the same conclusion structurally — the suggestion
+id ends `:sync`, so it can never pre-accept (`references/schemas.md` §1.6).
+
+**`sync-upstream.sh` is *not* covered by the never-run-setup-scripts narrow
+exception, and must not be added to it.** That exception
+(§Executing `edit` Suggestions above, and macos-setup's `CLAUDE.md`) is
+scoped to exactly one subcommand — `./setup.sh projects` — because it is
+idempotent, needs no `sudo`, and only re-links skills and re-renders
+workspace-local env config. `sync-upstream.sh` shares none of those
+properties: it mutates vendored content and creates commits. It is also not
+a `tasks/*.sh` script, so it was never inside the rule's letter — the point
+here is that it is squarely inside its *spirit*, and "the rule doesn't
+literally name it" is not a licence to run it. Widening the exception to
+cover it would be the wrong fix for a case that is meant to stay manual.
+
+**The two facts above are separate, and conflating them is the error to
+avoid.** A skill-drift finding can also produce an ordinary `kind: "edit"`
+— a `CUSTOMISATION.md` entry recording a local patch, a
+`.claude-plugin/marketplace.json` fix after an upstream rename
+(`references/research.md` §Skill-Drift Enrichment). Vendored skills *are*
+files `tasks/projects.sh` manages: it symlinks them out of
+`~/.config/agent-skills/` into each repo's `.claude/skills/`. So such an
+edit legitimately reuses the **existing** `./setup.sh projects` exception,
+exactly as any other projects-managed file does — run it after applying the
+edit so the symlinks re-resolve. That is the existing exception being used
+as written, not a new one, and it says nothing about `sync-upstream.sh`.
+
+**The command is vendor-scoped; the findings are per skill.** `git subtree
+pull` operates on a whole vendor prefix, so one run resolves **every**
+drifted skill of that vendor — the suggestion's `label` says so ("updates
+all 3 drifted anthropics skills"), and every affected skill's suggestion
+carries the identical command. This is a real granularity mismatch, stated
+rather than papered over. Two consequences at apply time:
+
+- **Ask for it once per vendor, not once per accepted action.** When
+  several accepted suggestions carry the same command, surface it on the
+  first, poll for that one run, then resolve its siblings against it rather
+  than printing the identical command again for each. Mark each sibling
+  `"done"` with a note naming the run that covered it (`"Covered by the
+  anthropics sync above"`), so the action list stays honest about what
+  actually happened.
+- **A rejected sibling does not stop the run.** If the user accepted one
+  anthropics skill and rejected another, the sync still updates both —
+  there is no per-skill sync in this vendoring model. Say so plainly in the
+  action note instead of pretending the rejection was honoured; if the user
+  genuinely wants one skill held back, that is a `discuss`, not something to
+  simulate.
+
+**Verification is not a version poll.** There is no installed version to
+check (§Executing Upgrade Suggestions' polling loop assumes one). Confirm
+instead that the sync landed: a new `git-subtree-split` squash commit in
+`git -C dotfiles log`, or simply re-run
+`python3 scripts/collect_skill_drift.py` and check that the vendor's
+findings are gone. A `probe_error` finding has no remediation at all and
+nothing to verify — it means the detector could not reach upstream, so the
+right outcome is to note that and move on, never to guess a drift verdict.
+
+Because the sync writes commits inside the submodule, everything after it
+follows the ordinary dotfiles-submodule path: the parent repo needs
+`git add dotfiles` + a pointer commit, and §Push and Terminal Status'
+ordering (dotfiles first, then macos-setup) applies unchanged.
+
 ## Executing Upgrade Suggestions
 
 Execution depends on two independent gates, both of which must pass for the
@@ -164,7 +245,9 @@ completion by checking the installed version every ~30s (`mise current
 `latest_version`, mark `"done"` with the confirmed version. **Cap polling at
 ~20 minutes** — past that, leave the action `"running"` with a reminder note
 rather than blocking the rest of the session; it can complete later and
-Finish is still available.
+Finish is still available. This loop assumes an installed version exists to
+poll for; a `skill-drift` sync has none and is confirmed a different way
+(§Skill-Drift Remediation).
 
 **Auto-runnable and toggle on**: run `command` directly — plain subprocess
 for `needs_sudo: false`. For `needs_sudo: true`:
@@ -207,6 +290,8 @@ suggestion itself, and the toggle being unchecked for a given session. Never
 invent a third way around either — no `NOPASSWD` sudoers edits, no running
 `setup.sh`/`tasks/*.sh` yourself beyond the one documented
 `./setup.sh projects` exception (§Executing `edit` Suggestions above), no
+running `sync-upstream.sh` yourself, which that exception does not cover
+(§Skill-Drift Remediation above), no
 auto-applying anything derived from a free-text comment without a fresh
 accept/reject (§Tool Comments and Discuss below).
 

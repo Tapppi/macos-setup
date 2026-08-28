@@ -30,6 +30,33 @@ import sys
 from datetime import datetime, timezone
 
 
+# ── the non-version finding sources (references/assembly.md §Brew-Health
+# Assembly, §Skill-Drift Assembly) ──────────────────────────────────────────
+# Sources whose candidates are *findings* rather than version updates: no
+# current→latest pair, no CVE scan, no synthesized `:upgrade` baseline, and
+# their own summary count instead of `total_outdated`. Kept as one set — and
+# read through it everywhere the branch means "this has no version" — so a
+# fourth finding source cannot be added to half the branches and land in the
+# unknown-delta box for the other half. The report template makes the same
+# distinction under the same name (`NON_VERSION_SOURCES`/`isNonVersion`).
+# Branches that mean "this *specific* source" (the per-source label maps) stay
+# written as `== "..."`.
+NON_VERSION_SOURCES = frozenset({"brew-health", "skill-drift"})
+
+
+def finding_expected(tool) -> bool:
+	"""True when a non-version finding needs no decision — brew-health's
+	`expected` path notes and skill-drift's local_only/probe_error alike.
+
+	The two sources keep separate flags on the Tool object because they mean
+	different things to a reader (`health_expected`: an intentional
+	environment note; `drift_expected`: our own patch, or a probe that could
+	not run). But every *derived* axis asks the same question of both, so it
+	is asked once here rather than as a second copy of the same predicate per
+	source per axis — which is how three axes would come to disagree."""
+	return bool(tool.get("health_expected") or tool.get("drift_expected"))
+
+
 # ── needs_sudo heuristic (references/schemas.md §Report Object; references/apply.md §Executing Upgrade Suggestions) ──
 # brew formulae, mise, and standalone CLIs never invoke a privileged
 # installer themselves — only some casks (pkg-shipping installers) do, and
@@ -44,6 +71,11 @@ def needs_sudo_for(source: str, research_obj: dict) -> bool:
 		return research_obj.get("cask_sudo_hint") is not False
 	if source == "macos":
 		return True
+	if source == "skill-drift":
+		# A vendored-skill sync is `git subtree pull` inside a repo the user
+		# owns — never privileged. Stated here rather than left to the
+		# fall-through so the answer is a decision, not an accident of ordering.
+		return False
 	return True
 
 
@@ -59,6 +91,12 @@ def upgrade_command_and_runnable(source: str, name: str):
 		return None, False, "No generic upgrade command for a standalone CLI — check the tool's own docs."
 	if source == "macos":
 		return None, False, "macOS system/app update — install via System Settings or `softwareupdate -i`, not auto-run by this skill."
+	if source == "skill-drift":
+		# Unreachable from build_drift_tool (a drift finding gets no synthesized
+		# baseline at all — its action is its own `:sync` remediation), but
+		# answered explicitly so a future caller cannot get a runnable command
+		# for a subtree pull out of the fall-through.
+		return None, False, "Vendored-skill sync is always manual."
 	return None, False, "Unknown source — no safe default command."
 
 
@@ -172,11 +210,13 @@ def first_difference(comps_a, comps_b) -> tuple:
 def compute_version_delta(current, latest, source: str, tool_id: str | None = None) -> tuple:
 	"""→ (delta, scheme, note). The only function callers use; `tool_id` only
 	names the tool in the compare-equal warning and may be omitted."""
-	if source in ("brew-health", "macos"):
-		# brew-health has no versions at all, and a macos candidate's
-		# current_version is the running `sw_vers -productVersion` rather than
-		# the version of that specific update (references/schemas.md §1.3), so
-		# a delta computed from it would be fiction.
+	if source in NON_VERSION_SOURCES or source == "macos":
+		# brew-health and skill-drift have no versions at all, and a macos
+		# candidate's current_version is the running `sw_vers -productVersion`
+		# rather than the version of that specific update
+		# (references/schemas.md §1.3), so a delta computed from it would be
+		# fiction. macos is spelled out separately because it *is* a version
+		# source — only its collected current_version is untrustworthy.
 		return ("unknown", "none", "no version delta for this source")
 	if not isinstance(current, str) or not isinstance(latest, str) or not current.strip() or not latest.strip():
 		return ("unknown", "none", "missing version")
@@ -389,10 +429,15 @@ def compute_security_only(tool: dict, has_security: bool) -> bool:
 def compute_impact(tool: dict) -> str:
 	"""Does anything in this release touch *this* setup? → "none" |
 	"possible" | "unknown"."""
-	if tool["source"] == "brew-health":
-		# A health finding is about this machine by definition; an expected one
-		# (the intentional GNU-utils PATH note) is explicitly no-action.
-		return "none" if tool.get("health_expected") else "possible"
+	if tool["source"] in NON_VERSION_SOURCES:
+		# Either finding is about *this* setup by definition — a health finding
+		# describes the brew install in front of us, and a drifted vendored
+		# skill is the user's own submodule that has fallen behind — so the
+		# only question left is whether it needs deciding. Expected means it
+		# does not (the intentional GNU-utils PATH note; a local_only patch or
+		# a probe that could not run), which is exactly what impact "none"
+		# says.
+		return "none" if finding_expected(tool) else "possible"
 	if not research_produced_content(tool):
 		# Research failed or produced no headliners → no basis for a verdict.
 		# "unknown" can never reach security_auto, so it never renders as
@@ -711,7 +756,7 @@ def compute_security(tool: dict) -> dict:
 	Eight keys are always present; `notable` is the ninth and is emitted only
 	when assembly has an answer to give — see the comment on the return."""
 	tool_id = tool.get("id", "<unknown>")
-	if tool["source"] == "brew-health":
+	if tool["source"] in NON_VERSION_SOURCES:
 		# Forced false: the security section is about *patches* the user can
 		# take. An untrusted tap is a trust decision, not a shipped fix, and
 		# counting it in tools_with_security would make the section's count
@@ -719,6 +764,10 @@ def compute_security(tool: dict) -> dict:
 		# via the health→category map (untrusted_tap → a security headliner).
 		# A notable[] here is dropped silently for the same reason — the same
 		# doctrine as "No research ⇒ never security_only", applied twice.
+		# A skill-drift finding is forced the same way and for the same reason:
+		# its detail text names an upstream range, and scanning that prose for
+		# CVE ids would attribute an advisory the user cannot act on here to a
+		# card that ships no patch.
 		return {
 			"cve_ids": [],
 			"cve_count": 0,
@@ -868,10 +917,14 @@ def noise_suppressible(tool: dict, item: dict, field: str) -> bool:
 # "low" and get pre-accepted, i.e. the updates we understand least would be
 # the ones auto-approved.
 def compute_risk_level(tool: dict) -> str:
-	if tool["source"] == "brew-health":
-		# An expected/no-action finding (path_note) is informational; anything
-		# else is structural, so it never reads as quietly fine.
-		return "low" if tool.get("health_expected") else "elevated"
+	if tool["source"] in NON_VERSION_SOURCES:
+		# An expected/no-action finding is informational: brew-health's
+		# path_note, or a skill-drift local_only (the user's own patch) or
+		# probe_error. Everything else is structural in exactly the sense this
+		# axis measures — an unlinked keg or an untrusted tap on one side, a
+		# subtree pull that rewrites vendored files and can conflict on the
+		# other — so it never reads as quietly fine.
+		return "low" if finding_expected(tool) else "elevated"
 	if tool.get("pinned"):
 		return "elevated"
 	for item in tool.get("relevancy", []):
@@ -895,7 +948,10 @@ def compute_risk_level(tool: dict) -> str:
 def baseline_upgrade(tool: dict):
 	"""The synthesized baseline suggestion, or None. Identified by position +
 	kind + `:upgrade` id suffix, so a brew-health finding's
-	`{tool_id}:remediate` never matches.
+	`{tool_id}:remediate` and a skill-drift finding's `{tool_id}:sync` never
+	match — which is the single mechanism that makes both non-version sources
+	impossible to pre-accept (apply_pre_accept only ever writes True onto the
+	object this returns).
 
 	On the decision path (finalize_tool → review_bucket/pre_accept) this always
 	runs *before* main()'s id-uniqueness renaming pass, which is what the
@@ -921,13 +977,14 @@ def baseline_upgrade(tool: dict):
 
 def compute_review_bucket(tool: dict) -> str:
 	"""Strict precedence, first match wins. Note review_bucket is a
-	*review-effort* axis, orthogonal to source: the page groups brew-health
-	cards by `source` and counts them with summary.health_count, never by
-	bucket — "routine" on the one expected PATH note means "nothing to decide
-	here", not "hide it"."""
+	*review-effort* axis, orthogonal to source: the page groups brew-health and
+	skill-drift cards by `source` and counts them with summary.health_count /
+	summary.skill_drift_count, never by bucket — "routine" on the one expected
+	PATH note, or on a locally-patched skill, means "nothing to decide here",
+	not "hide it"."""
 	sec = tool["security"]
-	if tool["source"] == "brew-health":
-		return "routine" if tool.get("health_expected") else "attention"
+	if tool["source"] in NON_VERSION_SOURCES:
+		return "routine" if finding_expected(tool) else "attention"
 	baseline = baseline_upgrade(tool)
 	runnable = bool(baseline and baseline.get("auto_runnable"))
 	if (sec["has_security"] and sec["security_only"] and sec["impact"] == "none"
@@ -956,7 +1013,8 @@ def apply_pre_accept(tool: dict) -> None:
 	"""The single pre-accept mechanism (the page reads `pre_accept` instead of
 	re-deriving it from risk_level). Only the baseline `{source}:{name}:upgrade`
 	suggestion is ever eligible — never a research-authored edit, never a
-	watch-item, never a brew-health remediation. `auto_runnable: false` is a
+	watch-item, never a brew-health remediation, never a skill-drift sync.
+	`auto_runnable: false` is a
 	hard exclusion: "accepted" would claim a decision about something the skill
 	cannot execute. `needs_sudo` deliberately does *not* block it — blocking it
 	would un-pre-accept nearly every cask (the heuristic defaults casks to
@@ -1152,6 +1210,47 @@ def validate_evidence(tool: dict, roots) -> None:
 
 
 # ── main assembly ───────────────────────────────────────────────────────────
+def read_findings_block(collect: dict, key: str, source: str) -> tuple:
+	"""→ (findings, suppressed) for one `{findings, suppressed}` block of
+	collect.json (`brew_health`, `skill_drift`).
+
+	Read defensively, for the same reason as_item_list() exists one boundary
+	over: each block is produced by a detector that can fail, time out, or be an
+	older version of itself, and the whole block can be absent (a session
+	collected before that detector existed), null, or the wrong shape. A finding
+	source is an *addition* to the report — never let a malformed one cost the
+	version updates the run was actually for. Anything unusable is warned about
+	and dropped, never silently swallowed.
+
+	The block key is authoritative about `source`: a finding that omits it (or
+	disagrees) is stamped, because build_tool() dispatches on that field and a
+	missing one would otherwise be a KeyError several tools into the loop."""
+	block = collect.get(key)
+	if block is None:
+		return ([], [])
+	if not isinstance(block, dict):
+		print(f"warning: collect.json {key!r} was {type(block).__name__}, not an object — ignoring it", file=sys.stderr)
+		return ([], [])
+	raw = block.get("findings") or []
+	if not isinstance(raw, list):
+		print(f"warning: collect.json {key}.findings was {type(raw).__name__}, not an array — ignoring it", file=sys.stderr)
+		raw = []
+	findings = []
+	for item in raw:
+		if not isinstance(item, dict) or not item.get("id"):
+			print(f"warning: collect.json {key}.findings: dropping a malformed entry: {item!r}", file=sys.stderr)
+			continue
+		if item.get("source") != source:
+			print(f"warning: {item['id']}: {key}.findings entry had source {item.get('source')!r} — reading it as {source!r}", file=sys.stderr)
+			item = dict(item, source=source)
+		findings.append(item)
+	raw_sup = block.get("suppressed") or []
+	if not isinstance(raw_sup, list):
+		print(f"warning: collect.json {key}.suppressed was {type(raw_sup).__name__}, not an array — ignoring it", file=sys.stderr)
+		raw_sup = []
+	return (findings, [s for s in raw_sup if isinstance(s, str)])
+
+
 def load_research(research_dir: str) -> dict:
 	"""Returns {tool_id: research_obj}. Every file in research/ is a JSON
 	array (references/research.md §Spawning and the Output-File Contract); a tool with no matching entry (subagent
@@ -1200,6 +1299,24 @@ _HEALTH_CATEGORY_GROUP = {
 	"missing_dependency": "fixes",
 	"path_note": "notes",
 	"other": "notes",
+}
+
+
+# ── skill-drift state → headliner category (references/assembly.md §Skill-Drift Assembly) ──
+# Same idea as _HEALTH_CATEGORY_GROUP above: a drift is not a changelog fact,
+# but the four content groups are still where its problem statement reads best.
+# A drift the user is being asked to resolve is a "fixes" item (something is
+# behind and there is a sync to run); a drift that needs no decision —
+# `local_only` (the local copy is deliberately patched) or a per-vendor
+# `probe_error` (we could not check) — is a "notes" item. Nothing here maps to
+# `security`: a stale vendored *prompt* ships no advisory, and claiming
+# otherwise would put an unactionable card in the security section.
+_DRIFT_STATE_GROUP = {
+	"upstream_ahead": "fixes",
+	"diverged": "fixes",
+	"local_only": "notes",
+	"probe_error": "notes",
+	"in_sync": "notes",
 }
 
 
@@ -1284,10 +1401,111 @@ def build_health_tool(candidate: dict, research_obj: dict | None) -> dict:
 	return tool
 
 
+def build_drift_tool(candidate: dict, research_obj: dict | None) -> dict:
+	"""Build a Tool object for a `source: "skill-drift"` finding
+	(references/assembly.md §Skill-Drift Assembly) — a vendored agent skill
+	under `dotfiles/config/agent-skills/` that no longer matches the upstream it
+	was synced from. Structurally a sibling of build_health_tool(): a finding,
+	not a version update, so no current→latest pair and no synthesized
+	`brew upgrade` baseline — its action is the finding's own vendor-scoped
+	sync command. Absent research this degrades to the detector's own detail so
+	the card still says what drifted and what to run."""
+	research_obj = research_obj or {}
+	tool_id = candidate["id"]
+	# `or`, not a .get() default, throughout this builder: a detector that
+	# emits an explicit null leaves the key *present*, so a default would never
+	# substitute and the card would render "null" where its state or problem
+	# statement belongs. probe_error is the honest fallback state — "we could
+	# not establish this one" — and it is `expected`, so it stays quiet.
+	state = candidate.get("drift_state") or "probe_error"
+
+	# Headliners: research's if present, else one synthesized from the
+	# finding's own detail so the drift still shows in a content group.
+	headliners = as_item_list(research_obj.get("headliners"), tool_id, "headliners")
+	if not headliners:
+		headliners = [{
+			"text": candidate.get("detail") or candidate.get("name") or tool_id,
+			"category": _DRIFT_STATE_GROUP.get(state, "notes"),
+			"severity": candidate.get("severity") or "notable",
+		}]
+
+	# Suggestions: research's if present, else synthesize from the finding's
+	# remediation (null for the states that need no decision — local_only and
+	# probe_error — so those cards carry no action at all).
+	suggestions = as_item_list(research_obj.get("suggestions"), tool_id, "suggestions")
+	if not suggestions:
+		rem = candidate.get("remediation")
+		# isinstance rather than truthiness: this block is written by a detector
+		# that can emit a half-built object, and a bare string here would raise
+		# on .get() and cost the whole report.
+		if isinstance(rem, dict) and rem.get("command"):
+			sug = {
+				# `:sync`, NEVER `:upgrade` — baseline_upgrade() identifies the
+				# pre-acceptable baseline by that suffix, so this one choice is
+				# what makes a vendored-skill sync impossible to auto-approve. A
+				# subtree pull rewrites files in the dotfiles submodule, needs a
+				# clean tree and can conflict; it is never a "just do it".
+				"id": f"{tool_id}:sync",
+				"kind": "upgrade",  # a single command to run, like an upgrade
+				"title": rem.get("label") or candidate.get("name") or "Sync from upstream",
+				"target_files": [],
+				"command": rem["command"],
+				# Defaults are the conservative half of each pair: a detector
+				# that omits the key gets manual, unprivileged.
+				"auto_runnable": rem.get("auto_runnable", False),
+				"needs_sudo": rem.get("needs_sudo", False),
+				"rationale": candidate.get("detail") or "",
+				"motivating_link": None,
+				"diff_preview": None,
+			}
+			if not sug["auto_runnable"]:
+				sug["manual_reason"] = (
+					"Vendored-skill sync is always manual — `sync-upstream.sh` pulls a git "
+					"subtree into the dotfiles submodule, needs a clean tree, and can conflict.")
+			suggestions = [sug]
+
+	tool = {
+		"id": tool_id,
+		"name": candidate.get("name", tool_id),
+		"source": "skill-drift",
+		"drift_state": state,
+		# "no decision required", not "no drift" — local_only and probe_error.
+		"drift_expected": bool(candidate.get("expected", False)),
+		# Vendor is the granularity the sync command actually operates at, so
+		# the page can say which other cards one run would resolve.
+		"drift_vendor": candidate.get("vendor"),
+		"drift_skill": candidate.get("skill"),
+		"pinned": False,
+		"current_version": None,
+		"latest_version": None,
+		"research_error": None,
+		"headliners": headliners,
+		"links": as_item_list(research_obj.get("links"), tool_id, "links"),
+		"config_status": normalize_config_status(research_obj),
+		"relevancy": as_item_list(research_obj.get("relevancy"), tool_id, "relevancy"),
+		"context": as_item_list(research_obj.get("context"), tool_id, "context"),
+		"release_inventory": as_item_list(research_obj.get("release_inventory"), tool_id, "release_inventory"),
+		"vendor_silent_categories": as_item_list(
+			research_obj.get("vendor_silent_categories"), tool_id, "vendor_silent_categories", member_type=str),
+		"suggestions": suggestions,
+	}
+	# Same needs_attention-must-have-a-suggestion guard both other build paths
+	# apply — a research subagent could flag a drift finding whose remediation
+	# is null (local_only), shipping an unactionable banner.
+	if config_needs_attention(tool) and not tool["suggestions"]:
+		print(f"warning: {tool_id}: config_status is needs_attention with no suggestion addressing it", file=sys.stderr)
+	# One shared entry point for every derived field, so a drift finding and a
+	# version-outdated tool can never disagree about what a field means.
+	finalize_tool(tool)
+	return tool
+
+
 def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 	source = candidate["source"]
 	if source == "brew-health":
 		return build_health_tool(candidate, research_obj)
+	if source == "skill-drift":
+		return build_drift_tool(candidate, research_obj)
 
 	name = candidate["name"]
 	tool_id = candidate["id"]
@@ -1421,8 +1639,10 @@ def _truncate_why(text: str) -> str:
 
 
 def _highlight_title(tool: dict) -> str:
-	if tool["source"] == "brew-health":
-		return tool.get("name") or tool["id"]   # a health finding has no versions
+	if tool["source"] in NON_VERSION_SOURCES:
+		# A finding has no versions — the version form would render the tool's
+		# name followed by "None → None".
+		return tool.get("name") or tool["id"]
 	return f"{tool.get('name')} {tool.get('current_version')} → {tool.get('latest_version')}"
 
 
@@ -1541,25 +1761,31 @@ def build_highlights(tools: list) -> list:
 
 # ── report-level summary (references/assembly.md §Summary Counts and Output) ──
 def summarize_by_delta(tools: list) -> dict:
-	"""brew-health findings are environment issues, not updates — excluding
-	them preserves sum(by_delta) == total_outdated (the invariant the main
-	tab's boxes are built on) and stops non-updates inflating the unknown box."""
+	"""brew-health findings are environment issues and skill-drift findings are
+	vendoring issues, not updates — excluding both preserves
+	sum(by_delta) == total_outdated (the invariant the main tab's boxes are
+	built on) and stops non-updates inflating the unknown box. A membership
+	test, not a chain of `==`: the next finding source has to be excluded here
+	by construction, since forgetting it shows up only as a quietly wrong
+	unknown count."""
 	counts = {"major": 0, "minor": 0, "patch": 0, "revision": 0, "unknown": 0}
 	for tool in tools:
-		if tool["source"] == "brew-health":
+		if tool["source"] in NON_VERSION_SOURCES:
 			continue
 		counts[tool["version_delta"]] += 1
 	return counts
 
 
 def summarize_by_bucket(tools: list) -> dict:
-	"""Counts **every** tool, brew-health findings included — the mirror image
-	of summarize_by_delta() above, and deliberately so: `review_bucket` is a
+	"""Counts **every** tool, findings included — the mirror image of
+	summarize_by_delta() above, and deliberately so: `review_bucket` is a
 	review-effort axis defined for every Tool object (§Review Buckets), and the
-	page's bucket lists render health cards alongside version ones. The two
-	summaries therefore have different denominators — by_delta sums to
-	`total_outdated` (74 here), by_bucket to `total_outdated + health_count`
-	(77) — so a page must never mix them in one percentage."""
+	page's bucket lists render health and skill-drift cards alongside version
+	ones. Every Tool object is bucketed exactly once, so this sums to
+	len(tools); spelled arithmetically that is
+	`total_outdated + health_count + skill_drift_count`, one term per source
+	excluded from total_outdated. by_delta has the smaller denominator, so a
+	page must never mix the two in one percentage."""
 	counts = {"security_auto": 0, "security_mixed": 0, "attention": 0, "routine": 0}
 	for tool in tools:
 		counts[tool["review_bucket"]] += 1
@@ -1652,18 +1878,20 @@ def main():
 
 	research_by_id = load_research(os.path.join(session_dir, "research"))
 
-	# brew-health findings (references/assembly.md §Brew-Health Assembly) are candidates too, appended after
-	# the version-outdated tools so they sort/render as their own cards.
-	health = collect.get("brew_health") or {}
-	health_findings = health.get("findings", []) if isinstance(health, dict) else []
-	health_suppressed = health.get("suppressed", []) if isinstance(health, dict) else []
+	# The two finding sources (references/assembly.md §Brew-Health Assembly,
+	# §Skill-Drift Assembly) are candidates too, appended after the
+	# version-outdated tools so they sort/render as their own cards.
+	health_findings, health_suppressed = read_findings_block(collect, "brew_health", "brew-health")
 	for s in health_suppressed:
 		print(f"note: brew-health suppressed (expected, not reported): {s}", file=sys.stderr)
+	drift_findings, drift_suppressed = read_findings_block(collect, "skill_drift", "skill-drift")
+	for s in drift_suppressed:
+		print(f"note: skill-drift suppressed (in sync, or no upstream to check): {s}", file=sys.stderr)
 
 	candidates = (
 		collect.get("brew", []) + collect.get("mise", []) +
 		collect.get("standalone", []) + collect.get("macos", []) +
-		health_findings
+		health_findings + drift_findings
 	)
 
 	tools = [build_tool(c, research_by_id.get(c["id"])) for c in candidates]
@@ -1709,9 +1937,17 @@ def main():
 	incompatible = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "incompatible")
 	warning = sum(1 for t in tools for r in t["relevancy"] if r.get("severity") == "warning")
 	suggestions_count = sum(len(t["suggestions"]) for t in tools)
-	# "outdated" counts version-outdated tools only; brew-health findings are
-	# environment issues, not updates, so they get their own count.
+	# "outdated" counts version-outdated tools only; a brew-health finding is an
+	# environment issue and a skill-drift finding is a vendoring issue, so each
+	# gets its own count and neither is in total_outdated. by_bucket still
+	# counts all of them, which is why its denominator is the sum of all three
+	# (see summarize_by_bucket). total_outdated is a membership test against
+	# NON_VERSION_SOURCES rather than `len(tools) - health_count -
+	# skill_drift_count`, so it stays correct — and stays the same expression
+	# summarize_by_delta uses — when a fourth finding source is added.
 	health_count = sum(1 for t in tools if t["source"] == "brew-health")
+	skill_drift_count = sum(1 for t in tools if t["source"] == "skill-drift")
+	total_outdated = sum(1 for t in tools if t["source"] not in NON_VERSION_SOURCES)
 
 	report_id = os.path.basename(session_dir)
 	report = {
@@ -1720,11 +1956,12 @@ def main():
 		"generated_at": collect.get("generated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 		"machine": collect.get("machine", {}),
 		"summary": {
-			"total_outdated": len(tools) - health_count,
+			"total_outdated": total_outdated,
 			"incompatible_count": incompatible,
 			"warning_count": warning,
 			"suggestions_count": suggestions_count,
 			"health_count": health_count,
+			"skill_drift_count": skill_drift_count,
 			# Additive (schema_version stays 1 — every consumer only reads keys
 			# it knows, and a page written against the new report must still
 			# tolerate these being absent when a user reopens an old session).

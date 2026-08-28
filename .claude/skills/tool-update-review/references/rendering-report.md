@@ -36,6 +36,7 @@ Table of contents:
 - Decision State and Mirrors
 - Long Strings and Overflow
 - Brew-Health Rendering
+- Skill-Drift Rendering
 - Keyboard Navigation
 - Transition to Results View
 - Template Variables
@@ -58,15 +59,21 @@ Solarized Dark palette as CSS custom properties, no external dependencies:
 | `--red`    | `#dc322f` | `incompatible` severity, prominent callout |
 | `--blue`   | `#268bd2` | links, `info` severity, `brew` source badge |
 | `--cyan`   | `#2aa198` | Accept confirmed state |
-| `--green`  | `#859900` | version delta new-version text, diff additions |
+| `--green`  | `#859900` | version delta new-version text, diff additions, `skill-drift` source badge |
 | `--violet` | `#6c71c4` | mise source badge |
 | `--magenta`| `#d33682` | standalone source badge |
 
 All `source` values (`schemas.md` §Report Object) get a badge: `brew`/`cask`
 reuse the severity/link colors above (blue/orange), `mise`/`standalone` have
 dedicated colors, `macos` reuses `--base00` as a neutral "system-level, not a
-package manager" badge, and `brew-health` gets its own dedicated color (see
-§Brew-Health Rendering below).
+package manager" badge, `brew-health` gets its own dedicated color (see
+§Brew-Health Rendering below), and `skill-drift` reuses `--green` (see
+§Skill-Drift Rendering below). **A new source takes an existing hue, never a
+new one** — the page's standing claim is that it introduces no colors beyond
+the fifteen above, and `--green` was the one token no source badge had
+claimed. It also reads sensibly here: green is already the page's
+"repository content" color (new versions, diff additions), and a vendored
+skill is repository content.
 
 ### Derived Tokens
 
@@ -309,8 +316,11 @@ One sentence above the tiles, prose in `--base1` with numbers in
 Pre-Accept — worked through the definitions below; every run splits
 differently.)
 
-- "need a decision" = `security_mixed` + `attention` tools, excluding
-  `brew-health` (counted separately in its own band).
+- "need a decision" = `security_mixed` + `attention` tools, excluding both
+  non-version sources, `brew-health` and `skill-drift` (each counted
+  separately in its own band). The lede's denominator is
+  `total_outdated` — a sentence reading "42 of 74 updates" must not silently
+  count things that are not updates.
 - "the other" = `routine` + `security_auto`.
 - Zero needing a decision reads *"Nothing needs a decision — all 74 updates
   are routine or security-only with no impact here."*
@@ -393,8 +403,12 @@ Shared tile rules:
   nothing.
 
 **Data fallbacks.** `summary.by_delta` absent → derive by counting
-`tool.version_delta` over non-`brew-health` tools; no tool carries the field
-either → **hide Group A entirely** rather than draw three zeros.
+`tool.version_delta` over version-source tools only, i.e. skipping every
+non-version source (`brew-health`, `skill-drift`) exactly as assembly's own
+`by_delta` does — a fallback that counted them would disagree with the
+summary it is standing in for, which is worse than not drawing the group;
+no tool carries the field either → **hide Group A entirely** rather than
+draw three zeros.
 `summary.security` absent → derive from `tool.security.*`; no tool carries it
 → hide Group B *and* the whole security section, and the lede drops its
 security clause. Same principle throughout: degrade to silence, never to a
@@ -781,10 +795,12 @@ applied — uncapped, a pathological report rendered a two-row wall of links.
   **`max-width: 78ch`** — this is the one place on the page with real prose,
   and it must not run to 1400px.
 - Meta row: source badge, versions, delta pill, the CVE badge when
-  `security.has_security`, then `open in tool list →`. **A `brew-health`
-  finding (or any tool with no `current_version`) renders its finding category
-  label in the versions slot and drops the delta pill** — the same rule the
-  tool header uses. Without it, a health finding reaching `highlights[]`
+  `security.has_security`, then `open in tool list →`. **A finding from a
+  non-version source (or any tool with no `current_version`) renders its
+  source's own label — the finding category for `brew-health`, the
+  drift-state for `skill-drift` — in the versions slot and drops the delta
+  pill** — the same rule the
+  tool header uses. Without it, such a finding reaching `highlights[]`
   renders `null → null` as "→ UNKNOWN".
 - One `.hlsug` row per entry in `highlights[].suggestion_ids`: the
   suggestion's own `title` (truncating, `min-width: 0`), its `needs_sudo` chip
@@ -851,27 +867,45 @@ Two properties this has to preserve:
 ### Everything Else
 
 Without this, the Overview would show ~20 of 77 tools and the obvious
-question is "where did the other 57 go?". Three collapsed bands
-(`#else-section`) complete the accounting, each with a head carrying a live
-`N of M already accepted` count read off its own chips:
+question is "where did the other 57 go?". Four bands (`#else-section`)
+complete the accounting, each with a head carrying a live `N of M already
+accepted` count read off its own chips:
 
-1. **Routine updates** (`review_bucket === 'routine'`, excluding
-   `brew-health`) — a chip cloud, one `.chip` per tool: an accepted-state glyph
+1. **Routine updates** (`review_bucket === 'routine'`, excluding every
+   non-version source) — a chip cloud, one `.chip` per tool: an
+   accepted-state glyph
    mirroring the baseline upgrade decision, the name, and the latest version.
    Click jumps to the tool. Chips truncate at `max-width: 230px` with the full
    text in `title` — real version strings hit 45 characters. A few dozen chips
    wrap to five or six rows, and the cloud stays legible to ~100 before it
-   needs a scroll container.
+   needs a scroll container. Collapsed by default.
 2. **Other tools needing attention** (`review_bucket === 'attention'`,
-   excluding `brew-health` and anything already in `highlights[]`) — same band
+   excluding every non-version source and anything already in
+   `highlights[]`) — same band
    shape, chips show the `version_delta` instead of a version. This is the
    honest home for "flagged by the bucket algorithm but not important enough
-   to be a highlight".
+   to be a highlight". Collapsed by default.
 3. **Homebrew environment** (`source === 'brew-health'`) — **expanded by
    default**: there are only ever a handful and one is usually actionable. One
    row per finding: severity icon, name, the remediation command in a copyable
    `.cmd` chip (reusing the existing command-chip copy handler), `details →`.
    Counted separately from `total_outdated`, exactly as `health_count` is.
+4. **Vendored agent skills** (`source === 'skill-drift'`) — the same row
+   shape as band 3, but **collapsed by default**, because there can easily be
+   a dozen: one adopted skill per row, and a whole vendor drifts at once
+   (`assembly.md` §Skill-Drift Assembly). The head carries the count, so the
+   accounting is visible without the rows being. Counted separately from
+   `total_outdated`, exactly as `skill_drift_count` is. Rows repeat the
+   vendor-scoped sync command per skill, which is honest rather than
+   redundant — it is genuinely the same command for every skill of a vendor,
+   and the remediation `label` says how many it covers.
+
+**Bands 1 and 2 must exclude *every* non-version source, not just
+brew-health.** They are chip clouds keyed on a version or a delta, so a
+source with neither renders a chip that says nothing, in the one place the
+page promised to account for what it isn't showing elsewhere. The rule is
+one test — "does this tool have a version pair" — not a growing list of
+`!== 'brew-health'` comparisons.
 
 A band with no members is omitted rather than rendered empty; with no bands at
 all, the whole section is omitted.
@@ -892,7 +926,9 @@ sticky row on mobile.
 Controls, left to right: **Bucket** select (All | Security + other | Security
 only | Needs attention | Routine — matching `review_bucket`, `schemas.md`
 §1.10), **Delta** select (All | major | minor | patch | revision | unknown),
-Source select (All|brew|cask|mise|standalone|macos|brew-health), severity
+Source select (All|brew|cask|mise|standalone|macos|brew-health|skill-drift
+— one `<option>` per value the `source` vocabulary defines, so a source with
+no option is a source the user cannot isolate), severity
 select, **Security only** checkbox (`data-sec="1"`), "Only relevant to me"
 toggle (hides tools with empty `relevancy[]`), sort select (**Needs decision
 first** [default] | Incompatible first | Name | Source | Major-delta first),
@@ -953,7 +989,8 @@ the Overview's tiles use, so the two read as one system:
 
 - **Delta pill** — `MAJOR` in `--orange`, `MINOR` in `--blue`, `PATCH` and
   `REVISION` in `--base01`, with `version_delta_note` as its `title`. Omitted
-  for `brew-health` (no version pair) **and when `version_delta` is missing
+  for `brew-health` and `skill-drift` (no version pair) **and when
+  `version_delta` is missing
   entirely**: an explicit `"unknown"` is a real classification (an opaque or
   build-number scheme) and earns its pill, but a *missing* field is not a
   classification at all, and rendering it as UNKNOWN on every row of a
@@ -1297,6 +1334,63 @@ same way `data-max-severity` does on the tool section.
 that scores high enough to be ranked renders its finding category label in the
 versions slot and drops the delta pill; without that it rendered
 `null → null` as "→ UNKNOWN".
+
+## Skill-Drift Rendering
+
+A `skill-drift` tool renders like any other card with the same three
+subtractions brew-health takes, for the same reason — there is no version
+pair (`assembly.md` §Skill-Drift Assembly):
+
+- the header's version slot shows a **drift-state label** — `upstream
+  ahead`, `local patch`, `diverged`, `unverified`, `in sync` — from a fixed
+  `drift_state` → label map (`DRIFT_LABEL`), kept **separate** from the
+  health-category map rather than merged into it: the two vocabularies are
+  unrelated, and one shared map would let a health category resolve a drift
+  state by accident. The fallback names its own source too
+  (`skill drift`/`environment health`), so an unrecognized value can never
+  be captioned as the other source's;
+- **no delta pill**, in the tool header and in `highlights[]` alike (it
+  never reaches the mixed-security card — `has_security` is false for this
+  source);
+- the source badge uses `--green` (§Palette).
+
+**The label map is the whole card's honesty.** `local_only` must read as
+*we* changed this — `local patch`, never "behind" and never "outdated". A
+label implying upstream moved would invite the user to accept a sync that
+discards their own customisation, which is precisely the confusion the
+three-way comparison exists to remove (`collection.md` §Skill-Drift
+Collection). `probe_error` → `unverified` for the mirror-image reason: it is
+not a drift verdict at all, it means we could not look, and a label that
+sounds like one would report a failure to check as a clean bill of health.
+
+**Two rules generalize rather than duplicate.** Everywhere the page asks
+"does this tool have a version" — the version slot, the delta pill, the
+lede's denominator, the `by_delta` fallback, the routine/attention chip
+clouds, the "everything else" total — the test is **membership in the set of
+non-version sources**, not equality against `brew-health`. Everywhere it
+asks "which band / which label map is this", the test stays source-specific:
+the Homebrew-environment band is brew-health's alone, and vendored skills
+get their own sibling band (§Overview Tab → Everything Else). Blanket
+replacement in either direction breaks the half it does not fit.
+
+**On the Overview**, drift findings appear only in the *Vendored agent
+skills* band, **collapsed by default** — one row per skill, severity icon,
+name, the sync command in a copyable `.cmd` chip, `details →` — and never in
+the routine/attention chip clouds. They are grouped and counted by
+`source === 'skill-drift'` and `summary.skill_drift_count`, **never** by
+`review_bucket`: `routine` on a `local_only` finding means "nothing to decide
+here", not "hide it". As with health findings, a drift finding carries its
+severity on `headliners[]` rather than `relevancy[]`, so the band's row
+severity falls back to the headliners the same way `data-max-severity` does
+on the tool section.
+
+**Its suggestion, when it has one, never renders pre-accepted**, whatever
+else is true of the tool: the id ends `:sync`, so assembly wrote
+`pre_accept: false`
+(`schemas.md` §1.6). The card is a normal Accept/Reject/Discuss toggle, with
+the manual-run hint an `auto_runnable: false` upgrade card already shows
+(§Suggestion Card) — the command is one the user runs themselves
+(`apply.md` §Skill-Drift Remediation).
 
 ## Keyboard Navigation
 

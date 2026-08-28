@@ -17,7 +17,7 @@ two audiences and is split into two parts for them:
 Table of contents:
 - Part 1 — Orchestrator: Dispatch
   - Prompt Template
-  - Tiering: Individual-Focus, Batched, Brew-Health
+  - Tiering: Individual-Focus, Batched, Brew-Health, Skill-Drift
   - Word-Boundary Grep Rule
   - Spawning and the Output-File Contract
   - `research-status.json` Group Updates
@@ -44,6 +44,7 @@ Table of contents:
   - Depth by Tool
   - Heterogeneous Hosts
   - Brew-Health Enrichment
+  - Skill-Drift Enrichment
   - Pinned Tools
 
 ---
@@ -59,13 +60,13 @@ retyped by hand and drift between runs. It intentionally doesn't repeat this
 document's quality bar (Part 2 below); tell each subagent to read that in
 full before filling the template in, every run.
 
-### Tiering: Individual-Focus, Batched, Brew-Health
+### Tiering: Individual-Focus, Batched, Brew-Health, Skill-Drift
 
 Literal one-subagent-per-tool stops scaling once the candidate list gets
 large — most outdated tools (a plain patch-bump brew formula, a mise runtime
 with no bespoke setup) need only a quick changelog skim, and a dedicated
 subagent per one is wasted overhead. Group tools into two tiers instead,
-plus a third standing tier for brew-health findings:
+plus one standing tier per non-version source:
 
 - **Individual-focus**: one subagent per tool, for any tool with a real
   touchpoint in the setup repos — a bespoke `tasks/*.sh` function (grep
@@ -98,6 +99,20 @@ plus a third standing tier for brew-health findings:
   researched by the orchestrator directly instead of a subagent when the
   finding set is small and the setup context is already in hand — it's the
   same output file either way (`research/{id}.json`).
+- **Skill-drift group** (see `references/collection.md` §Skill-Drift
+  Collection for the source shape, and §Skill-Drift Enrichment below for
+  what this tier does): the `skill_drift` findings get their own dedicated
+  subagent, individual-tier for the same reason the brew-health group is —
+  every finding is repo-touchpoint work by nature, since the thing that
+  drifted *is* a file in the dotfiles submodule. It writes one research
+  element per finding, matching each finding's `id`. Same two conveniences
+  as the brew-health group: a finding whose collect-default remediation
+  already says everything useful can simply be left out of the file
+  (`assemble.py` falls back to that default), and the orchestrator can
+  research the group directly rather than spawning a subagent when the set
+  is small. One thing this tier does **not** do is re-derive drift: the
+  detector's tree-hash verdict is exact and is not a subagent's to
+  second-guess (§Skill-Drift Enrichment).
 
 ### Word-Boundary Grep Rule
 
@@ -171,7 +186,7 @@ with versions only.
 
 **A research subagent reads this section in full, every run, before writing
 findings.** Everything below applies to every tier (individual, batched,
-brew-health) unless a rule says otherwise.
+brew-health, skill-drift) unless a rule says otherwise.
 
 ### Headliners
 
@@ -1043,6 +1058,68 @@ orchestrator authoring the brew-health file directly, per the Tiering
 section above) should connect these: recommend trusting the tap that owns
 an orphaned-keg backend rather than reinstalling; recommend migrating a
 deprecated cask rather than updating it.
+
+### Skill-Drift Enrichment
+
+A `skill-drift` finding arrives knowing *that* a vendored skill and its
+upstream disagree, and nothing about *what changed* or whether taking the
+change is safe (`references/collection.md` §Skill-Drift Collection). Filling
+that in is ordinary changelog work with a git range in place of a release
+page — the finding hands you `upstream_url`, `upstream_branch`,
+`upstream_subpath`, `baseline_sha` and `upstream_sha`:
+
+1. **Diff the upstream range for this skill's subpath, and only that.**
+   `git log --oneline <baseline_sha>..<upstream_sha> -- <upstream_subpath>`
+   plus a `--stat` diff of the same range, against a shallow clone or fetch
+   of `upstream_url`. The sync command is vendor-scoped but the *decision*
+   is per skill, so vendor-wide output is not an answer to this finding —
+   it is how nine google skills turn into one undifferentiated "267 commits
+   behind" shrug.
+2. **Read the `SKILL.md` frontmatter `description` diff first.** That string
+   decides when the skill triggers at all, so a rewording changes agent
+   behaviour everywhere the skill is installed — a bigger practical change
+   than a new reference doc, and the one diff that never looks important in
+   a `--stat`. Same for a renamed or moved skill directory: it breaks the
+   `.claude-plugin/marketplace.json` entry and every symlink
+   `tasks/projects.sh` writes into a repo's `.claude/skills/`, which is an
+   `incompatible`-severity relevancy finding, not a note.
+3. **Cross-reference the vendor's `CUSTOMISATION.md`.** A documented local
+   patch touching the same files is what turns "sync it" into "sync it and
+   re-apply X" — mandatory for a `diverged` finding, whose whole character
+   is that both sides moved; a suggestion that reads as a clean pull there
+   is actively misleading. For a `local_only` finding the same check is the
+   reassuring half: the customisation is intact and upstream has not moved,
+   so the honest output is a short `context[]` note naming the patch, not a
+   relevancy item and not a suggestion.
+4. **Answer "is this sync safe to take", concretely** — new or removed
+   scripts the skill shells out to, a changed dependency, a new required
+   tool, an instruction that now conflicts with this setup's own CLAUDE.md
+   rules. That judgment is the point of enriching the finding at all.
+
+**Tier**: individual, like brew-health — every one of these is
+repo-touchpoint work.
+
+**Links**: the upstream compare page for the exact range,
+`https://github.com/<owner>/<repo>/compare/<baseline_sha>...<upstream_sha>`,
+as a `changelog`-type link labelled with the skill's subpath so it is
+obvious which slice of a vendor-wide compare to read. Link it for the human;
+do **not** derive drift from it. The compare API caps its file list at 300
+and reports no drift for a large vendor that plainly has some
+(`references/collection.md` §Skill-Drift Collection) — the detector's
+tree-hash verdict is exact, and research adds meaning to it rather than
+re-deciding it. If the compare genuinely disagrees with `drift_state`, that
+is a finding about the compare page, not about the skill.
+
+**Two things not to author here.** Do not write a suggestion that runs the
+sync — the finding's own remediation already carries the vendor-scoped
+command, and a duplicate just splits one decision across two cards
+(`references/apply.md` §Skill-Drift Remediation). And never propose an
+`edit` that hand-edits vendored files to match upstream: that produces a
+tree matching neither the baseline nor upstream, so the *next* run reads it
+as `diverged` and the real sync then has to reconcile an edit nobody
+recorded. A legitimate `edit` here targets something we own — a
+`CUSTOMISATION.md` entry documenting a patch this run discovered, most
+often.
 
 ### Pinned Tools
 

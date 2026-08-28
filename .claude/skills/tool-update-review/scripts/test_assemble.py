@@ -12,9 +12,9 @@ order references/assembly.md documents the computations:
    live run; the point of writing them down is that the next person changing
    the classifier does not have to re-derive "is `7.99 → 7.991` a minor?" from
    scratch.
-2. Semantic classification — eleven minimal Tool fixtures (headliner/relevancy
+2. Semantic classification — thirteen minimal Tool fixtures (headliner/relevancy
    category+severity shapes distilled from real research/*.json entries) run
-   through build_tool()/build_health_tool(), asserting the whole
+   through build_tool()/build_health_tool()/build_drift_tool(), asserting the whole
    security → risk_level → review_bucket → pre_accept chain end to end rather
    than each function in isolation, since the bugs live in their interaction.
 3. Regex cases — the CVE-id and CVE-claim patterns, including the two
@@ -95,10 +95,11 @@ class VersionDeltaTests(unittest.TestCase):
 				self.assertEqual(assemble.compute_version_delta(cur, lat, "brew"), (delta, scheme, note))
 
 	def test_non_version_sources_short_circuit(self):
-		# A brew-health finding has no versions at all, and a macos candidate's
-		# current_version is the running OS version rather than that update's
-		# (references/schemas.md §1.3) — a delta from either would be fiction.
-		for source in ("brew-health", "macos"):
+		# A brew-health or skill-drift finding has no versions at all, and a
+		# macos candidate's current_version is the running OS version rather than
+		# that update's (references/schemas.md §1.3) — a delta from any of them
+		# would be fiction.
+		for source in ("brew-health", "skill-drift", "macos"):
 			with self.subTest(source=source):
 				self.assertEqual(
 					assemble.compute_version_delta("15.6", "15.7", source),
@@ -341,11 +342,37 @@ def _fixtures():
 			{"has_security": False, "security_only": False, "impact": "none",
 				"review_bucket": "routine", "risk_level": "low", "suggestions": 0},
 		),
+		(
+			"S12 skill-drift upstream_ahead — the vendored copy is behind its source",
+			_cand("skill-drift:anthropics/pptx", "pptx (anthropics)", "skill-drift", None, None,
+				drift_state="upstream_ahead", severity="notable", expected=False,
+				vendor="anthropics", skill="pptx",
+				detail="Upstream moved since the last sync; the vendored tree is unmodified.",
+				remediation={"command": "bash config/agent-skills/sync-upstream.sh",
+				"auto_runnable": False, "needs_sudo": False,
+				"label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"}),
+			None,
+			{"has_security": False, "security_only": False, "impact": "possible",
+				"review_bucket": "attention", "risk_level": "elevated", "pre_accept": False,
+				"version_delta": "unknown", "version_scheme": "none", "suggestions": 1},
+		),
+		(
+			"S13 skill-drift local_only — expected, nothing to decide",
+			_cand("skill-drift:google/gke-basics", "gke-basics (google)", "skill-drift", None, None,
+				drift_state="local_only", severity="info", expected=True,
+				vendor="google", skill="gke-basics",
+				detail="The vendored copy carries local patches; upstream has not moved since the sync.",
+				remediation=None),
+			None,
+			{"has_security": False, "security_only": False, "impact": "none",
+				"review_bucket": "routine", "risk_level": "low", "suggestions": 0,
+				"version_delta": "unknown", "version_scheme": "none"},
+		),
 	]
 
 
 def _fixture(prefix):
-	"""Look a fixture up by label prefix (S1…S11). A positional index silently
+	"""Look a fixture up by label prefix (S1…S13). A positional index silently
 	retargets the moment a row is inserted above it."""
 	matches = [f for f in _fixtures() if f[0].startswith(prefix + " ")]
 	assert len(matches) == 1, f"{prefix}: expected 1 fixture, found {len(matches)}"
@@ -399,6 +426,43 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertTrue(tool["suggestions"][0]["auto_runnable"])
 		self.assertFalse(tool["suggestions"][0]["pre_accept"])
 		self.assertIsNone(assemble.baseline_upgrade(tool))
+
+	def test_drift_suggestions_never_pre_accept(self):
+		# Same mechanism, same reason as brew-health above: this fixture's sync
+		# command is flipped to auto_runnable on purpose, so the assertion can
+		# only pass because the suggestion id ends `:sync` rather than being a
+		# `:upgrade`-suffixed baseline — never because it happened to be
+		# unrunnable. Re-syncing rewrites vendored files inside the dotfiles
+		# submodule and can conflict; it is never a "just do it".
+		_, candidate, _, _ = _fixture("S12")
+		candidate = dict(candidate)
+		candidate["remediation"] = dict(candidate["remediation"], auto_runnable=True)
+		tool = build(candidate, None)
+		self.assertEqual([s["id"] for s in tool["suggestions"]], ["skill-drift:anthropics/pptx:sync"])
+		self.assertTrue(tool["suggestions"][0]["auto_runnable"])
+		self.assertFalse(tool["suggestions"][0]["pre_accept"])
+		self.assertIsNone(assemble.baseline_upgrade(tool))
+
+	def test_drift_headliner_falls_back_to_the_finding_detail(self):
+		# No research subagent ran, so the finding's own detail has to carry the
+		# card — filed in the content group its drift_state maps to, since a
+		# drift is not a changelog fact but still reads best in one of the four.
+		for prefix, category in (("S12", "fixes"), ("S13", "notes")):
+			with self.subTest(prefix):
+				_, candidate, _, _ = _fixture(prefix)
+				tool = build(candidate, None)
+				self.assertEqual(len(tool["headliners"]), 1)
+				self.assertEqual(tool["headliners"][0]["text"], candidate["detail"])
+				self.assertEqual(tool["headliners"][0]["category"], category)
+				self.assertEqual(tool["headliners"][0]["severity"], candidate["severity"])
+				# The Tool object carries the drift facts the page renders in the
+				# slot a version pair would occupy.
+				self.assertEqual(tool["drift_state"], candidate["drift_state"])
+				self.assertEqual(tool["drift_expected"], candidate["expected"])
+				self.assertEqual((tool["drift_vendor"], tool["drift_skill"]),
+					(candidate["vendor"], candidate["skill"]))
+				self.assertIsNone(tool["current_version"])
+				self.assertIsNone(tool["latest_version"])
 
 	def test_auto_runnable_false_blocks_pre_accept(self):
 		# A macos/standalone baseline has no command the skill can run, so
@@ -589,6 +653,19 @@ class ShapeDriftTests(unittest.TestCase):
 				# on the card, through the synthesized fallback.
 				self.assertTrue(tool["headliners"], label)
 
+	def test_drift_path_survives_the_same_drift(self):
+		_, candidate, _, _ = _fixture("S12")
+		for label, research in DRIFT_SHAPES:
+			with self.subTest(label):
+				tool = build(candidate, dict(research))
+				self._assert_well_shaped(tool, label)
+				self.assertEqual(tool["review_bucket"], "attention", label)
+				self.assertTrue(tool["headliners"], label)
+				# Whatever research returned, the sync suggestion is never a
+				# baseline and so can never be pre-accepted.
+				self.assertIsNone(assemble.baseline_upgrade(tool), label)
+				self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]), label)
+
 	def test_good_members_survive_next_to_bad_ones(self):
 		tool = build(_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"),
 			{"headliners": [_hl("security", "notable", "Fixes CVE-2026-4242"), "junk", None]})
@@ -612,7 +689,7 @@ class ShapeDriftTests(unittest.TestCase):
 		research[0] = {"id": "brew:openssh", "headliners": "no notable changes",
 			"relevancy": None, "suggestions": None, "context": ["a note"]}
 		report, stderr = assemble_session(COLLECT, research)
-		self.assertEqual(len(report["tools"]), 6)
+		self.assertEqual(len(report["tools"]), 7)
 		drifted = next(t for t in report["tools"] if t["id"] == "brew:openssh")
 		self.assertEqual(drifted["headliners"], [])
 		self.assertEqual(drifted["review_bucket"], "attention")   # no content ⇒ never quietly routine
@@ -679,7 +756,9 @@ class HighlightScoringTests(unittest.TestCase):
 # A synthetic session, small enough to reason about and shaped to exercise the
 # things prose invariants cannot: a CVE shared by two tools (union < sum), a
 # duplicate suggestion id (the rename pass runs between finalize_tool and
-# build_highlights), and one health finding.
+# build_highlights), one health finding and one skill-drift finding — the two
+# non-version sources, which is what makes the summary's three denominators
+# actually differ from one another here.
 COLLECT = {
 	"generated_at": "2026-08-22T11:33:44Z",
 	"machine": {"arch": "arm64", "os": "macOS 26.0", "hostname": "test"},
@@ -709,6 +788,24 @@ COLLECT = {
 			"expected": False, "pinned": False, "current_version": None, "latest_version": None,
 		}],
 		"suppressed": [],
+	},
+	"skill_drift": {
+		"findings": [{
+			"id": "skill-drift:anthropics/pptx", "name": "pptx (anthropics)",
+			"source": "skill-drift", "drift_state": "upstream_ahead", "severity": "notable",
+			"detail": "Upstream moved since the last sync; the vendored tree is unmodified.",
+			"vendor": "anthropics", "skill": "pptx", "vendor_kind": "subtree",
+			"upstream_url": "https://github.com/anthropics/skills", "upstream_branch": "main",
+			"upstream_subpath": "skills/pptx",
+			"local_path": "config/agent-skills/anthropics/skills/pptx",
+			"baseline_sha": "5128e1865d670f5d6c9cef000e6dfc4e951fb5b9",
+			"upstream_sha": "3b3fad96af16a10759d930941b4520ba0c40edae",
+			"remediation": {"command": "bash config/agent-skills/sync-upstream.sh",
+				"auto_runnable": False, "needs_sudo": False,
+				"label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"},
+			"expected": False, "pinned": False, "current_version": None, "latest_version": None,
+		}],
+		"suppressed": ["anthropics/docx: in sync with upstream"],
 	},
 }
 
@@ -740,6 +837,7 @@ RESEARCH = [
 	{"id": "brew:parallel", "headliners": [_hl("notes", "info", "Monthly snapshot")], "relevancy": []},
 	{"id": "mise:uv", "headliners": [_hl("features", "notable", "New resolver")], "relevancy": []},
 	{"id": "brew-health:unlinked_keg:tree-sitter", "headliners": [], "relevancy": []},
+	{"id": "skill-drift:anthropics/pptx", "headliners": [], "relevancy": []},
 ]
 
 
@@ -782,13 +880,20 @@ class ReportInvariantTests(unittest.TestCase):
 
 	def test_by_bucket_sums_to_every_tool(self):
 		# Deliberately a different denominator from by_delta (which excludes
-		# brew-health): review_bucket is defined for every Tool object and the
-		# page renders health cards inside the bucket lists, so this must sum to
-		# total_outdated + health_count, not to total_outdated. Anything mixing
-		# the two into one percentage is comparing 77 against 74.
+		# every non-version source): every Tool object is bucketed exactly once,
+		# so by_bucket sums to len(tools) — and the page renders health and
+		# skill-drift cards inside the bucket lists alongside version updates.
+		# The arithmetic form of that is total_outdated + health_count +
+		# skill_drift_count: one term per finding source excluded from
+		# total_outdated. A third term appeared when skill-drift did, and a
+		# fourth will appear with the next finding source — len(tools) is the
+		# durable statement, the sum is the concrete check. Anything mixing this
+		# denominator with by_delta's into one percentage is comparing 77
+		# against 74.
 		summary = self.report["summary"]
 		self.assertEqual(sum(summary["by_bucket"].values()), len(self.report["tools"]))
-		self.assertEqual(len(self.report["tools"]), summary["total_outdated"] + summary["health_count"])
+		self.assertEqual(len(self.report["tools"]),
+			summary["total_outdated"] + summary["health_count"] + summary["skill_drift_count"])
 
 	def test_security_bucket_counts_fit_inside_tools_with_security(self):
 		sec = self.report["summary"]["security"]
@@ -857,6 +962,58 @@ class ReportInvariantTests(unittest.TestCase):
 		self.assertEqual(health["version_scheme"], "none")
 		self.assertFalse(health["security"]["has_security"])
 		self.assertEqual(self.report["summary"]["by_delta"]["unknown"], 0)
+
+	def test_skill_drift_tool_is_excluded_from_by_delta_and_security(self):
+		drift = next(t for t in self.report["tools"] if t["source"] == "skill-drift")
+		self.assertEqual(drift["version_delta"], "unknown")
+		self.assertEqual(drift["version_scheme"], "none")
+		self.assertFalse(drift["security"]["has_security"])
+		# Neither non-version source may reach the unknown box — the five version
+		# tools in COLLECT all classify, so any count above zero here is a
+		# finding leaking into by_delta.
+		self.assertEqual(self.report["summary"]["by_delta"]["unknown"], 0)
+		self.assertEqual(drift["review_bucket"], "attention")
+		self.assertEqual([s["id"] for s in drift["suggestions"]], ["skill-drift:anthropics/pptx:sync"])
+
+	def test_skill_drift_is_counted_separately_from_outdated(self):
+		summary = self.report["summary"]
+		drift = [t for t in self.report["tools"] if t["source"] == "skill-drift"]
+		self.assertEqual(summary["skill_drift_count"], len(drift))
+		self.assertEqual(summary["total_outdated"],
+			len(self.report["tools"]) - summary["health_count"] - summary["skill_drift_count"])
+		# A suppressed (in-sync) skill is reported to stderr, never dropped in
+		# silence — the same contract brew-health's suppressed list has.
+		self.assertIn("skill-drift suppressed", self.stderr)
+
+	def test_absent_skill_drift_key_still_reports_a_zero_count(self):
+		# A session collected before the detector existed has no skill_drift key
+		# at all; reopening it must produce the same report it always did, plus
+		# an honest zero.
+		collect = {k: v for k, v in COLLECT.items() if k != "skill_drift"}
+		report, _ = assemble_session(collect, RESEARCH)
+		self.assertEqual(report["summary"]["skill_drift_count"], 0)
+		self.assertEqual(len(report["tools"]), 6)
+		self.assertEqual(sum(report["summary"]["by_bucket"].values()), len(report["tools"]))
+
+	def test_malformed_skill_drift_key_costs_the_findings_not_the_run(self):
+		# collect.json is assembled by a shell pipeline around a detector that
+		# can fail or time out mid-write. A finding source is an *addition* to
+		# the report — a bad shape must never cost the version updates the run
+		# was actually for.
+		shapes = [
+			("null", None),
+			("a bare list", [{"id": "skill-drift:x/y", "source": "skill-drift"}]),
+			("a string", "boom"),
+			("findings not an array", {"findings": "boom", "suppressed": None}),
+			("findings of junk", {"findings": ["boom", None, {}], "suppressed": "nope"}),
+		]
+		for label, value in shapes:
+			with self.subTest(label):
+				report, _ = assemble_session(dict(COLLECT, skill_drift=value), RESEARCH)
+				self.assertEqual(report["summary"]["skill_drift_count"], 0)
+				self.assertEqual(len(report["tools"]), 6)
+				self.assertEqual(sum(report["summary"]["by_delta"].values()),
+					report["summary"]["total_outdated"])
 
 	def test_date_version_is_no_longer_a_major_bump(self):
 		# The old leading-integer rule called parallel's monthly snapshot major

@@ -1273,6 +1273,10 @@
 		/* brew-health: environment diagnostics, not a package manager — a
 		   neutral cyan-tinted badge distinct from the source colors above. */
 		.source-badge.brew-health { background: var(--cyan); color: var(--base03); }
+		/* skill-drift: vendored agent skills, the other non-version finding
+		   source. --green is the one palette hue no source badge uses, so this
+		   stays inside the existing fifteen colors. */
+		.source-badge.skill-drift { background: var(--green); color: var(--base03); }
 
 		.version-delta.health-label { color: var(--base1); font-style: italic; }
 
@@ -2683,6 +2687,7 @@
 					<option value="standalone">standalone</option>
 					<option value="macos">macos</option>
 					<option value="brew-health">brew-health</option>
+					<option value="skill-drift">skill-drift</option>
 				</select>
 			</label>
 			<label>
@@ -3206,11 +3211,17 @@
 		};
 		const SEV_ICON = { incompatible: '⛔', warning: '⚠', notable: '●', info: '·' };
 
-		/* A brew-health finding (source "brew-health",
-		 * references/rendering-report.md §Brew-Health Rendering) has no
-		 * current→latest version pair, so its finding category fills the
-		 * version slot instead of a "null → null" delta — in the tool header
-		 * and on an Overview highlight card alike. */
+		/* Sources that carry findings rather than version deltas
+		 * (references/rendering-report.md §Brew-Health Rendering and
+		 * §Skill-Drift Rendering). A finding has no current→latest pair, so a
+		 * short state label fills the version slot instead of a "null → null"
+		 * delta and no delta pill renders — in the tool header and on an
+		 * Overview highlight card alike. They are also kept out of the version
+		 * statistics and out of the routine/attention chip clouds, each source
+		 * being counted in its own Overview band instead. */
+		const NON_VERSION_SOURCES = new Set(['brew-health', 'skill-drift']);
+		const isNonVersion = (t) => NON_VERSION_SOURCES.has(t.source);
+
 		const HEALTH_LABEL = {
 			deprecated_cask: 'deprecated cask', disabled_cask: 'disabled cask',
 			deprecated_formula: 'deprecated formula', disabled_formula: 'disabled formula',
@@ -3218,6 +3229,25 @@
 			untrusted_tap: 'untrusted tap', missing_dependency: 'missing dependency',
 			path_note: 'expected note', other: 'brew doctor',
 		};
+
+		/* The skill-drift counterpart, keyed on drift_state rather than
+		 * health_category. A separate map on purpose: the two vocabularies are
+		 * unrelated, and one merged map would let a health category resolve a
+		 * drift state by accident. */
+		const DRIFT_LABEL = {
+			in_sync: 'in sync', upstream_ahead: 'upstream ahead',
+			local_only: 'local patch', diverged: 'diverged',
+			probe_error: 'unverified',
+		};
+
+		/* The label that fills a finding's version slot. Per-source, because
+		 * the map and the fallback both are: an unrecognised value still names
+		 * the source it came from rather than the wrong one. */
+		function nonVersionLabel(tool) {
+			return tool.source === 'skill-drift'
+				? (DRIFT_LABEL[tool.drift_state] || 'skill drift')
+				: (HEALTH_LABEL[tool.health_category] || 'environment health');
+		}
 
 		function normalizeCategory(cat) {
 			return CATEGORY_ORDER.includes(cat) ? cat : 'notes';
@@ -3502,12 +3532,13 @@
 
 		function renderTool(tool) {
 			let sev = maxSeverity(tool);
-			/* brew-health findings carry their severity on headliners, not
-			 * relevancy (which stays empty), so maxSeverity() returns '' for
-			 * them — derive data-max-severity from the headliners instead, or
-			 * the severity dropdown and "relevant only" filters would hide a
-			 * real warning-severity health card. Normal tools are unchanged. */
-			if (!sev && tool.source === 'brew-health') {
+			/* Findings carry their severity on headliners, not relevancy
+			 * (which stays empty), so maxSeverity() returns '' for them —
+			 * derive data-max-severity from the headliners instead, or the
+			 * severity dropdown and "relevant only" filters would hide a real
+			 * warning-severity health or drift card. Normal tools are
+			 * unchanged. */
+			if (!sev && isNonVersion(tool)) {
 				let best = 99;
 				for (const h of (tool.headliners || [])) {
 					const o = SEV_ORDER[h.severity] ?? 99;
@@ -3537,16 +3568,16 @@
 
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
 
-			const deltaHtml = tool.source === 'brew-health'
-				? `<span class="version-delta health-label">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
+			const deltaHtml = isNonVersion(tool)
+				? `<span class="version-delta health-label">${esc(nonVersionLabel(tool))}</span>`
 				: `<span class="version-delta" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
 
 			/* Delta pill + CVE badge: the same vocabulary the Overview uses,
 			 * so the collapsed 77-row list scans the same way the tiles do
-			 * (references/rendering-report.md §Per-Tool Section). A
-			 * brew-health finding has no version pair, so no delta pill. */
+			 * (references/rendering-report.md §Per-Tool Section). A finding
+			 * has no version pair, so no delta pill. */
 			const delta = versionDelta(tool);
-			const deltaBadgeHtml = tool.source === 'brew-health' || !hasVersionDelta(tool)
+			const deltaBadgeHtml = isNonVersion(tool) || !hasVersionDelta(tool)
 				? ''
 				: `<span class="delta-badge ${esc(delta)}"${tool.version_delta_note ? ` title="${esc(tool.version_delta_note)}"` : ''}>${esc(delta)}</span>`;
 			const sec = toolSecurity(tool);
@@ -3838,7 +3869,7 @@
 			if (!anyToolHas(t => t.version_delta)) return null;
 			const counts = { major: 0, minor: 0, patch: 0, revision: 0, unknown: 0 };
 			(REPORT.tools || []).forEach(t => {
-				if (t.source === 'brew-health') return;
+				if (isNonVersion(t)) return;
 				counts[versionDelta(t)]++;
 			});
 			return counts;
@@ -4206,13 +4237,13 @@
 			const tool = toolById(h.tool_id) || {};
 			const sev = normalizeSeverity(h.severity);
 			const sec = toolSecurity(tool);
-			/* A brew-health finding that reaches highlights[] has no version
-			 * pair: render its finding category and drop the delta pill,
-			 * rather than "null → null". */
-			const isHealth = tool.source === 'brew-health' || !tool.current_version;
+			/* A finding that reaches highlights[] has no version pair: render
+			 * its state label and drop the delta pill, rather than
+			 * "null → null". */
+			const isFinding = isNonVersion(tool) || !tool.current_version;
 			const delta = versionDelta(tool);
-			const metaVersions = isHealth
-				? `<span class="vd">${esc(HEALTH_LABEL[tool.health_category] || 'environment health')}</span>`
+			const metaVersions = isFinding
+				? `<span class="vd">${esc(nonVersionLabel(tool))}</span>`
 				: versionsHtml(tool, 'vd') +
 					(hasVersionDelta(tool) ? `<span class="delta-badge ${esc(delta)}">${esc(delta)}</span>` : '');
 
@@ -4267,6 +4298,26 @@
 			</div>`;
 		}
 
+		/* One row per non-version finding: severity icon, name, the
+		 * remediation command in a copyable .cmd chip (the existing
+		 * command-chip copy handler picks it up), "details →". Shared by every
+		 * finding band so the Homebrew and vendored-skill rows cannot drift
+		 * apart (references/rendering-report.md §Overview Tab → Everything
+		 * Else). */
+		function findingRowsHtml(list) {
+			return list.map(t => {
+				const sug = baselineSuggestion(t);
+				const sev = findingRowSeverity(t);
+				return `<div class="healthrow">
+					<span class="ic ${esc(sev)}">${SEV_ICON[sev] || '·'}</span>
+					<span class="nm">${esc(t.name)}</span>
+					${sug && sug.command ? `<button type="button" class="cmd" data-copy-text="${esc(sug.command)}" title="Click to copy">${esc(sug.command)}</button>` : ''}
+					<span class="spacer"></span>
+					${jumpHtml(t.id, 'details →')}
+				</div>`;
+			}).join('');
+		}
+
 		function renderOverview() {
 			const panel = document.getElementById('panel-overview');
 			const tools = REPORT.tools || [];
@@ -4277,21 +4328,26 @@
 
 			const buckets = { security_auto: [], security_mixed: [], attention: [], routine: [] };
 			const health = [];
+			const drift = [];
 			tools.forEach(t => {
 				if (t.source === 'brew-health') health.push(t);
+				else if (t.source === 'skill-drift') drift.push(t);
 				buckets[reviewBucket(t)].push(t);
 			});
-			/* brew-health findings are environment issues, not updates —
-			 * counted separately, exactly as summary.health_count is. */
-			const attention = buckets.attention.filter(t => t.source !== 'brew-health');
-			const routine = buckets.routine.filter(t => t.source !== 'brew-health');
+			/* Findings are environment and vendoring issues, not updates —
+			 * each source is counted in its own band, exactly as
+			 * summary.health_count and summary.skill_drift_count are. Every
+			 * tool is still bucketed exactly once above; it is only the chip
+			 * clouds that leave findings out. */
+			const attention = buckets.attention.filter(t => !isNonVersion(t));
+			const routine = buckets.routine.filter(t => !isNonVersion(t));
 			const auto = buckets.security_auto;
 			const mixed = buckets.security_mixed;
 
 			const summary = REPORT.summary || {};
 			const total = typeof summary.total_outdated === 'number'
 				? summary.total_outdated
-				: tools.filter(t => t.source !== 'brew-health').length;
+				: tools.filter(t => !isNonVersion(t)).length;
 			const D = deltaCounts();
 			const SEC = securityCounts(buckets);
 			const needs = mixed.length + attention.length;
@@ -4435,23 +4491,22 @@
 			if (health.length) {
 				/* Expanded by default: there are only ever a handful, and one
 				 * of them is usually actionable. */
-				const rows = health.map(t => {
-					const sug = baselineSuggestion(t);
-					const sev = healthRowSeverity(t);
-					return `<div class="healthrow">
-						<span class="ic ${esc(sev)}">${SEV_ICON[sev] || '·'}</span>
-						<span class="nm">${esc(t.name)}</span>
-						${sug && sug.command ? `<button type="button" class="cmd" data-copy-text="${esc(sug.command)}" title="Click to copy">${esc(sug.command)}</button>` : ''}
-						<span class="spacer"></span>
-						${jumpHtml(t.id, 'details →')}
-					</div>`;
-				}).join('');
 				bands.push(bandHtml('band-health', 'Homebrew environment',
-					`${health.length} finding${health.length === 1 ? '' : 's'} from brew doctor`, rows, true));
+					`${health.length} finding${health.length === 1 ? '' : 's'} from brew doctor`,
+					findingRowsHtml(health), true));
+			}
+			if (drift.length) {
+				/* Collapsed, unlike the Homebrew band above: a vendored-skill
+				 * probe routinely returns a dozen findings, most of them
+				 * expected local edits, so this band completes the accounting
+				 * without costing a screenful to do it. */
+				bands.push(bandHtml('band-drift', 'Vendored agent skills',
+					`${drift.length} finding${drift.length === 1 ? '' : 's'} from the vendored-skill sync check`,
+					findingRowsHtml(drift), false));
 			}
 			const elseSection = bands.length
 				? `<section class="ovsection" id="else-section">
-					<h2>Everything else <span class="sub">${routine.length} routine · ${attentionRest.length} other attention · ${health.length} health</span></h2>
+					<h2>Everything else <span class="sub">${routine.length} routine · ${attentionRest.length} other attention · ${health.length} health${drift.length ? ` · ${drift.length} skill drift` : ''}</span></h2>
 					${bands.join('')}
 				</section>`
 				: '';
@@ -4462,11 +4517,11 @@
 				secSection + hlSection + elseSection;
 		}
 
-		/* brew-health findings carry their severity on headliners rather
-		 * than relevancy (which stays empty) — the same derivation
-		 * renderTool() applies for data-max-severity. Only used for the
-		 * health band's rows, where a headliner is always synthesized. */
-		function healthRowSeverity(tool) {
+		/* Findings carry their severity on headliners rather than relevancy
+		 * (which stays empty) — the same derivation renderTool() applies for
+		 * data-max-severity. Only used for the finding bands' rows, where a
+		 * headliner is always synthesized. */
+		function findingRowSeverity(tool) {
 			let sev = maxSeverity(tool);
 			if (!sev) {
 				let best = 99;

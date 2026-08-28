@@ -3,12 +3,16 @@
 # Usage: collect.sh [path-to-Brewfile]
 # Emits one JSON object on stdout:
 #   { generated_at: "...", machine: {...}, brew: [...], mise: [...],
-#     standalone: [...], macos: [...], brew_health: {...} }
-# Network use is limited to `brew`/`mise`'s own update checks plus the macOS
-# software-update lookup; every lookup is best-effort with a timeout so the
-# script works offline (latest_version is then null and research must fill
-# it in).
+#     standalone: [...], macos: [...], brew_health: {...},
+#     skill_drift: {...} }
+# Network use is limited to `brew`/`mise`'s own update checks, the macOS
+# software-update lookup, and the vendored-skill upstream probe; every lookup
+# is best-effort with a timeout so the script works offline (latest_version is
+# then null and research must fill it in; skill_drift degrades to one
+# `probe_error` finding per vendor).
 set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 brewfile="${1:-Brewfile}"
 
@@ -329,12 +333,35 @@ if ! printf '%s' "${brew_health_json}" | jq -e . >/dev/null 2>&1; then
 	brew_health_json='{"findings":[],"suppressed":[]}'
 fi
 
+# Vendored agent-skill drift — whether the skills vendored under
+# `dotfiles/config/agent-skills/` still match their upstreams. Not a version
+# delta: a three-way git tree-hash comparison (local vs the recorded sync
+# baseline vs upstream HEAD), so a local customisation is never mistaken for
+# upstream movement. Python for testability, same rationale as the brew-health
+# parser above — and unlike that heredoc it lives in its own file so it has a
+# real unit-test suite (`test_skill_drift.py`). Best-effort: the collector
+# degrades to one `probe_error` finding per vendor when the network is
+# unavailable, and never aborts this script.
+# Full taxonomy: references/collection.md §Skill-Drift Collection.
+#
+# `timeout` caps the whole detector the way the brew-health heredoc caps
+# `brew doctor` at 180s: the detector already bounds every git call it
+# makes, but N vendors x 2 fetches x a per-call timeout is not a bound on
+# the collector's own wall clock, and this is the one step that talks to
+# the network. On expiry the non-zero exit falls through to the same empty
+# object any other failure produces.
+skill_drift_json="$(timeout 120 python3 "${script_dir}/collect_skill_drift.py" 2>/dev/null || echo '{"findings":[],"suppressed":[]}')"
+if ! printf '%s' "${skill_drift_json}" | jq -e . >/dev/null 2>&1; then
+	skill_drift_json='{"findings":[],"suppressed":[]}'
+fi
+
 jq -n \
 	--arg arch "${arch}" --arg os "${os_name}" --arg host "${hostname}" \
 	--arg generated_at "${generated_at}" \
 	--argjson brew "${brew_json}" --argjson pinned "${pinned_json}" \
 	--argjson mise "${mise_json}" --argjson standalone "${standalone_json}" \
-	--argjson macos "${macos_json}" --argjson brew_health "${brew_health_json}" '
+	--argjson macos "${macos_json}" --argjson brew_health "${brew_health_json}" \
+	--argjson skill_drift "${skill_drift_json}" '
 	{
 		generated_at: $generated_at,
 		machine: { arch: $arch, os: $os, hostname: $host },
@@ -344,5 +371,6 @@ jq -n \
 		standalone: ($standalone
 			| map(select(.latest_version == null or .current_version != .latest_version))),
 		macos: $macos,
-		brew_health: $brew_health
+		brew_health: $brew_health,
+		skill_drift: $skill_drift
 	}'

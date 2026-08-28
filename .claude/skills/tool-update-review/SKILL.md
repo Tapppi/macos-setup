@@ -5,12 +5,15 @@ description: >
   brew/Brewfile packages and casks (including self-updating desktop apps),
   mise runtimes, standalone CLIs genuinely unmanaged by brew, and macOS
   system/app updates, plus Homebrew environment-health findings from `brew
-  doctor` — with agent-written headliners, canonical changelog/release/blog
+  doctor` and drift between the vendored agent skills in
+  `dotfiles/config/agent-skills/` and their upstream repos — with
+  agent-written headliners, canonical changelog/release/blog
   links, and relevancy analysis against this machine and the user's setup
   repos (macos-setup, dotfiles, systems). Use this whenever the user asks to
   check tool updates, review changelogs, see what's outdated, asks "what's new
   in <tool>", wants headliner changes since a version, wants a holistic look
-  at their brew/tap/cask/keg health, or wants update
+  at their brew/tap/cask/keg health, asks whether their agent skills, plugins
+  or vendored upstreams are stale or need re-syncing, or wants update
   suggestions reviewed/applied — even if they only mention one tool or say
   something casual like "anything interesting in the latest brew updates?".
 ---
@@ -21,8 +24,9 @@ Produce a per-tool changelog review the user acts on in the browser: version
 deltas, headline changes, links to canonical sources, findings about *their*
 environment, and concrete suggested edits they Accept / Reject / Discuss.
 Decisions come back into the session as `feedback.json` and accepted edits
-are applied to the setup repos, plus Homebrew environment-health findings
-(`brew-health`) — see `references/collection.md`.
+are applied to the setup repos, plus two non-version finding sources —
+Homebrew environment health (`brew-health`) and vendored agent-skill drift
+(`skill-drift`) — see `references/collection.md`.
 
 This file is a lean index. Every step below stays short and links out to the
 reference doc with the full mechanics — read that doc before doing the work
@@ -34,10 +38,10 @@ it covers, not just when something breaks.
   `status.json`, `research-status.json`. Read this first if you need a
   field's exact shape.
 - `references/collection.md` — step 1: `collect.sh`'s sources, brew-health
-  taxonomy, repo freshness.
+  taxonomy, skill-drift detection, repo freshness.
 - `references/research.md` — step 3: tiering, the full research quality bar,
-  config_status, watch items, bespoke-setup testing, brew-health enrichment.
-  Read in full if you are a research subagent.
+  config_status, watch items, bespoke-setup testing, brew-health and
+  skill-drift enrichment. Read in full if you are a research subagent.
 - `references/assembly.md` — step 4: `assemble.py`'s merge/risk/suggestion
   logic.
 - `references/apply.md` — steps 6–9: executing suggestions, followups,
@@ -61,6 +65,15 @@ it covers, not just when something breaks.
   `references/collection.md`; enrichment: `references/research.md`;
   assembly: `references/assembly.md`; rendering:
   `references/rendering-report.md`; apply: `references/apply.md`.
+- `skill-drift` — vendored agent skills under
+  `dotfiles/config/agent-skills/` that no longer match their upstream,
+  detected by a three-way git tree-hash comparison (local vs the recorded
+  sync baseline vs upstream HEAD) so a local patch never reads as "upstream
+  moved" — also not a version delta. Detection, the five drift states and
+  the scope rules: `references/collection.md`; enrichment:
+  `references/research.md`; assembly: `references/assembly.md`; rendering:
+  `references/rendering-report.md`; apply (always manual, vendor-scoped):
+  `references/apply.md`.
 
 ## Workflow
 
@@ -71,13 +84,17 @@ session dir, `/tmp/{report_id}/`. Run `scripts/collect.sh` from the
 macos-setup repo root (pass the Brewfile path if elsewhere) and save its
 stdout to `{session_dir}/collect.json` — `assemble.py` (step 4) reads it from
 there rather than from conversation memory. It emits machine context plus
-outdated tools from four version sources, **plus** a `brew_health` object
-(`brew doctor` environment-health findings — the "state of my brew install,"
-not version deltas).
+outdated tools from four version sources, **plus** two non-version finding
+objects: `brew_health` (`brew doctor` environment-health findings — the
+"state of my brew install," not version deltas) and `skill_drift` (vendored
+agent skills that have drifted from their upstream — the "are my skills
+still the ones upstream ships").
 
 If the user scoped the request ("just podman", "only claude"), filter the
-candidate list before researching — scoping to version updates skips
-brew-health; scoping to "environment health" skips the version sources.
+candidate list before researching — scoping to version updates skips both
+`brew_health` and `skill_drift`; scoping to "environment health" skips the
+version sources; a request about the agent skills keeps `skill_drift`
+alone.
 
 **Also check repo freshness**: run `scripts/repo_context.sh . dotfiles >
 {session_dir}/repo_context.json` — it fetches from origin (read-only, never
@@ -131,8 +148,9 @@ Group tools into tiers instead of one-subagent-per-tool: **individual-focus**
 (one subagent per tool with a real repo touchpoint — bespoke `tasks/*.sh`
 function, dotfiles config, Brewfile pin/comment), **batched-by-category**
 (one subagent covering ~4-9 tools with no repo touchpoint, grouped by rough
-category), and a dedicated **brew-health group** (individual-tier — every
-finding is repo-touchpoint work by nature). Use word-boundary grep
+category), and one dedicated group per non-version source — **brew-health**
+and **skill-drift**, both individual-tier, since every finding in either is
+repo-touchpoint work by nature. Use word-boundary grep
 (`grep -wn`/`-wni`), never plain substring matching, to decide which tier a
 tool belongs in — a substring hit (`grep cloc` matching inside `clock`) can
 miscategorize a tool into the wrong tier.
@@ -173,7 +191,8 @@ Run `scripts/assemble.py` to merge `collect.sh`'s output with every
 `research/*.json` file into the report object: it normalizes research's
 free-form arrays into schema shapes, ensures suggestion ids are unique,
 verifies evidence paths exist, applies a `needs_sudo` heuristic, synthesizes a
-baseline `kind: "upgrade"` suggestion for every non-brew-health tool
+baseline `kind: "upgrade"` suggestion for every version-source tool (never
+for a `brew-health` or `skill-drift` finding, which has no version)
 (research-authored `edit` suggestions are additional to this, never a
 replacement), computes every derived triage field (`version_delta`,
 `security`, `risk_level`, `review_bucket`, per-suggestion `pre_accept`), ranks
@@ -255,6 +274,11 @@ Accepted suggestions split by `kind`:
   `kind:"upgrade"` command (`trust`/`untap`/`link`, missing-dep install).
   Trust/untap/link/uninstall default `auto_runnable:false`; a plain missing-
   dep install is `auto_runnable:true`.
+- **`skill-drift` remediations** → one structural `kind:"upgrade"` command,
+  `bash config/agent-skills/sync-upstream.sh`, run from the dotfiles repo
+  root. **Always `auto_runnable:false`** — print it, never run it; it is
+  *not* covered by the `./setup.sh projects` exception above. The command
+  is vendor-scoped, so one run resolves every drifted skill of that vendor.
 - **`upgrade`** → execution depends on `auto_runnable` and the
   `auto_run_upgrades` toggle: not-auto-runnable prints the command and polls
   for completion; auto-runnable-and-toggle-on runs it directly (askpass for

@@ -14,6 +14,7 @@ Table of contents:
 - Baseline Suggestion Synthesis
 - Highlights
 - Brew-Health Assembly
+- Skill-Drift Assembly
 - `config_status` Normalization
 - `needs_attention`-Must-Have-a-Suggestion Enforcement
 - Summary Counts and Output
@@ -51,9 +52,10 @@ a subjective per-tool judgment left to research, so every run applies the
 same rule the same way.
 
 **One entry point, one dependency order.** `finalize_tool(tool)` is the last
-statement of *both* build paths (`build_tool` and `build_health_tool`), so a
-health finding and a version-outdated tool can never disagree about what a
-field means. It computes, strictly in this order:
+statement of *every* build path (`build_tool`, `build_health_tool` and
+`build_drift_tool`), so a health finding, a vendored-skill drift finding and
+a version-outdated tool can never disagree about what a field means. It
+computes, strictly in this order:
 
 ```text
 version_delta ─→ security ─→ risk_level ─→ review_bucket ─→ pre_accept
@@ -79,8 +81,10 @@ much:
    were already computed, and the rename pass warns naming both ids.
 
 Every derived field above has a test: `python3 scripts/test_assemble.py` runs
-the version matrix (§Version Delta), eleven end-to-end semantic fixtures
-(§Security Extraction, §Review Buckets and Pre-Accept), the two regexes, the
+the version matrix (§Version Delta), the end-to-end semantic fixtures
+(§Security Extraction, §Review Buckets and Pre-Accept — one per source
+behaviour worth pinning, including a `skill-drift` pair covering the
+decision-required and expected cases), the two regexes, the
 shape-drift cases (§Loading and Merging), and the report-level invariants
 (§Summary Counts and Output) — stdlib `unittest` only, no network, on the same
 bare `python3` `assemble.py` itself targets. Run it after changing any of
@@ -134,9 +138,14 @@ earlier one, with a warning to stderr — this shouldn't happen given how
 tiering partitions tools, but assembly doesn't treat it as fatal.
 
 Candidates are assembled from `collect.json` in this order: `brew`, `mise`,
-`standalone`, `macos`, then `brew_health.findings` appended last — so
-brew-health cards sort/render as their own group after the version-outdated
-tools. A tool with no matching research entry (subagent failure/timeout)
+`standalone`, `macos`, then `brew_health.findings` and
+`skill_drift.findings` appended last — so the two non-version sources
+sort/render as their own groups after the version-outdated tools. Both are
+read defensively (`obj.get("findings", [])` only when `obj` is a dict, `[]`
+otherwise), because a `collect.json` from an older run has neither key and a
+partial run can have one of them as `null`; a missing source costs its
+cards, never the report. A tool with no matching research entry (subagent
+failure/timeout)
 still gets a Tool object built, just with `research_error` set and no
 headliners/suggestions beyond what the collect candidate itself carries.
 
@@ -260,11 +269,14 @@ in significance, never down.
 ### The algorithm, in order
 
 1. **Non-version sources short-circuit.** `source in ("brew-health",
-   "macos")` → `("unknown", "none", "no version delta for this source")`.
-   brew-health has no versions at all; a `macos` candidate's
-   `current_version` is the running `sw_vers -productVersion` rather than
-   that specific update's version (`references/schemas.md` §1.3), so a delta
-   computed from it would be fiction.
+   "skill-drift", "macos")` → `("unknown", "none", "no version delta for
+   this source")`. brew-health and skill-drift have no versions at all
+   (both `current_version` and `latest_version` are `null`); a `macos`
+   candidate's `current_version` is the running `sw_vers -productVersion`
+   rather than that specific update's version (`references/schemas.md`
+   §1.3), so a delta computed from it would be fiction. The membership test
+   is a tuple rather than a chain of `==` precisely so the next non-version
+   source is one string, not another branch to get wrong.
 2. **Missing or blank input** → `("unknown", "none", "missing version")`.
 3. Split each side: `split_cask_tuple()` (first comma only — the right half
    is Homebrew's build/revision half and never carries upstream semantics),
@@ -687,8 +699,14 @@ non-security headliners at `warning`+ count even with no relevancy item at
 all (`mise:rust`: three `fixes/warning` headliners, no relevancy →
 `possible`); and `pinned`, `needs_attention`, and any `edit`/`watch-item`
 suggestion are impact *by construction*, each one being a pending change to
-this setup. brew-health short-circuits: `"none"` when `health_expected`, else
-`"possible"`.
+this setup. Both non-version sources short-circuit: brew-health is `"none"`
+when `health_expected`, else `"possible"`; skill-drift is `"none"` when
+`drift_expected`, else `"possible"`. Each is *about this machine* by
+definition, so the only question left is whether it is the expected kind.
+The two flags stay separate on the Tool object because they mean different
+things to a reader, but every derived axis asks the same question of them,
+so impact, `risk_level` and `review_bucket` all ask it through one
+`finding_expected()` helper instead of each carrying its own copy.
 
 Measured across that run's 77 tools: `none` 33, `possible` 41, `unknown` 3 —
 a little over half `possible`, and `unknown` only on the three casks whose
@@ -708,9 +726,11 @@ rule the same way. A tool is `"elevated"` if **any** of:
 - `research_error` is set, or
 - the tool has no `headliners[]` **and** an empty `vendor_silent_categories`.
 
-Otherwise `"low"`. A `brew-health` finding short-circuits all of this:
-`"low"` when `health_expected`, `"elevated"` otherwise (§Brew-Health
-Assembly).
+Otherwise `"low"`. Both non-version sources short-circuit all of this on
+their own "nothing to decide" flag: a `brew-health` finding is `"low"` when
+`health_expected` and `"elevated"` otherwise (§Brew-Health Assembly), and a
+`skill-drift` finding is `"low"` when `drift_expected` and `"elevated"`
+otherwise (§Skill-Drift Assembly).
 
 The last three bullets are the doctrine "an unknown delta size is never
 treated as low-risk", extended in two directions:
@@ -746,8 +766,8 @@ back, in that order, because the second reads the first.
 ```python
 def compute_review_bucket(tool):
 	sec = tool["security"]
-	if tool["source"] == "brew-health":
-		return "routine" if tool.get("health_expected") else "attention"
+	if tool["source"] in NON_VERSION_SOURCES:
+		return "routine" if finding_expected(tool) else "attention"
 	baseline = baseline_upgrade(tool)
 	runnable = bool(baseline and baseline.get("auto_runnable"))
 	if (sec["has_security"] and sec["security_only"] and sec["impact"] == "none"
@@ -865,6 +885,11 @@ denominator, not rejections of it.
 Applied per-suggestion at synthesis time (below), by source:
 - `brew`, `mise`, `standalone` → always `false` — these never invoke a
   privileged installer themselves.
+- `skill-drift` → always `false`. The sync is a `git subtree pull` inside a
+  repo the user owns; nothing about it is privileged. Stated as its own arm
+  rather than left to the `unknown` fallback below, so the answer is
+  deliberate instead of accidental — the fallback would have said `true` and
+  put a needless askpass prompt in front of a git command.
 - `cask` → `true` **unless** the research object explicitly set
   `"cask_sudo_hint": false` on its returned Tool object — never assumed
   false by default. Only a handful of casks ship a `pkg` installer needing
@@ -889,11 +914,19 @@ source-driven:
 | `mise` | `mise upgrade {name}` | `true` |
 | `standalone` | none | `false` — no generic upgrade command exists; check the tool's own docs |
 | `macos` | none | `false` — install via System Settings or `softwareupdate -i`, never auto-run by this skill |
+| `skill-drift` | none | `false` — vendored-skill sync is always manual (§Skill-Drift Assembly) |
 | unknown | none | `false` |
 
 When `auto_runnable` is `false`, a `manual_reason` string is attached
 explaining why — the session always just tells the user what to run for
 that suggestion, never executes anything (see `references/apply.md`).
+
+The `skill-drift` row is defensive rather than load-bearing: no baseline is
+synthesized for that source at all (§Baseline Suggestion Synthesis), so the
+row is never reached in a normal run. It is written down anyway because the
+`unknown` fallback is a *safe* default only by accident, and a source whose
+manualness is a documented rule should say so in the table rather than
+inherit it (`manual_reason: "Vendored-skill sync is always manual."`).
 
 ## Baseline Suggestion Synthesis
 
@@ -909,9 +942,11 @@ never a replacement for it. The baseline's `rationale` is the fixed string
 `motivating_link` is the tool's first `links[]` entry if one exists, else
 `null`.
 
-**Exception: `brew-health` findings get no baseline upgrade suggestion** —
-they have no version to upgrade at all (`current_version`/`latest_version`
-are both `null`). See §Brew-Health Assembly below for what they get instead.
+**Exception: the two non-version sources get no baseline upgrade
+suggestion** — a `brew-health` or `skill-drift` finding has no version to
+upgrade at all (`current_version`/`latest_version` are both `null`). See
+§Brew-Health Assembly and §Skill-Drift Assembly below for what each gets
+instead.
 
 **The baseline is the only suggestion that can carry `pre_accept: true`**
 (§Review Buckets and Pre-Accept). `baseline_upgrade()` identifies it
@@ -919,9 +954,11 @@ structurally — `suggestions[0]`, `kind: "upgrade"`, id ending `:upgrade` — a
 that identification is why `finalize_tool()` must run *before* the
 suggestion-id uniqueness pass, which can rename a colliding id to
 `…:upgrade-2`. The three-part test is deliberate rather than "the first
-suggestion": a brew-health tool's `{tool_id}:remediate` also sits at index 0
-with `kind: "upgrade"`, and the id suffix is the one thing that tells them
-apart.
+suggestion": a brew-health tool's `{tool_id}:remediate` and a skill-drift
+tool's `{tool_id}:sync` also sit at index 0 with `kind: "upgrade"`, and the
+id suffix is the one thing that tells them apart — which is what makes
+pre-accept impossible for either source *by construction* rather than by a
+flag someone could set the other way.
 
 ## Highlights
 
@@ -1001,7 +1038,9 @@ measurement that says otherwise.
 ### The highlight object
 
 - `title` — `f"{name} {current_version} → {latest_version}"`, or the
-  finding's `name` for a brew-health tool, which has no versions at all.
+  finding's `name` for a brew-health or skill-drift tool, which has no
+  versions at all. `_highlight_title()` needs an arm per non-version source;
+  without one the card renders the literal `name None → None`.
 - `why` — the first match in this fixed order, whitespace-collapsed and
   truncated to 220 chars on a word boundary with `…`:
   1. the highest-severity `relevancy` item's `summary` (ties resolve to array
@@ -1149,6 +1188,112 @@ category label, source badge, and `health_count` badge actually render, and
 `references/apply.md` §Brew-Health Remediation for how these suggestions get
 applied.
 
+## Skill-Drift Assembly
+
+A `skill_drift.findings[]` entry (emitted by `collect.sh` via
+`collect_skill_drift.py` — see `references/collection.md` §Skill-Drift
+Collection for the finding shape and the three-way tree-hash comparison
+behind it) becomes a Tool object through `build_drift_tool()`, which is
+`build_health_tool()`'s structure with a different vocabulary: `source:
+"skill-drift"`, plus `drift_state`, `drift_expected` (the finding's
+`expected` flag), `drift_vendor` and `drift_skill`
+(`references/schemas.md` §1.3). `current_version`/`latest_version` are
+hardcoded `None`, `pinned` `False`, `research_error` `None`, and — as in
+every build path — `research_obj = research_obj or {}` happens *first*, so a
+research file that returned a bare `null` for this finding can't
+`AttributeError` on the next key read.
+
+**Headliners**: research's `headliners[]` if the skill-drift group enriched
+this finding (`references/research.md` §Skill-Drift Enrichment); otherwise
+assembly synthesizes exactly one from the finding's own `detail`, carrying
+the finding's `severity`, so the drift still shows in a content group with
+no enrichment at all. Its `category` comes from a fixed
+`drift_state` → content-group map, the same shape brew-health's
+`health_category` map has:
+
+| `drift_state` | Content group |
+|---|---|
+| `upstream_ahead`, `diverged` | Fixes |
+| `local_only`, `probe_error` | Notes |
+| `in_sync` | Notes — defensive only; an in-sync skill is never a finding |
+
+(Nothing maps to Security. A skill lagging its upstream is a maintenance
+fact, not a shipped patch — see the `has_security` row below. An
+unrecognized state falls back to Notes rather than dropping the headliner,
+for the same reason the label map has a fallback: a state we don't know
+about is still a thing the user should see.)
+
+**Suggestions**: research's `suggestions[]` if present (research can author
+a better action than the default — e.g. an `edit` recording a newly
+discovered local patch in the vendor's `CUSTOMISATION.md`, or a `diverged`
+finding's conflict-review note); otherwise assembly synthesizes a single
+suggestion from the finding's `remediation` object, with
+`command`/`auto_runnable`/`needs_sudo` copied straight from it. A finding
+whose `remediation` is `null` — every `local_only` and every `probe_error`
+— gets **no** suggestion at all. That is a quiet card with nothing to decide
+in every case but one: the `probe_error` that means upstream removed or
+renamed an adopted skill has no command to offer (running the sync is what
+would lose the skill) yet is `expected: false`, so it buckets to
+`attention` and carries its decision in its detail text instead. Because the synthesized suggestion is always `auto_runnable: false`,
+it always carries a `manual_reason`.
+
+**The suggestion id is `{tool_id}:sync`, and that is the whole pre-accept
+story.** `baseline_upgrade()` accepts only an id ending `:upgrade`
+(§Baseline Suggestion Synthesis), so it returns `None` for a drift tool and
+`apply_pre_accept()` writes `pre_accept: false` on every suggestion the tool
+has. There is no flag to get wrong and no second code path: a sync rewrites
+vendored files inside the dotfiles submodule and can conflict with a local
+customisation, which is never a "just do it" — exactly the reasoning that
+bars a brew-health `:remediate`.
+
+**Derived fields for skill-drift.** A drift finding goes through the same
+`finalize_tool()` entry point as every other tool (§Overview), so it cannot
+disagree about what a field means — but as with brew-health, almost
+everything short-circuits, because there is no version pair and no
+changelog:
+
+| Field | Value | Why |
+|---|---|---|
+| `version_delta` | `"unknown"` | There is no delta. Reusing `"unknown"` keeps the field's type uniform for the page rather than inventing a sixth enum value. |
+| `version_scheme` | `"none"` | Explicitly "nothing to parse". |
+| `version_delta_note` | `"no version delta for this source"` | Same string the other non-version sources use. |
+| counted in `summary.by_delta` | **No** | Drift is not an update. Excluding it is what preserves `sum(by_delta) == total_outdated` unchanged (§Summary Counts and Output). |
+| `security.has_security` | `false`, always | The security section is about patches the user can take. A stale vendored skill is a maintenance fact; counting it would make the section's count disagree with the cards it lists. |
+| `security.cve_ids` / `cve_count` / `cve_claimed_count` | `[]` / `0` / `null` | Extraction is skipped for this source. |
+| `security.security_only` | `false`, always | Follows from `has_security: false`. |
+| `security.impact` | `"none"` if `drift_expected` else `"possible"` | Drift is *about this machine* by definition; the expected kinds (`local_only`, `probe_error`) are explicitly no-action. |
+| `risk_level` | `"low"` if `drift_expected` else `"elevated"` | `upstream_ahead` and `diverged` both mean a decision is owed; a deliberate local patch does not. |
+| `review_bucket` | `"routine"` if `drift_expected` else `"attention"` | Same split, on the review-effort axis. |
+| `pre_accept` | `false` on every suggestion | The `:sync` id suffix, above. |
+
+**How drift findings stay visible instead of being swept into "routine":**
+the page groups them by `source == "skill-drift"` and counts them with
+`summary.skill_drift_count` — **never** by `review_bucket`, which is a
+review-effort axis orthogonal to source. `routine` on a `local_only` finding
+means "nothing to decide here", not "hide it"; the user still gets to see
+that we are carrying a patch upstream doesn't have.
+
+**`summary.skill_drift_count`**: the count of `source: "skill-drift"` tools,
+tracked separately from `summary.total_outdated` (which excludes them) for
+the same reason `health_count` is — these are not version updates. The
+detector's `suppressed` list (in-sync skills, our own `tapppi/` skills, the
+adopted skills of an unprobed vendor — see `references/collection.md`) is
+logged to stderr here, not rendered anywhere.
+
+**Granularity, stated openly.** `git subtree pull` is per-vendor, so every
+drifted skill of one vendor carries the *same* vendor-level command; the
+remediation `label` says so (`"Sync anthropics from upstream (updates all 3
+drifted anthropics skills)"`), and accepting one of them resolves its
+siblings too. Assembly does not merge them into a single card: each skill is
+its own finding because each may need its own read of what changed upstream.
+See `references/apply.md` §Skill-Drift Remediation for how the apply step
+handles the resulting one-command-many-actions case.
+
+See `references/rendering-report.md` §Skill-Drift Rendering for how the
+drift-state label, source badge and Overview band render, and
+`references/research.md` §Skill-Drift Enrichment for what a research
+subagent adds to one of these findings.
+
 ## `config_status` Normalization
 
 A research subagent can legitimately return `config_status: null` on its Tool
@@ -1181,16 +1326,24 @@ the same guard runs in both code paths.
 ## Summary Counts and Output
 
 `summary` in the final report object:
-- `total_outdated` — tool count minus `health_count`.
+- `total_outdated` — the tools whose `source` is **not** in
+  `NON_VERSION_SOURCES`, counted the same way `by_delta` counts them
+  rather than by subtracting each finding count off `len(tools)`. Adding a
+  fourth finding source to the set is then the whole change; under the
+  subtraction form, forgetting the new term was how `by_delta` silently
+  stopped summing to it.
 - `incompatible_count` / `warning_count` — counts of `relevancy[]` items
   across all tools at that severity.
 - `suggestions_count` — total suggestions across all tools (after id
   uniqueness resolution).
 - `health_count` — see §Brew-Health Assembly above.
+- `skill_drift_count` — see §Skill-Drift Assembly above.
 - `by_delta` — `{major, minor, patch, revision, unknown}` over
-  **version-outdated tools only** (`brew-health` skipped).
+  **version-outdated tools only**. The skip is a membership test over the
+  set of non-version sources, not a second `==` chained onto the first, so
+  the next such source is one string in one place.
 - `by_bucket` — `{security_auto, security_mixed, attention, routine}` over
-  **every** tool, brew-health included.
+  **every** tool, brew-health and skill-drift included.
 - `security` — `{cve_count, severity_counts, tools_with_security, auto_count,
   mixed_count, tools_with_unlisted_cves}`, where `cve_count` is the size of the
   *union* of `cve_ids` across tools (§Security Extraction), not the sum, and
@@ -1198,20 +1351,28 @@ the same guard runs in both code paths.
   per-tool counts (§Severity Rollup and the Sum Invariant).
 
 **`by_delta` and `by_bucket` have different denominators, deliberately.**
-`by_delta` sums to `total_outdated` (74 in the live run); `by_bucket` sums to
-`total_outdated + health_count` (77). The asymmetry is load-bearing:
-`version_delta` is meaningless for a health finding, while `review_bucket` is
-defined for every Tool object and the page's bucket lists render health cards
-alongside version ones. A consumer that mixes the two denominators in one
-percentage — `by_bucket.routine / total_outdated` — produces a number that
-means nothing, and that is precisely the bug this note exists to prevent.
+`by_delta` sums to `total_outdated` (74 in the live run); **`by_bucket` sums
+to `len(tools)`** — every Tool object is bucketed exactly once — which is
+`total_outdated + health_count + skill_drift_count` written out by source
+(77 in that run, which predates skill-drift and so carries a zero third
+term). State it the first way when you need a rule that survives the next
+source, the second when you need a concrete check. The asymmetry is
+load-bearing: `version_delta` is meaningless for a non-version finding,
+while `review_bucket` is defined for every Tool object and the page's bucket
+lists render health and drift cards alongside version ones. A consumer that
+mixes the two denominators in one percentage —
+`by_bucket.routine / total_outdated` — produces a number that means nothing,
+and that is precisely the bug this note exists to prevent.
 
 Invariants a reviewer can check on any produced `report.json` (asserted end
 to end in `scripts/test_assemble.py` §5, against a session assembled through
 `main()`):
 
-- `sum(summary.by_delta.values()) == summary.total_outdated`.
-- `sum(summary.by_bucket.values()) == len(tools) == total_outdated + health_count`.
+- `sum(summary.by_delta.values()) == summary.total_outdated` — unchanged by
+  the addition of skill-drift, and it must stay that way: a non-version
+  source that starts landing in `by_delta` has a bug in its short-circuit.
+- `sum(summary.by_bucket.values()) == len(tools) == total_outdated +
+  health_count + skill_drift_count`.
 - `summary.security.auto_count + summary.security.mixed_count <= summary.security.tools_with_security`
   — a `has_security` tool can only be in one of the two security buckets, and
   health tools have `has_security: false`, so this is an equality in practice;
