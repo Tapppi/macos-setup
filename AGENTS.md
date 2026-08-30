@@ -14,7 +14,7 @@ macos-setup/
     install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
-    projects.sh         # Per-project tooling + agent skills from .tapppi-project manifests
+    projects.sh         # Per-project plugin enablement + env from .tapppi-project manifests
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
@@ -225,6 +225,44 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
 - Anything containing API keys, tokens, or passwords
 - Backup tarballs
 
+## Where Skills Live
+
+A skill belongs to the repo that uses it, committed, in this shape:
+
+```text
+<repo>/.agents/skills/<bundle>/          # canonical, a real directory
+        .claude-plugin/plugin.json       # one manifest; Claude Code AND Codex read it
+        skills/<name>/SKILL.md           # required layout
+        [agents/ hooks/ .mcp.json]       # optional, additive
+<repo>/.claude/skills/<bundle> -> ../../.agents/skills/<bundle>   # relative, committed
+```
+
+Both paths are needed because no single one is universal: Claude Code reads
+only `.claude/skills`, Codex reads only `.agents/skills`, and Cursor and
+OpenCode read both. Claude Code loads a directory containing `.claude-plugin/`
+as a zero-install `<bundle>@skills-dir` plugin — no marketplace, no
+`enabledPlugins` entry, discovered in place, so edits on a branch are live.
+
+**The symlink must be relative, and it must be committed.** That is the whole
+reason worktrees work without provisioning: git carries the symlink, and a
+relative target resolves inside whichever worktree reads it. The retired
+`projects.sh` route wrote *absolute* symlinks into `~/.config/agent-skills/`,
+which pinned every worktree to one machine-global copy — the bug this shape
+exists to avoid.
+
+A plain skill (`.agents/skills/<name>/SKILL.md`, no `.claude-plugin/`) is also
+fine. The only difference is namespacing: a bundle's skills appear as
+`<bundle>:<skill>`, a plain skill is unnamespaced. Prefer a bundle for
+anything shared, versioned, or carrying hooks/agents/MCP.
+
+A bundle's `SKILL.md` must sit at `skills/<name>/SKILL.md`. One at the bundle
+root loads in Claude Code but is invisible to Codex — a silent, one-harness
+failure.
+
+Third-party marketplace plugins (`frontend-design@claude-plugins-official`,
+`superpowers`, `duckdb-skills`) cannot be made zero-setup; their install stays
+machine-local via `tasks/projects.sh`.
+
 ## Cursor CLI (`cursor-agent`)
 
 `install_cursor_agent()` in `tasks/install.sh` only clears the cask quarantine; all
@@ -239,8 +277,8 @@ system policy` (plus a Gatekeeper popup per run). Re-run
 Cursor reads much of the Claude Code setup natively — repo `CLAUDE.md`,
 `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `~/.claude/commands/`, and
 `enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` — so
-`tasks/projects.sh` needs no Cursor-specific handling: the skills it links into each
-repo's `.claude/skills/` are discovered as-is. It does **not** read
+`tasks/projects.sh` needs no Cursor-specific handling: a repo's committed
+`.claude/skills/` and `.agents/skills/` are both discovered as-is. It does **not** read
 `~/.claude/CLAUDE.md` (ported to `dotfiles/home/.cursor/rules/*.mdc`) or Claude's
 `Bash(...)` permission entries (Cursor's shell tool is `Shell(...)`).
 
