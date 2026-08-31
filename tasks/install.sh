@@ -388,6 +388,14 @@ install_mise_runtimes() {
 	# Reference: https://github.com/aiven/aiven-client
 	uv tool install "aiven-client"
 
+	# Libraries, not CLI tools, so `uv tool install` is the wrong verb — these must be
+	# importable by the default `python3`. The agent-skills venv (see
+	# setup_agent_skills_venv) carries its own copies, but ad-hoc scripts run on the
+	# mise interpreter and cannot see that venv.
+	p3 "Installing Python libraries into the mise-managed interpreter"
+	# Reference: https://openpyxl.readthedocs.io — xlsx read/write for report scripts.
+	uv pip install --python "$(command -v python3)" --quiet openpyxl
+
 	p2 "Configure gem"
 	# Configure gem to not generate documentation to make it faster
 	printf "%s\n" \
