@@ -26,7 +26,13 @@ version sources:
 - **Brewfile-manifested brew/cask packages** — transitive deps excluded,
   pinned formulae included. A pin usually marks a *known* incompatibility
   worth re-checking, not a tool to skip; never treat a pin as a reason to
-  drop the tool from the candidate list.
+  drop the tool from the candidate list. A package from a third-party tap is
+  manifested however either side spells it: `brew outdated --json=v2` names a
+  formula in full (`slp/krun/krunkit`) and a cask by its short token, while
+  the Brewfile may declare either form, so both sides are reduced to the
+  short name before the intersection — and that short name is what the `id`
+  carries. Comparing the two spellings directly is how a whole tap once went
+  missing from a run that otherwise looked complete.
 - **mise runtimes**.
 - **Standalone CLIs** genuinely unmanaged by brew.
 - **`softwareupdate -l` entries** — macOS system/app updates, `source:

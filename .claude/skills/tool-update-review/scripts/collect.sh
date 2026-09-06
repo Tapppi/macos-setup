@@ -26,11 +26,18 @@ generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 brewfile_formulae="[]"
 brewfile_casks="[]"
 if [[ -f "${brewfile}" ]]; then
-	# `brew outdated`/`brew info` report both formulae and casks under their
-	# short (untapped) name even when the Brewfile taps a qualified one
-	# (e.g. hashicorp/tap/terraform, some-tap/cask-name), so strip any
-	# tap prefix from both — matching `brew outdated`'s own `c.token`/
-	# `f.full_name`-vs-short-name behavior for casks too, not just formulae.
+	# A Brewfile line may name a package tap-qualified (`brew
+	# "anomalyco/tap/opencode"`) or bare once its tap is tapped (`tap
+	# "slp/krun"` + `brew "krunkit"`), and `brew outdated --json=v2` is not
+	# consistent either: it reports a formula under its FULL name
+	# (`slp/krun/krunkit`) and a cask under its short token. Strip the tap
+	# prefix here and again on brew's side in the jq below, then compare the
+	# short names — the name `brew upgrade` and the Brewfile both accept, so
+	# ids stay stable and runnable. Stripping only this side (which is what
+	# the code did, on the mistaken belief that `brew outdated` already
+	# shortens formulae) silently dropped every third-party-tap formula from
+	# the candidate set: krunkit and opencode were invisible to a run that
+	# otherwise looked complete.
 	brewfile_formulae="$(grep -E '^brew "' "${brewfile}" | sed -E 's/^brew "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
 	brewfile_casks="$(grep -E '^cask "' "${brewfile}" | sed -E 's/^cask "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
 else
@@ -38,8 +45,9 @@ else
 fi
 
 # brew outdated intersected with Brewfile entries; keeps pin state.
-# `brew outdated` matches on the short name even when the Brewfile taps
-# a qualified name (e.g. hashicorp/tap/terraform), hence the `sed s|.*/||`.
+# `short` mirrors the `sed s|.*/||` applied to the Brewfile names above, so
+# both sides of the membership test are short names regardless of which side
+# came tap-qualified; the short name is also what lands in `id`/`name`.
 # --greedy is required for casks: brew silently skips `auto_updates: true`
 # and `version :latest` casks otherwise (e.g. self-updating desktop apps
 # like the Claude app, 1Password, Tailscale) even when they're genuinely
@@ -48,14 +56,15 @@ fi
 brew_json="$(brew outdated --json=v2 --greedy 2>/dev/null | jq \
 	--argjson formulae "${brewfile_formulae}" \
 	--argjson casks "${brewfile_casks}" '
-	[ (.formulae[] | select(.name as $n | $formulae | index($n)) | {
-			id: ("brew:" + .name), name: .name, source: "brew",
+	def short: sub("^.*/"; "");
+	[ (.formulae[] | (.name | short) as $n | select($formulae | index($n)) | {
+			id: ("brew:" + $n), name: $n, source: "brew",
 			current_version: (.installed_versions | last),
 			latest_version: .current_version,
 			pinned: .pinned
 		}),
-		(.casks[] | select(.name as $n | $casks | index($n)) | {
-			id: ("cask:" + .name), name: .name, source: "cask",
+		(.casks[] | (.name | short) as $n | select($casks | index($n)) | {
+			id: ("cask:" + $n), name: $n, source: "cask",
 			current_version: .installed_versions[-1],
 			latest_version: .current_version,
 			pinned: false
@@ -70,9 +79,15 @@ pinned_json="[]"
 pinned_names="$(brew list --pinned 2>/dev/null || true)"
 if [[ -n "${pinned_names}" ]]; then
 	pinned_json="$(while IFS= read -r name; do
-		printf '%s' "${brewfile_formulae}" | jq -e --arg n "${name}" 'index($n)' >/dev/null || continue
+		# Same normalisation as brew_json above: `brew list --pinned` names a
+		# tapped formula in full, the Brewfile list holds short names, and the
+		# emitted id has to be the one brew_json would emit or `unique_by(.id)`
+		# below stops deduping and a pinned tapped formula lands in the report
+		# twice. Lookups still use the name brew gave us.
+		short_name="${name##*/}"
+		printf '%s' "${brewfile_formulae}" | jq -e --arg n "${short_name}" 'index($n)' >/dev/null || continue
 		info="$(brew info --json=v2 "${name}" 2>/dev/null)" || continue
-		printf '%s' "${info}" | jq --arg name "${name}" '
+		printf '%s' "${info}" | jq --arg name "${short_name}" '
 			.formulae[0] | {
 				id: ("brew:" + $name), name: $name, source: "brew",
 				current_version: (.installed | last | .version),

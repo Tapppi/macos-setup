@@ -88,7 +88,9 @@ outdated tools from four version sources, **plus** two non-version finding
 objects: `brew_health` (`brew doctor` environment-health findings — the
 "state of my brew install," not version deltas) and `skill_drift` (vendored
 agent skills that have drifted from their upstream — the "are my skills
-still the ones upstream ships").
+still the ones upstream ships"). Run `python3 scripts/test_collect.py` after
+changing which candidates `collect.sh` keeps — it drives the real script
+against a stubbed `brew`, so a silently narrowed candidate set fails loudly.
 
 If the user scoped the request ("just podman", "only claude"), filter the
 candidate list before researching — scoping to version updates skips both
