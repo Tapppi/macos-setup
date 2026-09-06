@@ -142,9 +142,6 @@ cask "ghostty"
 # Keyboard remapping
 cask "karabiner-elements"
 
-# macOS automation (per-app keyboard layout forcing, etc.)
-cask "hammerspoon"
-
 # Text editors
 # Unlike the Apple Silicon Brewfile, neovim stays here: this machine (tmopro18)
 # has no nix-darwin config and is slated for a NixOS migration rather than one,

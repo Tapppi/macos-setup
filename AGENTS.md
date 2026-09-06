@@ -29,7 +29,7 @@ macos-setup/
 See `dotfiles/README.md` for details. It has two sync directories:
 
 - `home/` — rsynced to `~/` (files without XDG support):
-  `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hammerspoon/`, `.hushlogin`, `.parallel/`
+  `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hushlogin`, `.parallel/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
   `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
   `git/` (config + global ignore), `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`,

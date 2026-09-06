@@ -143,9 +143,6 @@ cask "ghostty"
 # Keyboard remapping
 cask "karabiner-elements"
 
-# macOS automation (per-app keyboard layout forcing, etc.)
-cask "hammerspoon"
-
 # Text editors
 # neovim and neovide are owned by the nix-darwin config in tapppi/systems
 # (hosts/darwin-minimal), which builds neovim from the nixCats flake and wraps

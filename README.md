@@ -128,7 +128,8 @@ Also works as update — rerun it to update apps and runtimes.
   media, The Unarchiver for archives)
 - Registers login items (1Password, Alfred, Amphetamine, ClaudeBar, Google
   Drive, Hammerspoon, Ice, iStat Menus, Karabiner-Elements, Resolutionator,
-  Slack, Spotify, stts, WhatsApp)
+  Slack, Spotify, stts, WhatsApp). Hammerspoon points at the nix-built bundle
+  in `/Applications/Nix Apps`, which `tapppi/systems` installs
 - Registers the Obsidian CLI at `/usr/local/bin/obsidian` when the app bundle
   is present, and removes stale `# Added by Obsidian` PATH lines from
   `~/.zprofile`
@@ -137,13 +138,15 @@ Also works as update — rerun it to update apps and runtimes.
   trigger to `Hyper+P`, and sets per-host display resolution via displayplacer
   (one step less scaling than default)
 - Launches iStat Menus, Alfred, Amphetamine, Amphetamine Enhancer, ClaudeBar,
-  Google Drive, Hammerspoon, Ice, Karabiner-Elements, Resolutionator,
-  Spotify, and stts for first-run setup
+  Google Drive, Ice, Karabiner-Elements, Resolutionator, Spotify, and stts for
+  first-run setup
 
 #### Application hotkeys
 
-See the [dotfiles readme](dotfiles/README.md#application-hotkeys) for the full
-hotkey table. Managed via Hammerspoon and Karabiner Tab→Hyper.
+Karabiner maps Tab→Hyper here; the hotkeys themselves have moved to
+`tapppi/systems`, which owns Hammerspoon and its config. The table in the
+[dotfiles readme](dotfiles/README.md#application-hotkeys) describes the
+pre-migration bindings and no longer matches the running config.
 
 #### macos
 
