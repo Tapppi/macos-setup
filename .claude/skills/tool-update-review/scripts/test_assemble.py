@@ -1855,5 +1855,51 @@ class NotableAbsentVersusEmptyTests(unittest.TestCase):
 			["DERIVED"])
 
 
+class LoadResearchDegradationTests(unittest.TestCase):
+	"""A research file is subagent output, so any member can be any shape.
+	One malformed entry must cost that entry, never the run — the failure this
+	guards used to abort assembly for all 78 tools."""
+
+	HOSTILE_ENTRIES = [
+		("bare string", "krunkit"),
+		("bare int", 7),
+		("null", None),
+		("bool", True),
+		("nested array", ["brew:foo"]),
+		("id is a dict", {"id": {"name": "brew:foo"}}),
+		("id is an int", {"id": 42}),
+		("id is a list", {"id": ["brew:foo"]}),
+		("id is empty", {"id": ""}),
+		("no id at all", {"headliners": []}),
+	]
+
+	def _load(self, entries):
+		with tempfile.TemporaryDirectory() as td:
+			with open(os.path.join(td, "g1.json"), "w", encoding="utf-8") as fh:
+				json.dump(entries, fh)
+			with contextlib.redirect_stderr(io.StringIO()):
+				return assemble.load_research(td)
+
+	def test_one_hostile_entry_never_costs_the_good_ones(self):
+		good = {"id": "brew:good", "headliners": []}
+		for label, bad in self.HOSTILE_ENTRIES:
+			with self.subTest(label):
+				by_id = self._load([bad, good])
+				self.assertEqual(list(by_id), ["brew:good"], label)
+
+	def test_a_file_of_nothing_but_garbage_is_empty_not_fatal(self):
+		self.assertEqual(self._load([e for _, e in self.HOSTILE_ENTRIES]), {})
+
+	def test_the_warning_names_the_file_so_it_is_actionable(self):
+		with tempfile.TemporaryDirectory() as td:
+			with open(os.path.join(td, "g7.json"), "w", encoding="utf-8") as fh:
+				json.dump(["krunkit"], fh)
+			err = io.StringIO()
+			with contextlib.redirect_stderr(err):
+				assemble.load_research(td)
+			self.assertIn("g7.json", err.getvalue())
+			self.assertIn("str", err.getvalue())
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2)

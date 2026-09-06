@@ -1273,9 +1273,16 @@ def load_research(research_dir: str) -> dict:
 			print(f"warning: {fpath!r} is not a JSON array — skipping", file=sys.stderr)
 			continue
 		for entry in entries:
+			# A research file is written by a subagent, so any member can be any
+			# shape. Degrade per entry, never per run: one bare string here used to
+			# raise AttributeError out of load_research and abort the whole report,
+			# while every malformed shape *inside* an entry is survivable downstream.
+			if not isinstance(entry, dict):
+				print(f"warning: an entry in {fpath!r} is {type(entry).__name__}, not an object — skipping", file=sys.stderr)
+				continue
 			tid = entry.get("id")
-			if not tid:
-				print(f"warning: an entry in {fpath!r} has no \"id\" — skipping", file=sys.stderr)
+			if not tid or not isinstance(tid, str):
+				print(f"warning: an entry in {fpath!r} has no usable \"id\" — skipping", file=sys.stderr)
 				continue
 			if tid in by_id:
 				print(f"warning: duplicate research entry for {tid!r} ({fpath!r} overwrites an earlier file)", file=sys.stderr)
