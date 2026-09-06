@@ -38,11 +38,17 @@ COLLECT_SH = os.path.join(SCRIPT_DIR, "collect.sh")
 # and `list --pinned` read their payload out of the environment so each test
 # supplies its own; `doctor` and everything else stay silent, which collect.sh
 # already treats as "nothing to report".
+#
+# STUB_OUTDATED_RC and STUB_INFO_PREFIX exist for the degradation tests at the
+# bottom of this file: a real `brew` can print a complete listing and *then*
+# exit non-zero, and can put a deprecation notice on stdout ahead of the JSON.
+# Both are ways a healthy brew derails a collector that assumes otherwise.
 BREW_STUB = """#!/usr/bin/env bash
 case "$1" in
-	outdated) cat "${STUB_OUTDATED}" ;;
+	outdated) cat "${STUB_OUTDATED}"; exit "${STUB_OUTDATED_RC:-0}" ;;
 	list) [[ "${2:-}" == "--pinned" ]] && printf '%s' "${STUB_PINNED:-}" ;;
-	info) [[ -n "${STUB_INFO:-}" ]] && cat "${STUB_INFO}" ;;
+	info) [[ -n "${STUB_INFO_PREFIX:-}" ]] && printf '%s\\n' "${STUB_INFO_PREFIX}"
+		[[ -n "${STUB_INFO:-}" ]] && cat "${STUB_INFO}" ;;
 	*) : ;;
 esac
 exit 0
@@ -57,17 +63,19 @@ def _write(path, text, mode=0o644):
 	os.chmod(path, mode)
 
 
-class CollectBrewSection(unittest.TestCase):
-	"""Every test runs the real collect.sh against stubbed brew output."""
+class CollectRunner(unittest.TestCase):
+	"""Shared harness: every test below runs the real collect.sh against
+	stubbed brew/mise/softwareupdate executables placed first on PATH."""
 
-	def collect(self, brewfile, outdated, pinned="", info=None):
-		"""Run collect.sh in a throwaway workspace; return the parsed object.
+	def run_collect(self, brewfile, outdated, pinned="", info=None,
+			outdated_rc=None, info_prefix=None):
+		"""Run collect.sh in a throwaway workspace; return the CompletedProcess.
 
-		Every fixture Brewfile carries both a `brew "` and a `cask "` line:
-		collect.sh runs under `set -euo pipefail`, so a `grep` that matches
-		nothing aborts the collector. Real Brewfiles always have both, and
-		widening that is not what these tests are about — the padding entries
-		are simply never listed as outdated."""
+		Most fixture Brewfiles carry both a `brew "` and a `cask "` line — not
+		because the collector needs them (it no longer aborts when one of those
+		greps matches nothing) but because real Brewfiles have both and these
+		tests are about the intersection, not the empty case. The padding
+		entries are simply never listed as outdated."""
 		with tempfile.TemporaryDirectory(prefix="collect-test-") as root:
 			bindir = os.path.join(root, "bin")
 			work = os.path.join(root, "work")
@@ -82,16 +90,28 @@ class CollectBrewSection(unittest.TestCase):
 			env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
 			env["STUB_OUTDATED"] = os.path.join(root, "outdated.json")
 			env["STUB_PINNED"] = pinned
+			if outdated_rc is not None:
+				env["STUB_OUTDATED_RC"] = str(outdated_rc)
+			if info_prefix is not None:
+				env["STUB_INFO_PREFIX"] = info_prefix
 			if info is not None:
 				_write(os.path.join(root, "info.json"), json.dumps(info))
 				env["STUB_INFO"] = os.path.join(root, "info.json")
-			p = subprocess.run(["bash", COLLECT_SH, "Brewfile"], cwd=work, env=env,
+			return subprocess.run(["bash", COLLECT_SH, "Brewfile"], cwd=work, env=env,
 				capture_output=True, text=True, timeout=180)
-			self.assertEqual(p.returncode, 0, p.stderr)
-			return json.loads(p.stdout)
+
+	def collect(self, brewfile, outdated, pinned="", info=None, **kw):
+		"""run_collect(), asserting the collector succeeded; return the object."""
+		p = self.run_collect(brewfile, outdated, pinned=pinned, info=info, **kw)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		return json.loads(p.stdout)
 
 	def brew_ids(self, report):
 		return [t["id"] for t in report["brew"]]
+
+
+class CollectBrewSection(CollectRunner):
+	"""Which candidates survive the Brewfile intersection."""
 
 	# ── the regression: a tap-qualified `brew outdated` name must still match ──
 
@@ -164,6 +184,65 @@ class CollectBrewSection(unittest.TestCase):
 		self.assertEqual(self.brew_ids(report), ["brew:krunkit"])
 		self.assertTrue(report["brew"][0]["pinned"])
 		self.assertEqual(len(set(self.brew_ids(report))), len(self.brew_ids(report)))
+
+
+class CollectDegradationTests(CollectRunner):
+	"""collect.sh runs under `set -euo pipefail`, which turns a shrug from any
+	one command into the death of the whole collector: no collect.json, no
+	report, and — because every brew call has its stderr sent to /dev/null —
+	frequently nothing on stderr to say why. Each case below aborted the run
+	outright; each must now cost at most the one section it is about, loudly."""
+
+	def test_a_brewfile_with_no_brew_lines_still_collects(self):
+		"""`grep` exits 1 when it matches nothing, and under pipefail that is
+		the whole pipeline's status — so a Brewfile listing only casks (or only
+		formulae, or only taps) killed the collector at the assignment, silently:
+		rc=1, empty stdout, empty stderr."""
+		p = self.run_collect('tap "slp/krun"\n# nothing else\n', {"formulae": [], "casks": []})
+		self.assertEqual(p.returncode, 0, p.stderr)
+		report = json.loads(p.stdout)
+		self.assertEqual(report["brew"], [])
+		# Not silent: an empty candidate set has to be attributable.
+		self.assertIn("no 'brew \"...\"' lines", p.stderr)
+		self.assertIn("no 'cask \"...\"' lines", p.stderr)
+
+	def test_brew_outdated_exiting_non_zero_does_not_lose_its_own_output(self):
+		"""A `brew outdated` that prints a complete listing and then exits
+		non-zero. `… | jq … || echo '[]'` fired *in addition to* jq's valid
+		output, making brew_json the concatenation `[…]\\n[]` — unparseable text
+		that reached the final `jq -n --argjson` and killed the collector with
+		nothing but `jq: invalid JSON text passed to --argjson` on stderr."""
+		report = self.collect(
+			'brew "curl"\ncask "1password"\n',
+			{"formulae": [{"name": "curl", "installed_versions": ["8.1.0"],
+				"current_version": "8.2.0", "pinned": False}], "casks": []},
+			outdated_rc=1)
+		# The listing brew did produce is still read, not discarded.
+		self.assertEqual(self.brew_ids(report), ["brew:curl"])
+
+	def test_an_unparseable_brew_info_costs_one_pinned_formula(self):
+		"""`brew info --json=v2` with a notice on stdout ahead of the JSON. The
+		per-entry jq failed, became the loop's exit status, and pipefail carried
+		it to the `jq -s .` pipeline — so `set -e` killed the collector at the
+		assignment. One pinned formula, the entire run."""
+		p = self.run_collect(
+			'brew "curl"\ncask "1password"\n',
+			{"formulae": [{"name": "1password", "installed_versions": ["8.1"],
+				"current_version": "8.2", "pinned": False}], "casks": []},
+			pinned="curl\n",
+			info={"formulae": [{"installed": [{"version": "8.1.0"}],
+				"versions": {"stable": "8.2.0"}}]},
+			info_prefix="Warning: curl has been deprecated")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		report = json.loads(p.stdout)
+		# The pinned formula is the only casualty…
+		self.assertNotIn("brew:curl", self.brew_ids(report))
+		# …the rest of the run is intact…
+		self.assertEqual(set(report), {"generated_at", "machine", "brew", "mise",
+			"standalone", "macos", "brew_health", "skill_drift"})
+		# …and the operator is told which formula was dropped.
+		self.assertIn("brew info", p.stderr)
+		self.assertIn("curl", p.stderr)
 
 
 if __name__ == "__main__":

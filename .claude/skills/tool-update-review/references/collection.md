@@ -50,6 +50,31 @@ see `collect.sh`'s `standalone_json` comment).
 Every emitted tool's shape (identity/versions/`source` vocabulary) is the
 Report Object's Tool shape — see `references/schemas.md` §Report Object.
 
+### Degradation: a section, never the collector
+
+`collect.sh` runs under `set -euo pipefail`, which turns any one command's
+shrug into the death of the whole collector — and because every `brew` call
+sends its stderr to `/dev/null`, that death is frequently silent: exit 1,
+empty stdout, empty stderr, no collect.json and so no report. Three ordinary
+things used to do exactly that, and each is now contained to the section it
+belongs to, with a warning on stderr naming what was lost:
+
+- a **Brewfile with no `brew "` lines** (or no `cask "` lines) — `grep` exits
+  1 when it matches nothing, which under `pipefail` is the pipeline's status;
+- a **`brew outdated` that prints a complete listing and then exits non-zero**
+  — `… | jq … || echo '[]'` fired *in addition to* jq's valid output and left
+  the variable holding two concatenated JSON documents;
+- a **`brew info` with a notice on stdout ahead of the JSON** — the per-entry
+  `jq` became the pinned loop's exit status, and one pinned formula took the
+  run with it.
+
+The pattern for all three is the one the `mise_json` block documents inline:
+absorb the status with `|| true` at the assignment so the script survives to
+check, then validate the captured text with `jq -e .` and fall back — never
+`|| echo '[]'` inside the pipeline, which fires alongside good output rather
+than instead of it. `test_collect.py` §`CollectDegradationTests` holds one
+case per failure.
+
 ## Brew-Health Collection
 
 Version deltas are only half of "is my toolchain healthy." The other half

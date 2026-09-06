@@ -38,8 +38,22 @@ if [[ -f "${brewfile}" ]]; then
 	# shortens formulae) silently dropped every third-party-tap formula from
 	# the candidate set: krunkit and opencode were invisible to a run that
 	# otherwise looked complete.
-	brewfile_formulae="$(grep -E '^brew "' "${brewfile}" | sed -E 's/^brew "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
-	brewfile_casks="$(grep -E '^cask "' "${brewfile}" | sed -E 's/^cask "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
+	#
+	# `{ grep …; } || true` — grep exits 1 when it matches nothing, and under
+	# `set -o pipefail` that is the whole pipeline's status, so a Brewfile with
+	# no `brew "` lines (or no `cask "` lines) used to abort collect.sh at this
+	# assignment under `set -e`: no collect.json, no report, nothing on stdout
+	# and nothing on stderr either. The `|| true` is scoped to grep alone
+	# rather than appended to the pipeline, so a real jq/sed failure still
+	# surfaces instead of silently yielding an unparseable empty string.
+	brewfile_formulae="$({ grep -E '^brew "' "${brewfile}" || true; } | sed -E 's/^brew "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
+	brewfile_casks="$({ grep -E '^cask "' "${brewfile}" || true; } | sed -E 's/^cask "([^"]+)".*/\1/' | sed -E 's|.*/||' | jq -R . | jq -s .)"
+	if [[ "${brewfile_formulae}" == "[]" ]]; then
+		echo "warning: no 'brew \"...\"' lines in ${brewfile}; no formula will be reported" >&2
+	fi
+	if [[ "${brewfile_casks}" == "[]" ]]; then
+		echo "warning: no 'cask \"...\"' lines in ${brewfile}; no cask will be reported" >&2
+	fi
 else
 	echo "warning: Brewfile not found at ${brewfile}; brew section will be empty" >&2
 fi
@@ -68,7 +82,22 @@ brew_json="$(brew outdated --json=v2 --greedy 2>/dev/null | jq \
 			current_version: .installed_versions[-1],
 			latest_version: .current_version,
 			pinned: false
-		}) ]' || echo '[]')"
+		}) ]')" || true
+# Validated post-hoc, never with `|| echo '[]'` on the assignment itself — the
+# same trap the mise block below documents at length. Under `set -o pipefail` a
+# `brew outdated` that prints a perfectly good listing and *then* exits non-zero
+# (a tap error, a failing auto-update hook) makes the whole pipeline non-zero
+# even though jq already emitted valid output, so the fallback would fire *in
+# addition to* it and leave `brew_json` as the two concatenated strings
+# `[…]\n[]`. That reaches the final `jq -n --argjson` as unparseable text and
+# kills the collector outright: no collect.json, no report, and nothing on
+# stderr but `jq: invalid JSON text passed to --argjson`. The `|| true` keeps
+# `set -e` from aborting at the assignment so this check is reachable, and the
+# check is what actually decides the fallback.
+if ! printf '%s' "${brew_json}" | jq -e . >/dev/null 2>&1; then
+	echo "warning: could not read \`brew outdated\` output as JSON; no brew formula or cask will be reported" >&2
+	brew_json='[]'
+fi
 
 # Pinned formulae are hidden from `brew outdated` by default; surface them
 # explicitly so a pinned-but-behind tool (the whole point of a pin) shows up.
@@ -87,14 +116,29 @@ if [[ -n "${pinned_names}" ]]; then
 		short_name="${name##*/}"
 		printf '%s' "${brewfile_formulae}" | jq -e --arg n "${short_name}" 'index($n)' >/dev/null || continue
 		info="$(brew info --json=v2 "${name}" 2>/dev/null)" || continue
+		# Contained per pinned formula. `brew info` can put a line jq cannot
+		# parse on *stdout* (a deprecation notice ahead of the JSON), and
+		# without this the failing jq became the loop's exit status, pipefail
+		# carried it to the `jq -s .` pipeline, and `set -e` killed the whole
+		# collector at this assignment — one pinned formula costing the entire
+		# run, with only `jq: parse error` on stderr to explain it.
 		printf '%s' "${info}" | jq --arg name "${short_name}" '
 			.formulae[0] | {
 				id: ("brew:" + $name), name: $name, source: "brew",
 				current_version: (.installed | last | .version),
 				latest_version: .versions.stable,
 				pinned: true
-			}'
-	done <<< "${pinned_names}" | jq -s .)"
+			}' 2>/dev/null || {
+			echo "warning: could not read \`brew info\` output for pinned formula ${name}; leaving it out" >&2
+			continue
+		}
+	done <<< "${pinned_names}" | jq -s .)" || true
+	# Second layer, same reasoning as brew_json above: the per-entry guard
+	# covers the shape we have actually seen, this covers the next one.
+	if ! printf '%s' "${pinned_json}" | jq -e . >/dev/null 2>&1; then
+		echo "warning: could not assemble the pinned-formula list as JSON; no pinned formula will be reported" >&2
+		pinned_json='[]'
+	fi
 fi
 
 # mise runtimes. `mise outdated --json` reports current:null for
