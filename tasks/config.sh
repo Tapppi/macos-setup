@@ -12,7 +12,6 @@ amphetamine
 btop
 claudebar
 google_drive
-hammerspoon
 ice
 karabiner_elements
 obsidian
@@ -179,13 +178,6 @@ config_google_drive() {
 	p2 "Launching Google Drive for first-run setup..."
 	test -d "/Applications/Google Drive.app" &&
 		open "/Applications/Google Drive.app"
-}
-
-# Configure Hammerspoon
-config_hammerspoon() {
-	p2 "Launching Hammerspoon for first-run setup..."
-	test -d "/Applications/Hammerspoon.app" &&
-		open "/Applications/Hammerspoon.app"
 }
 
 # Configure Ice
@@ -392,13 +384,18 @@ config_vlc() {
 }
 
 # Configure Login Items
+#
+# Hammerspoon is deliberately the nix-built bundle under /Applications/Nix Apps,
+# not a cask under /Applications. tapppi/systems owns both the application and
+# its config now; the two bundles share a bundle id, so leaving a cask copy
+# installed would let LaunchServices decide which one receives an opened link.
 
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
 /Applications/Amphetamine.app
 /Applications/ClaudeBar.app
 /Applications/Google Drive.app
-/Applications/Hammerspoon.app
+/Applications/Nix Apps/Hammerspoon.app
 /Applications/Ice.app
 /Applications/iStat Menus.app
 /Applications/Karabiner-Elements.app
