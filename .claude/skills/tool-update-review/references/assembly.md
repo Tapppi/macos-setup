@@ -191,6 +191,34 @@ not a licence: a drifted research file is still a research bug and still
 prints a warning, and `references/research.md` §Schema Strictness is where a
 subagent is told not to produce one.
 
+### The Later Boundaries: One Bad Unit Never Costs the Report
+
+Normalizing the arrays is not enough on its own, because a shape can also be
+wrong at a place `as_item_list()` never sees. Five later steps therefore each
+carry a per-unit boundary of their own, all following the same rule — contain
+it, name what was dropped on stderr, keep going:
+
+| Boundary | Unit it protects | What used to abort the run |
+| --- | --- | --- |
+| `load_research()` | one research file, then one entry in it | a file `json.load` cannot decode (not an `OSError` and not a `ValueError`); a bare string where an object belongs |
+| `read_candidate_list()` | one `collect.json` version section, then one candidate | `"mise": null` reaching `list + None`; a candidate that is not an object |
+| `build_tool_guarded()` | one candidate's Tool object | `candidate["source"]`/`["id"]`/`["name"]`, whose `KeyError` names the key but never the candidate |
+| `validate_evidence()` per tool | one tool's citations | a structured citation (`{"path": …}`) reaching a regex that wants a string |
+| `build_highlights()` per tool | one tool's highlight slot | a severity that is not hashable; prose nested one level too deep reaching `.split()` |
+
+Two reads deserve naming because they are the ones an `==` comparison does
+*not* survive. A **rank lookup** (`_SEVERITY_RANK.get(value)`) raises
+`TypeError: unhashable type` on `"severity": ["warning"]`, so every one goes
+through `severity_rank()`; and a **suggestion id** is a dict key in the
+uniqueness pass, so a non-string one is discarded (with a warning) and
+re-minted rather than carried into `sid in seen_ids`.
+
+`repo_context.json` is the one *optional* input and degrades to a placeholder
+on any read failure. `collect.json` is the one input that does not degrade at
+all — it **is** the candidate set — so an unreadable or non-object
+`collect.json` exits 1 naming the file and the shape, which a traceback out of
+`collect.get(…)` three lines later does not.
+
 ## Suggestion-ID Uniqueness
 
 Suggestion ids must be unique **globally across the whole report**, not just

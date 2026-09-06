@@ -1284,7 +1284,12 @@ class NotableValidationTests(unittest.TestCase):
 				"summary": 42, "affects_me": False},
 			_not("a real line")]}), capture=True)
 		self.assertEqual([n["summary"] for n in tool["security"]["notable"]], ["a real line"])
-		self.assertEqual(err.count("not a string"), 2)
+		# Counted on clean_notable()'s own sentence rather than on the bare
+		# words "not a string": as_item_list() reports the same drift once more
+		# at the array boundary (_warn_odd_strings), and this assertion is about
+		# *this* validator dropping the entry, not about how many warnings the
+		# entry collects on its way through.
+		self.assertEqual(err.count("dropping the entry rather than rendering its repr"), 2)
 
 	def test_source_ref_picks_the_max_severity_relevancy_match(self):
 		# Two relevancy items naming one CVE. _highlight_why_parts() takes the
@@ -1899,6 +1904,268 @@ class LoadResearchDegradationTests(unittest.TestCase):
 				assemble.load_research(td)
 			self.assertIn("g7.json", err.getvalue())
 			self.assertIn("str", err.getvalue())
+
+	# ── the file itself, not its entries ────────────────────────────────
+	# `except (OSError, json.JSONDecodeError)` was narrower than what reading
+	# an agent-written file can actually raise. Neither shape below is an
+	# OSError or a ValueError, so both escaped the handler and aborted the
+	# report for all 78 tools — after the whole research phase had been spent.
+	UNREADABLE_FILES = [
+		# A subagent killed mid-write, truncating a multi-byte character:
+		# UnicodeDecodeError, raised by the decoder, not the JSON parser.
+		("truncated utf-8", b'[{"id": "brew:bad", "headliners": [{"text": "caf\xe9"}]}]'),
+		# Pathological nesting: RecursionError, which is not an Exception the
+		# JSON module documents at all.
+		("nesting too deep", (b"[" * 60000) + (b"]" * 60000)),
+	]
+
+	def test_an_unreadable_file_costs_that_file_and_no_other(self):
+		for label, payload in self.UNREADABLE_FILES:
+			with self.subTest(label), tempfile.TemporaryDirectory() as td:
+				with open(os.path.join(td, "01-bad.json"), "wb") as fh:
+					fh.write(payload)
+				with open(os.path.join(td, "02-good.json"), "w", encoding="utf-8") as fh:
+					json.dump([{"id": "brew:good", "headliners": []}], fh)
+				err = io.StringIO()
+				with contextlib.redirect_stderr(err):
+					by_id = assemble.load_research(td)
+				self.assertEqual(list(by_id), ["brew:good"], label)
+				# Loud, and specific enough to go and look at the file.
+				self.assertIn("01-bad.json", err.getvalue(), label)
+
+
+# ── 9. The whole-run boundaries: one bad unit must never cost the report ────
+# Same doctrine as LoadResearchDegradationTests one class up, applied at the
+# three later boundaries where a single malformed unit used to abort main()
+# itself: collect.json's candidate sections, the per-tool build, and the
+# highlight pass. Every case here raised an uncaught TypeError/AttributeError/
+# KeyError out of main() before the guards existed, so report.json was never
+# written at all — the run's entire cost lost to one drifted field.
+class RunBoundaryDegradationTests(unittest.TestCase):
+	ALL_IDS = ["brew:openssh", "brew:ssh-copy-id", "brew:podman", "brew:parallel",
+		"mise:uv", "brew-health:unlinked_keg:tree-sitter", "skill-drift:anthropics/pptx"]
+
+	@classmethod
+	def setUpClass(cls):
+		# The clean run every degraded run is compared against: the point is
+		# never "it did not crash", it is "the other tools are untouched".
+		report, _ = assemble_session(COLLECT, RESEARCH)
+		cls.clean = {t["id"]: cls._fingerprint(t) for t in report["tools"]}
+
+	@staticmethod
+	def _fingerprint(tool):
+		return (tool["version_delta"], tool["risk_level"], tool["review_bucket"],
+			tool["security"]["has_security"],
+			tuple(s.get("pre_accept") for s in tool["suggestions"]))
+
+	def _with_research(self, tool_id, entry):
+		"""RESEARCH with one entry replaced, run through main()."""
+		entries = [dict(e) for e in RESEARCH if e["id"] != tool_id]
+		entries.append(dict(entry, id=tool_id))
+		return assemble_session(COLLECT, entries)
+
+	def _assert_siblings_untouched(self, report, hostile_id, label):
+		self.assertEqual([t["id"] for t in report["tools"]], self.ALL_IDS, label)
+		for tool in report["tools"]:
+			if tool["id"] == hostile_id:
+				continue
+			self.assertEqual(self._fingerprint(tool), self.clean[tool["id"]],
+				f"{label}: {tool['id']} changed")
+
+	# `brew:podman` is the carrier for every shape below because it is the one
+	# fixture that clears _HIGHLIGHT_THRESHOLD — the highlight pass is where
+	# three of these five used to raise, and a tool that never gets scored
+	# never reaches it.
+	HOSTILE_SHAPES = [
+		# `{}.get(["warning"])` is TypeError: unhashable type. Every other read
+		# of a severity is an `==`, which survives any shape; the rank lookups
+		# in build_highlights() are the exception.
+		("severity is a list", {
+			"headliners": [{"text": "A change", "category": "fixes", "severity": ["warning"]}],
+			"relevancy": [_rel("fixes", "incompatible")]}),
+		("severity is a dict", {
+			"headliners": [_hl("fixes", "warning")],
+			"relevancy": [{"summary": "s", "category": "fixes", "severity": {"level": "warning"}},
+				_rel("fixes", "incompatible")]}),
+		# Prose nested one level too deep reaches _truncate_why()'s .split().
+		("relevancy summary is an object", {
+			"headliners": [_hl("fixes", "warning")],
+			"relevancy": [dict(_rel("fixes", "incompatible"), summary={"text": "Breaks the pipeline"})]}),
+		# The same read as the row above (_truncate_why(item["text"])), reached
+		# through the *headliner* branch of _highlight_why_parts()' fixed order
+		# rather than the relevancy one. Getting there takes both halves of this
+		# fixture: a `security` relevancy is what puts podman in a security
+		# bucket, which is the only branch that reads headliners at all, and an
+		# empty summary on that relevancy is what makes the branch above yield
+		# rather than return first.
+		("headliner text is a number", {
+			"headliners": [{"text": 4242, "category": "fixes", "severity": "warning"},
+				_hl("security", "warning")],
+			"relevancy": [_rel("security", "incompatible", "")]}),
+		("config_status detail is an object", {
+			"headliners": [_hl("fixes", "warning")],
+			"relevancy": [],
+			"config_status": {"state": "needs_attention", "detail": {"text": "stale"}, "evidence": []},
+			"suggestions": [{"id": "brew:podman:edit", "kind": "edit", "title": "t", "target_files": []}]}),
+		# A structured citation reaches evidence_exists()'s regex as a dict.
+		("evidence members are objects", {
+			"headliners": [_hl("fixes", "warning")],
+			"relevancy": [dict(_rel("fixes", "incompatible"),
+				evidence=[{"path": "Brewfile", "line": 3}])]}),
+		# `sid in seen_ids` is a dict lookup too — same TypeError, two steps
+		# after every tool has already been built.
+		("suggestion id is a list", {
+			"headliners": [_hl("fixes", "warning")],
+			"relevancy": [_rel("fixes", "incompatible")],
+			"suggestions": [{"id": ["brew:podman:edit"], "kind": "edit", "title": "t",
+				"target_files": []}]}),
+	]
+
+	def test_a_hostile_shape_costs_one_tool_not_the_report(self):
+		for label, research in self.HOSTILE_SHAPES:
+			with self.subTest(label):
+				report, _ = self._with_research("brew:podman", research)
+				self._assert_siblings_untouched(report, "brew:podman", label)
+				# And the hostile tool itself is still a card, still decided.
+				podman = next(t for t in report["tools"] if t["id"] == "brew:podman")
+				self.assertIn(podman["review_bucket"],
+					("security_auto", "security_mixed", "attention", "routine"), label)
+				self.assertTrue(all(isinstance(s.get("id"), str) and s["id"]
+					for s in podman["suggestions"]), label)
+
+	def test_every_hostile_shape_is_warned_about_by_name(self):
+		for label, research in self.HOSTILE_SHAPES:
+			with self.subTest(label):
+				_, stderr = self._with_research("brew:podman", research)
+				self.assertIn("brew:podman", stderr, label)
+
+	def test_a_repr_is_never_rendered_as_a_highlight_line(self):
+		# The alternative fix — str() the value — passes the page's
+		# `typeof === 'string'` guard by then, which is the failure
+		# clean_notable() already refuses one field over.
+		report, _ = self._with_research("brew:podman", {
+			"headliners": [_hl("fixes", "warning", "A readable fact.")],
+			"relevancy": [dict(_rel("fixes", "incompatible"), summary={"text": "Breaks the pipeline"})]})
+		highlight = next(h for h in report["highlights"] if h["tool_id"] == "brew:podman")
+		self.assertNotIn("{", highlight["why"])
+		self.assertNotIn("Breaks the pipeline", highlight["why"])
+		# The unreadable relevancy summary yields its slot; the line comes from
+		# the next branch of _highlight_why_parts()'s fixed order, exactly as it
+		# would for a tool whose relevancy carried no summary at all.
+		self.assertEqual(highlight["why_source"], "major_bump")
+		self.assertIsNone(highlight["why_ref"])
+
+	# ── collect.json's own candidate sections ───────────────────────────
+	# read_findings_block() has read the two finding blocks defensively since
+	# they existed; the four version sections were still spliced together with
+	# `collect.get(key, []) + …`, which substitutes its default only when the
+	# key is *absent*.
+	HOSTILE_SECTIONS = [
+		("null", None),
+		("a bare string", "no runtimes outdated"),
+		("an object", {"uv": "0.12.5"}),
+		("a list of bare strings", ["mise:uv"]),
+		("a list of nulls", [None]),
+	]
+
+	def test_a_malformed_section_costs_that_section_only(self):
+		for label, value in self.HOSTILE_SECTIONS:
+			with self.subTest(label):
+				collect = dict(COLLECT, mise=value)
+				report, stderr = assemble_session(collect, RESEARCH)
+				# mise:uv is gone; the other six tools are untouched.
+				self.assertEqual([t["id"] for t in report["tools"]],
+					[i for i in self.ALL_IDS if i != "mise:uv"], label)
+				self.assertEqual(sum(report["summary"]["by_delta"].values()),
+					report["summary"]["total_outdated"], label)
+				self.assertIn("mise", stderr, label)
+
+	HOSTILE_CANDIDATES = [
+		("no id", {"name": "ghostly", "source": "brew",
+			"current_version": "1", "latest_version": "2"}),
+		("id is a list", {"id": ["brew:ghostly"], "name": "ghostly", "source": "brew",
+			"current_version": "1", "latest_version": "2"}),
+		("no source", {"id": "brew:ghostly", "name": "ghostly",
+			"current_version": "1", "latest_version": "2"}),
+		("no name", {"id": "brew:ghostly", "source": "brew",
+			"current_version": "1", "latest_version": "2"}),
+		("unknown source", {"id": "weird:ghostly", "name": "ghostly", "source": {"kind": "brew"},
+			"current_version": "1", "latest_version": "2"}),
+	]
+
+	def test_a_candidate_with_no_identity_costs_one_card(self):
+		for label, candidate in self.HOSTILE_CANDIDATES:
+			with self.subTest(label):
+				collect = dict(COLLECT, brew=[candidate] + COLLECT["brew"])
+				report, stderr = assemble_session(collect, RESEARCH)
+				self._assert_siblings_untouched(report, None, label)
+				self.assertTrue(stderr.strip(), label)
+
+	def test_a_collect_json_that_is_not_an_object_exits_saying_so(self):
+		"""The one input nothing can be salvaged from — it *is* the candidate
+		set — so this exits rather than degrading. What it must not do is exit
+		by traceback out of `collect.get(…)` three lines later: the operator
+		reading a failed session needs the file and the shape named."""
+		for shape in (None, "no updates", 42, [], ["brew:curl"]):
+			with self.subTest(repr(shape)), tempfile.TemporaryDirectory() as tmp:
+				session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
+				os.makedirs(os.path.join(session, "research"))
+				with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
+					json.dump(shape, fh)
+				argv, err = sys.argv, io.StringIO()
+				sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
+					"--dotfiles-root", tmp, "--systems-root", tmp]
+				try:
+					with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+						with self.assertRaises(SystemExit) as caught:
+							assemble.main()
+				finally:
+					sys.argv = argv
+				self.assertEqual(caught.exception.code, 1)
+				self.assertIn("collect.json", err.getvalue())
+				self.assertIn("not a JSON object", err.getvalue())
+
+	# ── repo_context.json, the one optional input ───────────────────────
+	# main() has always meant to degrade here — an absent or unparseable file
+	# falls back to a placeholder — but the handler only named OSError and
+	# JSONDecodeError, so a file `json.load` could not *decode* (a byte
+	# sequence that is not UTF-8, which repo_context.sh emits straight from
+	# `git log`) escaped it and aborted the report for all 78 tools over a
+	# section worth four keys.
+	UNREADABLE_REPO_CONTEXT = [
+		("invalid utf-8", b'{"macos_setup": {"recent_commits": ["caf\xe9"]}}'),
+		("a directory, not a file", None),
+	]
+
+	def test_an_unreadable_repo_context_falls_back_to_the_placeholder(self):
+		for label, payload in self.UNREADABLE_REPO_CONTEXT:
+			with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+				session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
+				os.makedirs(os.path.join(session, "research"))
+				with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
+					json.dump(COLLECT, fh)
+				with open(os.path.join(session, "research", "01-all.json"), "w", encoding="utf-8") as fh:
+					json.dump(RESEARCH, fh)
+				rc_path = os.path.join(session, "repo_context.json")
+				if payload is None:
+					os.makedirs(rc_path)
+				else:
+					with open(rc_path, "wb") as fh:
+						fh.write(payload)
+				argv, err = sys.argv, io.StringIO()
+				sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
+					"--dotfiles-root", tmp, "--systems-root", tmp]
+				try:
+					with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+						assemble.main()
+				finally:
+					sys.argv = argv
+				with open(os.path.join(session, "report.json"), "r", encoding="utf-8") as fh:
+					report = json.load(fh)
+				self.assertEqual([t["id"] for t in report["tools"]], self.ALL_IDS, label)
+				self.assertTrue(report["repo_context"]["macos_setup"]["up_to_date"], label)
+				# Loud, and specific enough to go and look at the file.
+				self.assertIn("repo_context.json", err.getvalue(), label)
 
 
 if __name__ == "__main__":

@@ -498,6 +498,21 @@ _NOTABLE_CAP = 3
 _REF_MATCH_MIN = 40
 
 
+def severity_rank(ranks: dict, value, default: int) -> int:
+	"""`ranks.get(value, default)` for a severity a research subagent wrote.
+
+	Every other read of a severity is an `==` or an `in (…)` comparison, which
+	survives any shape; a *dict lookup* does not — `{}.get(["warning"])` raises
+	`TypeError: unhashable type`. One relevancy item written as
+	`"severity": ["warning"]` used to raise that out of build_highlights()'
+	sort key and abort the report for all 78 tools. An unrecognized severity
+	must cost that item its rank and nothing more; as_item_list() has already
+	warned about the shape at the boundary, so this stays quiet."""
+	if not isinstance(value, str):
+		return default
+	return ranks.get(value, default)
+
+
 def research_security(tool: dict) -> dict:
 	"""The research-supplied `security` block, read defensively. Until
 	compute_security() overwrites it, `tool["security"]` is whatever the
@@ -646,7 +661,7 @@ def resolve_notable_ref(tool: dict, entry: dict):
 			# relevancy items name one CVE — the highlight then restates the
 			# security card in full, which is the duplication R6 exists to stop.
 			# max() keeps the first maximum, exactly as that function does.
-			return content_ref("rel", max(matches, key=lambda i: _SEVERITY_RANK.get(rel[i].get("severity"), -1)))
+			return content_ref("rel", max(matches, key=lambda i: severity_rank(_SEVERITY_RANK, rel[i].get("severity"), -1)))
 		for i, item in enumerate(hl):
 			if token in _norm_text(item.get("text")).upper():
 				return content_ref("hl", i)
@@ -679,7 +694,7 @@ def _notable_sort_key(entry: dict) -> tuple:
 	`low` — see the note there for why the two rank maps differ."""
 	return (
 		0 if entry["affects_me"] else 1,
-		-_NOTABLE_SEVERITY_RANK.get(entry["severity"], 0),
+		-severity_rank(_NOTABLE_SEVERITY_RANK, entry["severity"], 0),
 		cve_sort_key(entry["cve_id"]) if entry["cve_id"] else (10 ** 9, 0),
 		entry["advisory_id"] or "",
 	)
@@ -1157,16 +1172,57 @@ def normalize_research_security(research_obj: dict) -> dict:
 
 
 def as_evidence_list(evidence, tool_id: str, context: str) -> list:
-	"""references/schemas.md §Report Object says evidence is always an array. A research subagent
-	that instead returns a bare string would make `for ev in evidence`
-	iterate individual characters — coerce and warn rather than silently
-	corrupting the warning output with single-letter "evidence" entries."""
+	"""references/schemas.md §Report Object says evidence is always an array of
+	strings. A research subagent that instead returns a bare string would make
+	`for ev in evidence` iterate individual characters — coerce and warn rather
+	than silently corrupting the warning output with single-letter "evidence"
+	entries.
+
+	The *members* are checked for the same reason as_item_list() checks its
+	own: a structured citation (`[{"path": "Brewfile", "line": 3}]`) is a shape
+	a subagent writes, and it used to reach evidence_exists()'s
+	`_COMMIT_LIKE.search(evidence)` as a dict and raise TypeError out of
+	validate_evidence() — aborting the report for all 78 tools over one
+	citation that nothing but a stderr warning depends on."""
 	if not evidence:
 		return []
-	if isinstance(evidence, list):
-		return evidence
-	print(f"warning: {tool_id}: {context} evidence was a bare string, not an array — wrapping it: {evidence!r}", file=sys.stderr)
-	return [evidence]
+	if not isinstance(evidence, list):
+		print(f"warning: {tool_id}: {context} evidence was a bare string, not an array — wrapping it: {evidence!r}", file=sys.stderr)
+		evidence = [evidence]
+	kept = []
+	for ev in evidence:
+		if isinstance(ev, str):
+			kept.append(ev)
+		else:
+			print(f"warning: {tool_id}: {context} evidence entry was {type(ev).__name__}, not a string — "
+				f"dropping it: {ev!r}", file=sys.stderr)
+	return kept
+
+
+# Member fields references/schemas.md declares as strings, across the arrays
+# as_item_list() normalizes. Only these — a key a given array does not carry is
+# simply absent, so one list serves headliners, relevancy, context and the rest
+# without warning about a field that was never expected there.
+_STRING_MEMBER_KEYS = ("category", "severity", "text", "summary", "detail", "motivating_change")
+
+
+def _warn_odd_strings(item: dict, tool_id: str, field: str) -> None:
+	"""Say so when a member field the schema declares as a string is not one.
+
+	The value is left exactly as research wrote it — the page reads these
+	defensively and a JS lookup on an odd value is `undefined`, not a throw.
+	Python's is not: severity_rank() has to guard the rank lookups
+	(`{}.get(["warning"])` raises) and _why_string() has to refuse the shapes
+	_truncate_why() would call `.split()` on. Both of those degrade quietly by
+	design, and a guard nobody can see is the silent failure this whole pass
+	exists to avoid — so the shape is reported once here, at the one boundary
+	that still holds the tool and the field it came from, rather than at each
+	of the reads."""
+	for key in _STRING_MEMBER_KEYS:
+		value = item.get(key)
+		if value is not None and not isinstance(value, str):
+			print(f"warning: {tool_id}: {field} entry has {key} {value!r} ({type(value).__name__}, not a "
+				f"string) — nothing downstream can read it", file=sys.stderr)
 
 
 def as_item_list(value, tool_id: str, field: str, member_type=dict) -> list:
@@ -1190,6 +1246,8 @@ def as_item_list(value, tool_id: str, field: str, member_type=dict) -> list:
 	kept = []
 	for item in value:
 		if isinstance(item, member_type):
+			if member_type is dict:
+				_warn_odd_strings(item, tool_id, field)
 			kept.append(item)
 		else:
 			print(f"warning: {tool_id}: {field} entry was {type(item).__name__}, not {member_type.__name__} — dropping it: {item!r}", file=sys.stderr)
@@ -1266,8 +1324,17 @@ def load_research(research_dir: str) -> dict:
 		try:
 			with open(fpath, "r", encoding="utf-8") as fh:
 				entries = json.load(fh)
-		except (OSError, json.JSONDecodeError) as exc:
-			print(f"warning: could not read {fpath!r}: {exc}", file=sys.stderr)
+		except Exception as exc:
+			# Deliberately wider than (OSError, json.JSONDecodeError): a
+			# subagent killed mid-write leaves a truncated multi-byte character
+			# and `json.load` raises UnicodeDecodeError, and a pathologically
+			# nested array raises RecursionError — neither is an OSError or a
+			# ValueError, so both used to escape this handler and abort the
+			# report for all 78 tools over one unreadable file. Reading a file
+			# is exactly the boundary where "any failure costs this file and
+			# nothing else" is the right rule; the type is named so the warning
+			# still says what went wrong.
+			print(f"warning: could not read {fpath!r}: {type(exc).__name__}: {exc}", file=sys.stderr)
 			continue
 		if not isinstance(entries, list):
 			print(f"warning: {fpath!r} is not a JSON array — skipping", file=sys.stderr)
@@ -1573,6 +1640,71 @@ def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 	return tool
 
 
+# ── the per-candidate boundary (references/assembly.md §Summary Counts and Output) ──
+# One report is assembled from ~22 research files over ~78 candidates, after
+# the expensive part of the session is already spent. Anything that can only
+# be wrong about *one* candidate must therefore cost that one card and leave
+# the other 77 rendering — the same rule load_research() applies one boundary
+# earlier, per research entry.
+def read_candidate_list(collect: dict, key: str) -> list:
+	"""One version-candidate section of collect.json, read the way
+	read_findings_block() already reads the two finding blocks.
+
+	`collect.get(key, [])` substitutes its default only when the key is
+	*absent*: a section written as `null` by an older collector came back as
+	None and `list + None` raised TypeError before a single tool was built.
+	A non-dict member is dropped rather than carried to build_tool(), whose
+	first act is `candidate["source"]`.
+
+	An absent key stays silent — a session collected before a source existed
+	has nothing to say about it — while a key that is *present* and unusable is
+	warned about, because something did try to write that section."""
+	if key not in collect:
+		return []
+	value = collect.get(key)
+	if not isinstance(value, list):
+		print(f"warning: collect.json {key!r} was {type(value).__name__}, not an array — ignoring it", file=sys.stderr)
+		return []
+	kept = []
+	for item in value:
+		if isinstance(item, dict):
+			kept.append(item)
+		else:
+			print(f"warning: collect.json {key}: dropping a malformed candidate: {item!r}", file=sys.stderr)
+	return kept
+
+
+def build_tool_guarded(candidate: dict, research_by_id: dict):
+	"""One Tool object, or None with a warning naming what was dropped.
+
+	Two layers, both loud. The identity keys are checked first, because
+	build_tool() reads `candidate["source"]`/`["id"]`/`["name"]` directly and a
+	KeyError there names only the key, never the candidate it came from. Then
+	the build itself runs inside a boundary: every *known* malformed shape is
+	already handled by the normalizers this file is built out of, and this
+	catches the next one — the report loses one card and says which, instead of
+	not existing."""
+	tool_id = candidate.get("id")
+	if not isinstance(tool_id, str) or not tool_id:
+		print(f"warning: collect.json candidate has no usable \"id\" — skipping it: {candidate!r}", file=sys.stderr)
+		return None
+	source = candidate.get("source")
+	if not isinstance(source, str) or not source:
+		print(f"warning: {tool_id}: candidate has no usable \"source\" — skipping it", file=sys.stderr)
+		return None
+	if source not in NON_VERSION_SOURCES and not isinstance(candidate.get("name"), str):
+		# The two finding builders default their own name from the id; only the
+		# version path indexes `candidate["name"]` unconditionally.
+		print(f"warning: {tool_id}: candidate has no usable \"name\" — skipping it", file=sys.stderr)
+		return None
+	try:
+		return build_tool(candidate, research_by_id.get(tool_id))
+	except Exception as exc:
+		print(f"warning: {tool_id}: could not be assembled ({type(exc).__name__}: {exc}) — dropping this "
+			f"tool; the rest of the report is unaffected", file=sys.stderr)
+		return None
+
+
 # ── highlights (references/assembly.md §Highlights) ─────────────────────────
 # "The biggest decision drivers / inputs needed / major patches", ranked by a
 # fixed score rather than per-tool judgment — assemble.py is a plain script, so
@@ -1592,7 +1724,7 @@ _WHY_MAX = 220
 
 
 def _max_sev_rank(tool: dict) -> int:
-	ranks = [_SEVERITY_RANK.get(i.get("severity"), -1) for i in content_items(tool)]
+	ranks = [severity_rank(_SEVERITY_RANK, i.get("severity"), -1) for i in content_items(tool)]
 	return max(ranks) if ranks else -1
 
 
@@ -1633,6 +1765,23 @@ def score_tool(tool: dict) -> tuple:
 	return (sum(p for p, _ in scored), [code for _, code in scored])
 
 
+def _why_string(value, tool_id: str, field: str):
+	"""Research's free text, but only when it *is* text — else None, so
+	_highlight_why_parts() falls through to its next branch.
+
+	`_truncate_why()` calls `.split()`, so a summary a subagent nested one
+	level too deep (`"summary": {"text": "…"}`) used to raise AttributeError
+	out of build_highlights() and abort the report for all 78 tools. Coercing
+	it with `str()` is not the fix either — that renders the repr on the card,
+	which is exactly what clean_notable() refuses to do one field over. Warn,
+	skip the field, and let the next-best line take the slot."""
+	if value is None or isinstance(value, str):
+		return value or None
+	print(f"warning: {tool_id}: {field} was {type(value).__name__}, not a string — not using it as a "
+		f"highlight line rather than rendering its repr: {value!r}", file=sys.stderr)
+	return None
+
+
 def _truncate_why(text: str) -> str:
 	"""≤ _WHY_MAX chars, cut on a word boundary with an ellipsis."""
 	text = " ".join((text or "").split())
@@ -1670,17 +1819,21 @@ def _highlight_why_parts(tool: dict) -> tuple:
 	card's one line is the most specific thing we know about this tool.
 	`why_ref` is the content_ref() of the item the line came from, or None for
 	the branches that synthesize their own text."""
+	tool_id = tool.get("id", "<unknown>")
 	rel = tool.get("relevancy") or []
 	if rel:
 		# Ties resolve to array order — max() keeps the first maximum.
-		best_i = max(range(len(rel)), key=lambda i: _SEVERITY_RANK.get(rel[i].get("severity"), -1))
+		best_i = max(range(len(rel)), key=lambda i: severity_rank(_SEVERITY_RANK, rel[i].get("severity"), -1))
 		best = rel[best_i]
-		if best.get("summary"):
+		summary = _why_string(best.get("summary"), tool_id, f"relevancy[{best_i}].summary")
+		if summary:
 			source = "relevancy_security" if best.get("category") == "security" else "relevancy_other"
-			return (_truncate_why(best["summary"]), source, content_ref("rel", best_i))
+			return (_truncate_why(summary), source, content_ref("rel", best_i))
 	cs = tool.get("config_status") or {}
-	if config_needs_attention(tool) and cs.get("detail"):
-		return (_truncate_why(cs["detail"]), "config_status", None)
+	if config_needs_attention(tool):
+		detail = _why_string(cs.get("detail"), tool_id, "config_status.detail")
+		if detail:
+			return (_truncate_why(detail), "config_status", None)
 	if tool.get("research_error"):
 		return ("Research produced no changelog for this update.", "research_error", None)
 	if tool["review_bucket"] in ("security_auto", "security_mixed"):
@@ -1691,14 +1844,18 @@ def _highlight_why_parts(tool: dict) -> tuple:
 		# headliner is still the fallback when the tool has nothing else.
 		for kind in ("headliner_other", "headliner_security"):
 			for i, item in enumerate(tool.get("headliners") or []):
-				if _headliner_source(item) == kind and item.get("text"):
-					return (_truncate_why(item["text"]), kind, content_ref("hl", i))
+				if _headliner_source(item) != kind:
+					continue
+				text = _why_string(item.get("text"), tool_id, f"headliners[{i}].text")
+				if text:
+					return (_truncate_why(text), kind, content_ref("hl", i))
 	if tool["version_delta"] == "major":
 		return (_truncate_why(f"Major version bump {tool.get('current_version')} → {tool.get('latest_version')}."),
 			"major_bump", None)
 	for i, item in enumerate(tool.get("headliners") or []):
-		if item.get("text"):
-			return (_truncate_why(item["text"]), _headliner_source(item), content_ref("hl", i))
+		text = _why_string(item.get("text"), tool_id, f"headliners[{i}].text")
+		if text:
+			return (_truncate_why(text), _headliner_source(item), content_ref("hl", i))
 	return ("", "none", None)
 
 
@@ -1743,9 +1900,19 @@ def build_highlights(tools: list) -> list:
 	still carries `_HIGHLIGHT_CAP` distinct decision drivers. The match is on
 	the emitted `content_ref()` identity, never on `why`, which _truncate_why()
 	has already cut at 220 chars."""
+	# Both loops are contained per tool, for the same reason main()'s candidate
+	# loop is: highlights are a *derived* section over content research wrote,
+	# so one tool whose shape this cannot read must cost that tool its slot and
+	# nothing else. Losing the whole report — and with it the 77 cards that are
+	# fine — over a ranking is the trade this pass exists to refuse.
 	scored = []
 	for tool in tools:
-		score, reasons = score_tool(tool)
+		try:
+			score, reasons = score_tool(tool)
+		except Exception as exc:
+			print(f"warning: {tool.get('id')!r}: could not be scored for highlights "
+				f"({type(exc).__name__}: {exc}) — it cannot appear in that section", file=sys.stderr)
+			continue
 		if score >= _HIGHLIGHT_THRESHOLD:
 			scored.append((score, reasons, tool))
 	# No per-source quota — a brew-health finding competes on the same scale
@@ -1756,7 +1923,12 @@ def build_highlights(tools: list) -> list:
 	for score, reasons, tool in scored:
 		if len(highlights) >= _HIGHLIGHT_CAP:
 			break
-		obj = _highlight_object(score, reasons, tool)
+		try:
+			obj = _highlight_object(score, reasons, tool)
+		except Exception as exc:
+			print(f"warning: {tool.get('id')!r}: highlight could not be built "
+				f"({type(exc).__name__}: {exc}) — backfilling from the ranked list", file=sys.stderr)
+			continue
 		refs = {n.get("source_ref") for n in tool["security"].get("notable") or [] if n.get("source_ref")}
 		if obj["why_ref"] and obj["why_ref"] in refs:
 			print(f"note: {tool['id']}: highlight dropped — its \"why\" restates security.notable "
@@ -1870,16 +2042,29 @@ def main():
 	try:
 		with open(collect_path, "r", encoding="utf-8") as fh:
 			collect = json.load(fh)
-	except (OSError, json.JSONDecodeError) as exc:
-		print(f"Error: could not read {collect_path!r}: {exc}", file=sys.stderr)
+	except Exception as exc:
+		# Same width as load_research()'s handler, and for the same reasons
+		# (UnicodeDecodeError and RecursionError are neither OSError nor
+		# ValueError). This one still exits — collect.json IS the run — but it
+		# exits saying what happened instead of printing a traceback.
+		print(f"Error: could not read {collect_path!r}: {type(exc).__name__}: {exc}", file=sys.stderr)
+		sys.exit(1)
+	if not isinstance(collect, dict):
+		# Parsed, but not the object every read below assumes: `collect.get(…)`
+		# raised AttributeError three lines on. Nothing can be salvaged from a
+		# collect.json that is not an object — it *is* the candidate set — so
+		# this exits like the handler above rather than degrading. It exits
+		# saying which file and what shape, which a traceback does not.
+		print(f"Error: {collect_path!r} is {type(collect).__name__}, not a JSON object — "
+			f"there is no candidate set to assemble", file=sys.stderr)
 		sys.exit(1)
 
 	repo_context_path = os.path.join(session_dir, "repo_context.json")
 	try:
 		with open(repo_context_path, "r", encoding="utf-8") as fh:
 			repo_context = json.load(fh)
-	except (OSError, json.JSONDecodeError):
-		print(f"warning: no repo_context.json at {repo_context_path!r} — using placeholder", file=sys.stderr)
+	except Exception as exc:
+		print(f"warning: no usable repo_context.json at {repo_context_path!r} ({type(exc).__name__}) — using placeholder", file=sys.stderr)
 		placeholder = {"up_to_date": True, "ahead": 0, "behind": 0, "recent_commits": []}
 		repo_context = {"macos_setup": placeholder, "dotfiles": dict(placeholder)}
 
@@ -1896,15 +2081,26 @@ def main():
 		print(f"note: skill-drift suppressed (in sync, or no upstream to check): {s}", file=sys.stderr)
 
 	candidates = (
-		collect.get("brew", []) + collect.get("mise", []) +
-		collect.get("standalone", []) + collect.get("macos", []) +
+		read_candidate_list(collect, "brew") + read_candidate_list(collect, "mise") +
+		read_candidate_list(collect, "standalone") + read_candidate_list(collect, "macos") +
 		health_findings + drift_findings
 	)
 
-	tools = [build_tool(c, research_by_id.get(c["id"])) for c in candidates]
+	tools = []
+	for candidate in candidates:
+		tool = build_tool_guarded(candidate, research_by_id)
+		if tool is not None:
+			tools.append(tool)
 
 	for tool in tools:
-		validate_evidence(tool, roots)
+		# Evidence validation contributes nothing to report.json — it only
+		# prints "evidence not found" warnings — so a shape it cannot read must
+		# never be the reason the report does not exist. Contained per tool.
+		try:
+			validate_evidence(tool, roots)
+		except Exception as exc:
+			print(f"warning: {tool.get('id')!r}: evidence validation failed "
+				f"({type(exc).__name__}: {exc}) — its citations went unchecked", file=sys.stderr)
 
 	# Suggestion-id uniqueness — global, not just within one tool. A
 	# collision almost always means a research subagent copied an id
@@ -1914,6 +2110,16 @@ def main():
 	for tool in tools:
 		for sug in tool["suggestions"]:
 			sid = sug.get("id")
+			if sid is not None and not isinstance(sid, str):
+				# `sid in seen_ids` is a dict lookup, so an id written as a list
+				# ("id": ["brew:foo:edit"]) raised TypeError: unhashable type
+				# here and aborted the report for all 78 tools — two steps after
+				# every tool had already been built. An id has to be a string to
+				# be an id at all: report it, then take the no-id path below,
+				# which mints one this pass can actually use.
+				print(f"warning: {tool['id']}: suggestion id was {type(sid).__name__}, not a string — "
+					f"discarding it: {sid!r}", file=sys.stderr)
+				sid = None
 			if not sid:
 				# Every downstream consumer indexes suggestions by id —
 				# write_status.py builds `{sug["id"]: …}` and KeyErrors on a
