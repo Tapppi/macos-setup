@@ -1261,6 +1261,8 @@ changelog:
 | `security.has_security` | `false`, always | The security section is about patches the user can take. A stale vendored skill is a maintenance fact; counting it would make the section's count disagree with the cards it lists. |
 | `security.cve_ids` / `cve_count` / `cve_claimed_count` | `[]` / `0` / `null` | Extraction is skipped for this source. |
 | `security.security_only` | `false`, always | Follows from `has_security: false`. |
+| `security.severity_counts` / `cve_severities` | every band `0` / `[]` | Both roll up over `cve_ids`, which is empty here. The keys still ship, so the page's severity code needs no per-source special case (§Severity Rollup and the Sum Invariant). |
+| `security.notable` | `[]`, always | Research's own `security.notable` for a drift finding is dropped silently, for the same reason `has_security` is forced: a notable entry *is* security content, and one surviving on a card whose security strip never renders would be a lie. |
 | `security.impact` | `"none"` if `drift_expected` else `"possible"` | Drift is *about this machine* by definition; the expected kinds (`local_only`, `probe_error`) are explicitly no-action. |
 | `risk_level` | `"low"` if `drift_expected` else `"elevated"` | `upstream_ahead` and `diverged` both mean a decision is owed; a deliberate local patch does not. |
 | `review_bucket` | `"routine"` if `drift_expected` else `"attention"` | Same split, on the review-effort axis. |
@@ -1363,6 +1365,17 @@ lists render health and drift cards alongside version ones. A consumer that
 mixes the two denominators in one percentage —
 `by_bucket.routine / total_outdated` — produces a number that means nothing,
 and that is precisely the bug this note exists to prevent.
+
+**`by_bucket.attention` is not "updates needing attention".** Every
+non-version finding that is not `expected` buckets there: on the live run
+that is 12 drifted skills, which take `attention` from 12 to 24 without a
+single update changing. The page never renders the raw number — it filters
+non-version sources out of the Overview's chip clouds and gives drift its own
+band (`references/rendering-report.md` §Skill-Drift Rendering) — but any
+other consumer of `report.json` reading the field as an update count is off
+by exactly that many. There is no version-only bucket count in `summary`; a
+consumer that wants one counts `review_bucket` over the tools whose `source`
+is not in `NON_VERSION_SOURCES` itself.
 
 Invariants a reviewer can check on any produced `report.json` (asserted end
 to end in `scripts/test_assemble.py` §5, against a session assembled through

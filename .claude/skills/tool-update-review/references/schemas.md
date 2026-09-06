@@ -141,6 +141,15 @@ untouched by any of them. Never mix the two denominators in one percentage —
 §1.10 and `references/assembly.md` §Summary Counts and Output for the
 invariants that hold instead.
 
+**And `by_bucket.attention` is not "updates needing attention".** Every
+non-version finding that is not `expected` lands there too — on the live run
+12 drifted skills, taking `attention` from 12 to 24 with no update involved.
+The page never renders the raw number (it filters non-version sources out of
+the Overview chips and gives drift its own band), so this is a trap for any
+*other* consumer of `report.json`. `summary` carries no version-only bucket
+count; a consumer that needs one counts `review_bucket` over the tools whose
+`source` is not a non-version source itself.
+
 ### 1.2 Tool object
 
 ```jsonc
