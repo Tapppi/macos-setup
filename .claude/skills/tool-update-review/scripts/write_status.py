@@ -107,8 +107,35 @@ def cmd_init(args):
 		})
 		if decision == "accept":
 			_, sug = entry
-			for tf in sug.get("target_files", []):
-				path = tf.get("path", "")
+			# `target_files[]` is the one research-written array assemble.py
+			# passes through un-normalized, so its members arrive in whatever
+			# shape a subagent wrote — `["Brewfile"]` instead of
+			# `[{"path": "Brewfile"}]` is the obvious one, and `tf.get` raised
+			# AttributeError on it. That aborted `init` outright, so the whole
+			# apply pass ran with no status.json at all: one drifted citation
+			# cost every accepted action, not one. Read what is readable, say
+			# what is not, and keep going. The cost of a dropped entry is
+			# bounded — target_files only decides which repos get a synthetic
+			# commit/push action — so an unreadable one is warned about rather
+			# than guessed at.
+			for tf in sug.get("target_files") or []:
+				if isinstance(tf, dict):
+					# `.get("path", "")` rather than `.get("path")` is how an
+					# entry naming no file at all used to be *silently* read as
+					# a macos-setup path — "" fails the dotfiles/ test, so it
+					# fell into the else branch below and invented a
+					# commit:macos-setup action out of nothing.
+					path = tf.get("path")
+				elif isinstance(tf, str):
+					print(f"warning: {sid}: target_files entry was a bare string, not an object — "
+						f"reading it as the path: {tf!r}", file=sys.stderr)
+					path = tf
+				else:
+					path = None
+				if not isinstance(path, str) or not path.strip():
+					print(f"warning: {sid}: target_files entry has no usable \"path\" — "
+						f"not counting it toward the commit actions: {tf!r}", file=sys.stderr)
+					continue
 				if path.startswith("dotfiles/"):
 					touches_dotfiles = True
 				else:
