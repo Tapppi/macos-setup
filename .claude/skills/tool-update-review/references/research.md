@@ -282,6 +282,9 @@ mentioning a disproved hypothesis leaves the next run to rediscover it.
 
 ### Items Are Outward-Facing Changes
 
+*Item* here means anything you report about what changed in this tool —
+whichever array it lands in.
+
 **Project-internal maintenance never becomes an item.** Repo upkeep,
 convention changes, documentation updates, CI and release-tooling churn, test
 refactors, internal renames, lockfile bumps that change nothing anyone
