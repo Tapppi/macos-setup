@@ -1,0 +1,47 @@
+{
+	"about": "The canonical item order, as data. `items` is deliberately shuffled; sorting it with items.order_items() must produce exactly `expected_order`. Each entry in `covers` names the tier of items.item_sort_key that the pair immediately around it exercises, so a failure says which tier moved.",
+	"covers": [
+		"1. content group: security, fixes, features, notes (t#c before t#g)",
+		"2. severity, worst first (t#d before t#j)",
+		"3. direction: reaches, unclear, does_not_reach, no local block (t#f before t#e)",
+		"4. effect: risk, none, benefit, no local block (t#g before t#f)",
+		"5. id ascending — the tiebreak that makes the order total (t#b before t#l)",
+		"an unrecognized tag groups under notes and nowhere else (t#h)",
+		"an unrecognized severity sorts after info within its group, never as one of the four (t#i)",
+		"a multi-tag item takes the highest-precedence group its tags name (t#j)"
+	],
+	"items": [
+		{"id": "t#e", "tags": ["fix"], "severity": "notable", "local": {"direction": "does_not_reach", "effect": "benefit"}},
+		{"id": "t#i", "tags": ["chore"], "severity": "bogus"},
+		{"id": "t#l", "tags": ["perf"], "severity": "notable"},
+		{"id": "t#c", "tags": ["security"], "severity": "info", "local": {"direction": "reaches", "effect": "risk"}},
+		{"id": "t#a", "tags": ["chore"], "severity": "info"},
+		{"id": "t#g", "tags": ["fix"], "severity": "notable", "local": {"direction": "unclear", "effect": "risk"}},
+		{"id": "t#k", "tags": ["packaging"], "severity": "notable"},
+		{"id": "t#j", "tags": ["fix", "security"], "severity": "notable", "local": {"direction": "reaches", "effect": "risk"}},
+		{"id": "t#b", "tags": ["feature"], "severity": "notable"},
+		{"id": "t#h", "tags": ["bogus"], "severity": "info"},
+		{"id": "t#f", "tags": ["fix"], "severity": "notable", "local": {"direction": "unclear", "effect": "none"}},
+		{"id": "t#d", "tags": ["security"], "severity": "warning"}
+	],
+	"expected_order": [
+		"t#d", "t#j", "t#c",
+		"t#g", "t#f", "t#e",
+		"t#b", "t#l",
+		"t#k", "t#a", "t#h", "t#i"
+	],
+	"expected_primary_group": {
+		"t#a": "notes",
+		"t#b": "features",
+		"t#c": "security",
+		"t#d": "security",
+		"t#e": "fixes",
+		"t#f": "fixes",
+		"t#g": "fixes",
+		"t#h": "notes",
+		"t#i": "notes",
+		"t#j": "security",
+		"t#k": "notes",
+		"t#l": "features"
+	}
+}

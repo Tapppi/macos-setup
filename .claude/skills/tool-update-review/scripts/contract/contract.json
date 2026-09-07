@@ -1,0 +1,564 @@
+{
+	"contract_version": 1,
+	"scope": {
+		"items_are": "outward-facing changes only — project-internal maintenance (repo upkeep, convention changes, documentation updates) never becomes an item (REDESIGN.md L3). This is a scoping rule about what counts as an item, enforced in the schema and the agent guidelines; it is NOT a trimming rule and there is no filter for it in the validator.",
+		"intel_brewfile": "out of this tool entirely (REDESIGN.md B1); I-17 checks it",
+		"deterministic_layer": "validates, normalizes, counts, buckets, calculates impact. Never deletes, trims or re-rates."
+	},
+	"vocabularies": {
+		"tags": [
+			"security",
+			"fix",
+			"feature",
+			"breaking",
+			"deprecation",
+			"perf",
+			"packaging",
+			"chore"
+		],
+		"severities": [
+			"info",
+			"notable",
+			"warning",
+			"incompatible"
+		],
+		"anchor_kinds": [
+			"cve",
+			"advisory",
+			"issue",
+			"commit",
+			"release",
+			"none"
+		],
+		"directions": [
+			"reaches",
+			"does_not_reach",
+			"unclear"
+		],
+		"effects": [
+			"risk",
+			"benefit",
+			"none"
+		],
+		"citation_kinds": [
+			"changelog",
+			"release_notes",
+			"advisory",
+			"upstream_source",
+			"command",
+			"observation",
+			"prior_review"
+		],
+		"cve_ratings": [
+			"critical",
+			"high",
+			"medium",
+			"low",
+			"unknown"
+		],
+		"rating_bases": [
+			"vendor",
+			"nvd",
+			"cvss",
+			"unrated"
+		],
+		"structural_ops": [
+			"manifest_add",
+			"manifest_remove",
+			"manifest_replace",
+			"manifest_move",
+			"tap_add",
+			"tap_remove",
+			"install_method_change",
+			"task_add",
+			"task_change"
+		],
+		"ref_types": [
+			"formula",
+			"cask",
+			"tap",
+			"mas",
+			"task",
+			"runtime",
+			"section"
+		],
+		"suggestion_kinds": [
+			"upgrade",
+			"edit",
+			"structural",
+			"watch-item"
+		]
+	},
+	"fields": [
+		{
+			"name": "id",
+			"type": "string",
+			"required": "validator-assigned",
+			"note": "{tool_id}#{kind}:{urlencoded(value)}"
+		},
+		{
+			"name": "id_stability",
+			"type": "enum",
+			"required": "validator-assigned",
+			"note": "anchored | slug"
+		},
+		{
+			"name": "anchor",
+			"type": "object",
+			"required": "yes",
+			"note": "how the id is formed"
+		},
+		{
+			"name": "anchor.kind",
+			"type": "enum",
+			"required": "yes",
+			"note": "cve|advisory|issue|commit|release|none"
+		},
+		{
+			"name": "anchor.value",
+			"type": "string",
+			"required": "yes unless kind == none",
+			"note": "grammar per kind"
+		},
+		{
+			"name": "anchor.slug",
+			"type": "string",
+			"required": "yes iff kind == none",
+			"note": "free-form, not stable"
+		},
+		{
+			"name": "title",
+			"type": "string",
+			"required": "yes",
+			"note": "readable at a glance; <= 120 chars"
+		},
+		{
+			"name": "body",
+			"type": "string|null",
+			"required": "no",
+			"note": "the detail: why/how. Overflow from title lands here"
+		},
+		{
+			"name": "tags",
+			"type": "array<string>",
+			"required": "yes, len >= 1",
+			"note": "closed set of 8"
+		},
+		{
+			"name": "severity",
+			"type": "enum",
+			"required": "yes",
+			"note": "info|notable|warning|incompatible"
+		},
+		{
+			"name": "change",
+			"type": "object|null",
+			"required": "no (I-1)",
+			"note": "the upstream fact"
+		},
+		{
+			"name": "change.version",
+			"type": "string|null",
+			"required": "no",
+			"note": "release the change landed in"
+		},
+		{
+			"name": "change.citation",
+			"type": "string",
+			"required": "yes if change present",
+			"note": "VERBATIM upstream text"
+		},
+		{
+			"name": "change.link_index",
+			"type": "int|null",
+			"required": "no",
+			"note": "index into the tool's links[]"
+		},
+		{
+			"name": "local",
+			"type": "object|null",
+			"required": "no (I-1)",
+			"note": "the finding about this setup"
+		},
+		{
+			"name": "local.direction",
+			"type": "enum",
+			"required": "yes if local present",
+			"note": "reaches|does_not_reach|unclear"
+		},
+		{
+			"name": "local.effect",
+			"type": "enum",
+			"required": "yes if local present",
+			"note": "risk|benefit|none"
+		},
+		{
+			"name": "local.statement",
+			"type": "string",
+			"required": "yes if local present",
+			"note": "the finding in prose"
+		},
+		{
+			"name": "local.evidence",
+			"type": "array<Evidence>",
+			"required": "yes if local present, may be []",
+			"note": "PATHS ONLY, objects"
+		},
+		{
+			"name": "local.citations",
+			"type": "array<Citation>",
+			"required": "no, default []",
+			"note": "prose, commands, upstream refs"
+		},
+		{
+			"name": "security",
+			"type": "object|null",
+			"required": "yes iff 'security' in tags",
+			"note": "per-item security detail"
+		},
+		{
+			"name": "security.cve_id",
+			"type": "string|null",
+			"required": "no",
+			"note": "CVE-(19|20)dd-dddd+"
+		},
+		{
+			"name": "security.advisory_id",
+			"type": "string|null",
+			"required": "no",
+			"note": "vendor id"
+		},
+		{
+			"name": "security.rating",
+			"type": "enum",
+			"required": "yes if security present",
+			"note": "critical|high|medium|low|unknown"
+		},
+		{
+			"name": "security.rating_basis",
+			"type": "enum",
+			"required": "yes if security present",
+			"note": "vendor|nvd|cvss|unrated"
+		},
+		{
+			"name": "security.exploited_in_wild",
+			"type": "bool",
+			"required": "yes if security present",
+			"note": "vendor/CISA says so"
+		}
+	],
+	"limits": {
+		"title_max_chars": 120
+	},
+	"groups": {
+		"of_tag": {
+			"security": "security",
+			"breaking": "fixes",
+			"deprecation": "fixes",
+			"fix": "fixes",
+			"feature": "features",
+			"perf": "features",
+			"packaging": "notes",
+			"chore": "notes"
+		},
+		"precedence": [
+			"security",
+			"fixes",
+			"features",
+			"notes"
+		]
+	},
+	"ranks": {
+		"severity": {
+			"info": 0,
+			"notable": 1,
+			"warning": 2,
+			"incompatible": 3
+		},
+		"cve_worse": {
+			"critical": 4,
+			"high": 3,
+			"medium": 2,
+			"low": 1,
+			"unknown": 0
+		},
+		"cve_order": {
+			"critical": 5,
+			"high": 4,
+			"medium": 3,
+			"unknown": 2,
+			"low": 1
+		},
+		"direction_order": {
+			"reaches": 0,
+			"unclear": 1,
+			"does_not_reach": 2
+		},
+		"effect_order": {
+			"risk": 0,
+			"none": 1,
+			"benefit": 2
+		},
+		"no_local_rank": 3
+	},
+	"ordering": {
+		"item_sort_key": [
+			"index of primary_group in groups.precedence",
+			"negated severity rank (worst first; unknown severity last)",
+			"direction rank (reaches, unclear, does_not_reach, no local block)",
+			"effect rank (risk, none, benefit, no local block)",
+			"id ascending — the tiebreak that makes the order total"
+		],
+		"security_display_sort_key": [
+			"negated cve_order rating rank",
+			"exploited_in_wild first",
+			"direction rank",
+			"negated severity rank",
+			"id ascending"
+		],
+		"finding_sort_key": [
+			"tool_id",
+			"item_id",
+			"code",
+			"field",
+			"value"
+		]
+	},
+	"flags": {
+		"checker_may_emit": [
+			"has_security",
+			"has_breaking",
+			"worst_severity",
+			"local_findings"
+		],
+		"validator_only": [
+			"security_only",
+			"impact",
+			"risk_level",
+			"review_bucket",
+			"pre_accept"
+		],
+		"on_disagreement": "the validator's value wins; E-FLAG-DISAGREE is raised"
+	},
+	"security_only_tags": [
+		"chore",
+		"fix",
+		"packaging",
+		"security"
+	],
+	"security_display": {
+		"predicate": "rating == critical, or exploited_in_wild, or local.direction == reaches, or severity in (warning, incompatible)",
+		"cap": null
+	},
+	"findings": {
+		"E-ANCHOR-MALFORMED": {
+			"severity": "error",
+			"invariant": "I-9",
+			"summary": "`anchor.value` does not match its kind's grammar"
+		},
+		"E-CHANGE-UNCITED": {
+			"severity": "error",
+			"invariant": "I-7",
+			"summary": "`change` present with no verbatim citation"
+		},
+		"E-CITE-EMPTY": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a citation has no text"
+		},
+		"E-CITE-KIND": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a citation kind is outside the vocabulary"
+		},
+		"E-CITE-URL": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a citation url is not an absolute http(s) URL"
+		},
+		"E-CVE-MALFORMED": {
+			"severity": "error",
+			"invariant": "I-5",
+			"summary": "`security.cve_id` is not a CVE id"
+		},
+		"E-ENTRY-NOID": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a research entry has no usable string id"
+		},
+		"E-ENTRY-NOTOBJECT": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a research entry is not an object"
+		},
+		"E-ENUM-INVALID": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a field's value is outside its closed vocabulary"
+		},
+		"E-EVID-404": {
+			"severity": "error",
+			"invariant": "I-12",
+			"summary": "an evidence path resolves nowhere"
+		},
+		"E-EVID-MALFORMED": {
+			"severity": "error",
+			"invariant": "I-12",
+			"summary": "an evidence entry is not a path"
+		},
+		"E-FIELD-MISSING": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a required field is absent"
+		},
+		"E-FIELD-TYPE": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a field has the wrong type"
+		},
+		"E-FLAG-DISAGREE": {
+			"severity": "error",
+			"invariant": "I-13",
+			"summary": "a checker-emitted flag disagrees with recomputation"
+		},
+		"E-FLAG-FORBIDDEN": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a checker emitted a validator-only flag"
+		},
+		"E-INTEL-BREWFILE": {
+			"severity": "error",
+			"invariant": "I-17",
+			"summary": "intel.Brewfile is out of this tool entirely"
+		},
+		"E-ITEM-DUP-ANCHOR": {
+			"severity": "error",
+			"invariant": "I-10",
+			"summary": "two items in one tool derive one id"
+		},
+		"E-ITEM-EMPTY": {
+			"severity": "error",
+			"invariant": "I-1",
+			"summary": "an item has neither `change` nor `local`"
+		},
+		"E-LINK-INDEX": {
+			"severity": "error",
+			"invariant": "I-8",
+			"summary": "`change.link_index` is out of range of `links[]`"
+		},
+		"E-REACHES-UNEVIDENCED": {
+			"severity": "error",
+			"invariant": "I-14",
+			"summary": "`direction: reaches` with no evidence"
+		},
+		"E-RESEARCH-NOTARRAY": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a research file is not a JSON array"
+		},
+		"E-RESEARCH-UNREADABLE": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a research file could not be read"
+		},
+		"E-SEC-BLOCK-MISSING": {
+			"severity": "error",
+			"invariant": "I-4",
+			"summary": "tagged `security` with no `security` block"
+		},
+		"E-SEC-BLOCK-ORPHAN": {
+			"severity": "error",
+			"invariant": "I-4",
+			"summary": "`security` block on an item not tagged `security`"
+		},
+		"E-SEC-RATING-UNBASED": {
+			"severity": "error",
+			"invariant": "I-6",
+			"summary": "a rating with no basis"
+		},
+		"E-SEV-INCOMPAT-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-2",
+			"summary": "`incompatible` without reaches+risk"
+		},
+		"E-SEV-WARNING-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-3",
+			"summary": "`warning` without a `local` block"
+		},
+		"E-STRUCT-PRECOND": {
+			"severity": "error",
+			"invariant": "I-16",
+			"summary": "a structural op's precondition does not hold"
+		},
+		"E-TAG-NONE": {
+			"severity": "error",
+			"invariant": "I-11",
+			"summary": "no recognized tag on the item"
+		},
+		"E-TAG-UNKNOWN": {
+			"severity": "error",
+			"invariant": "I-11",
+			"summary": "a tag outside the closed set (kept verbatim)"
+		},
+		"E-VALIDATOR-CRASH": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a validator stage failed on this tool; it is kept with what conformed"
+		},
+		"W-ATTENTION-NOSUG": {
+			"severity": "warning",
+			"invariant": "I-15",
+			"summary": "`config_needs_attention` with no non-upgrade suggestion"
+		},
+		"W-ENTRY-DUPLICATE": {
+			"severity": "warning",
+			"invariant": null,
+			"summary": "two research entries claim one tool id"
+		},
+		"W-ENTRY-UNMATCHED": {
+			"severity": "warning",
+			"invariant": null,
+			"summary": "a research entry names no collected candidate"
+		},
+		"W-EVID-ROOT": {
+			"severity": "warning",
+			"invariant": "I-12",
+			"summary": "an evidence path resolves only under an unconfigured repo"
+		},
+		"W-MEMBER-QUARANTINED": {
+			"severity": "warning",
+			"invariant": null,
+			"summary": "a wrong-typed array member was quarantined, not dropped"
+		},
+		"W-SHAPE-COERCED": {
+			"severity": "warning",
+			"invariant": null,
+			"summary": "a field was the wrong shape and was coerced"
+		},
+		"W-STRUCT-UNCHECKED": {
+			"severity": "warning",
+			"invariant": "I-16",
+			"summary": "a structural precondition could not be checked"
+		},
+		"W-SUG-DUP-ID": {
+			"severity": "warning",
+			"invariant": "I-18",
+			"summary": "a suggestion id is not unique across the report"
+		},
+		"W-TITLE-LONG": {
+			"severity": "warning",
+			"invariant": null,
+			"summary": "title is longer than the glanceable bar; detail belongs in body"
+		}
+	},
+	"anchor_grammars": {
+		"advisory": "^[A-Za-z][A-Za-z0-9._-]{2,}$",
+		"commit": "^(?:[A-Za-z0-9._-]+/[A-Za-z0-9._-]+@)?[0-9a-fA-F]{7,40}$",
+		"cve": "^CVE-(?:19|20)\\d{2}-\\d{4,}$",
+		"issue": "^(?:[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)?#\\d+$",
+		"release": "^[^/\\s]+/[^\\s]+$",
+		"none": "value must be null; a non-empty `slug` is required instead"
+	},
+	"evidence_shorthand": "^(?P<path>[~$A-Za-z0-9_./@+\\-]+)(?::(?P<lines>\\d+(?:-\\d+)?(?:,\\d+(?:-\\d+)?)*))?$"
+}
