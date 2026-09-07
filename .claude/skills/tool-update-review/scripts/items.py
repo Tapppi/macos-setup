@@ -775,8 +775,11 @@ def contract() -> dict:
 			"bucket_rule": "memory proposals do not force `attention`; action "
 				"proposals do. `watch-item` and `method-note` propose changes to what "
 				"we remember, `edit` and `structural` to the user's system — only the "
-				"latter needs a decision. compute_initial_bucket and W-ATTENTION-NOSUG "
-				"read one tuple so they cannot disagree.",
+				"latter needs a decision. Every axis that can pre-accept "
+				"(compute_impact, compute_risk_level, compute_initial_bucket, "
+				"W-ATTENTION-NOSUG) asks `needs_a_decision`, a NEGATION, so a kind "
+				"outside the vocabulary demands a decision rather than reading as a "
+				"memory proposal.",
 			"payload": {kind: dict(fields)
 				for kind, fields in sorted(MEMORY_PAYLOAD_FIELDS.items())},
 			"self_test_failed": {
