@@ -56,6 +56,10 @@ for it in the validator**: a regex that deleted "internal-looking" items would
 be exactly the banned behaviour. It is enforced where it belongs — in the
 checker's own guidelines, and in this schema.
 
+**A checker's guidelines are where this is enforced**: `references/research.md`
+§Items Are Outward-Facing Changes states the rule to the agent that writes
+items, in the terms it decides in.
+
 **`intel.Brewfile` is out of this tool entirely.** Not a source of candidates,
 no compatibility checks against it, no suggestions targeting it, and it does not
 appear in the report. I-17 makes that a runtime check.
@@ -393,7 +397,7 @@ Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
 runs. The workflow surfaces it; it never aborts.
 
-### The eighteen invariants
+### The nineteen invariants
 
 | id | invariant | code |
 |---|---|---|
@@ -415,11 +419,19 @@ runs. The workflow surfaces it; it never aborts.
 | I-16 | structural op preconditions hold | `E-STRUCT-PRECOND` / `W-STRUCT-UNCHECKED` |
 | I-17 | no `intel.Brewfile` in a manifest or a `target_files` path | `E-INTEL-BREWFILE` |
 | I-18 | suggestion ids unique across the whole report | `W-SUG-DUP-ID` |
+| I-19 | a memory proposal carries its payload, and a `self_test_failed` tag carries its reason | `E-FIELD-MISSING` / `E-SELFTEST-NOREASON` |
 
 I-14 is the mechanical replacement for the prose rule "if you can point at the
 touchpoint, you owe a relevancy item" — same claim, now checkable. It warns and
 never sets or clears the direction for you. Keep that discipline for all
-eighteen.
+nineteen.
+
+I-19 validates the `self_test_failed` tag rather than letting it ride as an
+extra field the validator happens to tolerate. §L7 makes convergence key its
+review off that tag, and an unvalidated channel is exactly how `Watch item
+hit:` broke: a literal string worth 70 highlight points that nobody checked,
+which stopped firing the moment it was paraphrased. See `references/schemas.md`
+§1.7b/§1.7c for the two memory kinds and the tag.
 
 The complete code table, with each code's severity and the invariant it serves,
 is `items.FINDING_CODES`, published in `contract/contract.json`.

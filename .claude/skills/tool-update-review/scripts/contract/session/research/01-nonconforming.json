@@ -11,13 +11,20 @@
 		"links": [],
 		"items": [
 			{
-				"tags": ["securty"],
+				"tags": [
+					"securty"
+				],
 				"severity": "critical"
 			},
 			{
-				"anchor": {"kind": "cve", "value": "CVE-26-1"},
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-26-1"
+				},
 				"title": "A title that is well past the glanceable bar, written as a paragraph rather than a headline, so that the reader has to parse a whole argument before learning what the change actually is, which is exactly the defect the split exists to catch",
-				"tags": ["security"],
+				"tags": [
+					"security"
+				],
 				"severity": "incompatible",
 				"change": {
 					"version": "1.0.1",
@@ -32,9 +39,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "issue", "value": "#2245"},
+				"anchor": {
+					"kind": "issue",
+					"value": "#2245"
+				},
 				"title": "The first of two items that name one upstream issue",
-				"tags": ["fix"],
+				"tags": [
+					"fix"
+				],
 				"severity": "warning",
 				"change": {
 					"version": "1.0.1",
@@ -43,9 +55,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "issue", "value": "#2245"},
+				"anchor": {
+					"kind": "issue",
+					"value": "#2245"
+				},
 				"title": "The second of two items that name one upstream issue",
-				"tags": ["fix"],
+				"tags": [
+					"fix"
+				],
 				"severity": "notable",
 				"local": {
 					"direction": "reaches",
@@ -53,14 +70,23 @@
 					"statement": "It lands here, but nothing is cited for the claim.",
 					"evidence": [],
 					"citations": [
-						{"kind": "blogpost", "text": "", "url": "not a url"}
+						{
+							"kind": "blogpost",
+							"text": "",
+							"url": "not a url"
+						}
 					]
 				}
 			},
 			{
-				"anchor": {"kind": "none", "slug": "evidence-shapes"},
+				"anchor": {
+					"kind": "none",
+					"slug": "evidence-shapes"
+				},
 				"title": "Three evidence entries, three different outcomes",
-				"tags": ["fix"],
+				"tags": [
+					"fix"
+				],
 				"severity": "info",
 				"local": {
 					"direction": "unclear",
@@ -75,9 +101,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "commit", "value": "f2ff0b2a"},
+				"anchor": {
+					"kind": "commit",
+					"value": "f2ff0b2a"
+				},
 				"title": "A security block on an item that is not tagged security",
-				"tags": ["chore"],
+				"tags": [
+					"chore"
+				],
 				"severity": "info",
 				"change": {
 					"version": "1.0.1",
@@ -122,7 +153,10 @@
 				"kind": "refactor",
 				"title": "A suggestion whose kind is outside the vocabulary",
 				"target_files": [
-					{"path": "intel.Brewfile", "description": "the Intel manifest is out of this tool"}
+					{
+						"path": "intel.Brewfile",
+						"description": "the Intel manifest is out of this tool"
+					}
 				],
 				"rationale": "Two findings in one suggestion."
 			},
@@ -134,9 +168,14 @@
 					"op": "manifest_move",
 					"subjects": [],
 					"manifest": "intel.Brewfile",
-					"from": {"type": "formula", "name": "sops"},
+					"from": {
+						"type": "formula",
+						"name": "sops"
+					},
 					"to": null,
-					"anchor": {"section": "CORE"}
+					"anchor": {
+						"section": "CORE"
+					}
 				},
 				"target_files": [],
 				"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in."
@@ -147,11 +186,21 @@
 				"title": "Move sops into the section it is already in",
 				"structural": {
 					"op": "manifest_move",
-					"subjects": [{"type": "formula", "name": "sops"}],
+					"subjects": [
+						{
+							"type": "formula",
+							"name": "sops"
+						}
+					],
 					"manifest": "Brewfile",
-					"from": {"type": "formula", "name": "sops"},
+					"from": {
+						"type": "formula",
+						"name": "sops"
+					},
 					"to": null,
-					"anchor": {"section": "CORE"}
+					"anchor": {
+						"section": "CORE"
+					}
 				},
 				"target_files": [],
 				"rationale": "The precondition is that its current section differs from the target."
@@ -162,11 +211,21 @@
 				"title": "Add a `setup.sh install` task that setup.sh already dispatches",
 				"structural": {
 					"op": "task_add",
-					"subjects": [{"type": "formula", "name": "nonconforming"}],
+					"subjects": [
+						{
+							"type": "formula",
+							"name": "nonconforming"
+						}
+					],
 					"manifest": null,
 					"from": null,
-					"to": {"type": "task", "name": "setup.sh:install"},
-					"anchor": {"file": "setup.sh"}
+					"to": {
+						"type": "task",
+						"name": "setup.sh:install"
+					},
+					"anchor": {
+						"file": "setup.sh"
+					}
 				},
 				"target_files": [],
 				"rationale": "The precondition is that the subcommand token is not already dispatched."
@@ -177,6 +236,45 @@
 				"title": "A suggestion id already claimed by another tool",
 				"target_files": [],
 				"rationale": "A collision almost always means an id pattern was copied rather than derived."
+			},
+			{
+				"id": "brew:nonconforming:watch-no-reason",
+				"kind": "watch-item",
+				"title": "A watch item tagged by its own self-test with no reason given",
+				"target_files": [],
+				"command": null,
+				"auto_runnable": false,
+				"watch_topic": "the credential format this vendor writes back",
+				"watch_note": "Flag any future release touching the Keychain record.",
+				"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+				"self_test_failed": {
+					"limb": "scope",
+					"reason": "  "
+				}
+			},
+			{
+				"id": "brew:nonconforming:method-no-payload",
+				"kind": "method-note",
+				"title": "A method note carrying neither topic nor note",
+				"target_files": [],
+				"command": null,
+				"auto_runnable": false,
+				"rationale": "The payload is what gets copied into the next run's context.",
+				"self_test_failed": {
+					"limb": "recited-the-rule",
+					"reason": "The limb name is outside the vocabulary."
+				}
+			},
+			{
+				"id": "brew:nonconforming:edit-with-a-self-test-tag",
+				"kind": "edit",
+				"title": "An action proposal wearing a memory proposal's self-test tag",
+				"target_files": [],
+				"rationale": "The tag is present iff the kind is a memory kind.",
+				"self_test_failed": {
+					"limb": "limb",
+					"reason": "An edit has no self-test to fail."
+				}
 			}
 		]
 	},

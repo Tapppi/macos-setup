@@ -23,6 +23,8 @@ Table of contents:
   - [1.5 `config_status.state` semantics](#15-config_statusstate-semantics)
   - [1.6 `kind: "upgrade"` field semantics](#16-kind-upgrade-field-semantics)
   - [1.7 `kind: "watch-item"` field semantics](#17-kind-watch-item-field-semantics)
+  - [1.7b `kind: "method-note"` field semantics](#17b-kind-method-note-field-semantics)
+  - [1.7c The self-test tag](#17c-the-self-test-tag)
   - [1.8 `version_delta` semantics](#18-version_delta-semantics)
   - [1.9 `security` semantics](#19-security-semantics)
   - [1.10 `review_bucket` semantics](#110-review_bucket-semantics)
@@ -348,10 +350,11 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	// Every tool gets exactly one synthesized "upgrade" suggestion (added
 	// during assembly, not by the research subagent) plus zero or more
 	// research-authored "edit" suggestions, plus zero or more
-	// research-proposed "watch-item" suggestions (§1.7 below;
-	// references/research.md §Watch Items (Proposing)) — a standing,
-	// forward-looking concern the user can accept/reject in the review UI,
-	// distinct from a one-off "edit" fix.
+	// research-proposed memory proposals: "watch-item" (§1.7) and
+	// "method-note" (§1.7b) — one says what to tell the user if it happens,
+	// the other says how to research this tool correctly next time. Both are
+	// accepted/rejected in the review UI like any other suggestion, and
+	// neither ever moves a tool into the attention bucket (§1.7c).
 	"suggestions": [
 		{
 			"id":      "cask:wireshark-app:upgrade",       // always "{source}:{name}:upgrade" for the baseline
@@ -549,8 +552,9 @@ can't act on.
 the single pre-accept mechanism: a suggestion renders pre-accepted iff
 `pre_accept` is true, and assembly sets that from `risk_level == "low"` **or**
 `review_bucket == "security_auto"` (§1.10), on the baseline `upgrade`
-suggestion only. Research-authored `edit` and `watch-item` suggestions always
-start undecided regardless of the tool's `risk_level`.
+suggestion only. Research-authored `edit`, `watch-item` and
+`method-note` suggestions always start undecided regardless of the tool's
+`risk_level`.
 
 See `references/assembly.md` §Risk Level for the computation's place in
 `assemble.py`'s flow and §Review Buckets and Pre-Accept for the union, and
@@ -680,6 +684,82 @@ actually does.
 - Never elevates a tool's `risk_level` (`references/assembly.md` §Risk
   Level's edit-kind check only matches `kind: "edit"`) — proposing a watch
   item is not itself a risky change.
+
+### 1.7b `kind: "method-note"` field semantics
+
+A durable correction to **how this tool gets researched** — the sibling of a
+watch item, and the reason the two stopped being conflated
+(`references/research.md` §Research-Method Notes vs Watch Items). A watch item
+says *what to tell the user if it happens*; a method note says *how to research
+this tool correctly*. A method note changes the next researcher's behaviour; a
+watch item changes the next report.
+
+The two are separate stores because they have separate read paths. A watch
+item's `topic` is matched against changelog content, so a concern no changelog
+could ever contain never fires — filing it as a watch item does not preserve
+the knowledge, it files it where nothing reads it back out. Two of the last
+run's eight watch-item proposals (`brew:iproute2mac`, `brew:nnn`) were method
+notes in a watch item's container, and both said so in their own first
+sentence.
+
+Same suggestion array, same Accept/Reject/Discuss plumbing, same schema
+strictness — **not a parallel system**, just a different `kind` with a
+different body:
+
+- `target_files`, `command`: always `[]` / `null` — there is nothing to edit
+  or run, only a method-note entry to write.
+- `auto_runnable`: always `false`.
+- `method_topic` (string, required): what the note is about, in a few words —
+  "where the real changelog lives", "why the release notes lie here".
+- `method_note` (string, required): the instruction itself, written so it
+  reads sensibly **copied verbatim into the next run's context**, because that
+  is exactly what happens on accept.
+- `rationale` (string): how you know the ordinary path fails for this tool.
+  It must name a failure that happened, not predict one that might
+  (`references/research.md` §Writing a Research-Method Note).
+- **Scope.** A note stored against one tool is a **per-tool** method note, and
+  those are expected to be **many** — tools have weird conventions and unusual
+  changelog locations. A note that holds across many tools is a **global**
+  method note, and those are **rare by definition**: applying across many tools
+  is the entry condition (`REDESIGN.md` §L1). Three stores, three scopes; the
+  agent routes at the point of writing.
+- Never elevates a tool's `risk_level` or its review bucket. See §1.7c.
+
+### 1.7c The self-test tag
+
+Both memory kinds — `watch-item` and `method-note` — may carry
+`self_test_failed`. The per-tool agent runs a self-test before proposing
+(`references/research.md` §Before You Propose a Watch Item), and **a failing
+self-test applies this tag; it never removes the proposal** (`REDESIGN.md`
+§L7). Convergence reviews every tagged proposal and verifies that dropping it
+is appropriate.
+
+```jsonc
+"self_test_failed": {
+	"limb": "scope",                    // scope | changing-thing | limb | unwitnessed
+	"reason": "config_status.detail describes re-verifying this exact concern against the 0.63.1 → 0.64.1 delta."
+}
+```
+
+- Absent means the proposal passed. Present means "written anyway, and here is
+  what it failed" — **a proposal the agent never writes is one convergence
+  cannot restore**, which is the single lossy point this closes.
+- `limb` (enum, required when the tag is present): which question failed.
+  `scope` — the tool's own `config_status.detail` already re-verified this
+  concern. `changing-thing` — a repo file states, sets or pins the thing that
+  could change, so a future delta against it is already checked.
+  `limb` — the claimed bar limb's two halves are not both answered.
+  `unwitnessed` — a method note whose rationale predicts a failure rather than
+  naming one that happened.
+- `reason` (string, required when the tag is present): the agent's own words
+  for why it failed. A tag with no reason is a drop with extra steps, and it is
+  rejected (`E-SELFTEST-NOREASON`) — convergence cannot review a limb name.
+- The tag is present **iff** the kind is a memory kind. On an `edit` or an
+  `upgrade` it is a shape error (`E-FIELD-TYPE`), because an action proposal
+  has no self-test to fail.
+- The validator exports the tagged ids per tool as
+  `self_test_tagged_suggestion_ids`, so convergence works from a list rather
+  than re-reading prose for the tag.
 
 ### 1.8 `version_delta` semantics
 

@@ -27,6 +27,7 @@ Seven groups:
    0 of 346 aborting cases and this group is how it stays there.
 """
 import contextlib
+import copy
 import io
 import json
 import os
@@ -895,6 +896,126 @@ class ImpactAndBucketTests(unittest.TestCase):
 			local={"direction": "reaches", "effect": "risk", "statement": "s",
 				"evidence": [{"path": "Brewfile"}]})])
 		self.assertEqual(view["security_display_item_ids"], ["brew:x#issue:org%2Frepo%231"])
+
+
+# ── 6b. Memory proposals (REDESIGN.md L1, L7) ───────────────────────────────
+def _memory(kind="method-note", **kw):
+	base = {"id": "brew:x:" + kind, "kind": kind, "title": "A memory proposal",
+		"target_files": [], "command": None, "auto_runnable": False,
+		"rationale": "why this is worth remembering"}
+	for field in model.MEMORY_PAYLOAD_FIELDS[kind]:
+		base[field] = "some " + field
+	base.update(kw)
+	return base
+
+
+def _action(kind="edit", **kw):
+	base = {"id": "brew:x:" + kind, "kind": kind, "title": "An action proposal",
+		"target_files": [], "rationale": "why the user should change something"}
+	if kind == "structural":
+		base["structural"] = {"op": "tap_add", "subjects": [{"type": "tap", "name": "a/b"}],
+			"manifest": "Brewfile", "from": None, "to": {"type": "tap", "name": "a/b"},
+			"anchor": {"section": "TAPS"}}
+	base.update(kw)
+	return base
+
+
+class MemoryProposalTests(unittest.TestCase):
+	"""`REDESIGN.md` §L1 expects **many** per-tool method notes and watch items,
+	and §L7 makes the self-test tag load-bearing — convergence keys its review
+	off it. Both facts are why these are validated rather than waved through as
+	free-floating extra fields: an unvalidated channel is how `Watch item hit:`
+	broke, and a misspelt `self_test_failed` would fail the same silent way."""
+
+	def _view(self, suggestions, **kw):
+		research = {"id": "brew:x", "links": [], "items": [_item()],
+			"suggestions": suggestions}
+		research.update(kw)
+		return validate_one(research)
+
+	# — the payload —
+	def test_a_memory_proposal_without_its_payload_is_a_missing_field(self):
+		for kind, fields in sorted(model.MEMORY_PAYLOAD_FIELDS.items()):
+			for field in fields:
+				with self.subTest(kind + "." + field):
+					_, findings = self._view([_memory(kind, **{field: "   "})])
+					missing = {f["field"] for f in findings.entries
+						if f["code"] == "E-FIELD-MISSING"}
+					self.assertEqual(missing, {field})
+
+	def test_the_two_payloads_do_not_share_field_names(self):
+		"""A watch item's topic and a method note's topic are different stores.
+		Sharing a field name is how they got conflated in the first place."""
+		watch = set(model.MEMORY_PAYLOAD_FIELDS["watch-item"])
+		method = set(model.MEMORY_PAYLOAD_FIELDS["method-note"])
+		self.assertEqual(watch & method, set())
+
+	# — the self-test tag —
+	def test_a_well_formed_tag_is_accepted_and_exported(self):
+		for limb in model.SELF_TEST_LIMBS:
+			with self.subTest(limb):
+				view, findings = self._view([_memory("watch-item", self_test_failed={
+					"limb": limb, "reason": "config_status re-verified this exact delta"})])
+				self.assertEqual(findings.entries, [])
+				self.assertEqual(view["self_test_tagged_suggestion_ids"],
+					["brew:x:watch-item"])
+
+	def test_an_untagged_proposal_is_not_in_the_exported_set(self):
+		view, _ = self._view([_memory("watch-item")])
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_a_tag_with_no_reason_is_a_drop_with_extra_steps(self):
+		"""Criterion 17 exists to stop a self-test deleting a proposal. A tag
+		naming no reason gives convergence nothing to review it against, which
+		is a deletion wearing a tag."""
+		for reason in (None, "", "   ", 7):
+			with self.subTest(repr(reason)):
+				tag = {"limb": "scope"}
+				if reason is not None:
+					tag["reason"] = reason
+				self.assertIn("E-SELFTEST-NOREASON",
+					codes({"id": "brew:x", "links": [], "items": [_item()],
+						"suggestions": [_memory("watch-item", self_test_failed=tag)]}))
+
+	def test_a_limb_outside_the_vocabulary_is_reported(self):
+		_, findings = self._view([_memory("watch-item", self_test_failed={
+			"limb": "no-single-delta-to-re-check", "reason": "the rule's own words"})])
+		bad = [f for f in findings.entries if f["code"] == "E-ENUM-INVALID"]
+		self.assertEqual([f["field"] for f in bad], ["self_test_failed.limb"])
+
+	def test_a_tagged_proposal_is_still_kept_whole(self):
+		"""§L7's whole point: the agent writes the proposal it failed. Nothing
+		here removes it, empties it, or lowers anything on it."""
+		proposal = _memory("watch-item", self_test_failed={
+			"limb": "scope", "reason": "config_status caught it"})
+		view, _ = self._view([copy.deepcopy(proposal)])
+		self.assertEqual(view["suggestions"], [proposal])
+
+	def test_the_tag_belongs_only_on_a_memory_kind(self):
+		for kind in ("edit", "upgrade"):
+			with self.subTest(kind):
+				view, findings = self._view([_action(kind, self_test_failed={
+					"limb": "limb", "reason": "an action proposal has no self-test"})])
+				self.assertIn("E-FIELD-TYPE", {f["code"] for f in findings.entries})
+				# ...and it is NOT offered to convergence as a droppable note.
+				self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_a_non_object_tag_is_reported_not_crashed_on(self):
+		for tag in ("scope", ["scope"], 3):
+			with self.subTest(repr(tag)):
+				self.assertIn("E-FIELD-TYPE",
+					codes({"id": "brew:x", "links": [], "items": [_item()],
+						"suggestions": [_memory("watch-item", self_test_failed=tag)]}))
+
+	def test_a_tagged_proposal_missing_its_id_is_still_listed(self):
+		"""Absent from the list is the one thing it must never be — convergence
+		works from this list, and a proposal it cannot see is one it cannot
+		restore."""
+		proposal = _memory("watch-item", self_test_failed={
+			"limb": "limb", "reason": "neither half answered"})
+		del proposal["id"]
+		view, _ = self._view([proposal])
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], ["brew:x:<no id>"])
 
 
 # ── 7. Degradation: per tool, loud, never fatal ─────────────────────────────

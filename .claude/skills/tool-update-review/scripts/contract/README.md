@@ -24,6 +24,9 @@ items.primary_group(item)       # which of the four content groups it renders un
 items.security_display_items(x) # the bar that replaced notable[]'s clause 3
 items.derive_item_id(tool, anchor)
 items.FINDING_CODES             # every code the deterministic layer can raise
+items.MEMORY_SUGGESTION_KINDS   # watch-item, method-note — proposals about MEMORY
+items.ACTION_SUGGESTION_KINDS   # edit, structural — proposals about the SYSTEM
+items.SELF_TEST_LIMBS           # the limbs a self-test tag may name (REDESIGN.md L7)
 ```
 
 Run the validator over your own corpus:
@@ -70,6 +73,16 @@ assert got == items.load_fixture("expected_validation.json")
 `test_items.py` asserts every fixture still agrees with the code, so a fixture
 cannot go stale — which is the only reason a published fixture is worth more
 than a paragraph.
+
+## Memory proposals
+
+A memory proposal may carry `self_test_failed: {limb, reason}`. **The self-test
+tags, it never removes** (§L7): a failing proposal is still written, and
+convergence reviews every tagged one to verify that dropping it is appropriate —
+a proposal the agent never writes is one convergence cannot restore. The tagged
+ids are exported per tool as `self_test_tagged_suggestion_ids` so convergence
+works from a list rather than re-reading prose. Prose: `references/schemas.md`
+§1.7b/§1.7c; agent guidelines: `references/research.md`.
 
 ## What the contract will not do
 

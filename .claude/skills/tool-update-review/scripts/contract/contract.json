@@ -1,5 +1,5 @@
 {
-	"contract_version": 1,
+	"contract_version": 2,
 	"scope": {
 		"items_are": "outward-facing changes only — project-internal maintenance (repo upkeep, convention changes, documentation updates) never becomes an item (REDESIGN.md L3). This is a scoping rule about what counts as an item, enforced in the schema and the agent guidelines; it is NOT a trimming rule and there is no filter for it in the validator.",
 		"intel_brewfile": "out of this tool entirely (REDESIGN.md B1); I-17 checks it",
@@ -86,8 +86,46 @@
 			"upgrade",
 			"edit",
 			"structural",
-			"watch-item"
+			"watch-item",
+			"method-note"
+		],
+		"self_test_limbs": [
+			"scope",
+			"changing-thing",
+			"limb",
+			"unwitnessed"
 		]
+	},
+	"memory_proposals": {
+		"kinds": [
+			"watch-item",
+			"method-note"
+		],
+		"action_kinds": [
+			"edit",
+			"structural"
+		],
+		"payload": {
+			"method-note": {
+				"method_topic": "what the note is about, in a few words",
+				"method_note": "the instruction itself, written to read sensibly when copied verbatim into the next run's context"
+			},
+			"watch-item": {
+				"watch_topic": "the short phrase a future run matches against its changelog",
+				"watch_note": "the context that lets a future hit explain itself without re-deriving everything"
+			}
+		},
+		"self_test_failed": {
+			"shape": {
+				"limb": "scope|changing-thing|limb|unwitnessed",
+				"reason": "non-empty string"
+			},
+			"absent_means": "the proposal passed its self-test",
+			"rule": "REDESIGN.md L7 — the self-test TAGS, never removes. A failing proposal is still written; convergence reviews every tagged one and verifies that dropping it is appropriate. A proposal the agent never writes is one convergence cannot restore.",
+			"on_a_non_memory_kind": "E-FIELD-TYPE — the tag is present iff the kind is a memory kind",
+			"with_no_reason": "E-SELFTEST-NOREASON"
+		},
+		"exported_for_convergence": "self_test_tagged_suggestion_ids, per tool"
 	},
 	"fields": [
 		{
@@ -475,6 +513,11 @@
 			"severity": "error",
 			"invariant": "I-6",
 			"summary": "a rating with no basis"
+		},
+		"E-SELFTEST-NOREASON": {
+			"severity": "error",
+			"invariant": "I-19",
+			"summary": "a `self_test_failed` tag with no reason"
 		},
 		"E-SEV-INCOMPAT-UNGROUNDED": {
 			"severity": "error",
