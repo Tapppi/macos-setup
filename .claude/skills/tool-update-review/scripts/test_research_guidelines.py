@@ -246,5 +246,183 @@ class ThreeStoresTests(unittest.TestCase):
 		self.assertIn("method_note", SCHEMAS)
 
 
+# ── the self-test tags, never removes (REDESIGN.md L7, criterion 17) ────────
+class SelfTestTests(unittest.TestCase):
+	"""§E3 asked for a self-test; §L7 closed the one lossy point in it. A
+	failing proposal is still written, tagged with the failing limb and the
+	agent's own reason, and convergence verifies that dropping it is
+	appropriate. A proposal the agent never writes is one convergence cannot
+	restore."""
+
+	HEAD = "### Before You Propose a Standing Note: the Self-Test"
+
+	def section(self):
+		start = RESEARCH.index(self.HEAD)
+		return RESEARCH[start:RESEARCH.index("### There Is No Volume Target")]
+
+	def test_the_self_test_tags_and_never_deletes(self):
+		text = self.section()
+		self.assertIn("Nothing here deletes a proposal", text)
+		self.assertIn("self_test_failed", text)
+		self.assertIn("Never suppress a proposal because it failed a question here", text)
+
+	def test_the_asymmetry_is_stated_as_the_reason(self):
+		"""Without the reason an agent optimises for a short list, which is the
+		behaviour that produced 0 accepted proposals out of 24."""
+		self.assertIn("cannot\nrestore", self.section())
+
+	def test_every_limb_in_the_vocabulary_is_reachable_from_a_question(self):
+		"""A limb the guidelines never tell anyone to use is a limb nothing
+		emits; a question with no limb is a failure with nowhere to go."""
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		text = self.section()
+		for limb in model.SELF_TEST_LIMBS:
+			with self.subTest(limb):
+				self.assertIn('"' + limb + '"', text)
+
+	def test_routing_is_the_one_answer_that_moves_rather_than_tags(self):
+		text = self.section()
+		self.assertIn("Q1 — ROUTING", text)
+		self.assertIn("route* rather than a tag", text)
+
+	def test_the_unknown_config_status_hole_is_named(self):
+		"""22 of 78 tools had no prior handling, so Q2's quote limb is satisfied
+		by "there is no prior handling to re-verify" — true, and evidence for
+		nothing. Left unsaid, the test has a hole over a quarter of the fleet."""
+		text = self.section()
+		self.assertIn("22 of 78", text)
+		self.assertIn("Do not read a vacuous pass as a pass", text)
+
+	def test_q3_asks_about_the_changing_thing_not_any_cited_file(self):
+		"""Read loosely, this clause drops the best proposal in the set:
+		claudebar cites tasks/config.sh:399, which is not the thing that could
+		change."""
+		text = self.section()
+		self.assertIn("not about any file your rationale happens to cite", text)
+		self.assertIn("credential's format is", text)
+
+	def test_reciting_the_rule_is_named_as_a_failure(self):
+		text = self.section()
+		self.assertIn("no single delta to re-check", text)
+		self.assertIn("Writing the rule's words is not passing the rule", text)
+
+	def test_a_method_note_has_its_own_limb(self):
+		self.assertIn("Q5 — THE WITNESS", self.section())
+
+	def test_convergence_keeps_final_authority(self):
+		"""E3: the upstream self-test reduces what reaches convergence; it does
+		not replace or bind it."""
+		self.assertIn("final authority to cut anything", self.section())
+
+
+# ── no volume target (REDESIGN.md C4, criterion 14) ─────────────────────────
+class NoVolumeTargetTests(unittest.TestCase):
+	"""The fleet quota at `scratch/research-0828b.js:38` is the one orphan that
+	must NOT be ported. Its measured history becomes reasoning in the guideline
+	text instead of a number."""
+
+	HEAD = "### There Is No Volume Target"
+
+	def section(self):
+		start = RESEARCH.index(self.HEAD)
+		return RESEARCH[start:RESEARCH.index("### Deduplicate Facts")]
+
+	# Flattened, because the old rule's own text was line-wrapped and a
+	# line-oriented grep misses it — which is how it survived a check once.
+	FLAT = {name: " ".join(text.split()) for name, text in CHECKER_FACING.items()}
+
+	QUOTA_PHRASES = (
+		"at most one or two per run",
+		"across the whole candidate set",
+		"across the whole fleet",
+		"the expected total is one or two",
+		"assume someone else is covering",
+		"fleet-wide budget",
+	)
+
+	def test_no_quota_phrase_survives_outside_the_explanation(self):
+		explanation = " ".join(self.section().split())
+		for name, flat in sorted(self.FLAT.items()):
+			for phrase in self.QUOTA_PHRASES:
+				with self.subTest(name + ": " + phrase):
+					if phrase not in flat:
+						continue
+					self.assertIn(phrase, explanation,
+						"{} states a fleet quota outside the section explaining why "
+						"the old one failed".format(name))
+					self.assertEqual(flat.count(phrase), explanation.count(phrase))
+
+	def test_no_numeric_target_is_stated_to_a_per_tool_agent(self):
+		"""Criterion 14. Any sentence pairing a count with a proposal noun is
+		the defect, whatever wording it wears."""
+		pattern = re.compile(
+			r"(?:at most|no more than|up to|expect|aim for|limit(?:ed)? to)\s+"
+			r"(?:one|two|three|a few|\d+)\b[^.]{0,60}"
+			r"(?:watch items?|method notes?|proposals?|suggestions?)", re.I)
+		explanation = self.section()
+		for name, text in sorted(CHECKER_FACING.items()):
+			for match in pattern.finditer(" ".join(text.split())):
+				with self.subTest(name + ": " + match.group(0)[:50]):
+					self.assertIn(match.group(0), " ".join(explanation.split()))
+
+	def test_the_reason_is_in_the_guideline_text_not_only_a_design_doc(self):
+		"""An agent told "there is no budget" with no explanation infers the
+		omission is an oversight and invents one out of prudence."""
+		text = self.section()
+		self.assertIn("The reason is measured, not stylistic", text)
+		self.assertIn("byte-identical", text)
+		self.assertIn("exactly one each", text)
+		self.assertIn("must not invent one", text)
+
+	def test_the_four_concrete_don_ts_are_present(self):
+		text = self.section()
+		for phrase in ("Do not hold a proposal back", "Do not propose one because",
+				"Do not drop a proposal that failed the self-test",
+				"Judge each proposal on its own evidence"):
+			self.assertIn(phrase, text)
+
+	def test_volume_is_pushed_to_where_it_is_visible(self):
+		self.assertIn("Volume is handled where volume is visible", self.section())
+
+
+# ── the bar (REDESIGN.md C4) ────────────────────────────────────────────────
+class WatchItemBarTests(unittest.TestCase):
+	"""Each limb is a conjunction and each half has to be answerable with an
+	artefact. The undecidable phrasings are what produced five rationales
+	reciting the rule's own escape phrase."""
+
+	def section(self):
+		start = RESEARCH.index("### Watch Items (Proposing)")
+		return RESEARCH[start:RESEARCH.index("### Before You Propose a Standing Note")]
+
+	def test_both_limbs_are_stated_as_conjunctions_with_named_halves(self):
+		text = self.section()
+		self.assertIn("Each limb is a conjunction", text)
+		self.assertIn("name the party who can change it", text)
+		self.assertIn("name the file, and say what the edit would\n    be", text)
+		self.assertIn("could you tell, from the\n    machine's state alone", text)
+		self.assertIn("what breaks?", text)
+
+	def test_exposure_is_distinguished_from_a_required_change(self):
+		"""The half the last run's failures all missed: naming a file that
+		depends on the behaviour is not naming an edit."""
+		text = self.section()
+		self.assertIn("exposure, not a required change", text)
+		self.assertIn("cask:obsidian", text)
+
+	def test_the_accepted_entry_is_the_worked_example(self):
+		text = self.section()
+		self.assertIn("cursor-record()", text)
+		self.assertIn("Named party, named\n  file, named edit", text)
+
+	def test_the_undecidable_escape_clause_is_gone_from_the_bar(self):
+		"""`there's no single delta to re-check` was a self-assessed assertion
+		with the wording supplied. It survives only where the self-test names
+		it as a failure."""
+		self.assertNotIn("no single delta to re-check", self.section())
+
+
 if __name__ == "__main__":
 	unittest.main()

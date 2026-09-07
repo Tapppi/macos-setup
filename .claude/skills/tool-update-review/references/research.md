@@ -41,6 +41,8 @@ Table of contents:
   - Writing a Research-Method Note
   - Watch Items (Reading)
   - Watch Items (Proposing)
+  - Before You Propose a Standing Note: the Self-Test
+  - There Is No Volume Target — and Here Is Why
   - Deduplicate Facts (Across Arrays, and Within One)
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
@@ -1062,18 +1064,53 @@ example above (§Watch Items (Reading)) is exactly the kind of thing that
 could have been proposed at research time, the first time it was noticed,
 instead of waiting for the user to ask for it explicitly.
 
-**When to propose one** — rare, not a default. A genuine standing concern
-looks like: an intentional deviation from the vendor's default behavior that
-a future release could silently reintroduce or break (an on-demand wrapper
-replacing an always-on hook, a pin whose blocking condition is narrow and
-easy to miss changing back), or a config decision whose correctness depends
-on something the vendor could change without prominent announcement. It does
-**not** mean proposing one for every tool with a pin, a bespoke touchpoint,
-or a `needs_attention` verdict — those are already tracked via
-`config_status`/relevancy on every run; a watch item is for a concern that
-`config_status`'s per-run re-verification (§Config Status above) wouldn't
-naturally catch because there's no single delta to re-check, just an
-ongoing "did the vendor change their mind about X" question.
+**The bar.** A watch item exists for one of two things, and you must say
+which. Each limb is a conjunction: both halves, both answered concretely.
+
+**(a) Something expected to BOTH change AND require a change in the user's
+configs.**
+
+  - *Expected to change* → **name the party who can change it, and say why
+    they would not announce it prominently.** "Any vendor could change
+    anything" is not an answer; it is true of everything.
+  - *Require a config change* → **name the file, and say what the edit would
+    be.**
+
+  If you can name the file but not the edit, that file *depends on* the
+  behaviour — which is exposure, not a required change. Exposure is true of
+  nearly every tool on this machine, and a bar that admits it admits
+  everything. `cask:obsidian`'s proposal last run named
+  `dotfiles/config/bash/.aliases:35` and 31 Mermaid notes; if a confirmation
+  gate came back, neither would need editing — they would start prompting.
+  That is the shape to recognise.
+
+  The one entry the user has ever accepted is the model: cursor-agent's
+  shell-integration hook execs `agent record` on every new shell, the user
+  deliberately did not install it and wrote an on-demand `cursor-record()`
+  wrapper instead (`dotfiles/config/bash/.functions`). If the vendor changes
+  the hook, **that wrapper is the file that gets edited**. Named party, named
+  file, named edit.
+
+**(b) A config or use-case that is hard to reason about after the fact AND
+security-critical or load-bearing.**
+
+  - *Hard to reason about after the fact* → **could you tell, from the
+    machine's state alone, that it had already happened?** If yes, it is not
+    hard to reason about after the fact — you would find it next time you
+    looked. `brew:lazygit`'s proposal fails here: a config file rewritten in
+    place is a diff you see the moment you open it.
+  - *Security-critical or load-bearing* → **if it changed and nobody noticed
+    for six months, what breaks?** A credential, a trust boundary, an
+    unattended process, or something the setup depends on to work at all.
+    "Mildly annoying" is neither.
+
+  `cask:claudebar` passes both: a credential written back by an app the repo
+  launches unattended at login, where the failure already fired silently for
+  an unknown number of releases before issue #256 surfaced it.
+
+It does **not** mean proposing one for every tool with a pin, a bespoke
+touchpoint, or a `needs_attention` verdict — those are already tracked via
+`config_status`/relevancy on every run.
 
 **How to propose one**: add a suggestion to the tool's `suggestions[]` with
 `kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same
@@ -1084,12 +1121,134 @@ proposal's payload in `watch_topic`/`watch_note` (same field meaning as
 them so they'd read sensibly if copied verbatim into that file, because
 that's exactly what happens on accept). Give it a real `rationale` explaining
 why this is worth watching, same evidence-discipline as everything else
-here. **This is a proposal, not a write** — nothing touches
+here — and run the self-test below, writing its answers into that
+`rationale`. **This is a proposal, not a write** — nothing touches
 `watch-items.json` unless the user explicitly accepts it in the review UI
 (`references/apply.md` §Watch Items (Writing)); do not also write the file
-yourself from research. At most one or two per run across the whole
-candidate set is the expected volume — if you're proposing one for most
-tools you research, you're almost certainly over-applying this.
+yourself from research.
+
+How many to propose is answered in §There Is No Volume Target, two sections
+down. Read it before you decide to hold one back.
+
+### Before You Propose a Standing Note: the Self-Test
+
+You are about to add a permanent entry to a machine-global file. Run these
+questions and **write your answers into the proposal's `rationale`**. Every one
+is answerable from text you have already written in this same object — if you
+have to go and find something new, that is the answer.
+
+**Nothing here deletes a proposal.** A question you fail tags the proposal and
+you write it anyway, with `self_test_failed: {limb, reason}` naming the
+question and your own reason in your own words (`references/schemas.md` §1.7c).
+A later corpus-wide pass reviews every tagged proposal and decides whether
+dropping it is right. **A proposal you never write is one that pass cannot
+restore** — that asymmetry is the whole reason the self-test tags instead of
+cutting. Never suppress a proposal because it failed a question here.
+
+**For a watch item — four questions.**
+
+> **Q1 — ROUTING.** Quote the sentence in your own note that says how a future
+> release's published text could match this topic. If you cannot write that
+> sentence, this is a research-method note, not a watch item. **File it as
+> one.** This is the one answer that is a *route* rather than a tag: the
+> knowledge is kept, it just moves to the store that fits it.
+>
+> **Q2 — SCOPE.** Read the `config_status` you just wrote for this same tool.
+> Quote the sentence from its `detail` showing this concern is outside its
+> scope — typically a sentence naming what `config_status` *did* check, which
+> does not include your concern.
+>
+> If `config_status.detail` instead describes re-verifying **this** concern
+> against **this** run's delta, then `config_status` caught it. Write the
+> proposal anyway and tag it `self_test_failed: {limb: "scope", reason: <your
+> Q2 answer>}`.
+>
+> **If `config_status.state` is `"unknown"`, say so plainly.** Your quote will
+> be something like *"there is no prior handling to re-verify"* — true, and
+> worth nothing as evidence. This limb then gives you no support at all, and Q3
+> and Q4 carry the whole proposal alone. Do not read a vacuous pass as a pass.
+> This is not a rare corner: `config_status` was `unknown` on 22 of 78 tools
+> last run.
+>
+> **Q3 — THE CHANGING THING.** Name the thing that could change, and who owns
+> it. Then: is that thing something a file in the setup repos states, sets or
+> pins? If yes, a future delta against that file is exactly what
+> `config_status` re-checks every run — tag `{limb: "changing-thing"}`.
+>
+> Note what this asks and what it does not. It asks about the thing that could
+> **change** — not about any file your rationale happens to cite. A login item
+> in `tasks/config.sh` that makes a third party's credential handling run
+> unattended is not the changing thing; the credential's format is, and no file
+> here states it. Read the clause the other way and it drops the best proposal
+> in the set.
+>
+> **Q4 — THE LIMB.** Say which limb of the bar you are claiming, (a) or (b),
+> and answer its two halves in the bar's own terms:
+>   - (a) who changes it and why silently **+** which file, which edit
+>   - (b) could you tell from the machine's state alone that it already
+>     happened **+** what breaks after six months unnoticed
+>
+> If either half is unanswered, tag `{limb: "limb"}` and say which half.
+
+**For a method note — one question.**
+
+> **Q5 — THE WITNESS.** Point at the wrong or empty answer the ordinary path
+> produced for this tool: in a prior run, in this run's own research, or in the
+> source you had to fall back on. If your rationale predicts a failure rather
+> than naming one, tag `{limb: "unwitnessed"}` with what you have.
+
+**A restatement is not an answer.** If a reply repeats the question, or recites
+the bar's own wording back at it, it fails. Two rationales last run opened with
+*"there is no single delta to re-check"* — the rule's own escape phrase —
+while the same tool's `config_status.detail`, written by the same agent minutes
+earlier, described re-checking exactly that delta. Three of eight did this.
+**Writing the rule's words is not passing the rule.**
+
+This self-test exists so that a later corpus-wide pass is not cutting a long
+list every run. It is not the last word: that pass sees every tool at once and
+holds final authority to cut anything, including proposals that pass every
+question here.
+
+### There Is No Volume Target — and Here Is Why
+
+You will not be told how many watch items or method notes to produce — not for
+this tool, not for your batch, not for the run. **You must not infer a number,
+and you must not invent one.**
+
+The reason is measured, not stylistic, and you need it: an agent told "there is
+no budget" with no explanation reads the omission as an oversight and invents a
+budget out of prudence, which is the same failure with a self-generated number.
+
+A previous version of this rule said *"at most one or two per run across the
+whole candidate set"*. That is a constraint on a sum no participant can see:
+twenty-two researchers each looking at between one and nine tools. Every one of
+them read a fleet allowance as a personal allowance, because from inside a
+one-to-nine-tool scope there is no other available reading. The result was eight
+proposals from eight different groups — **exactly one each, and not one group
+proposed two.** The instruction was obeyed locally and violated globally, which
+is the only outcome its structure allows.
+
+The same rule text produced 11, then 5, then 8 proposals across three runs. It
+was **byte-identical every time**. The number never came from the rule, so
+asking harder cannot move it. What moves it is the routing test and the
+self-test above, which change what you are asked to *produce* rather than what
+you are told to feel.
+
+Concretely:
+
+  - **Do not hold a proposal back because you imagine others are proposing
+    theirs.** You cannot see them and you would be guessing.
+  - **Do not propose one because you have researched several tools and none has
+    produced one yet.** An empty hand is a normal outcome. Most tools warrant
+    nothing.
+  - **Do not drop a proposal that failed the self-test.** Tag it. Dropping is
+    the one thing you cannot undo.
+  - **Judge each proposal on its own evidence**, against the bar and the
+    self-test, and nothing else.
+
+Volume is handled where volume is visible: a later pass reads every tool's
+output at once and cuts what does not hold. Your job is to be right about this
+tool, not to be economical about the fleet.
 
 ### Deduplicate Facts (Across Arrays, and Within One)
 
