@@ -329,6 +329,15 @@ class NoVolumeTargetTests(unittest.TestCase):
 		start = RESEARCH.index(self.HEAD)
 		return RESEARCH[start:RESEARCH.index("### Deduplicate Facts")]
 
+	def explanations(self):
+		"""The two places a quota phrase may legitimately appear: the section
+		explaining why the old rule failed, and the prompt-builder's worked
+		example of the hint that must never be written again. Both quote the
+		historical text; neither instructs anyone."""
+		builder = TEMPLATE[TEMPLATE.index("## Writing Hypotheses"):]
+		builder = builder[:builder.index("## Batch sizing and tiering")]
+		return " ".join((self.section() + "\n" + builder).split())
+
 	# Flattened, because the old rule's own text was line-wrapped and a
 	# line-oriented grep misses it — which is how it survived a check once.
 	FLAT = {name: " ".join(text.split()) for name, text in CHECKER_FACING.items()}
@@ -343,7 +352,7 @@ class NoVolumeTargetTests(unittest.TestCase):
 	)
 
 	def test_no_quota_phrase_survives_outside_the_explanation(self):
-		explanation = " ".join(self.section().split())
+		explanation = self.explanations()
 		for name, flat in sorted(self.FLAT.items()):
 			for phrase in self.QUOTA_PHRASES:
 				with self.subTest(name + ": " + phrase):
@@ -361,11 +370,11 @@ class NoVolumeTargetTests(unittest.TestCase):
 			r"(?:at most|no more than|up to|expect|aim for|limit(?:ed)? to)\s+"
 			r"(?:one|two|three|a few|\d+)\b[^.]{0,60}"
 			r"(?:watch items?|method notes?|proposals?|suggestions?)", re.I)
-		explanation = self.section()
+		explanation = self.explanations()
 		for name, text in sorted(CHECKER_FACING.items()):
 			for match in pattern.finditer(" ".join(text.split())):
 				with self.subTest(name + ": " + match.group(0)[:50]):
-					self.assertIn(match.group(0), " ".join(explanation.split()))
+					self.assertIn(match.group(0), explanation)
 
 	def test_the_reason_is_in_the_guideline_text_not_only_a_design_doc(self):
 		"""An agent told "there is no budget" with no explanation infers the
@@ -422,6 +431,80 @@ class WatchItemBarTests(unittest.TestCase):
 		with the wording supplied. It survives only where the self-test names
 		it as a failure."""
 		self.assertNotIn("no single delta to re-check", self.section())
+
+
+# ── history as hypotheses (REDESIGN.md E2, criterion 15) ────────────────────
+class HypothesisTests(unittest.TestCase):
+	"""E2 reconciles "stop seeding candidates" with the measured value of the
+	hypothesis framing. Both halves are evidenced: the seeding produced six of
+	eight bad proposals, and the framing measurably raised research quality.
+	The difference is that one hands over an answer and the other hands over a
+	question with its evidence.
+
+	The word "hypothesis" appeared nowhere in the skill before this."""
+
+	def checker_section(self):
+		start = RESEARCH.index("### Prior Findings Are Hypotheses")
+		return RESEARCH[start:RESEARCH.index("### Headliners")]
+
+	def builder_section(self):
+		start = TEMPLATE.index("## Writing Hypotheses")
+		return TEMPLATE[start:TEMPLATE.index("## Batch sizing and tiering")]
+
+	def test_the_word_reaches_the_skill_at_all(self):
+		self.assertRegex(RESEARCH, r"(?i)hypothes")
+		self.assertRegex(TEMPLATE, r"(?i)hypothes")
+		self.assertRegex(SKILL_MD, r"(?i)hypothes")
+
+	def test_the_checker_is_told_to_evidence_or_drop(self):
+		text = self.checker_section()
+		self.assertIn("never as a\nfact to carry forward", text)
+		self.assertIn("Evidence it yourself", text)
+		self.assertIn("drop it. Say nothing", text)
+		self.assertIn("Nothing reaches your output on the strength of history alone", text)
+
+	def test_the_checker_is_told_not_to_launder_a_prior_conclusion(self):
+		"""'A prior review found X and it still holds' is history reaching
+		output on history's strength, wearing a citation."""
+		flat = " ".join(self.checker_section().split())
+		self.assertIn('Do not write "a prior review found X and it still holds"', flat)
+
+	def test_being_handed_a_candidate_is_named_as_not_being_evidence(self):
+		self.assertIn("Being handed a candidate is\nnot evidence that a candidate exists",
+			self.checker_section())
+
+	def test_the_placeholder_exists_and_is_documented(self):
+		self.assertIn("{{HYPOTHESES}}", TEMPLATE)
+		body, table = TEMPLATE.split("## Placeholder reference", 1)
+		self.assertIn("{{HYPOTHESES}}", body)
+		self.assertIn("{{HYPOTHESES}}", table)
+
+	def test_the_prompt_builder_gets_both_worked_examples(self):
+		text = self.builder_section()
+		self.assertIn("**GOOD**", text)
+		self.assertIn("**BAD**", text)
+		self.assertIn("O_NORL", text)                       # the one that worked
+		self.assertIn("proposed a watch item", text)        # the one that nominated
+		self.assertIn("nomination wearing a question's clothes", text)
+
+	def test_naming_an_artefact_kind_in_a_hypothesis_is_banned(self):
+		text = self.builder_section()
+		self.assertIn("Never name an artefact kind", text)
+		self.assertIn("Never mention volume, budgets, counts", text)
+		self.assertIn("Never carry a prior conclusion without its evidence", text)
+
+	def test_hypotheses_are_drawn_mechanically_rather_than_written(self):
+		"""A hand-written hint is where every nomination came from, and a
+		hand-built prompt is what evaporates."""
+		self.assertIn("mechanically", self.builder_section())
+		self.assertIn("not hand-written\nper run", self.builder_section())
+
+	def test_the_dispatch_step_carries_the_ban(self):
+		"""§6.1 asks for one line in SKILL.md step 3 pointing at the rules —
+		the orchestrator fills the placeholder, so the orchestrator is who has
+		to know."""
+		self.assertIn("never as nominations", SKILL_MD)
+		self.assertIn("Writing Hypotheses", SKILL_MD)
 
 
 if __name__ == "__main__":

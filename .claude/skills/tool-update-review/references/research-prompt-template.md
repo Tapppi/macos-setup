@@ -62,6 +62,18 @@ tools have none (`references/research.md` §Watch Items (Reading)):
 <!-- one block per tool that has any: kind (method-note | watch-item), topic,
      note. Looked up by tool id from the two stores; never hand-written. -->
 
+Prior findings, as HYPOTHESES to verify — never as facts to restate. Each was
+believed by a previous review of this machine; confirm or refute it against
+today's versions from the sources you would have used had nobody told you, and
+say plainly when one no longer holds (`references/research.md` §Prior Findings
+Are Hypotheses):
+{{HYPOTHESES}}
+<!-- one block per tool that has any. Drawn mechanically by tool id from
+     changelog.md, the two standing-note stores and the previous run's report.
+     Form rules below in §Writing Hypotheses — they are not optional, and they
+     are the difference between raising research quality and nominating an
+     answer. -->
+
 Touchpoints found by word-boundary grep, per tool — where these tools are
 named in the setup repos. This is a starting signal, not a finding and not a
 list of what matters: verify each hit is a real touchpoint and find the ones
@@ -114,8 +126,58 @@ fine as your actual response.
 | `{{TOOL_LIST}}` | One block per tool: id, name, source, current_version, latest_version, pinned — from `collect.sh`'s output |
 | `{{MACHINE_JSON}}` | The `machine` object from `collect.sh`'s output |
 | `{{REPO_CONTEXT_JSON}}` | The contents of `{session_dir}/repo_context.json` (`scripts/repo_context.sh`'s output) |
+| `{{HYPOTHESES}}` | Prior findings for this batch's tools, drawn mechanically by tool id — one block per tool that has any, in the form §Writing Hypotheses requires |
 | `{{STANDING_NOTES}}` | This batch's tools' entries from `watch-items.json` and `method-notes.json`, looked up by tool id — empty when they have none |
 | `{{TOUCHPOINTS}}` | The word-boundary grep hits from tiering (`references/research.md` §Word-Boundary Grep Rule), one block per tool — **generated from the grep, never typed by hand** |
+
+## Writing Hypotheses
+
+`{{HYPOTHESES}}` is where a prior run's findings reach a checker. **There are
+rules about their form, because the form changes what comes back**, and the
+measured effect is large in both directions.
+
+A hypothesis states an **observable** and asks for verification:
+
+> **GOOD** — "A prior review found v5.3 flips the Makefile default O_NORL 0→1,
+> and homebrew-core's formula runs a plain `make install` with no `O_NORL=0`.
+> Verify independently against the current formula and the v5.3 source."
+
+It never names a conclusion, a proposal, or an artefact kind:
+
+> **BAD** — "A prior review proposed a watch item for the widening local-data
+> surface; decide for yourself whether it clears the bar (the fleet-wide budget
+> is one or two total)."
+
+The second is a nomination wearing a question's clothes. It tells the checker a
+candidate exists, grants permission to take it, and — with a budget in the same
+breath — implies it is *the* one. **That exact sentence produced one of the
+last run's eight watch-item proposals, and six of the eight trace to hints of
+that shape.** The two the prompt did not name are the two both convergence
+passes kept.
+
+The good example is not hypothetical either: it measurably raised the quality
+of that group's research. The difference between them is that one hands over a
+**question with its evidence** and the other hands over an **answer**.
+
+Hard rules:
+
+  - **Never name an artefact kind.** Do not write "watch item", "method note"
+    or "suggestion" in a hypothesis. State the observation; the bar decides
+    what it becomes.
+  - **Never mention volume, budgets, counts, or how many were proposed last
+    time.** Not in a hypothesis, not anywhere else in the prompt
+    (`references/research.md` §There Is No Volume Target).
+  - **Never carry a prior conclusion without its evidence.** If you cannot
+    supply what it was based on, do not supply the conclusion.
+  - **Never phrase one as a decision for the checker to ratify** — "decide for
+    yourself whether", "confirm this is still worth flagging". Ask for the
+    observation, not for a verdict on a prior agent's judgement.
+  - **Prefer the raw observation to the prior agent's phrasing of it.**
+
+Hypotheses are drawn **mechanically, by tool id**, from `changelog.md`, the two
+standing-note stores and the previous run's report. They are not hand-written
+per run. A hand-written hint is where every one of the last run's nominations
+came from.
 
 ## Batch sizing and tiering
 

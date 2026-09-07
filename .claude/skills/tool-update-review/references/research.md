@@ -24,6 +24,7 @@ Table of contents:
   - Failure Handling
 - Part 2 — Subagent Quality Bar
   - What You May Touch
+  - Prior Findings Are Hypotheses
   - Headliners
   - Category vs. Severity — Independent Axes
   - CVE Severity Capture
@@ -239,6 +240,34 @@ bespoke-setup work. It is short and it is absolute:
 The paths you may scan are given in your prompt. Staying inside them is not a
 courtesy: a research run happens on a machine mid-work, and the only reason it
 is safe to spawn twenty of you at once is that none of you writes anything.
+
+### Prior Findings Are Hypotheses
+
+Your context may include findings from previous runs — things a prior review
+believed about this tool. **Treat every one as a hypothesis to test, never as a
+fact to carry forward.**
+
+- **Evidence it yourself**, against *this* run's current → target range, from
+  the sources you would have used had nobody told you. Cite what you found, not
+  what you were told.
+- **If your own evidence does not support it, drop it. Say nothing.** A prior
+  finding you could not confirm is not a finding, and it is not a "possible"
+  one either.
+- **If your evidence supports it, write it as your own finding with your own
+  citation.** Do not write "a prior review found X and it still holds" — write
+  X, with the evidence you have.
+- **Nothing reaches your output on the strength of history alone.**
+
+A hypothesis is a place to look. It is never an answer, and it is never a
+reason to propose anything. Last run, **six of eight** watch-item proposals
+traced to a hint in the prompt that named a candidate; the only two the prompt
+did not name are the only two that survived review. Being handed a candidate is
+not evidence that a candidate exists.
+
+The same asymmetry applies to a hypothesis you *disprove*. "A prior review said
+v5.3 flips this default; it does not — the flag was reverted in 5.3.1, here is
+the commit" is a real finding and worth writing, in `context[]`. Silently not
+mentioning a disproved hypothesis leaves the next run to rediscover it.
 
 ### Headliners
 

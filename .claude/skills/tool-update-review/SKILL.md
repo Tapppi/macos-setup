@@ -178,6 +178,14 @@ individual-tier anything you find, grep hit or not. Read
 `references/research.md` §Tiering in full before assigning tiers — the full
 heuristic lives there.
 
+**Prior findings go into the prompt as hypotheses, never as nominations.**
+Fill `{{HYPOTHESES}}` from the stores mechanically, and hold to
+`references/research-prompt-template.md` §Writing Hypotheses: state the
+observation and ask for verification, never name an artefact kind ("a watch
+item for..."), a conclusion, or a count. Six of the last run's eight
+watch-item proposals trace to hints that broke that rule; the two that did not
+are the two that survived review.
+
 Spawn every subagent (both tiers) in one turn. **Each subagent writes its own
 output JSON directly to `{session_dir}/research/{tool-or-batch-slug}.json`**
 — a JSON array, one element per tool in scope, matching `research.md`'s
@@ -186,8 +194,9 @@ Output Contract — rather than returning findings as conversation text.
 **Read `references/research.md` in full before spawning subagents, every
 run** — it holds the complete quality bar (headliner atomicity,
 category/severity axes, link quality, relevancy vs. context vs.
-release_inventory vs. filler, config_status, watch items, bespoke-setup
-testing, brew-health enrichment, depth-by-tool, heterogeneous hosts) and the
+release_inventory vs. filler, config_status, the three standing-note stores
+and the self-test, prior findings as hypotheses, bespoke-setup
+testing, brew-health enrichment, depth-by-tool) and the
 tiering/dispatch mechanics summarized above.
 
 On subagent failure/timeout, set `research_error` and keep the tool listed
