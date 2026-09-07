@@ -88,5 +88,76 @@ class IntelBrewfileTests(unittest.TestCase):
 		self.assertNotIn("intel.Brewfile", scan)
 
 
+# ── the orphans (REDESIGN.md A's corollary, criterion 19) ───────────────────
+class OrphanedInstructionTests(unittest.TestCase):
+	"""Seven instructions ran the last review and lived only in an untracked
+	scratch file, `scratch/research-0828b.js`. `REDESIGN.md` §A: *"anything
+	living in a prompt will evaporate."* Each test below is the home one of
+	them now has.
+
+	One is deliberately absent: the fleet-wide watch-item quota at `:38`
+	(*"across the whole fleet the expected total is one or two ... assume
+	someone else is covering the marginal case"*). §C4 forbids it and
+	criterion 14 checks that it stayed out. `NoVolumeTargetTests` asserts its
+	absence."""
+
+	def test_the_read_only_discipline_governs_every_checker(self):
+		"""It existed only scoped to bespoke-setup testing; the general form —
+		and the session-dir write restriction — were in scratch alone."""
+		section = RESEARCH[RESEARCH.index("### What You May Touch"):]
+		section = section[:section.index("### Headliners")]
+		self.assertIn("non-destructive and\n  read-only", section)
+		for banned in ("setup.sh", "tasks/*.sh", "dotfiles/bootstrap.sh"):
+			self.assertIn(banned, section)
+		self.assertIn("session directory except your own output file", section)
+
+	def test_the_read_only_discipline_is_not_only_in_the_bespoke_section(self):
+		"""The point of the port: it governs every checker, including the ones
+		that never touch a `tasks/*.sh` function."""
+		general = RESEARCH.index("### What You May Touch")
+		bespoke = RESEARCH.index("### Bespoke `tasks/*.sh` Setup Testing")
+		self.assertLess(general, bespoke)
+
+	def test_vendored_skill_content_is_a_named_false_positive(self):
+		"""`grep -rn agent-skills` over the skill returned nothing before this."""
+		section = RESEARCH[RESEARCH.index("### Word-Boundary Grep Rule"):]
+		section = section[:section.index("### Spawning")]
+		self.assertIn("dotfiles/config/agent-skills", section)
+		self.assertIn("almost never a real touchpoint", section)
+		# ...and the prompt a checker actually receives says so too.
+		self.assertIn("dotfiles/config/agent-skills", TEMPLATE)
+
+	def test_the_tiering_decision_is_recorded_not_just_the_heuristic(self):
+		"""research.md documented the heuristic; the decision a given run made
+		was recorded nowhere, so a scoped run and a full run produced
+		indistinguishable session dirs."""
+		self.assertIn('"tier"', SCHEMAS)
+		self.assertIn('"scope"', SCHEMAS)
+		self.assertIn("scoped run and a full run produce indistinguishable", RESEARCH)
+
+	def test_touchpoints_reach_the_prompt_as_a_generated_placeholder(self):
+		"""The per-group touchpoint hints were hand-typed. The touchpoint half
+		is derivable from the word-boundary grep; the nomination half is what
+		§Writing Hypotheses bans."""
+		self.assertIn("{{TOUCHPOINTS}}", TEMPLATE)
+		self.assertIn("never typed by hand", TEMPLATE)
+
+	def test_the_baseline_upgrade_suggestion_is_still_research_s_to_not_author(self):
+		"""Listed as an orphan by the design doc, but its grep was
+		case-sensitive: the instruction was already here, spelled
+		"Do **not** author". Asserted so it stays."""
+		flat = " ".join(RESEARCH.split())
+		self.assertIn('Do **not** author the plain "upgrade this tool" suggestion', flat)
+
+	def test_every_template_placeholder_has_a_row_in_the_table(self):
+		"""A placeholder nobody documents is a placeholder that gets filled
+		with whatever the orchestrator remembers — which is how the hand-built
+		prompt happened."""
+		body, table = TEMPLATE.split("## Placeholder reference", 1)
+		used = set(re.findall(r"\{\{[A-Z_]+\}\}", body))
+		documented = set(re.findall(r"\{\{[A-Z_]+\}\}", table))
+		self.assertEqual(used - documented, set())
+
+
 if __name__ == "__main__":
 	unittest.main()

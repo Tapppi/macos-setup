@@ -23,6 +23,7 @@ Table of contents:
   - `research-status.json` Group Updates
   - Failure Handling
 - Part 2 — Subagent Quality Bar
+  - What You May Touch
   - Headliners
   - Category vs. Severity — Independent Axes
   - CVE Severity Capture
@@ -125,6 +126,14 @@ miscategorized into the individual tier for the wrong reason (or worse, a
 real touchpoint gets diluted by unrelated grep noise in its context). Re-run
 suspicious hits with `-w` before trusting them.
 
+**`dotfiles/config/agent-skills/**` is vendored third-party skill content.**
+Grep hits there are almost never a real touchpoint — they are somebody else's
+documentation and scripts, which happen to name the same tools the user
+installs. Ignore them unless the tool is genuinely configured there. This is a
+false-positive filter on the tiering decision specifically: a batch of casks
+looks like it has bespoke setup because a vendored skill's README mentions
+each one, and the tier moves for a reason that does not exist.
+
 Grep is a starting signal, not the last word — it only catches *literal*
 mentions. A script can use a tool conceptually without ever naming it (e.g.
 `tasks/init.sh` configures `~/.ssh/config` and the 1Password SSH agent but
@@ -175,6 +184,19 @@ done`/`failed`) — same one-transition-per-write discipline used for
 `status.json` (`references/server-and-session.md` §Pre-Report Status covers
 the write pattern and the server side of this file).
 
+**Record the tiering decision, not just the groups.** Each group carries the
+`tier` it was placed in, and the file's `scope` block records how many
+candidates were collected against how many were actually tiered into groups,
+plus any restriction the user asked for.
+
+Without this, a scoped run and a full run produce indistinguishable session
+dirs: 22 groups either way, no record of which tools got individual depth,
+which were batched, or which were never researched at all. The tiering
+heuristic is documented above; the *decision it produced on this run* was
+recorded nowhere, so nothing downstream could tell "this tool got a skim
+because it has no touchpoint" from "this tool was not in scope". Both look
+like a thin result.
+
 ### Failure Handling
 
 On subagent failure/timeout, set `research_error` and keep the tool listed
@@ -187,6 +209,31 @@ with versions only.
 **A research subagent reads this section in full, every run, before writing
 findings.** Everything below applies to every tier (individual, batched,
 brew-health, skill-drift) unless a rule says otherwise.
+
+### What You May Touch
+
+This is the discipline that governs every checker, not only the ones doing
+bespoke-setup work. It is short and it is absolute:
+
+- **Any test you run against the live machine must be non-destructive and
+  read-only**, unless §Bespoke `tasks/*.sh` Setup Testing explicitly sanctions
+  a throwaway scratch resource for what you are doing. Reading a config,
+  running `--version`, grepping a repo: yes. Anything that writes, installs,
+  upgrades, or changes state: no.
+- **Never run `setup.sh`, `tasks/*.sh` or `dotfiles/bootstrap.sh`.** These
+  modify system configuration, install software and require `sudo`. The repo's
+  own `CLAUDE.md` says the same thing; a research subagent has no exception to
+  it. If a question can only be answered by running one, the answer is that you
+  could not verify it — say so, and say what you would have run.
+- **Never write into the session directory except your own output file.**
+  Every other file there belongs to another group or to a deterministic step,
+  and one stray write costs a run that has already spent its expensive part.
+- **The setup repos are the user's live checkouts.** Read them; never edit
+  them, never `git` anything in them, never leave a file behind.
+
+The paths you may scan are given in your prompt. Staying inside them is not a
+courtesy: a research run happens on a machine mid-work, and the only reason it
+is safe to spawn twenty of you at once is that none of you writes anything.
 
 ### Headliners
 

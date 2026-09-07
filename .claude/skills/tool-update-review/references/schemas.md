@@ -1422,6 +1422,18 @@ pre-report loading page (`references/rendering-results.md` §Loading Page,
   "started_at": "2026-07-06T08:58:07Z",
   "written_at": "2026-07-06T08:59:41Z",
 
+  // What this run actually covered. Written with `groups` and never
+  // recomputed. Without it a scoped run and a full run produce
+  // indistinguishable session dirs, and nothing downstream can tell "thin
+  // because there was nothing to find" from "thin because it was not in
+  // scope" (`references/research.md` §`research-status.json` Group Updates).
+  "scope": {
+    "candidates": 78,   // how many collect.sh produced
+    "researched": 78,   // how many were tiered into groups
+    "filter": null      // null for a full run; otherwise what the user asked
+                        // to restrict it to, in their own words
+  },
+
   // Populated once tiering has grouped the candidates; empty during
   // "collecting". One entry per research subagent (both individual-focus
   // and batched-by-category groups).
@@ -1430,6 +1442,9 @@ pre-report loading page (`references/rendering-results.md` §Loading Page,
       "id": "01-podman",             // matches research/{id}.json's filename
       "label": "podman",             // display label — tool name, or a short
                                       // category label for a batch group
+      "tier": "individual",          // "individual" | "batch" | "brew-health"
+                                      // | "skill-drift" — the tiering DECISION,
+                                      // recorded rather than re-derived
       "state": "done",               // "pending" | "running" | "done" | "failed"
       "tool_ids": ["brew:podman"]     // every group has ≥1; batches have several
     }

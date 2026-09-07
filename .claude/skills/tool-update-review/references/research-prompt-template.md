@@ -55,6 +55,16 @@ Audit trail to check for config_status and watch items (`references/research.md`
     ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/changelog.md
     ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json
 
+Touchpoints found by word-boundary grep, per tool — where these tools are
+named in the setup repos. This is a starting signal, not a finding and not a
+list of what matters: verify each hit is a real touchpoint and find the ones
+grep cannot (`references/research.md` §Word-Boundary Grep Rule — a script can
+use a tool without ever naming it).
+{{TOUCHPOINTS}}
+<!-- one block per tool: the `grep -wn` hits from tiering, file:line + the
+     matched line. Generated, never hand-written: a hand-written hint is where
+     the nomination problem starts (§Writing Hypotheses below). -->
+
 Follow references/research.md's full research quality bar — headliner atomicity
 and category/severity classification, relevancy vs context vs
 release_inventory vs filler, the noise floor's eight classes and its hard
@@ -93,6 +103,7 @@ fine as your actual response.
 | `{{TOOL_LIST}}` | One block per tool: id, name, source, current_version, latest_version, pinned — from `collect.sh`'s output |
 | `{{MACHINE_JSON}}` | The `machine` object from `collect.sh`'s output |
 | `{{REPO_CONTEXT_JSON}}` | The contents of `{session_dir}/repo_context.json` (`scripts/repo_context.sh`'s output) |
+| `{{TOUCHPOINTS}}` | The word-boundary grep hits from tiering (`references/research.md` §Word-Boundary Grep Rule), one block per tool — **generated from the grep, never typed by hand** |
 
 ## Batch sizing and tiering
 
