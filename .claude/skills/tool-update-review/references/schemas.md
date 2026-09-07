@@ -729,7 +729,7 @@ different body:
 
 Both memory kinds — `watch-item` and `method-note` — may carry
 `self_test_failed`. The per-tool agent runs a self-test before proposing
-(`references/research.md` §Before You Propose a Watch Item), and **a failing
+(`references/research.md` §Before You Propose a Standing Note: the Self-Test), and **a failing
 self-test applies this tag; it never removes the proposal** (`REDESIGN.md`
 §L7). Convergence reviews every tagged proposal and verifies that dropping it
 is appropriate.

@@ -1018,7 +1018,7 @@ The second is a worry about a vendor. The first is a correction to a procedure.
 If you cannot point at the wrong answer the ordinary path produced — in a prior
 run, in this run's own research, or in the source you had to fall back on — you
 have the second one, and it belongs in the note's `self_test_failed` tag rather
-than in the store unexamined (§Before You Propose a Watch Item covers the tag;
+than in the store unexamined (§Before You Propose a Standing Note covers the tag;
 `unwitnessed` is the limb a method note fails).
 
 A method note that is right stays useful for years, and it is cheap: it changes
