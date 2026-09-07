@@ -391,6 +391,18 @@ class SelfTestTests(GuidelineTestCase):
 		self.assertSays("no single delta to re-check", text)
 		self.assertSays("Writing the rule's words is not passing the rule", text)
 
+	def test_every_tag_example_carries_a_reason(self):
+		"""`reason` is required, and the validator rejects a tag without one.
+		A worked example that omits it teaches the shape that fails — prose
+		that is correct in one paragraph and unfollowable three below it."""
+		for example in re.finditer(r"\{limb: [^}]*\}", self.section()):
+			with self.subTest(example.group(0)[:40]):
+				self.assertIn("reason:", example.group(0))
+
+	def test_the_reason_requirement_is_stated_where_the_tag_is_introduced(self):
+		self.assertSays("`reason` is required whenever the tag is present",
+			self.section())
+
 	def test_a_method_note_has_its_own_limb(self):
 		self.assertSays("Q5 — THE WITNESS", self.section())
 

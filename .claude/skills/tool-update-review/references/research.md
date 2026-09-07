@@ -1233,6 +1233,9 @@ have to go and find something new, that is the answer.
 **Nothing here deletes a proposal.** A question you fail tags the proposal and
 you write it anyway, with `self_test_failed: {limb, reason}` naming the
 question and your own reason in your own words (`references/schemas.md` §1.7c).
+**`reason` is required whenever the tag is present** — a limb name alone gives
+the later pass nothing to review the proposal against, which is a deletion
+wearing a tag, and the output is rejected for it (`E-SELFTEST-NOREASON`).
 A later corpus-wide pass reviews every tagged proposal and decides whether
 dropping it is right. **A proposal you never write is one that pass cannot
 restore** — that asymmetry is the whole reason the self-test tags instead of
@@ -1266,7 +1269,8 @@ cutting. Never suppress a proposal because it failed a question here.
 > **Q3 — THE CHANGING THING.** Name the thing that could change, and who owns
 > it. Then: is that thing something a file in the setup repos states, sets or
 > pins? If yes, a future delta against that file is exactly what
-> `config_status` re-checks every run — tag `{limb: "changing-thing"}`.
+> `config_status` re-checks every run — tag `{limb: "changing-thing", reason:
+> <which file states it>}`.
 >
 > Note what this asks and what it does not. It asks about the thing that could
 > **change** — not about any file your rationale happens to cite. A login item
@@ -1281,14 +1285,16 @@ cutting. Never suppress a proposal because it failed a question here.
 >   - (b) could you tell from the machine's state alone that it already
 >     happened **+** what breaks after six months unnoticed
 >
-> If either half is unanswered, tag `{limb: "limb"}` and say which half.
+> If either half is unanswered, tag `{limb: "limb", reason: <which half, and
+> what you could not answer>}`.
 
 **For a method note — one question.**
 
 > **Q5 — THE WITNESS.** Point at the wrong or empty answer the ordinary path
 > produced for this tool: in a prior run, in this run's own research, or in the
 > source you had to fall back on. If your rationale predicts a failure rather
-> than naming one, tag `{limb: "unwitnessed"}` with what you have.
+> than naming one, tag `{limb: "unwitnessed", reason: <what you have instead of
+> a witnessed failure>}`.
 
 **A restatement is not an answer.** If a reply repeats the question, or recites
 the bar's own wording back at it, it fails. Two rationales last run opened with
