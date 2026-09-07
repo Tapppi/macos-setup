@@ -37,6 +37,12 @@ it covers, not just when something breaks.
 - `references/schemas.md` — every JSON shape: report object, `feedback.json`,
   `status.json`, `research-status.json`. Read this first if you need a
   field's exact shape.
+- `references/item-schema.md` — the per-tool checker's `items[]` output
+  contract and the deterministic validator that consumes it: the closed tag
+  set, the evidence split, the structural outlet, validator-assigned ids, the
+  six stages and eighteen invariants. The contract itself is code
+  (`scripts/items.py`, `scripts/validate_items.py`) with published fixtures in
+  `scripts/contract/` that a sibling package imports and asserts against.
 - `references/collection.md` — step 1: `collect.sh`'s sources, brew-health
   taxonomy, skill-drift detection, repo freshness.
 - `references/research.md` — step 3: tiering, the full research quality bar,
