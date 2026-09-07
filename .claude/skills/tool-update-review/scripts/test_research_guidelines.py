@@ -310,6 +310,20 @@ class ThreeStoresTests(GuidelineTestCase):
 		for field in ("method_topic", "method_note", "rationale"):
 			self.assertSays(field, text)
 
+	def test_the_method_note_shape_the_guideline_shows_is_the_one_that_validates(self):
+		"""A worked shape that the validator rejects is worse than none — the
+		agent copies it and gets an error it cannot connect to the guideline."""
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		text = section_of(RESEARCH, "### Writing a Research-Method Note",
+			"### Watch Items (Reading)")
+		for field in model.MEMORY_PAYLOAD_FIELDS["method-note"]:
+			self.assertSays('"{}"'.format(field), text)
+		for field in ("target_files", "command", "auto_runnable"):
+			self.assertSays('"{}"'.format(field), text)
+		self.assertSays("proposal, not a write", text)
+
 	def test_method_notes_are_read_before_research_begins(self):
 		"""A note saying "read CHANGELOG.md, the release page is boilerplate"
 		is worthless delivered after the release page has been read."""

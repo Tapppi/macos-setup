@@ -1011,17 +1011,28 @@ worth writing when the ordinary path — read the release notes, check for CVEs 
 returns a wrong or empty answer **for this tool specifically**, and will keep
 doing so.
 
-Propose one as a suggestion with `kind: "method-note"`
-(`references/schemas.md` §1.7b), carrying:
+Propose one as a suggestion in the tool's `suggestions[]` with
+`kind: "method-note"` (`references/schemas.md` §1.7b) — same array, same schema
+strictness as any other suggestion, just a different shape:
 
+```jsonc
+{
+	"id": "cask:claudebar:method-where-the-changelog-lives",
+	"kind": "method-note",
+	"title": "Read ClaudeBar's CHANGELOG.md, not its release bodies",
+	"target_files": [],          // nothing to edit
+	"command": null,             // nothing to run
+	"auto_runnable": false,      // accepting it writes a note, nothing else
+	"method_topic": "where the real changelog lives",
+	"method_note": "the instruction, written so it reads sensibly copied
+	                verbatim into the next run's context — because that is
+	                exactly what happens on accept",
+	"rationale": "how you know the ordinary path fails here"
+}
 ```
-method_topic  what the note is about, in a few words
-              ("where the real changelog lives")
-method_note   the instruction, written so it reads sensibly when copied
-              verbatim into the next run's context — because that is exactly
-              what happens on accept
-rationale     how you know the ordinary path fails here
-```
+
+Like a watch item, this is a **proposal, not a write**: nothing reaches the
+store unless the user accepts it in the review UI.
 
 **The rationale must name a failure, not predict one.** Good:
 
