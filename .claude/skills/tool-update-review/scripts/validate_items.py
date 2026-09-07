@@ -224,7 +224,11 @@ def split_members(value, findings: Findings, tool_id, field, item_id=None):
 				"a {} entry is {}, not an object — quarantined, not dropped".format(
 					field, type(member).__name__),
 				tool_id=tool_id, item_id=item_id, field=field, value=member)
-			bad.append({"field": field, "item_id": item_id, "value": _short(member)})
+			# The member itself, not `_short()` of it: the quarantine exists so
+			# nothing a human would have read is lost, and a truncated repr
+			# loses both the tail and the structure. It came from JSON, so it
+			# is JSON-serializable by construction.
+			bad.append({"field": field, "item_id": item_id, "value": member})
 	return good, bad
 
 
@@ -248,15 +252,20 @@ def normalize_evidence(raw, findings: Findings, tool_id, item_id, field):
 					tool_id=tool_id, item_id=item_id, field=field, value=entry)
 				out.append(entry)
 				continue
-			normalized = {"path": path}
+			# A copy, not a rebuild: a rebuilt object silently drops every key
+			# the schema did not anticipate, and a checker's extra field is
+			# content a human would have read.
+			normalized = dict(entry)
 			lines = entry.get("lines")
-			if lines is not None and lines != []:
+			if lines == []:
+				del normalized["lines"]  # `[]` and absent mean the same thing
+			elif lines is not None:
 				if not isinstance(lines, list):
 					findings.add("E-FIELD-TYPE",
 						"evidence `lines` is {}, not an array".format(type(lines).__name__),
 						tool_id=tool_id, item_id=item_id, field=field + ".lines", value=lines)
 				else:
-					kept = []
+					kept, bad = [], 0
 					for loc in lines:
 						if isinstance(loc, bool):
 							pass  # bool is an int subclass; a line number it is not
@@ -267,14 +276,15 @@ def normalize_evidence(raw, findings: Findings, tool_id, item_id, field):
 								and all(isinstance(x, _LINES_INT) and not isinstance(x, bool) for x in loc)):
 							kept.append([loc[0], loc[1]])
 							continue
+						bad += 1
 						findings.add("E-FIELD-TYPE",
 							"an evidence line locator is neither an int nor a two-element [start, end]",
 							tool_id=tool_id, item_id=item_id, field=field + ".lines", value=loc)
-					if kept:
+					# The normalization is licensed only when it succeeds. A
+					# partly-unreadable locator list is reported and left
+					# exactly as written rather than half-rewritten.
+					if not bad:
 						normalized["lines"] = kept
-			# `note` is never load-bearing; carried through untouched.
-			if isinstance(entry.get("note"), str):
-				normalized["note"] = entry["note"]
 			out.append(normalized)
 			continue
 		parsed = model.parse_evidence_shorthand(entry)
@@ -427,11 +437,22 @@ class Manifest:
 		except OSError:
 			return
 		self.readable = True
+		# A top-level header is three lines — rule, title, rule — so the
+		# CLOSING rule must not arm `previous_was_rule` again. Without the
+		# `expect_close` state the first `## comment` after a header block gets
+		# promoted to a section, and `manifest_move`'s "already in that section"
+		# check then compares against the wrong name. The real Brewfile happens
+		# to survive because a blank line follows each header; that is luck.
 		section = None
 		previous_was_rule = False
+		expect_close = False
 		for line in lines:
 			if _SECTION_RULE.match(line):
-				previous_was_rule = True
+				if expect_close:
+					expect_close = False
+					previous_was_rule = False
+				else:
+					previous_was_rule = True
 				continue
 			title = _SECTION_TITLE.match(line)
 			if title:
@@ -439,9 +460,11 @@ class Manifest:
 				self.sections.add(_norm_section(name))
 				if previous_was_rule:
 					section = name
+					expect_close = True
 				previous_was_rule = False
 				continue
 			previous_was_rule = False
+			expect_close = False
 			entry = _MANIFEST_ENTRY.match(line)
 			if entry:
 				self.entries[(entry.group(1), entry.group(2))] = section
@@ -478,7 +501,10 @@ def _norm_section(name) -> str:
 
 
 # ── V2 + V4: one item ───────────────────────────────────────────────────────
-_CVE_ID = re.compile(r"^CVE-(?:19|20)\d{2}-\d{4,}$")
+# I-5's grammar is I-9's `cve` anchor grammar. Read from the model rather than
+# recompiled here: two copies of one pattern, in exactly the pair of files this
+# contract exists to keep in sync, is how they come to disagree.
+_CVE_ID = model.ANCHOR_PATTERNS["cve"]
 
 
 def _require_string(value, findings, tool_id, item_id, field, allow_empty=False):
@@ -500,7 +526,8 @@ def _require_string(value, findings, tool_id, item_id, field, allow_empty=False)
 def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 		resolver: RootResolver):
 	"""V2 spec validation, V3 normalization and V4's per-item invariants, on
-	one item. Returns the normalized item; the input is never mutated.
+	one item. → (normalized item, quarantined members). The input is never
+	mutated, and no field is ever removed from the output.
 
 	Every branch reports. None removes the item, shortens a field or changes a
 	severity."""
@@ -596,10 +623,12 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 	# ── change (I-7, I-8) ──────────────────────────────────────────────
 	change = item.get("change")
 	if change is not None and not isinstance(change, dict):
+		# Reported, and left on the item exactly as written (V2's rule): the
+		# finding's `value` is bounded for readability, so nulling the field
+		# here would be the only surviving copy losing its tail.
 		findings.add("E-FIELD-TYPE", "change is {}, not an object".format(type(change).__name__),
 			tool_id=tool_id, item_id=item_id, field="change", value=change)
 		change = None
-		out["change"] = None
 	elif isinstance(change, dict):
 		version = change.get("version")
 		if version is not None and not isinstance(version, str):
@@ -633,8 +662,7 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 	if local is not None and not isinstance(local, dict):
 		findings.add("E-FIELD-TYPE", "local is {}, not an object".format(type(local).__name__),
 			tool_id=tool_id, item_id=item_id, field="local", value=local)
-		local = None
-		out["local"] = None
+		local = None  # for the checks below only; the item keeps what was written
 	elif isinstance(local, dict):
 		normalized_local = dict(local)
 		direction = local.get("direction")
@@ -701,8 +729,7 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 		findings.add("E-FIELD-TYPE", "security is {}, not an object".format(
 			type(security).__name__),
 			tool_id=tool_id, item_id=item_id, field="security", value=security)
-		security = None
-		out["security"] = None
+		security = None  # for the checks below only; the item keeps what was written
 	if tagged_security and not isinstance(security, dict):
 		findings.add("E-SEC-BLOCK-MISSING",
 			"tagged `security` with no `security` block — the per-item rating lives there",
@@ -861,10 +888,12 @@ def validate_structural(block, tool_id, sug_id, findings: Findings, manifest: Ma
 				tool_id=tool_id, item_id=sug_id, field="structural.manifest", value=manifest_name)
 			manifest_name = None
 
+	refs_ok = True
 	for field in ("from", "to"):
 		ref = block.get(field)
-		if ref is not None:
-			_ref_ok(ref, findings, tool_id, sug_id, "structural." + field)
+		if ref is not None and not _ref_ok(ref, findings, tool_id, sug_id,
+				"structural." + field):
+			refs_ok = False
 
 	if op is None:
 		return subjects
@@ -875,6 +904,19 @@ def validate_structural(block, tool_id, sug_id, findings: Findings, manifest: Ma
 				"structural.{} is required for op \"{}\"".format(required, op),
 				tool_id=tool_id, item_id=sug_id, field="structural." + required)
 			return subjects
+
+	# A precondition is a claim about a well-formed op. Checking one against a
+	# Ref that already failed its own shape check would dereference `name` on
+	# something that has none — the shape failure is already reported, so stop
+	# here rather than trading one finding for a crashed stage.
+	if not refs_ok or not isinstance(block.get("anchor", {}), dict):
+		return subjects
+	if any(not isinstance(_struct_get(block, r), str)
+			for r in _OP_REQUIRES[op] if r.startswith("anchor.")):
+		findings.add("E-FIELD-TYPE",
+			"structural.anchor's value for op \"{}\" is not a string".format(op),
+			tool_id=tool_id, item_id=sug_id, field="structural.anchor")
+		return subjects
 
 	_check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifest_name)
 	return subjects
@@ -901,7 +943,7 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 			unchecked("no readable manifest was named")
 			return
 		if not manifest.readable:
-			unchecked("Brewfile not readable at {}".format(manifest.root))
+			unchecked("no readable Brewfile under the configured macos-setup root")
 			return
 
 	if op == "manifest_add":
@@ -952,7 +994,7 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 				frm.get("type")), "structural.to", to.get("type"))
 		elif frm.get("type") in ("formula", "cask", "tap", "mas"):
 			if not manifest.readable:
-				unchecked("Brewfile not readable at {}".format(manifest.root))
+				unchecked("no readable Brewfile under the configured macos-setup root")
 			elif not manifest.has(frm["type"], frm["name"]):
 				fail("{} \"{}\" does not resolve in its current mechanism".format(
 					frm["type"], frm["name"]), "structural.from", frm["name"])
@@ -965,7 +1007,7 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 			return
 		if op == "task_add":
 			if not manifest.tasks_readable:
-				unchecked("setup.sh not readable at {}".format(manifest.root))
+				unchecked("no readable setup.sh under the configured macos-setup root")
 				return
 			token = str(to.get("name", "")).split(":")[-1]
 			if token in manifest.tasks:
@@ -974,6 +1016,12 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 
 
 # ── V5: impact (§5.5) ───────────────────────────────────────────────────────
+def research_produced_content(view) -> bool:
+	"""A checker that failed, timed out or returned an empty shell has told us
+	nothing — never the same as "nothing but security fixes"."""
+	return not view.get("research_error") and bool(view["items"])
+
+
 def compute_impact(view) -> str:
 	"""Does anything in this release touch *this* setup? → "none" | "possible"
 	| "unknown".
@@ -996,7 +1044,10 @@ def compute_impact(view) -> str:
 	against that row. Landed here as `("edit", "structural")`."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "none" if assemble.finding_expected(view) else "possible"
-	if view.get("research_error") or not view["items"]:
+	if not research_produced_content(view):
+		# "unknown" can never reach security_auto, so it never renders as
+		# auto-approved. One spelling of the question, shared with
+		# compute_security_only, so the two cannot come to disagree.
 		return "unknown"
 	suggestions = view.get("suggestions") or []
 	if (view.get("pinned")
@@ -1015,12 +1066,6 @@ def compute_impact(view) -> str:
 
 
 # ── V6: initial bucketing (§5.6) ────────────────────────────────────────────
-def research_produced_content(view) -> bool:
-	"""A checker that failed, timed out or returned an empty shell has told us
-	nothing — never the same as "nothing but security fixes"."""
-	return not view.get("research_error") and bool(view["items"])
-
-
 def compute_security_only(view, has_security: bool) -> bool:
 	if not has_security or not research_produced_content(view):
 		return False
@@ -1086,11 +1131,32 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	source = candidate.get("source")
 	name = candidate.get("name") or tool_id.split(":", 1)[-1]
 
+	# Every key a healthy view carries is present from the start, defaulted
+	# conservatively. A consumer reading `view["version_delta"]` must not
+	# KeyError on precisely the tool that degradation was supposed to keep
+	# usable, and the derived axes must default to the answers that can never
+	# reach an auto-accepting bucket.
 	view = {
 		"id": tool_id,
 		"source": source,
 		"name": name,
 		"pinned": bool(candidate.get("pinned")),
+		"research_error": None,
+		"links": [],
+		"vendor_silent_categories": [],
+		"items": [],
+		"quarantine": [],
+		"config_status": default_config_status(),
+		"suggestions": [],
+		"subject_refs": [],
+		"flags": model.recompute_flags([]),
+		"version_delta": "unknown",
+		"impact": "unknown",
+		"risk_level": "elevated",
+		"initial_review_bucket": "attention",
+		"bucket_inputs": {"has_security": False, "security_only": False,
+			"impact": "unknown", "version_delta": "unknown", "runnable": False},
+		"security_display_item_ids": [],
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1101,54 +1167,95 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	elif source == "skill-drift":
 		view["drift_expected"] = bool(candidate.get("expected", False))
 	if research is None:
-		view.update({
-			"research_error": "no research entry for this candidate",
-			"items": [], "suggestions": [], "links": [], "quarantine": [],
-			"config_status": default_config_status(),
-			"vendor_silent_categories": [],
-		})
+		view["research_error"] = "no research entry for this candidate"
 	else:
 		view["research_error"] = research.get("research_error")
-		links = as_list(research.get("links"), findings, tool_id, "links")
-		view["links"] = links
-		silent = as_list(research.get("vendor_silent_categories"), findings, tool_id,
-			"vendor_silent_categories")
-		view["vendor_silent_categories"] = [c for c in silent if isinstance(c, str)]
+		_guard(findings, tool_id, "research section",
+			lambda: _read_research(view, research, findings, tool_id, resolver, manifest))
 
-		raw_items, quarantine = split_members(research.get("items"), findings, tool_id, "items")
-		# V3b — ids are assigned here, after normalization and before any
-		# invariant that references an item by id. Assigned in AUTHORED order,
-		# so a duplicate's `~2` suffix falls on the later of the pair; the
-		# canonical ordering is applied afterwards and never moves an id.
-		normalized, seen = [], set()
-		for raw in raw_items:
-			derived = model.derive_item_id(tool_id, raw.get("anchor"))
-			item_id = model.disambiguate(derived, seen)
-			if item_id != derived:
-				findings.add("E-ITEM-DUP-ANCHOR",
-					"two items derive one id — the strongest available signal that one "
-					"change was written twice. Both are KEPT and the later one suffixed; "
-					"convergence decides",
-					tool_id=tool_id, item_id=item_id, field="anchor", value=derived)
-			seen.add(item_id)
+	# version delta, then the derived axes, in dependency order.
+	_guard(findings, tool_id, "derived axes",
+		lambda: _derive_axes(view, candidate, findings))
+	return view
+
+
+def _guard(findings: Findings, tool_id, stage, work):
+	"""Run one stage of a tool's validation, or report that it failed.
+
+	Criterion 4 with the constraint attached: the next unanticipated shape must
+	cost as little as possible and say so. It must NOT cost the items already
+	validated — discarding those is deletion, which is what this whole layer is
+	forbidden to do — so `view` is built up in place and whatever conformed
+	before the failure stays on it."""
+	try:
+		work()
+	except Exception as exc:  # noqa: BLE001 — the point is to contain everything
+		findings.add("E-VALIDATOR-CRASH",
+			"the {} stage failed ({}: {}); this tool keeps whatever conformed before "
+			"the failure".format(stage, type(exc).__name__, exc), tool_id=tool_id)
+
+
+def _read_research(view, research, findings, tool_id, resolver, manifest):
+	"""V1-input → V2/V3/V3b/V4 for one tool's research object."""
+	links = as_list(research.get("links"), findings, tool_id, "links")
+	view["links"] = links
+	silent = as_list(research.get("vendor_silent_categories"), findings, tool_id,
+		"vendor_silent_categories")
+	view["vendor_silent_categories"] = [c for c in silent if isinstance(c, str)]
+
+	raw_items, quarantine = split_members(research.get("items"), findings, tool_id, "items")
+	view["quarantine"] = quarantine
+	# V3b — ids are assigned here, after normalization and before any invariant
+	# that references an item by id. Assigned in AUTHORED order, so a
+	# duplicate's `~2` suffix falls on the later of the pair; the canonical
+	# ordering is applied afterwards and never moves an id.
+	normalized, seen = [], set()
+	view["items"] = normalized
+	for raw in raw_items:
+		derived = model.derive_item_id(tool_id, raw.get("anchor"))
+		item_id = model.disambiguate(derived, seen)
+		if item_id != derived:
+			findings.add("E-ITEM-DUP-ANCHOR",
+				"two items derive one id — the strongest available signal that one "
+				"change was written twice. Both are KEPT and the later one suffixed; "
+				"convergence decides",
+				tool_id=tool_id, item_id=item_id, field="anchor", value=derived)
+		seen.add(item_id)
+		try:
 			item, item_quarantine = validate_item(raw, tool_id, item_id, len(links),
 				findings, resolver)
-			normalized.append(item)
-			quarantine.extend(item_quarantine)
-		view["items"] = model.order_items(normalized)
-		view["config_status"] = _validate_config_status(research, findings, tool_id, resolver)
-		suggestions, subject_refs, sug_quarantine = _validate_suggestions(
-			research, findings, tool_id, manifest)
-		view["suggestions"] = suggestions
-		view["subject_refs"] = subject_refs
-		# Every quarantined member ends up on the tool, whichever array it came
-		# from: dropping one is deletion, and a human would have read it.
-		view["quarantine"] = quarantine + sug_quarantine
-		_check_flags(research, view, findings, tool_id)
+		except Exception as exc:  # noqa: BLE001
+			# One item's unanticipated shape costs that item's *checks*, never
+			# the item: it is kept exactly as written, with its assigned id, so
+			# convergence can still address it and a human can still read it.
+			findings.add("E-VALIDATOR-CRASH",
+				"validating this item failed ({}: {}); it is kept verbatim and "
+				"unchecked".format(type(exc).__name__, exc),
+				tool_id=tool_id, item_id=item_id)
+			item, item_quarantine = dict(raw, id=item_id), []
+		normalized.append(item)
+		quarantine.extend(item_quarantine)
+	view["items"] = model.order_items(normalized)
+	view["config_status"] = _validate_config_status(view, research, findings, tool_id,
+		resolver)
+	suggestions, subject_refs, sug_quarantine = _validate_suggestions(
+		research, findings, tool_id, manifest)
+	view["suggestions"] = suggestions
+	view["subject_refs"] = subject_refs
+	# Every quarantined member ends up on the tool, whichever array it came
+	# from: dropping one is deletion, and a human would have read it.
+	quarantine.extend(sug_quarantine)
+	_check_flags(research, view, findings, tool_id)
 
-	# version delta, then the derived axes, in dependency order
+
+def _derive_axes(view, candidate, findings):
+	"""V5 and V6. Reads only what is on the view, so it produces the same answer
+	for a tool whose research stage failed as for one that had no research at
+	all — which is the honest answer in both cases: `unknown`."""
+	source, name = view["source"], view["name"]
 	view["version_delta"] = assemble.compute_version_delta(
-		candidate.get("current_version"), candidate.get("latest_version"), source, tool_id)[0]
+		candidate.get("current_version"), candidate.get("latest_version"), source,
+		view["id"])[0]
 	flags = model.recompute_flags(view["items"])
 	view["flags"] = flags
 	impact = compute_impact(view)
@@ -1156,12 +1263,10 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	risk_level = compute_risk_level(view)
 	runnable = (False if source in NON_VERSION_SOURCES
 		else bool(assemble.upgrade_command_and_runnable(source, name)[1]))
-	bucket = compute_initial_bucket(view, flags["has_security"], security_only, impact,
-		risk_level, runnable)
-
 	view["impact"] = impact
 	view["risk_level"] = risk_level
-	view["initial_review_bucket"] = bucket
+	view["initial_review_bucket"] = compute_initial_bucket(view, flags["has_security"],
+		security_only, impact, risk_level, runnable)
 	view["bucket_inputs"] = {
 		"has_security": flags["has_security"],
 		"security_only": security_only,
@@ -1178,11 +1283,10 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 			for s in view["suggestions"] if isinstance(s, dict)):
 		findings.add("W-ATTENTION-NOSUG",
 			"config_status is needs_attention but no non-upgrade suggestion says what to do",
-			tool_id=tool_id, field="config_status.state")
-	return view
+			tool_id=view["id"], field="config_status.state")
 
 
-def _validate_config_status(research, findings, tool_id, resolver):
+def _validate_config_status(view, research, findings, tool_id, resolver):
 	"""`config_status.evidence` gets the same split as an item's (§3.2). It is
 	the single worst offender today: 133 of the run's 272 warnings, against 286
 	evidence strings."""
@@ -1201,8 +1305,11 @@ def _validate_config_status(research, findings, tool_id, resolver):
 		"config_status.evidence")
 	out["evidence"] = evidence
 	_resolve_evidence(evidence, findings, tool_id, None, "config_status.evidence", resolver)
-	out["citations"] = validate_citations(raw.get("citations"), findings, tool_id, None,
-		"config_status.citations")[0]
+	citations, bad = validate_citations(raw.get("citations"), findings, tool_id, None,
+		"config_status.citations")
+	out["citations"] = citations
+	# Every quarantined member ends up on the tool, whichever array it came from.
+	view["quarantine"].extend(bad)
 	return out
 
 
@@ -1211,7 +1318,8 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 		"suggestions")
 	subject_refs = []
 	for sug in suggestions:
-		sug_id = sug.get("id") if isinstance(sug.get("id"), str) else None
+		raw_id = sug.get("id")
+		sug_id = raw_id if isinstance(raw_id, str) else None
 		kind = assemble.suggestion_kind(sug)
 		if kind not in model.SUGGESTION_KINDS:
 			findings.add("E-ENUM-INVALID", "suggestion kind must be one of: {}".format(
@@ -1235,14 +1343,23 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 		# I-17, second limb — no target_files[] path is intel.Brewfile.
 		for target in as_list(sug.get("target_files"), findings, tool_id, "target_files", sug_id):
 			path = target.get("path") if isinstance(target, dict) else target
-			if path in model.FORBIDDEN_MANIFESTS:
+			if _names_forbidden_manifest(path):
 				findings.add("E-INTEL-BREWFILE",
 					"intel.Brewfile is out of this tool entirely — it is not a suggestion "
 					"target", tool_id=tool_id, item_id=sug_id, field="target_files", value=path)
 	return suggestions, subject_refs, quarantine
 
 
-def _check_flags(research, view, findings, tool_id):
+def _names_forbidden_manifest(path) -> bool:
+	"""I-17's second limb. Compares the normalized basename, so `./intel.Brewfile`
+	and `macos-setup/intel.Brewfile` are the same finding as the bare name — a
+	string-equality test would wave both through."""
+	if not isinstance(path, str) or not path:
+		return False
+	return os.path.basename(os.path.normpath(path)) in model.FORBIDDEN_MANIFESTS
+
+
+def _check_flags(research, view, findings, tool_id, recomputed=None):
 	"""I-13 plus criterion 2's enforcement.
 
 	The four emittable flags are assertions, not inputs: the validator's
@@ -1251,7 +1368,7 @@ def _check_flags(research, view, findings, tool_id):
 	validator-only flags gate `security_auto`/`pre_accept`; a checker emitting
 	one is an error, not an overrule — a wrong `has_security` is a wrong label,
 	a wrong `security_only` is an unreviewed upgrade."""
-	recomputed = model.recompute_flags(view["items"])
+	recomputed = model.recompute_flags(view["items"]) if recomputed is None else recomputed
 	declared = research.get("flags")
 	declared = declared if isinstance(declared, dict) else {}
 	for flag in model.CHECKER_FLAGS:
@@ -1313,23 +1430,11 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 				tool_id=tool_id, field="collect.json")
 			continue
 		known.add(tool_id)
-		try:
-			views.append(validate_tool(candidate, research_by_id.get(tool_id), findings,
-				resolver, manifest))
-		except Exception as exc:
-			# Criterion 4. One unknown shape costs this tool and says so.
-			findings.add("E-VALIDATOR-CRASH",
-				"{}: {}".format(type(exc).__name__, exc), tool_id=tool_id)
-			views.append({
-				"id": tool_id, "source": candidate.get("source"), "items": [],
-				"suggestions": [], "quarantine": [], "flags": model.recompute_flags([]),
-				"impact": "unknown", "risk_level": "elevated",
-				"initial_review_bucket": "attention",
-				"bucket_inputs": {"has_security": False, "security_only": False,
-					"impact": "unknown", "version_delta": "unknown", "runnable": False},
-				"research_error": "validator crashed on this tool",
-				"security_display_item_ids": [],
-			})
+		# `validate_tool` guards each of its own stages and never raises, so a
+		# degraded tool arrives here as a complete view carrying whatever
+		# conformed — not as a blank replacement for it.
+		views.append(validate_tool(candidate, research_by_id.get(tool_id), findings,
+			resolver, manifest))
 
 	unmatched = []
 	for tool_id in sorted(research_by_id):

@@ -364,6 +364,13 @@ EFFECT_ORDER = {"risk": 0, "none": 1, "benefit": 2}
 NO_LOCAL_RANK = 3
 
 
+def _rank_of(table, value, default: int) -> int:
+	"""A rank lookup that survives an unhashable value. Every enum in this model
+	is kept verbatim when it is out of vocabulary, so any of them can arrive as
+	a list or a dict."""
+	return table.get(value, default) if isinstance(value, str) else default
+
+
 def _local_of(item):
 	local = item.get("local") if isinstance(item, dict) else None
 	return local if isinstance(local, dict) else None
@@ -376,8 +383,13 @@ def item_sort_key(item) -> tuple:
 		direction_rank = NO_LOCAL_RANK
 		effect_rank = NO_LOCAL_RANK
 	else:
-		direction_rank = DIRECTION_ORDER.get(local.get("direction"), NO_LOCAL_RANK)
-		effect_rank = EFFECT_ORDER.get(local.get("effect"), NO_LOCAL_RANK)
+		# `_rank_of` rather than a bare `.get`: an out-of-vocabulary direction is
+		# reported (E-ENUM-INVALID) and then KEPT VERBATIM on the item, so a list
+		# or a dict reaches this lookup and an unhashable key raises TypeError.
+		# Losing the whole tool to one bad enum is the degradation defect, not a
+		# guard against it.
+		direction_rank = _rank_of(DIRECTION_ORDER, local.get("direction"), NO_LOCAL_RANK)
+		effect_rank = _rank_of(EFFECT_ORDER, local.get("effect"), NO_LOCAL_RANK)
 	item_id = item.get("id") if isinstance(item, dict) else None
 	return (
 		GROUP_PRECEDENCE.index(primary_group(item)),
@@ -416,9 +428,9 @@ def security_display_sort_key(item) -> tuple:
 	local = _local_of(item)
 	item_id = item.get("id") if isinstance(item, dict) else None
 	return (
-		-CVE_ORDER_RANK.get(sec.get("rating"), 0),
+		-_rank_of(CVE_ORDER_RANK, sec.get("rating"), 0),
 		0 if sec.get("exploited_in_wild") else 1,
-		DIRECTION_ORDER.get((local or {}).get("direction"), NO_LOCAL_RANK),
+		_rank_of(DIRECTION_ORDER, (local or {}).get("direction"), NO_LOCAL_RANK),
 		-severity_rank(item.get("severity") if isinstance(item, dict) else None),
 		item_id if isinstance(item_id, str) else "",
 	)
@@ -497,9 +509,13 @@ SECURITY_ONLY_TAGS = frozenset({"security", "fix", "chore", "packaging"})
 def allowed_for_security_only(item) -> bool:
 	if not isinstance(item, dict):
 		return False
-	tags = item.get("tags")
-	tags = set(tags) if isinstance(tags, list) else set()
-	if not tags or not tags <= SECURITY_ONLY_TAGS:
+	raw = item.get("tags")
+	# Only string members: a tag written as a list or a dict is kept verbatim on
+	# the item, so `set(tags)` would raise on an unhashable member. An
+	# unrecognized tag is not evidence of harmlessness either way — the
+	# subset test below disqualifies both.
+	tags = {t for t in raw if isinstance(t, str)} if isinstance(raw, list) else set()
+	if not tags or len(tags) != len(raw or ()) or not tags <= SECURITY_ONLY_TAGS:
 		# feature / breaking / deprecation / perf disqualify, and so does an
 		# unrecognized tag — an unknown tag is not evidence of harmlessness.
 		return False

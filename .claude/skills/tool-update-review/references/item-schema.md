@@ -33,7 +33,8 @@ CVEs**, and nothing said a rule had put it there. So, concretely, in this layer:
   merging is deletion plus a severity choice;
 - an unrecognized tag is **reported and kept**, never dropped;
 - an over-long title is **reported**, never truncated;
-- a wrong-typed array member is **quarantined on the tool**, never dropped;
+- a wrong-typed array member is **quarantined on the tool**, whole and
+  untruncated, never dropped — from any array it came from;
 - `initial_review_bucket` is a **baseline for convergence to review**, not a
   decision.
 
@@ -205,6 +206,12 @@ trailing punctuation, no parenthetical. `lines` members are an int or a
 two-element `[start, end]`. `note` is a short human label and is **never
 load-bearing** — the validator ignores it.
 
+The object is normalized **by copy**: any other key a checker writes survives
+untouched. `lines: []` collapses to absent, since the two mean the same thing;
+a `lines` list the validator cannot fully read is reported and **left exactly as
+written**, because the normalization is licensed only when it succeeds and
+half-rewriting a locator list loses the part it could not read.
+
 A bare string is accepted and normalized iff it is `path`, `path:LINE`,
 `path:START-END` or `path:L1,L2` (that last form is in the grammar because the
 run already produced it and today's regex silently fails to strip it). The
@@ -291,7 +298,18 @@ its source of truth.
 
 A precondition that cannot be checked — an unreadable manifest — raises
 `W-STRUCT-UNCHECKED`. It is never silently treated as satisfied: a silent skip
-is how a structural fix covering the wrong subject set stays invisible.
+is how a structural fix covering the wrong subject set stays invisible. A
+precondition is also **not** claimed against a `from`/`to` that already failed
+its own shape check: that finding is already reported, and dereferencing a Ref
+with no `name` would trade it for a degraded tool.
+
+**Known limit on `anchor.section`.** The Brewfile marks a top-level section with
+a `## ====` rule above and below its title, but writes subsection titles and
+ordinary prose comments with the same `## ` prefix. There is no syntax that
+separates the last two, so `anchor.section` is accepted against any `## ` line.
+That makes the check permissive rather than strict — a deliberate choice, since
+a strict rule here would raise a *false* `E-STRUCT-PRECOND`, and under-reporting
+is the safer failure for a check whose job is visibility.
 
 The validator emits a run-wide `subject_index` alongside the existing
 `target_files` intersection, so a coverage gap is visible as data. **This is
@@ -359,7 +377,7 @@ report-wide CVE **union** (per-tool counts summed to 77; the union is 76).
 | Stage | Does |
 |---|---|
 | **V1** load | per file, per entry. An unreadable file costs that file; a non-object entry becomes an `orphan` |
-| **V2** spec | required fields, types, closed vocabularies. The item survives with the offending field as written |
+| **V2** spec | required fields, types, closed vocabularies. **The item survives with every offending field exactly as written** — a wrong-typed `change`/`local`/`security` is reported, not nulled, because the finding's `value` is bounded for readability and nulling would make the truncated copy the only one |
 | **V3** normalize | only the normalizations above: `null` → `[]`, non-list → `[]` with a warning, evidence shorthand → object form, wrong-typed members quarantined |
 | **V3b** identify | ids assigned from the anchor, in authored order, then disambiguated |
 | **V4** invariants | the eighteen below. Every one **reports and changes nothing** |
@@ -458,7 +476,8 @@ renders in the collapsed detail, and still carries its finding.
 | an entry is not an object, or has no usable id | entry | recorded in `validation.json.orphans`; the run continues |
 | an entry names no collected candidate | entry | kept in `unmatched`, reported; merged into no tool |
 | a known entry fails spec | tool | the tool is built from whatever conformed, field by field; codes recorded on `tool.spec_violations[]` |
-| a stage raises anything else | tool | `E-VALIDATOR-CRASH` naming the tool; the tool is kept with what conformed |
+| validating one item raises | item | `E-VALIDATOR-CRASH` naming the item; **the item is kept verbatim with its assigned id**, unchecked, so convergence can still address it |
+| a later stage raises | tool | `E-VALIDATOR-CRASH` naming the stage; **everything that conformed before the failure stays on the tool** — discarding it would be deletion |
 | no entry at all for a candidate | tool | `research_error` set |
 
 Three loudness channels, all required: `validation.json` (the machine-readable

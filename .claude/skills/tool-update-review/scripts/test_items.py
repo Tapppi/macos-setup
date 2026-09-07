@@ -205,6 +205,23 @@ class OrderingContractTests(unittest.TestCase):
 		model.order_items(original)
 		self.assertEqual([i["id"] for i in original], snapshot)
 
+	def test_an_unhashable_enum_value_sorts_rather_than_raising(self):
+		"""Every enum in this model is kept verbatim when out of vocabulary, so
+		any of them can arrive as a list or a dict. A rank lookup that raises
+		TypeError on one bad field costs the whole tool."""
+		hostile = [
+			{"id": "u#1", "tags": ["fix"], "severity": "info",
+				"local": {"direction": ["reaches"], "effect": {"a": 1}}},
+			{"id": "u#2", "tags": [["security"]], "severity": ["info"]},
+			{"id": "u#3", "tags": ["security"], "severity": "warning",
+				"security": {"rating": ["critical"], "exploited_in_wild": True}},
+		]
+		self.assertEqual(len(model.order_items(hostile)), 3)
+		self.assertEqual(model.compare_items(hostile[0], hostile[1]), -1)
+		model.security_display_sort_key(hostile[2])
+		self.assertFalse(model.allowed_for_security_only(hostile[1]))
+		self.assertEqual(model.worst_severity(hostile), "warning")
+
 	def test_order_items_keeps_a_malformed_member_rather_than_raising(self):
 		out = model.order_items([{"id": "t#a", "tags": ["chore"], "severity": "info"},
 			"a bare string", None, 7])
@@ -358,6 +375,21 @@ class PublishedFixtureTests(unittest.TestCase):
 				self.assertEqual(code.startswith("W-"), severity == "warning")
 				if invariant is not None:
 					self.assertRegex(invariant, r"^I-\d+$")
+
+	def test_every_finding_code_is_exercised_somewhere_in_the_suite(self):
+		"""A code nothing produces is a claim, not a check. 34 of the 40 come
+		out of the golden corpus; the six that need a broken file, a hostile
+		entry or a synthetic crash are named by their unit tests."""
+		here = os.path.dirname(os.path.abspath(__file__))
+		golden = set(model.load_fixture("expected_validation.json")["counts"]["by_code"])
+		source = ""
+		for name in ("test_items.py", "test_validate_items.py"):
+			with open(os.path.join(here, name), encoding="utf-8") as fh:
+				source += fh.read()
+		for code in model.FINDING_CODES:
+			with self.subTest(code):
+				self.assertTrue(code in golden or code in source,
+					"{} is declared but nothing exercises it".format(code))
 
 	def test_all_eighteen_invariants_have_at_least_one_code(self):
 		invariants = {inv for _, inv, _ in model.FINDING_CODES.values() if inv}

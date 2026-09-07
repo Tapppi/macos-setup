@@ -337,6 +337,17 @@ class InvariantTests(unittest.TestCase):
 			"suggestions": [{"id": "brew:x:e", "kind": "edit",
 				"target_files": [{"path": "intel.Brewfile"}]}]})
 
+	def test_i17_matches_a_path_that_merely_ends_in_the_forbidden_manifest(self):
+		"""A string-equality test waves `./intel.Brewfile` through."""
+		for path in ("intel.Brewfile", "./intel.Brewfile", "macos-setup/intel.Brewfile"):
+			with self.subTest(path):
+				self.assertCode("E-INTEL-BREWFILE", {"id": "brew:x", "links": [],
+					"items": [_item()], "suggestions": [{"id": "brew:x:e", "kind": "edit",
+						"target_files": [{"path": path}]}]})
+		self.assertNoCode("E-INTEL-BREWFILE", {"id": "brew:x", "links": [],
+			"items": [_item()], "suggestions": [{"id": "brew:x:e", "kind": "edit",
+				"target_files": [{"path": "Brewfile"}]}]})
+
 	def test_i18_suggestion_ids_are_unique_across_the_whole_report(self):
 		document = session_with({"g.json": [
 			{"id": "brew:x", "links": [], "items": [_item()],
@@ -426,12 +437,50 @@ class NormalizationTests(unittest.TestCase):
 				"evidence": [{"path": "Brewfile", "lines": []}]})]})
 		self.assertEqual(view["items"][0]["local"]["evidence"], [{"path": "Brewfile"}])
 
-	def test_a_bad_line_locator_is_reported_and_the_path_still_resolves(self):
+	def test_a_bad_line_locator_is_reported_and_left_exactly_as_written(self):
+		"""The normalization is licensed only when it succeeds. Half-rewriting a
+		locator list would lose the part it could not read."""
 		view, findings = validate_one({"id": "brew:x", "links": [], "items": [_item(
 			local={"direction": "unclear", "effect": "none", "statement": "s",
 				"evidence": [{"path": "Brewfile", "lines": ["six", True, [1, 2, 3]]}]})]})
-		self.assertEqual(view["items"][0]["local"]["evidence"], [{"path": "Brewfile"}])
+		self.assertEqual(view["items"][0]["local"]["evidence"],
+			[{"path": "Brewfile", "lines": ["six", True, [1, 2, 3]]}])
 		self.assertEqual({f["code"] for f in findings.entries}, {"E-FIELD-TYPE"})
+
+	def test_an_evidence_object_keeps_keys_the_schema_did_not_anticipate(self):
+		"""Rebuilding the object from known keys drops a checker's extra field
+		silently, which is content a human would have read."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [_item(
+			local={"direction": "unclear", "effect": "none", "statement": "s",
+				"evidence": [{"path": "Brewfile", "lines": [6], "note": "n",
+					"why": "THIS TEXT IS LOAD-BEARING"}]})]})
+		self.assertEqual(view["items"][0]["local"]["evidence"][0],
+			{"path": "Brewfile", "lines": [6], "note": "n", "why": "THIS TEXT IS LOAD-BEARING"})
+
+	def test_a_wrong_typed_block_is_reported_and_left_on_the_item(self):
+		"""V2's rule: the item survives with the offending field as written. The
+		finding's `value` is bounded for readability, so nulling the field would
+		make the only surviving copy the truncated one."""
+		authored = "upstream said: " + "x" * 400
+		for field in ("change", "local", "security"):
+			with self.subTest(field):
+				view, findings = validate_one({"id": "brew:x", "links": [],
+					"items": [_item(**{field: authored})]})
+				self.assertEqual(view["items"][0][field], authored)
+				self.assertIn("E-FIELD-TYPE", {f["code"] for f in findings.entries})
+
+	def test_a_quarantined_member_is_stored_whole_not_as_a_truncated_repr(self):
+		member = ["deeply", {"nested": ["x" * 500]}]
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [member, _item()]})
+		self.assertEqual(view["quarantine"][0]["value"], member)
+
+	def test_a_config_status_citation_quarantine_reaches_the_tool(self):
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [_item()],
+			"config_status": {"state": "up_to_date", "detail": "d", "evidence": [],
+				"citations": ["a bare string"]}})
+		self.assertEqual([q["field"] for q in view["quarantine"]],
+			["config_status.citations"])
+		self.assertIn("W-MEMBER-QUARANTINED", {f["code"] for f in findings.entries})
 
 	def test_config_status_gets_the_same_evidence_split(self):
 		"""133 of the recorded run's 272 warnings came from this one field."""
@@ -456,6 +505,43 @@ class NormalizationTests(unittest.TestCase):
 
 
 # ── 4. Evidence resolution ──────────────────────────────────────────────────
+class ManifestTests(unittest.TestCase):
+	def _manifest(self, brewfile):
+		td = tempfile.mkdtemp()
+		self.addCleanup(shutil.rmtree, td, True)
+		with open(os.path.join(td, "Brewfile"), "w", encoding="utf-8") as fh:
+			fh.write(brewfile)
+		return V.Manifest(td)
+
+	def test_a_comment_after_a_header_block_is_not_a_section(self):
+		"""A header is rule-title-rule, so the CLOSING rule must not promote the
+		next `##` line. The real Brewfile survives this only because a blank line
+		follows each header, which is luck rather than a guarantee."""
+		manifest = self._manifest(
+			'## ====\n## CORE\n## ====\n## Install mac app store cli\nbrew "mas"\n')
+		self.assertEqual(manifest.section_of("formula", "mas"), "CORE")
+
+	def test_a_header_block_still_opens_its_section(self):
+		manifest = self._manifest(
+			'## ====\n## CORE\n## ====\n\nbrew "mas"\n\n'
+			'## ====\n## NETWORK\n## ====\n\nbrew "nmap"\n')
+		self.assertEqual(manifest.section_of("formula", "mas"), "CORE")
+		self.assertEqual(manifest.section_of("formula", "nmap"), "NETWORK")
+
+	def test_a_formula_ref_is_looked_up_under_the_brewfile_keyword(self):
+		"""`Ref.type` says `formula`; the Brewfile line says `brew`. A missed
+		translation reads as "not in the manifest"."""
+		manifest = self._manifest('## ====\n## CORE\n## ====\n\nbrew "sops"\n')
+		self.assertTrue(manifest.has("formula", "sops"))
+		self.assertEqual(manifest.section_of("formula", "sops"), "CORE")
+
+	def test_an_absent_manifest_is_unreadable_not_empty(self):
+		with tempfile.TemporaryDirectory() as td:
+			manifest = V.Manifest(td)
+			self.assertFalse(manifest.readable)
+			self.assertFalse(manifest.tasks_readable)
+
+
 class RootResolverTests(unittest.TestCase):
 	def test_a_path_under_a_configured_root_resolves(self):
 		resolver = V.RootResolver(FIXTURE_ROOTS, unconfigured_roots=[])
@@ -601,6 +687,45 @@ class StructuralTests(unittest.TestCase):
 					"anchor": {"file": "setup.sh"}}}]}]})
 		self.assertEqual(document["subject_index"],
 			{"cask:codex": ["brew:x:s"], "cask:cursor-cli": ["brew:x:s"]})
+
+	MALFORMED_REFS = [
+		("manifest_add", {"op": "manifest_add", "subjects": [{"type": "cask", "name": "c"}],
+			"manifest": "Brewfile", "to": {"type": "formula"},
+			"anchor": {"section": "CORE"}}),
+		("manifest_add, to is a string", {"op": "manifest_add",
+			"subjects": [{"type": "cask", "name": "c"}], "manifest": "Brewfile",
+			"to": "formula z", "anchor": {"section": "CORE"}}),
+		("tap_add, to is a string", {"op": "tap_add",
+			"subjects": [{"type": "tap", "name": "a/b"}], "manifest": "Brewfile",
+			"to": "a/b"}),
+		("manifest_remove, from is a string", {"op": "manifest_remove",
+			"subjects": [{"type": "formula", "name": "z"}], "manifest": "Brewfile",
+			"from": "z"}),
+		("install_method_change, from is a string", {"op": "install_method_change",
+			"subjects": [{"type": "formula", "name": "z"}], "from": "formula z",
+			"to": {"type": "runtime", "name": "mise:z"}}),
+		("install_method_change, from has no name", {"op": "install_method_change",
+			"subjects": [{"type": "formula", "name": "z"}], "from": {"type": "formula"},
+			"to": {"type": "runtime", "name": "mise:z"}}),
+		("task_add, anchor.file is an int", {"op": "task_add",
+			"subjects": [{"type": "cask", "name": "c"}], "manifest": None,
+			"to": {"type": "task", "name": "setup.sh:q"}, "anchor": {"file": 123}}),
+		("anchor is a string", {"op": "manifest_move",
+			"subjects": [{"type": "formula", "name": "sops"}], "manifest": "Brewfile",
+			"from": {"type": "formula", "name": "sops"}, "anchor": "CORE"}),
+	]
+
+	def test_a_malformed_ref_never_reaches_a_precondition(self):
+		"""A precondition is a claim about a well-formed op. Checking one
+		against a Ref with no `name` used to raise KeyError out of the whole
+		stage, trading one reported field for a degraded tool."""
+		for label, block in self.MALFORMED_REFS:
+			with self.subTest(label):
+				got = codes(self._sug(block))
+				self.assertNotIn("E-VALIDATOR-CRASH", got)
+				self.assertTrue(got, "the shape defect must still be reported")
+				self.assertFalse({"E-STRUCT-PRECOND"} & set(got),
+					"a precondition must not be claimed against a malformed ref")
 
 	def test_the_block_is_present_iff_the_kind_is_structural(self):
 		self.assertIn("E-FIELD-MISSING", codes({"id": "brew:x", "links": [],
@@ -841,27 +966,56 @@ class DegradationTests(unittest.TestCase):
 		finally:
 			shutil.rmtree(td, ignore_errors=True)
 
-	def test_a_crashing_stage_costs_one_tool_and_says_so(self):
-		"""The next unknown shape — the one no test anticipated — must cost one
-		tool, loudly, rather than the run."""
-		original = V.validate_item
+	def _with_exploding(self, name, work):
+		original = getattr(V, name)
 
 		def explode(*args, **kwargs):
 			raise RuntimeError("synthetic")
 
-		V.validate_item = explode
+		setattr(V, name, explode)
 		try:
-			document = session_with({"a.json": [
-				{"id": "brew:x", "links": [], "items": [_item()]},
-				{"id": "brew:y", "links": [], "items": []}]},
-				collect={"generated_at": "t", "machine": {},
-					"brew": [_candidate(), _candidate(id="brew:y", name="y")]})
+			return work()
 		finally:
-			V.validate_item = original
+			setattr(V, name, original)
+
+	def test_a_crashing_item_check_costs_the_check_never_the_item(self):
+		"""The next unknown shape — the one no test anticipated — must cost as
+		little as possible and say so. Losing the item would be deletion, which
+		this layer is forbidden to do."""
+		document = self._with_exploding("validate_item", lambda: session_with({"a.json": [
+			{"id": "brew:x", "links": [], "items": [_item(title="AUTHORED TEXT")]},
+			{"id": "brew:y", "links": [], "items": []}]},
+			collect={"generated_at": "t", "machine": {},
+				"brew": [_candidate(), _candidate(id="brew:y", name="y")]}))
 		self.assertIn("E-VALIDATOR-CRASH", document["counts"]["by_code"])
 		self.assertEqual([t["id"] for t in document["tools"]], ["brew:x", "brew:y"])
-		self.assertEqual(document["tools"][0]["initial_review_bucket"], "attention")
+		kept = document["tools"][0]["items"]
+		self.assertEqual([i["title"] for i in kept], ["AUTHORED TEXT"])
+		self.assertEqual(kept[0]["id"], "brew:x#issue:org%2Frepo%231")
 		self.assertEqual(document["tools"][1]["items"], [])
+
+	def test_a_crashing_stage_keeps_everything_that_conformed_before_it(self):
+		"""`_validate_suggestions` runs after the items are validated, so a
+		failure there must not take the items with it."""
+		document = self._with_exploding("_validate_suggestions",
+			lambda: session_with({"a.json": [
+				{"id": "brew:x", "links": [], "items": [_item(title="AUTHORED TEXT")]}]}))
+		self.assertIn("E-VALIDATOR-CRASH", document["counts"]["by_code"])
+		view = document["tools"][0]
+		self.assertEqual([i["title"] for i in view["items"]], ["AUTHORED TEXT"])
+
+	def test_a_degraded_tool_still_carries_every_key_a_consumer_reads(self):
+		"""A KeyError on precisely the tool degradation was supposed to keep
+		usable is the failure this defends against."""
+		document = self._with_exploding("_read_research",
+			lambda: session_with({"a.json": [{"id": "brew:x", "links": [],
+				"items": [_item()]}]}))
+		healthy = model.load_fixture("expected_validation.json")["tools"][0]
+		view = document["tools"][0]
+		self.assertEqual(set(healthy) - set(view), set())
+		self.assertEqual(view["impact"], "unknown")
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertFalse(view["bucket_inputs"]["security_only"])
 
 	COLLECT_KEYS = ["brew", "mise", "standalone", "macos", "brew_health", "skill_drift",
 		"machine", "generated_at"]

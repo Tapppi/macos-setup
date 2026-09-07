@@ -583,6 +583,7 @@
 					"id_stability": "anchored"
 				}
 			],
+			"quarantine": [],
 			"config_status": {
 				"state": "up_to_date",
 				"detail": "The 3.13.2 → 3.13.3 delta is #2245, #2253 and #2239. None touches the sopsdiffer wiring or the Brewfile line, so the prior handling still holds.",
@@ -607,14 +608,13 @@
 			},
 			"suggestions": [],
 			"subject_refs": [],
-			"quarantine": [],
-			"version_delta": "patch",
 			"flags": {
 				"has_security": false,
 				"has_breaking": false,
 				"worst_severity": "warning",
 				"local_findings": 1
 			},
+			"version_delta": "patch",
 			"impact": "none",
 			"risk_level": "elevated",
 			"initial_review_bucket": "attention",
@@ -782,6 +782,7 @@
 					"id_stability": "slug"
 				}
 			],
+			"quarantine": [],
 			"config_status": {
 				"state": "up_to_date",
 				"detail": "No ssh client or server configuration is tracked in these repos beyond the 1Password agent's vault list.",
@@ -794,14 +795,13 @@
 			},
 			"suggestions": [],
 			"subject_refs": [],
-			"quarantine": [],
-			"version_delta": "minor",
 			"flags": {
 				"has_security": true,
 				"has_breaking": false,
 				"worst_severity": "notable",
 				"local_findings": 4
 			},
+			"version_delta": "minor",
 			"impact": "none",
 			"risk_level": "low",
 			"initial_review_bucket": "security_mixed",
@@ -908,6 +908,7 @@
 					"id_stability": "anchored"
 				}
 			],
+			"quarantine": [],
 			"config_status": {
 				"state": "needs_attention",
 				"detail": "Nothing re-clears the cask quarantine after an upgrade.",
@@ -966,14 +967,13 @@
 					"suggestion_id": "cask:codex:add-quarantine-task"
 				}
 			],
-			"quarantine": [],
-			"version_delta": "major",
 			"flags": {
 				"has_security": true,
 				"has_breaking": true,
 				"worst_severity": "warning",
 				"local_findings": 2
 			},
+			"version_delta": "major",
 			"impact": "possible",
 			"risk_level": "elevated",
 			"initial_review_bucket": "security_mixed",
@@ -1023,6 +1023,7 @@
 					"id_stability": "anchored"
 				}
 			],
+			"quarantine": [],
 			"config_status": {
 				"state": "needs_attention",
 				"detail": "The repos still ship the old path and nothing here says what to do about it.",
@@ -1040,14 +1041,13 @@
 				}
 			],
 			"subject_refs": [],
-			"quarantine": [],
-			"version_delta": "patch",
 			"flags": {
 				"has_security": false,
 				"has_breaking": true,
 				"worst_severity": "notable",
 				"local_findings": 0
 			},
+			"version_delta": "patch",
 			"impact": "possible",
 			"risk_level": "low",
 			"initial_review_bucket": "attention",
@@ -1201,6 +1201,13 @@
 					"id_stability": "slug"
 				}
 			],
+			"quarantine": [
+				{
+					"field": "items",
+					"item_id": null,
+					"value": "an item written as a bare string"
+				}
+			],
 			"config_status": {
 				"state": "needs_attention",
 				"detail": "Something wants doing, but no suggestion says what.",
@@ -1325,20 +1332,13 @@
 					"suggestion_id": "brew:nonconforming:redispatch-install"
 				}
 			],
-			"quarantine": [
-				{
-					"field": "items",
-					"item_id": null,
-					"value": "an item written as a bare string"
-				}
-			],
-			"version_delta": "patch",
 			"flags": {
 				"has_security": true,
 				"has_breaking": false,
 				"worst_severity": "incompatible",
 				"local_findings": 3
 			},
+			"version_delta": "patch",
 			"impact": "possible",
 			"risk_level": "elevated",
 			"initial_review_bucket": "security_mixed",
@@ -1391,11 +1391,10 @@
 			"source": "brew-health",
 			"name": "GNU utils ahead of Apple's on PATH",
 			"pinned": false,
-			"health_expected": true,
 			"research_error": "no research entry for this candidate",
-			"items": [],
-			"suggestions": [],
 			"links": [],
+			"vendor_silent_categories": [],
+			"items": [],
 			"quarantine": [],
 			"config_status": {
 				"state": "unknown",
@@ -1403,14 +1402,15 @@
 				"evidence": [],
 				"citations": []
 			},
-			"vendor_silent_categories": [],
-			"version_delta": "unknown",
+			"suggestions": [],
+			"subject_refs": [],
 			"flags": {
 				"has_security": false,
 				"has_breaking": false,
 				"worst_severity": null,
 				"local_findings": 0
 			},
+			"version_delta": "unknown",
 			"impact": "none",
 			"risk_level": "low",
 			"initial_review_bucket": "routine",
@@ -1422,6 +1422,7 @@
 				"runnable": false
 			},
 			"security_display_item_ids": [],
+			"health_expected": true,
 			"spec_violations": []
 		}
 	]
