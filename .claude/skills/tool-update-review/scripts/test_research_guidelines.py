@@ -25,7 +25,6 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
-REFERENCES = os.path.join(SKILL, "references")
 
 
 def read(*parts):
@@ -51,8 +50,36 @@ def lines_mentioning(text, needle):
 	return [ln for ln in text.splitlines() if needle in ln]
 
 
+def flat(text: str) -> str:
+	"""Whitespace-flattened. Every content assertion here goes through this,
+	because these files are hard-wrapped prose: reflowing a paragraph moves the
+	line breaks inside a sentence, and a test that matched the old wrapping
+	would fail on an edit that changed nothing. The rule this file exists to
+	protect is what the sentence says, not where it breaks.
+
+	It is not only convenience. The old fleet quota survived a check once
+	precisely because it was line-wrapped and the grep was line-oriented."""
+	return " ".join(text.split())
+
+
+class GuidelineTestCase(unittest.TestCase):
+	"""`assertSays` is `assertIn` modulo line wrapping. `assertDoesNotSay` is
+	its negation. Use them for anything quoted from the guidelines; plain
+	`assertIn` stays available for structural checks (a placeholder token, a
+	field name) where the exact bytes are the point."""
+
+	maxDiff = 2000
+
+	def assertSays(self, needle, haystack, msg=None):
+		"""Argument order matches `assertIn`, deliberately — it is a drop-in."""
+		self.assertIn(flat(needle), flat(haystack), msg)
+
+	def assertDoesNotSay(self, needle, haystack, msg=None):
+		self.assertNotIn(flat(needle), flat(haystack), msg)
+
+
 # ── intel.Brewfile (REDESIGN.md B1, criterion 20) ───────────────────────────
-class IntelBrewfileTests(unittest.TestCase):
+class IntelBrewfileTests(GuidelineTestCase):
 	"""B1 puts the Intel manifest out of this tool entirely. The last run
 	produced seven `target_files` entries pointing at it, so silence is not
 	enough — the prompt said to scan it. What a checker-facing document may
@@ -84,12 +111,12 @@ class IntelBrewfileTests(unittest.TestCase):
 
 	def test_the_relevancy_scan_list_names_only_the_live_manifest(self):
 		scan = RESEARCH[RESEARCH.index("### Relevancy Is the Point"):][:600]
-		self.assertIn("Brewfile", scan)
+		self.assertSays("Brewfile", scan)
 		self.assertNotIn("intel.Brewfile", scan)
 
 
 # ── the orphans (REDESIGN.md A's corollary, criterion 19) ───────────────────
-class OrphanedInstructionTests(unittest.TestCase):
+class OrphanedInstructionTests(GuidelineTestCase):
 	"""Seven instructions ran the last review and lived only in an untracked
 	scratch file, `scratch/research-0828b.js`. `REDESIGN.md` §A: *"anything
 	living in a prompt will evaporate."* Each test below is the home one of
@@ -106,10 +133,10 @@ class OrphanedInstructionTests(unittest.TestCase):
 		and the session-dir write restriction — were in scratch alone."""
 		section = RESEARCH[RESEARCH.index("### What You May Touch"):]
 		section = section[:section.index("### Headliners")]
-		self.assertIn("non-destructive and\n  read-only", section)
+		self.assertSays("non-destructive and\n  read-only", section)
 		for banned in ("setup.sh", "tasks/*.sh", "dotfiles/bootstrap.sh"):
-			self.assertIn(banned, section)
-		self.assertIn("session directory except your own output file", section)
+			self.assertSays(banned, section)
+		self.assertSays("session directory except your own output file", section)
 
 	def test_the_read_only_discipline_is_not_only_in_the_bespoke_section(self):
 		"""The point of the port: it governs every checker, including the ones
@@ -122,32 +149,31 @@ class OrphanedInstructionTests(unittest.TestCase):
 		"""`grep -rn agent-skills` over the skill returned nothing before this."""
 		section = RESEARCH[RESEARCH.index("### Word-Boundary Grep Rule"):]
 		section = section[:section.index("### Spawning")]
-		self.assertIn("dotfiles/config/agent-skills", section)
-		self.assertIn("almost never a real touchpoint", section)
+		self.assertSays("dotfiles/config/agent-skills", section)
+		self.assertSays("almost never a real touchpoint", section)
 		# ...and the prompt a checker actually receives says so too.
-		self.assertIn("dotfiles/config/agent-skills", TEMPLATE)
+		self.assertSays("dotfiles/config/agent-skills", TEMPLATE)
 
 	def test_the_tiering_decision_is_recorded_not_just_the_heuristic(self):
 		"""research.md documented the heuristic; the decision a given run made
 		was recorded nowhere, so a scoped run and a full run produced
 		indistinguishable session dirs."""
-		self.assertIn('"tier"', SCHEMAS)
-		self.assertIn('"scope"', SCHEMAS)
-		self.assertIn("scoped run and a full run produce indistinguishable", RESEARCH)
+		self.assertSays('"tier"', SCHEMAS)
+		self.assertSays('"scope"', SCHEMAS)
+		self.assertSays("scoped run and a full run produce indistinguishable", RESEARCH)
 
 	def test_touchpoints_reach_the_prompt_as_a_generated_placeholder(self):
 		"""The per-group touchpoint hints were hand-typed. The touchpoint half
 		is derivable from the word-boundary grep; the nomination half is what
 		§Writing Hypotheses bans."""
-		self.assertIn("{{TOUCHPOINTS}}", TEMPLATE)
-		self.assertIn("never typed by hand", TEMPLATE)
+		self.assertSays("{{TOUCHPOINTS}}", TEMPLATE)
+		self.assertSays("never typed by hand", TEMPLATE)
 
 	def test_the_baseline_upgrade_suggestion_is_still_research_s_to_not_author(self):
 		"""Listed as an orphan by the design doc, but its grep was
 		case-sensitive: the instruction was already here, spelled
 		"Do **not** author". Asserted so it stays."""
-		flat = " ".join(RESEARCH.split())
-		self.assertIn('Do **not** author the plain "upgrade this tool" suggestion', flat)
+		self.assertSays('Do **not** author the plain "upgrade this tool" suggestion', RESEARCH)
 
 	def test_every_template_placeholder_has_a_row_in_the_table(self):
 		"""A placeholder nobody documents is a placeholder that gets filled
@@ -160,7 +186,7 @@ class OrphanedInstructionTests(unittest.TestCase):
 
 
 # ── the three stores (REDESIGN.md L1, criterion 16) ─────────────────────────
-class ThreeStoresTests(unittest.TestCase):
+class ThreeStoresTests(GuidelineTestCase):
 	"""The volume disagreement that stalled this was a category error. There is
 	no single answer to "how many" because there are three different things,
 	and a guideline that conflates them produces last run's mess: eight
@@ -175,25 +201,45 @@ class ThreeStoresTests(unittest.TestCase):
 	def test_all_three_stores_are_named_with_their_scope_and_volume(self):
 		text = self.section()
 		for phrase in ("Global method notes", "Per-tool method notes", "Watch items"):
-			self.assertIn(phrase, text)
-		self.assertIn("across many tools", text)
-		self.assertIn("**rare**", text)
-		self.assertIn("**many**", text)
+			self.assertSays(phrase, text)
+		self.assertSays("across many tools", text)
+		self.assertSays("**rare**", text)
+		self.assertSays("**many**", text)
 
-	def test_rare_is_justified_by_definition_and_not_by_a_number(self):
-		"""A global note is rare because holding across many tools is its entry
-		condition. Stated any other way it reads as a budget, and a budget is
-		what criterion 14 forbids."""
+	def test_rare_is_justified_structurally_and_not_by_a_number(self):
+		"""A global note is rare because its entry condition is cross-tool
+		evidence and exactly one reader in the pipeline has it. Stated any
+		other way "rare" reads as a budget, and a budget is what criterion 14
+		forbids."""
 		text = self.section()
-		self.assertIn("by definition", text)
+		self.assertSays("the entry condition is cross-tool evidence", text)
+		self.assertSays("not a quota anybody enforces", text)
 		self.assertNotRegex(text, r"\b(?:at most|no more than|up to)\s+\w+\s+(?:notes?|items?)")
 
 	def test_the_agent_is_told_to_route_at_the_point_of_writing(self):
 		text = self.section()
-		self.assertIn("Route at the point of writing", text)
+		self.assertSays("Route at the point of writing", text)
 		# Two ordered questions, not a table to interpret.
-		self.assertIn("how to research, or about what to report", text)
-		self.assertIn("does it hold for this tool, or for many", text)
+		self.assertSays("how to research, or about what to report", text)
+		self.assertSays("which tool do you write it against", text)
+
+	def test_a_per_tool_agent_never_proposes_a_global_note(self):
+		"""It sees one to nine tools; "holds across many tools" is not a claim
+		it is in a position to make. Convergence reads every tool at once and
+		promotes. Without this the store either stays empty or fills with
+		per-tool observations stated at the wrong altitude."""
+		text = self.section()
+		self.assertSays("You write two of the three", text)
+		self.assertSays("you never propose one", text)
+		self.assertSays("promotion is its call", text)
+		self.assertSays("convergence, by promotion", text)
+
+	def test_the_generalisation_claim_has_somewhere_to_go(self):
+		"""A rule that only says "do not" leaves the knowledge nowhere. The
+		checker records the claim in the rationale; convergence promotes on it."""
+		text = self.section()
+		self.assertSays("say so in the `rationale`", text)
+		self.assertSays("what convergence promotes on", text)
 
 	def test_the_routing_test_precedes_the_watch_item_bar(self):
 		"""It has to run first: a topic no changelog can match is filed in a
@@ -204,50 +250,50 @@ class ThreeStoresTests(unittest.TestCase):
 	def test_the_routing_test_is_stated_as_one_answerable_question(self):
 		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
 		text = text[:text.index("### Writing a Research-Method Note")]
-		self.assertIn("Could a future release's published text plausibly contain words that match",
+		self.assertSays("Could a future release's published text plausibly contain words that match",
 			" ".join(text.split()))
-		self.assertIn("**No**", text)
-		self.assertIn("**Yes**", text)
+		self.assertSays("**No**", text)
+		self.assertSays("**Yes**", text)
 		# Both worked failures, named, with the sentence that gives them away.
-		self.assertIn("brew:iproute2mac", text)
-		self.assertIn("brew:nnn", text)
-		self.assertIn("Believe it.", text)
+		self.assertSays("brew:iproute2mac", text)
+		self.assertSays("brew:nnn", text)
+		self.assertSays("Believe it.", text)
 
 	def test_routing_is_stated_not_to_be_dropping(self):
 		"""L7's companion: moving a note between stores keeps the knowledge. An
 		agent that reads routing as rejection stops writing them."""
 		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
-		self.assertIn("Routing is not dropping", text)
+		self.assertSays("Routing is not dropping", text)
 
 	def test_a_method_note_must_name_a_failure_rather_than_predict_one(self):
 		text = RESEARCH[RESEARCH.index("### Writing a Research-Method Note"):]
 		text = text[:text.index("### Watch Items (Reading)")]
-		self.assertIn("name a failure, not predict one", text)
+		self.assertSays("name a failure, not predict one", text)
 		for field in ("method_topic", "method_note", "rationale"):
-			self.assertIn(field, text)
+			self.assertSays(field, text)
 
 	def test_method_notes_are_read_before_research_begins(self):
 		"""A note saying "read CHANGELOG.md, the release page is boilerplate"
 		is worthless delivered after the release page has been read."""
 		text = RESEARCH[RESEARCH.index("### Watch Items (Reading)"):]
 		text = text[:text.index("### Watch Items (Proposing)")]
-		self.assertIn("read first, before you look anything up", text)
+		self.assertSays("read first, before you look anything up", text)
 
 	def test_both_stores_reach_the_checker_through_the_prompt(self):
 		"""REDESIGN.md I4: the per-tool agent is GIVEN its watch items rather
 		than sent to find them."""
-		self.assertIn("{{STANDING_NOTES}}", TEMPLATE)
-		self.assertIn("{{STANDING_NOTES}}", RESEARCH)
-		self.assertIn("method-notes.json", RESEARCH)
+		self.assertSays("{{STANDING_NOTES}}", TEMPLATE)
+		self.assertSays("{{STANDING_NOTES}}", RESEARCH)
+		self.assertSays("method-notes.json", RESEARCH)
 
 	def test_the_method_note_kind_is_in_the_schema_the_checker_writes_against(self):
-		self.assertIn('kind: "method-note"', SCHEMAS)
-		self.assertIn("method_topic", SCHEMAS)
-		self.assertIn("method_note", SCHEMAS)
+		self.assertSays('kind: "method-note"', SCHEMAS)
+		self.assertSays("method_topic", SCHEMAS)
+		self.assertSays("method_note", SCHEMAS)
 
 
 # ── the self-test tags, never removes (REDESIGN.md L7, criterion 17) ────────
-class SelfTestTests(unittest.TestCase):
+class SelfTestTests(GuidelineTestCase):
 	"""§E3 asked for a self-test; §L7 closed the one lossy point in it. A
 	failing proposal is still written, tagged with the failing limb and the
 	agent's own reason, and convergence verifies that dropping it is
@@ -262,14 +308,14 @@ class SelfTestTests(unittest.TestCase):
 
 	def test_the_self_test_tags_and_never_deletes(self):
 		text = self.section()
-		self.assertIn("Nothing here deletes a proposal", text)
-		self.assertIn("self_test_failed", text)
-		self.assertIn("Never suppress a proposal because it failed a question here", text)
+		self.assertSays("Nothing here deletes a proposal", text)
+		self.assertSays("self_test_failed", text)
+		self.assertSays("Never suppress a proposal because it failed a question here", text)
 
 	def test_the_asymmetry_is_stated_as_the_reason(self):
 		"""Without the reason an agent optimises for a short list, which is the
 		behaviour that produced 0 accepted proposals out of 24."""
-		self.assertIn("cannot\nrestore", self.section())
+		self.assertSays("cannot\nrestore", self.section())
 
 	def test_every_limb_in_the_vocabulary_is_reachable_from_a_question(self):
 		"""A limb the guidelines never tell anyone to use is a limb nothing
@@ -280,45 +326,45 @@ class SelfTestTests(unittest.TestCase):
 		text = self.section()
 		for limb in model.SELF_TEST_LIMBS:
 			with self.subTest(limb):
-				self.assertIn('"' + limb + '"', text)
+				self.assertSays('"' + limb + '"', text)
 
 	def test_routing_is_the_one_answer_that_moves_rather_than_tags(self):
 		text = self.section()
-		self.assertIn("Q1 — ROUTING", text)
-		self.assertIn("route* rather than a tag", text)
+		self.assertSays("Q1 — ROUTING", text)
+		self.assertSays("route* rather than a tag", text)
 
 	def test_the_unknown_config_status_hole_is_named(self):
 		"""22 of 78 tools had no prior handling, so Q2's quote limb is satisfied
 		by "there is no prior handling to re-verify" — true, and evidence for
 		nothing. Left unsaid, the test has a hole over a quarter of the fleet."""
 		text = self.section()
-		self.assertIn("22 of 78", text)
-		self.assertIn("Do not read a vacuous pass as a pass", text)
+		self.assertSays("22 of 78", text)
+		self.assertSays("Do not read a vacuous pass as a pass", text)
 
 	def test_q3_asks_about_the_changing_thing_not_any_cited_file(self):
 		"""Read loosely, this clause drops the best proposal in the set:
 		claudebar cites tasks/config.sh:399, which is not the thing that could
 		change."""
 		text = self.section()
-		self.assertIn("not about any file your rationale happens to cite", text)
-		self.assertIn("credential's format is", text)
+		self.assertSays("not about any file your rationale happens to cite", text)
+		self.assertSays("credential's format is", text)
 
 	def test_reciting_the_rule_is_named_as_a_failure(self):
 		text = self.section()
-		self.assertIn("no single delta to re-check", text)
-		self.assertIn("Writing the rule's words is not passing the rule", text)
+		self.assertSays("no single delta to re-check", text)
+		self.assertSays("Writing the rule's words is not passing the rule", text)
 
 	def test_a_method_note_has_its_own_limb(self):
-		self.assertIn("Q5 — THE WITNESS", self.section())
+		self.assertSays("Q5 — THE WITNESS", self.section())
 
 	def test_convergence_keeps_final_authority(self):
 		"""E3: the upstream self-test reduces what reaches convergence; it does
 		not replace or bind it."""
-		self.assertIn("final authority to cut anything", self.section())
+		self.assertSays("final authority to cut anything", self.section())
 
 
 # ── no volume target (REDESIGN.md C4, criterion 14) ─────────────────────────
-class NoVolumeTargetTests(unittest.TestCase):
+class NoVolumeTargetTests(GuidelineTestCase):
 	"""The fleet quota at `scratch/research-0828b.js:38` is the one orphan that
 	must NOT be ported. Its measured history becomes reasoning in the guideline
 	text instead of a number."""
@@ -358,7 +404,7 @@ class NoVolumeTargetTests(unittest.TestCase):
 				with self.subTest(name + ": " + phrase):
 					if phrase not in flat:
 						continue
-					self.assertIn(phrase, explanation,
+					self.assertSays(phrase, explanation,
 						"{} states a fleet quota outside the section explaining why "
 						"the old one failed".format(name))
 					self.assertEqual(flat.count(phrase), explanation.count(phrase))
@@ -374,30 +420,30 @@ class NoVolumeTargetTests(unittest.TestCase):
 		for name, text in sorted(CHECKER_FACING.items()):
 			for match in pattern.finditer(" ".join(text.split())):
 				with self.subTest(name + ": " + match.group(0)[:50]):
-					self.assertIn(match.group(0), explanation)
+					self.assertSays(match.group(0), explanation)
 
 	def test_the_reason_is_in_the_guideline_text_not_only_a_design_doc(self):
 		"""An agent told "there is no budget" with no explanation infers the
 		omission is an oversight and invents one out of prudence."""
 		text = self.section()
-		self.assertIn("The reason is measured, not stylistic", text)
-		self.assertIn("byte-identical", text)
-		self.assertIn("exactly one each", text)
-		self.assertIn("must not invent one", text)
+		self.assertSays("The reason is measured, not stylistic", text)
+		self.assertSays("byte-identical", text)
+		self.assertSays("exactly one each", text)
+		self.assertSays("must not invent one", text)
 
 	def test_the_four_concrete_don_ts_are_present(self):
 		text = self.section()
 		for phrase in ("Do not hold a proposal back", "Do not propose one because",
 				"Do not drop a proposal that failed the self-test",
 				"Judge each proposal on its own evidence"):
-			self.assertIn(phrase, text)
+			self.assertSays(phrase, text)
 
 	def test_volume_is_pushed_to_where_it_is_visible(self):
-		self.assertIn("Volume is handled where volume is visible", self.section())
+		self.assertSays("Volume is handled where volume is visible", self.section())
 
 
 # ── the bar (REDESIGN.md C4) ────────────────────────────────────────────────
-class WatchItemBarTests(unittest.TestCase):
+class WatchItemBarTests(GuidelineTestCase):
 	"""Each limb is a conjunction and each half has to be answerable with an
 	artefact. The undecidable phrasings are what produced five rationales
 	reciting the rule's own escape phrase."""
@@ -408,23 +454,23 @@ class WatchItemBarTests(unittest.TestCase):
 
 	def test_both_limbs_are_stated_as_conjunctions_with_named_halves(self):
 		text = self.section()
-		self.assertIn("Each limb is a conjunction", text)
-		self.assertIn("name the party who can change it", text)
-		self.assertIn("name the file, and say what the edit would\n    be", text)
-		self.assertIn("could you tell, from the\n    machine's state alone", text)
-		self.assertIn("what breaks?", text)
+		self.assertSays("Each limb is a conjunction", text)
+		self.assertSays("name the party who can change it", text)
+		self.assertSays("name the file, and say what the edit would\n    be", text)
+		self.assertSays("could you tell, from the\n    machine's state alone", text)
+		self.assertSays("what breaks?", text)
 
 	def test_exposure_is_distinguished_from_a_required_change(self):
 		"""The half the last run's failures all missed: naming a file that
 		depends on the behaviour is not naming an edit."""
 		text = self.section()
-		self.assertIn("exposure, not a required change", text)
-		self.assertIn("cask:obsidian", text)
+		self.assertSays("exposure, not a required change", text)
+		self.assertSays("cask:obsidian", text)
 
 	def test_the_accepted_entry_is_the_worked_example(self):
 		text = self.section()
-		self.assertIn("cursor-record()", text)
-		self.assertIn("Named party, named\n  file, named edit", text)
+		self.assertSays("cursor-record()", text)
+		self.assertSays("Named party, named\n  file, named edit", text)
 
 	def test_the_undecidable_escape_clause_is_gone_from_the_bar(self):
 		"""`there's no single delta to re-check` was a self-assessed assertion
@@ -434,7 +480,7 @@ class WatchItemBarTests(unittest.TestCase):
 
 
 # ── history as hypotheses (REDESIGN.md E2, criterion 15) ────────────────────
-class HypothesisTests(unittest.TestCase):
+class HypothesisTests(GuidelineTestCase):
 	"""E2 reconciles "stop seeding candidates" with the measured value of the
 	hypothesis framing. Both halves are evidenced: the seeding produced six of
 	eight bad proposals, and the framing measurably raised research quality.
@@ -458,57 +504,57 @@ class HypothesisTests(unittest.TestCase):
 
 	def test_the_checker_is_told_to_evidence_or_drop(self):
 		text = self.checker_section()
-		self.assertIn("never as a\nfact to carry forward", text)
-		self.assertIn("Evidence it yourself", text)
-		self.assertIn("drop it. Say nothing", text)
-		self.assertIn("Nothing reaches your output on the strength of history alone", text)
+		self.assertSays("never as a\nfact to carry forward", text)
+		self.assertSays("Evidence it yourself", text)
+		self.assertSays("drop it. Say nothing", text)
+		self.assertSays("Nothing reaches your output on the strength of history alone", text)
 
 	def test_the_checker_is_told_not_to_launder_a_prior_conclusion(self):
 		"""'A prior review found X and it still holds' is history reaching
 		output on history's strength, wearing a citation."""
-		flat = " ".join(self.checker_section().split())
-		self.assertIn('Do not write "a prior review found X and it still holds"', flat)
+		self.assertSays('Do not write "a prior review found X and it still holds"',
+			self.checker_section())
 
 	def test_being_handed_a_candidate_is_named_as_not_being_evidence(self):
-		self.assertIn("Being handed a candidate is\nnot evidence that a candidate exists",
+		self.assertSays("Being handed a candidate is\nnot evidence that a candidate exists",
 			self.checker_section())
 
 	def test_the_placeholder_exists_and_is_documented(self):
-		self.assertIn("{{HYPOTHESES}}", TEMPLATE)
+		self.assertSays("{{HYPOTHESES}}", TEMPLATE)
 		body, table = TEMPLATE.split("## Placeholder reference", 1)
-		self.assertIn("{{HYPOTHESES}}", body)
-		self.assertIn("{{HYPOTHESES}}", table)
+		self.assertSays("{{HYPOTHESES}}", body)
+		self.assertSays("{{HYPOTHESES}}", table)
 
 	def test_the_prompt_builder_gets_both_worked_examples(self):
 		text = self.builder_section()
-		self.assertIn("**GOOD**", text)
-		self.assertIn("**BAD**", text)
-		self.assertIn("O_NORL", text)                       # the one that worked
-		self.assertIn("proposed a watch item", text)        # the one that nominated
-		self.assertIn("nomination wearing a question's clothes", text)
+		self.assertSays("**GOOD**", text)
+		self.assertSays("**BAD**", text)
+		self.assertSays("O_NORL", text)                       # the one that worked
+		self.assertSays("proposed a watch item", text)        # the one that nominated
+		self.assertSays("nomination wearing a question's clothes", text)
 
 	def test_naming_an_artefact_kind_in_a_hypothesis_is_banned(self):
 		text = self.builder_section()
-		self.assertIn("Never name an artefact kind", text)
-		self.assertIn("Never mention volume, budgets, counts", text)
-		self.assertIn("Never carry a prior conclusion without its evidence", text)
+		self.assertSays("Never name an artefact kind", text)
+		self.assertSays("Never mention volume, budgets, counts", text)
+		self.assertSays("Never carry a prior conclusion without its evidence", text)
 
 	def test_hypotheses_are_drawn_mechanically_rather_than_written(self):
 		"""A hand-written hint is where every nomination came from, and a
 		hand-built prompt is what evaporates."""
-		self.assertIn("mechanically", self.builder_section())
-		self.assertIn("not hand-written\nper run", self.builder_section())
+		self.assertSays("mechanically", self.builder_section())
+		self.assertSays("not hand-written\nper run", self.builder_section())
 
 	def test_the_dispatch_step_carries_the_ban(self):
 		"""§6.1 asks for one line in SKILL.md step 3 pointing at the rules —
 		the orchestrator fills the placeholder, so the orchestrator is who has
 		to know."""
-		self.assertIn("never as nominations", SKILL_MD)
-		self.assertIn("Writing Hypotheses", SKILL_MD)
+		self.assertSays("never as nominations", SKILL_MD)
+		self.assertSays("Writing Hypotheses", SKILL_MD)
 
 
 # ── items are outward-facing (REDESIGN.md L3, criterion 7) ──────────────────
-class OutwardFacingTests(unittest.TestCase):
+class OutwardFacingTests(GuidelineTestCase):
 	"""WP1 put the rule in the schema and in `contract.json`'s `scope`, and
 	deliberately did NOT make it a validator filter — a regex that deleted
 	"internal-looking" items would be exactly the banned behaviour. That leaves
@@ -520,46 +566,45 @@ class OutwardFacingTests(unittest.TestCase):
 
 	def test_the_rule_reaches_the_agent_that_writes_items(self):
 		text = self.section()
-		self.assertIn("Project-internal maintenance never becomes an item", text)
+		self.assertSays("Project-internal maintenance never becomes an item", text)
 		for named in ("Repo upkeep", "convention changes", "documentation updates"):
-			self.assertIn(named, text)
+			self.assertSays(named, text)
 
 	def test_it_is_stated_as_one_answerable_question(self):
-		self.assertIn("Did anything change for a person who uses this tool without reading its",
+		self.assertSays("Did anything change for a person who uses this tool without reading its",
 			self.section())
 
 	def test_internal_work_with_an_outward_consequence_is_kept(self):
 		"""The rule has to not over-fire: a reproducible-build switch changes
 		the published checksum, and that is a real item."""
-		self.assertIn("Internal work with an outward consequence is outward-facing",
+		self.assertSays("Internal work with an outward consequence is outward-facing",
 			self.section())
 
 	def test_chore_is_not_offered_as_a_place_to_put_internal_maintenance(self):
 		"""Without this the rule converts into a tag choice and nothing is
 		actually excluded."""
 		text = self.section()
-		self.assertIn("`chore` is not the place to put internal maintenance", text)
-		self.assertIn("it is not an item", text)
+		self.assertSays("`chore` is not the place to put internal maintenance", text)
+		self.assertSays("it is not an item", text)
 
 	def test_it_is_distinguished_from_the_noise_floor(self):
 		"""Different rule, different moment: the noise floor deletes from what
 		was written and carries a hard boundary because a deletion there can
 		approve an update. This one asks whether there was an item at all."""
 		text = self.section()
-		self.assertIn("This is not the noise floor", text)
+		self.assertSays("This is not the noise floor", text)
 		self.assertLess(RESEARCH.index("### Items Are Outward-Facing Changes"),
 			RESEARCH.index("### The Noise Floor"))
 
 	def test_the_absence_of_a_deterministic_filter_is_stated(self):
-		flat = " ".join(self.section().split())
-		self.assertIn("Nothing in the deterministic layer enforces it", flat)
+		self.assertSays("Nothing in the deterministic layer enforces it", self.section())
 
 	def test_the_schema_and_the_guidelines_agree(self):
 		import sys
 		sys.path.insert(0, HERE)
 		import items as model
-		self.assertIn("outward-facing changes only", model.contract()["scope"]["items_are"])
-		self.assertIn("outward-facing", self.section())
+		self.assertSays("outward-facing changes only", model.contract()["scope"]["items_are"])
+		self.assertSays("outward-facing", self.section())
 
 
 if __name__ == "__main__":

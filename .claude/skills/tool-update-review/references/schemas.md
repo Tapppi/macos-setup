@@ -717,12 +717,15 @@ different body:
 - `rationale` (string): how you know the ordinary path fails for this tool.
   It must name a failure that happened, not predict one that might
   (`references/research.md` §Writing a Research-Method Note).
-- **Scope.** A note stored against one tool is a **per-tool** method note, and
-  those are expected to be **many** — tools have weird conventions and unusual
-  changelog locations. A note that holds across many tools is a **global**
-  method note, and those are **rare by definition**: applying across many tools
-  is the entry condition (`REDESIGN.md` §L1). Three stores, three scopes; the
-  agent routes at the point of writing.
+- **Scope.** A `method-note` proposal is always written against **one tool**,
+  and per-tool notes are expected to be **many** — tools have weird conventions
+  and unusual changelog locations. The third store, **global** method notes, is
+  filled by **promotion during convergence**, never by a per-tool proposal: its
+  entry condition is holding across many tools, and a checker that sees one to
+  nine of them cannot establish that. A checker that thinks a note generalises
+  says so in its `rationale`; convergence, which reads every tool at once,
+  decides. That is why global notes are rare (`REDESIGN.md` §L1) — the evidence
+  for one exists at exactly one place in the pipeline.
 - Never elevates a tool's `risk_level` or its review bucket. See §1.7c.
 
 ### 1.7c The self-test tag

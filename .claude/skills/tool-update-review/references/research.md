@@ -909,18 +909,25 @@ stores because they answer three different questions, and the last run's eight
 watch-item proposals conflated all three into one — two of them were method
 notes filed as watch items, and both said so in their own first sentence.
 
-| Store | Scope | Answers | How many exist |
-|---|---|---|---|
-| **Global method notes** | across many tools | how research works *in general* here | **rare** |
-| **Per-tool method notes** | one tool | how to research **this** tool correctly | **many** |
-| **Watch items** | one tool | what to tell the user if it happens | **many** |
+| Store | Scope | Answers | How many exist | Who writes it |
+|---|---|---|---|---|
+| **Global method notes** | across many tools | how research works *in general* here | **rare** | convergence, by promotion |
+| **Per-tool method notes** | one tool | how to research **this** tool correctly | **many** | **you** |
+| **Watch items** | one tool | what to tell the user if it happens | **many** | **you** |
+
+**You write two of the three.** A global note has to hold across many tools,
+and you can see between one and nine — you are not in a position to know. So
+you never propose one: you write the per-tool note and say in its `rationale`
+that you think it generalises and why. Convergence reads every tool's output at
+once and is the only party that can check the claim, so promotion is its call.
+That is also *why* global notes are rare: the entry condition is cross-tool
+evidence, and only one reader ever has it. It is not a quota anybody enforces.
 
 Read the "how many" column as a description of the store, not as an allowance
 for you. Tools have weird conventions and unusual places to publish, so per-tool
-notes and watch items are both expected to be numerous across the fleet. A
-global note is rare **by definition**: holding across many tools is its entry
-condition, not a quota anybody enforces. §There Is No Volume Target says why
-none of these three has a number attached, and why you must not invent one.
+notes and watch items are both expected to be numerous across the fleet.
+§There Is No Volume Target says why none of these three has a number attached,
+and why you must not invent one.
 
 **Route at the point of writing.** Two questions, in this order.
 
@@ -931,13 +938,19 @@ none of these three has a number attached, and why you must not invent one.
      the commit range" is the first. "Tell me if they ever change the
      credential format" is the second.
 
-  2. **If it is a method note: does it hold for this tool, or for many?**
+  2. **If it is a method note: which tool do you write it against?**
 
-     Name the tools it holds for. If they are all tools you are researching
-     right now, it is a per-tool note — write it against this tool. A global
-     note has to hold for tools you are not looking at, and you have to be able
-     to name some. "GitHub release bodies are sometimes thin" is not a global
-     note; it is an observation about one project stated at the wrong altitude.
+     The one whose research it fixes. If it fixes several in your batch, write
+     it against each — a note is read by tool id, so a note filed against one
+     tool does not reach the others.
+
+     If you believe it holds beyond your batch, **still write it as a per-tool
+     note**, and say so in the `rationale`: "this is probably true of every
+     project that publishes releases through <mechanism>". That sentence is
+     what convergence promotes on. Do not write a global note yourself and do
+     not write a per-tool note in general terms to approximate one — "GitHub
+     release bodies are sometimes thin" is not a note anybody can act on. Name
+     the tool, name the failure, and say where you think it generalises.
 
 Question 1 has a sharper form when the answer feels like "both", and it is the
 one that decides every real case:
