@@ -985,6 +985,28 @@ class ReportInvariantTests(unittest.TestCase):
 				self.assertFalse(tool["security"]["has_security"], tool["id"])
 				self.assertEqual(tool["security"]["cve_ids"], [], tool["id"])
 
+	def test_a_finding_source_cannot_contribute_a_grade_it_does_not_count(self):
+		"""`compute_security` forces a non-version source's whole block empty,
+		so the report-wide rollup must read the tool's emitted `cve_ids` rather
+		than re-scanning its items — otherwise an enriched health finding
+		carrying a CVE item grades an id the report deliberately does not
+		count, and can fire a "rated differently on two tools" note about it."""
+		report, _ = assemble_session(
+			{"generated_at": "t", "machine": {},
+				"brew_health": {"findings": [{"id": "brew-health:untrusted_tap:x",
+					"name": "x", "source": "brew-health", "category": "untrusted_tap",
+					"severity": "warning", "detail": "d", "remediation": None,
+					"expected": False}], "suppressed": []}},
+			[{"id": "brew-health:untrusted_tap:x", "links": [], "items": [
+				_item("cve", tags=["security"], severity="warning",
+					title="Fixes CVE-2026-9999 upstream",
+					security=_sec("CVE-2026-9999", "critical", "vendor"))]}])
+		sec = report["summary"]["security"]
+		self.assertEqual(sec["cve_count"], 0)
+		self.assertEqual(sum(sec["severity_counts"].values()), 0)
+		self.assertEqual(sec["tools_with_security"], 0)
+		self.assertNotIn("CVE-2026-9999", report["_log"])
+
 	def test_the_report_states_whether_the_corpus_validated(self):
 		self.assertIn("validation", self.report)
 		self.assertIsInstance(self.report["validation"]["clean"], bool)

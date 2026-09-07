@@ -1470,8 +1470,16 @@ def summarize_security(tools: list) -> dict:
 	# header is the failure mode with a cost.
 	severity_by_id: dict = {}
 	for tool in tools:
-		ids.update(tool["security"]["cve_ids"])
+		# The tool's own emitted list, not a re-scan: `compute_security` forces
+		# it empty for a non-version source, and reading the items directly
+		# would let a health finding whose research supplied a CVE-bearing item
+		# contribute a grade for an id the report deliberately does not count —
+		# and fire a "rated differently on two tools" note about it.
+		tool_ids = set(tool["security"]["cve_ids"])
+		ids.update(tool_ids)
 		for cve_id, severity in tool_cve_ratings(tool).items():
+			if cve_id not in tool_ids:
+				continue
 			prior = severity_by_id.get(cve_id)
 			if prior is not None and prior != severity:
 				# Its per-tool twin in tool_cve_ratings() notes exactly this;
