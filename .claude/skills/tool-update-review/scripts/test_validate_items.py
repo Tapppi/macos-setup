@@ -35,6 +35,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import items as model  # noqa: E402
@@ -1053,6 +1054,42 @@ class MemoryProposalTests(unittest.TestCase):
 				self.assertEqual(view["initial_review_bucket"], "attention")
 				self.assertIn("E-ENUM-INVALID", {f["code"] for f in findings.entries})
 
+	def test_an_unrecognized_kind_never_reaches_the_pre_accepting_bucket(self):
+		"""`compute_initial_bucket` tests `security_auto` **before** its own
+		suggestion clause, and that clause's inputs are `impact` and
+		`security_only`. So the bucket clause's negation is not the guarantee —
+		`compute_impact` and `compute_risk_level` are.
+
+		No fixture anywhere crossed a security item with a suggestion, which is
+		why a 133-test suite stayed green over a route straight to
+		`security_auto`, pre-accepted, carrying an unreviewed proposed edit to
+		the user's system. That is the `brew:libpq` defect, exactly."""
+		security = _item(tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-1000", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		for kind in ("edit", "edits", "future-kind"):
+			with self.subTest(kind):
+				research = {"id": "brew:x", "links": [], "items": [security],
+					"suggestions": [_action(kind, structural=None)]}
+				view, _ = validate_one(research)
+				self.assertNotEqual(view["initial_review_bucket"], "security_auto")
+				self.assertEqual(view["initial_review_bucket"], "security_mixed")
+				self.assertEqual(view["impact"], "possible")
+				self.assertEqual(view["risk_level"], "elevated")
+
+	def test_a_memory_proposal_beside_security_content_still_auto_accepts(self):
+		"""The other side of the same clause: the negation must not over-fire.
+		A method note is not a reason to hold back a security-only upgrade."""
+		security = _item(tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-1000", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		research = {"id": "brew:x", "links": [], "items": [security],
+			"suggestions": [_memory("method-note")]}
+		view, _ = validate_one(research)
+		self.assertEqual(view["impact"], "none")
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
 	def test_an_unrecognized_kind_does_not_silence_the_attention_warning(self):
 		status = {"state": "needs_attention", "detail": "stale", "evidence": [],
 			"citations": []}
@@ -1082,11 +1119,21 @@ class MemoryProposalTests(unittest.TestCase):
 		self.assertTrue(any("\"list\"" in m for m in messages), messages)
 		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
 
-	def test_the_tagged_list_is_present_on_every_view_from_the_start(self):
-		"""It is what convergence works from. A tool that degraded is exactly
-		the tool a consumer must still be able to read without a KeyError."""
-		view, _ = validate_one(None)
+	def test_the_tagged_list_survives_a_crash_inside_the_axis_derivation(self):
+		"""The default in the view literal is only ever *read* when
+		`_derive_axes` raises before assigning the key — so a test that lets
+		`_derive_axes` finish pins nothing, and passes with the default
+		removed. Inject the crash.
+
+		It also makes the ordering point visible rather than assumed: with the
+		crash injected before the tail, `initial_review_bucket` still reads
+		`attention`, so a failed stage cannot promote this tool."""
+		with mock.patch.object(V, "compute_impact", side_effect=RuntimeError("boom")):
+			view, _ = validate_one(None)
+		self.assertIn("self_test_tagged_suggestion_ids", view)
 		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+		self.assertTrue(view["validator_error"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
 
 	def test_a_tagged_proposal_missing_its_id_is_still_listed(self):
 		"""Absent from the list is the one thing it must never be — convergence

@@ -1048,12 +1048,19 @@ def compute_impact(view) -> str:
 
 	`"watch-item"` is NOT in the suggestion clause: `REDESIGN.md` §D row 4
 	accepts dropping it, and `item-schema.md` §5.5 flags its own draft as wrong
-	against that row. Landed here as `model.ACTION_SUGGESTION_KINDS`, the closed
-	set this clause has always tested. Note it is *not* the bucket clause's
-	test: that one asks `needs_a_decision`, a negation, so an unrecognized kind
-	fails safe onto the attention list. Impact keeps the positive form because
-	an unrecognized kind is not evidence of impact — it is evidence of
-	nothing, and `E-ENUM-INVALID` reports it."""
+	against that row. It reads `model.needs_a_decision`, the same negation the
+	bucket clause and `W-ATTENTION-NOSUG` ask, and that matters here more than
+	anywhere: `compute_initial_bucket` tests `security_auto` **before** its own
+	suggestion clause, and `security_auto`'s inputs are `impact` and
+	`security_only`. Written positively, a suggestion whose kind is typo'd
+	`"edits"` — or drifted to a list — reads as no impact, and a tool with any
+	security content lands in `security_auto`, pre-accepted, carrying an
+	unreviewed proposed edit to the user's system. That is the `brew:libpq`
+	defect this module's header names, reached by exactly the route the header
+	describes.
+
+	`needs_a_decision` and `("edit", "structural")` differ **only** on kinds
+	outside the vocabulary, so no conforming input changes behaviour."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "none" if assemble.finding_expected(view) else "possible"
 	if not research_produced_content(view):
@@ -1064,7 +1071,7 @@ def compute_impact(view) -> str:
 	suggestions = view.get("suggestions") or []
 	if (view.get("pinned")
 			or assemble.config_needs_attention(view)
-			or any(assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
+			or any(model.needs_a_decision(assemble.suggestion_kind(s))
 				for s in suggestions if isinstance(s, dict))
 			or any(i.get("severity") == "incompatible" for i in view["items"])
 			# `isinstance`, not `or {}`: V2 reports a wrong-typed `local` and
@@ -1103,7 +1110,9 @@ def compute_risk_level(view) -> str:
 		if isinstance(item.get("local"), dict) and item.get("severity") in ("warning", "incompatible"):
 			return "elevated"
 	for sug in view.get("suggestions") or []:
-		if isinstance(sug, dict) and assemble.suggestion_kind(sug) in model.ACTION_SUGGESTION_KINDS:
+		# Same negation, same reason as `compute_impact`: `risk_level` feeds
+		# `pre_accept`, so an unrecognized kind must raise it, not be waved past.
+		if isinstance(sug, dict) and model.needs_a_decision(assemble.suggestion_kind(sug)):
 			return "elevated"
 	if view["version_delta"] in ("major", "unknown"):
 		return "elevated"
@@ -1130,9 +1139,15 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	rather than testing "anything that is not an upgrade".
 
 	That predicate is a negation — *not* a memory kind — so an unrecognized
-	kind still forces `attention`. Testing `in ACTION_SUGGESTION_KINDS` instead
+	kind still forces a decision. Testing `in ACTION_SUGGESTION_KINDS` instead
 	would let a drifted `"edits"` read as a memory proposal and leave a real
 	edit on a `routine` tool, with `E-ENUM-INVALID` raised and feeding nothing.
+
+	**This clause is not the whole guarantee**, and reading it as one is a
+	mistake: `security_auto` is tested two clauses earlier and never reaches
+	here. `compute_impact` and `compute_risk_level` ask the same predicate for
+	that reason — they are what hold an unrecognized kind out of the
+	pre-accepting bucket.
 
 	The old spelling was harmless only while watch items were rare. `REDESIGN.md`
 	§L1 now expects **many** per-tool method notes and watch items, so "not an
