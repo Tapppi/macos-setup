@@ -195,18 +195,31 @@ with versions only.
 
 ### 4. Assemble and render
 
-Run `scripts/assemble.py` to merge `collect.sh`'s output with every
-`research/*.json` file into the report object: it normalizes research's
-free-form arrays into schema shapes, ensures suggestion ids are unique,
-verifies evidence paths exist, applies a `needs_sudo` heuristic, synthesizes a
-baseline `kind: "upgrade"` suggestion for every version-source tool (never
-for a `brew-health` or `skill-drift` finding, which has no version)
-(research-authored `edit` suggestions are additional to this, never a
-replacement), computes every derived triage field (`version_delta`,
-`security`, `risk_level`, `review_bucket`, per-suggestion `pre_accept`), ranks
-`highlights[]`, and computes the `summary` counts and rollups. Run
-`python3 scripts/test_assemble.py` after changing any of that. Write
-`report.json` to the session dir, then:
+Run `scripts/assemble.py`. It runs the deterministic validator over
+`research/*.json` (`references/item-schema.md` — spec validation, shape
+normalization, id assignment, the eighteen invariants, `impact`, `risk_level`
+and the initial bucket), merges the per-tool views it returns with
+`collect.sh`'s output, and writes four files to the session dir:
+
+| File | What |
+|---|---|
+| `report.json` | the report the page renders |
+| `validation.json` | the validator's full document — the pre-convergence artifact |
+| `assemble.warn` | spec-conformance findings, one per line, code-prefixed. **A clean run leaves it empty**, so a non-empty one is worth reading. |
+| `assemble.log` | everything that is not a conformance finding — what assembly did, renamed, or could not do |
+
+Assembly itself owns only what is not a judgement about an item: the version
+delta, the synthesized baseline `kind: "upgrade"` suggestion for every
+version-source tool (never for a `brew-health` or `skill-drift` finding, which
+has no version — and research-authored `edit`/`structural` suggestions are
+additional to the baseline, never a replacement), the `needs_sudo` heuristic,
+suggestion-id uniqueness, per-suggestion `pre_accept`, `highlights[]`, the
+`summary` rollups, and the tool-level CVE rollup over `items[]`.
+
+**Exit is never fatal for a degraded corpus.** A spec violation costs one
+tool's checks, never the run; the report still renders and says so.
+
+Run `python3 scripts/test_assemble.py` after changing any of that. Then:
 
 ```sh
 python3 scripts/render.py /tmp/tool-update-review-{report_id}/report.json

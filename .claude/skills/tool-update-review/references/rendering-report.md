@@ -448,9 +448,8 @@ measured at 1440px, every visible card's block ends on the same x — so "how
 bad is this one" is a single vertical scan.
 
 **Design for the ungraded case, because it is the common one.** Research
-grades only the severities a vendor already states in the text it is reading
-and the handful of items it promotes into `notable[]` — it never goes CVE
-hunting to fill a meter. On the live report that leaves **24 of 41
+grades only the severities a vendor already states in the text it is reading —
+it never goes CVE hunting to fill a meter. On the live report that leaves **24 of 41
 security-bearing tools with no CVE id at all** and most of the rest graded
 three deep. So:
 
@@ -510,16 +509,14 @@ exactly as it did before and looks entirely correct.
   integer rejects the entire object, because a breakdown with one garbage
   value is not a breakdown that can be trusted about the others. An all-zero
   object is `null` — there is nothing to break down.
-- `notable[]` — entries with no `summary` are dropped; an unrecognised
-  `severity` degrades to `unknown` rather than being guessed upward; the page
-  re-caps at 3 rather than trusting the contract's cap, exactly as it does
-  for `highlights[]` — but it caps in `notableItems()`, **after** the ranking
-  sort, never in the normalizer. Array order is not a ranking: capping first
-  drops a fourth entry marked `critical` in favour of a first one marked
-  `unknown`, which is the one item the card existed to show. **`null` (no
-  field) and `[]` (assembly found nothing notable) are different answers and
-  stay different**: `null` falls back to the old derivation, `[]` is the
-  single-column card.
+- `display_item_ids` — a list of **item ids**, kept only when each is a
+  string. The page looks each id up in `tool.items` and renders that item;
+  an id that does not resolve is skipped rather than rendered as a stub. There
+  is nothing to re-cap and nothing to re-sort: the selection is a bar rather
+  than a cap, and the order is the contract's total
+  `security_display_sort_key`, so following the list reproduces the report
+  exactly. An empty list means "nothing cleared the bar" — the single-column
+  card — and is common. It is not a data gap.
 
 Rendered order is **(a) auto-approved as a single collapsed one-line strip,
 then (b) mixed, expanded**. Group (a) still comes first in reading order, but
@@ -568,49 +565,50 @@ for.
 Under 760px the grid collapses to one column, security on top with a bottom
 hairline instead of a right one.
 
-- **The left column renders `security.notable[]` and nothing else** — the two
-  or three items that could actually change a decision, not every security
-  sentence the run produced. `notableItems()` orders them by **assembly's own
-  key** (`schemas.md` §1.9): **`affects_me: true` first, then worst severity**,
-  then original array index so the order is total. It has to be assembly's
-  key and not a second opinion, because assembly both orders *and evicts* by
-  it — this list is what survived a cap — and because the page's remaining
-  key (array index) then reproduces assembly's order exactly rather than
-  approximating it. `NOTABLE_RANK` therefore ranks `unknown` **above** `low`,
-  matching `_NOTABLE_SEVERITY_RANK` tier for tier; `scripts/test_assemble.py`
-  §7 pins the two tables against each other, because this is precisely where
-  the two sides drifted apart once already.
-- `notable[].severity` may arrive in the CVE vocabulary or the page's own
-  item vocabulary; both map onto §Per-Item Severity through `NOTABLE_SEV`, so
-  no new icon or colour enters the page. `critical`→`incompatible`,
-  `high`→`warning`, `medium`→`notable`, `low`→`info` — and **`unknown` →
-  `notable`, not `info`.** An absent grade means "research selected this item
-  and nobody published a rating", never "a small flaw", and every route into
-  `notable[]` that can leave the grade absent already cleared a bar at least
-  this high: `research.md` §Selecting Notable Security Items admits an
-  ungraded item only as the subject of a `security` relevancy at `notable`+,
-  or as something exploited in the wild. Painting it `·` `--blue` put the
-  id-less, ungraded, machine-touching item — the class that clause exists for
-  — at the bottom of the card in the lightest ink on it. `low` keeps `info`:
-  a graded-low CVE really is the least of what a card shows. The display
-  table and the rank table are deliberately not one table: four display
-  classes cover five ordering tiers, so `unknown` paints like `medium` while
-  still sorting below it.
-- A report from an older assembly with **no** `notable` field falls back to
-  the previous derivation, `buildContentGroups(tool).security.slice(0, 3)` —
-  the card's shape does not change, only its source. `notable: []` is *not*
-  that case: it is assembly's answer that nothing qualified, and it draws the
-  single-column card. See §1.9 for which of the two assembly emits when.
-- An item line is: severity icon · the `affects_me` chip when true · the
-  `cve_id` chip when non-null · the summary. **Both chips lead the line rather
-  than trailing it**, because the text is clamped and a trailing chip is
-  exactly what a clamp eats. `affects this setup` is the `.mine-chip` — the
-  `.sudo-chip` micro-tag shape in `--red-text`, no new component grammar and
-  no new colour. It is loud on purpose and should stay rare; a run that marks
-  a third of items `affects_me` is an assembly bug to fix on the data side,
-  not a style to soften here.
-- The right column takes every non-security item, `headliners[]` and
-  `relevancy[]` alike, relevancy first — they are about *this machine*.
+- **The left column renders the items `security.display_item_ids` names and
+  nothing else** — the ones that could actually change a decision, not every
+  security sentence the run produced. `securityDisplayItems()` follows that
+  list in order and does **not** re-derive it: the contract's
+  `security_display_sort_key` is total (rating worst-first, then
+  exploited-in-the-wild, then whether it reaches us, then severity, then id),
+  so following it reproduces the report exactly. Re-deriving is precisely how
+  the two sides drifted apart once already. `NOTABLE_RANK` still exists for
+  the display mapping and still ranks `unknown` **above** `low`, matching
+  `items.CVE_ORDER_RANK`; `scripts/test_assemble.py` pins the two tables
+  against each other.
+- **There is no cap.** A cap is a count, and counts invite padding: the old
+  `notable[]` took the worst three under a clause with no direction test, and
+  `brew:openssh` filled all three slots with items whose own summaries say the
+  fix does not reach this machine. The card still shows at most 3 with a
+  `+N more →`, but that is a *display* limit with an escape hatch, not an
+  eviction — nothing is lost from the report.
+- The display class comes from `item.security.rating` when one was published
+  and from the item's own `severity` otherwise; both map onto §Per-Item
+  Severity through `NOTABLE_SEV`, so no new icon or colour enters the page.
+  `critical`→`incompatible`, `high`→`warning`, `medium`→`notable`,
+  `low`→`info` — and **`unknown` → `notable`, not `info`.** An absent grade
+  means "nobody published a rating", never "a small flaw", and every route past
+  the selection bar that can leave the grade absent already cleared something
+  at least this high: the item reaches this machine, or it is at warning+, or
+  it is exploited in the wild. Painting it `·` `--blue` put the id-less,
+  ungraded, machine-touching item at the bottom of the card in the lightest ink
+  on it. `low` keeps `info`: a graded-low CVE really is the least of what a
+  card shows. The display table and the rank table are deliberately not one
+  table: four display classes cover five ordering tiers, so `unknown` paints
+  like `medium` while still sorting below it.
+- An item line is: severity icon · the `affects this setup` chip when
+  `local.direction == "reaches"` · the `cve_id` chip when non-null · the
+  title. **Both chips lead the line rather than trailing it**, because the text
+  is clamped and a trailing chip is exactly what a clamp eats. The chip is the
+  `.mine-chip` — the `.sudo-chip` micro-tag shape in `--red-text`, no new
+  component grammar and no new colour. It is derived now rather than declared:
+  `affects_me` was a free-standing boolean a checker could set without
+  evidence, where `direction` had to be answered before the selection bar could
+  read it, and I-14 requires evidence for `reaches`.
+- The right column takes every item whose primary group is not `security`, in
+  canonical order — which already puts the ones that reach this machine first
+  inside each severity tier, so the old "relevancy first" pass is what the
+  ordering does for free.
 - Items are **summary line only**: one severity icon plus the text. No
   `detail`, no evidence, no per-item link — those live in the tool section.
 - **Both columns clamp item text to two lines** (`-webkit-line-clamp: 2`,
@@ -625,8 +623,8 @@ hairline instead of a right one.
   show**, the left column shows the existing "No detailed changelog published"
   pill. The pill is a fallback for an empty column, never an override: vendor
   silence is a statement about the changelog, and research can still promote a
-  `notable[]` item for a silent vendor from an NVD entry or a downstream
-  advisory. Items always win — a silent tool with notable items renders them.
+  security item for a silent vendor from an NVD entry or a downstream
+  advisory. Items always win — a silent tool with selected items renders them.
 
 #### The collapsed security detail
 
@@ -644,21 +642,22 @@ count when there are ids, and the security-note count whenever there is a note
 to show at all. The note part is *not* conditioned on the card having hidden
 something — the lines above are clamped to two lines and these are not, so a
 note the card already drew is still only reachable in full here. Testing
-"more notes than the card showed" compared two different lists (`notable[]`
-against `buildContentGroups().security`) and left six tools in the live report
-— three notes, no ids — with no control and no way to read their own text.
+"more notes than the card showed" once compared two different lists
+(`notable[]` against `buildContentGroups().security`) and left six tools in the
+live report — three notes, no ids — with no control and no way to read their
+own text. Both sides are the same item objects now, so the de-duplication is on
+the item id.
 The trailing `in full` appears only when the card really did draw a subset
 above; on a single-column card nothing was shown, so the label says plainly
 how many there are.
 
 Expanded: the `.cve` chip cloud, then **the card's own security lines at full,
-unclamped length** — the `notable[]` summaries with their `affects this setup`
-and `.cve` chips, exactly as the column drew them, plus any security item the
-column had no room for — then, when `cve_claimed_count` exceeds the id count,
-one prose line saying so. The body renders *those* lines and not a parallel
-list derived from `buildContentGroups()`, which shares no entry with
-`notable[]` in general and so made the clamp's promise of "the full text, one
-click away in place" unkeepable.
+unclamped length** — the selected items with their `affects this setup` and
+`.cve` chips, exactly as the column drew them, then every other security item
+on the tool, de-duplicated **by item id** — then, when `cve_claimed_count`
+exceeds the id count, one prose line saying so. The body renders *those* lines
+and not a parallel list, which is what made the clamp's promise of "the full
+text, one click away in place" unkeepable before.
 
 **Zero ids with a vendor claim is its own case.** `cve_claimed_count` alone
 carries a label part (`370 fixes stated upstream`), so the control renders on
@@ -705,7 +704,7 @@ than free find-in-page expansion of content that is CVE ids nobody Ctrl-Fs.
 
 #### The single-column variant
 
-**Applies exactly when `notableItems()` is empty and
+**Applies exactly when `securityDisplayItems()` is empty and
 `vendor_silent_categories` does not contain `security`.** The `.mixcol.sec`
 element is **not rendered** (not hidden), the card carries `.onecol`, and
 `.mixcard.onecol .mixcols { grid-template-columns: 1fr }` — nothing to
@@ -725,10 +724,10 @@ different reason.
   its head-row summary strip, and everything the column would have held is one
   click away in the detail below it.
 
-**An empty `notable[]` is a legitimate answer, not a data gap**, and this
-variant is the whole point of it — so nothing anywhere may force-promote a
-headliner into `notable[]` to keep two columns. Doing that would make this
-variant unreachable.
+**An empty `display_item_ids` is a legitimate answer, not a data gap**, and
+this variant is the whole point of it — so nothing anywhere may force-promote
+an item past the selection bar to keep two columns. Doing that would make this
+variant unreachable, and it is the padding the bar replaced a cap to prevent.
 - Foot row: mirror decision controls for the tool's **baseline upgrade**
   suggestion, the `needs_sudo` chip when it applies, then
   `+N more decision(s)` in `--base01` when the tool has more than one
@@ -747,14 +746,13 @@ is nothing to read here; the page derives one from the triage fields the
 contract does guarantee. `compareMixedTools(a, b)`, first non-zero wins:
 
 1. **worst security-item severity**, taken from `buildContentGroups(tool).security`.
-   A tool with no security item at all ranks below `info` rather than tying
-   with it. (That list sorts relevancy above a headliner of equal severity via
-   a half-step; the half is floored away here, so this stays exactly "max
-   severity" and the next key breaks the tie.) **This deliberately keeps
-   reading the undeduped, unfiltered list rather than `notable[]`** — the
-   order in which cards are cut by the cap must not shuffle because assembly
-   changed which items it promoted. It is exactly the kind of coupling that
-   gets added by accident later.
+   `items[]` arrives in canonical order, which is severity worst-first inside a
+   group, so the first entry is the worst; a tool with no security item at all
+   ranks below `info` rather than tying with it. **This deliberately keeps
+   reading the whole security group rather than `display_item_ids`** — the
+   order in which cards are cut by the cap must not shuffle because the
+   selection bar admitted a different item. It is exactly the kind of coupling
+   that gets added by accident later.
 2. **higher `security.cve_count`** first;
 3. **worse `security.impact`** first — `possible` < `unknown` < `none`;
 4. **bigger `version_delta`** first, by the same
@@ -930,7 +928,8 @@ Source select (All|brew|cask|mise|standalone|macos|brew-health|skill-drift
 — one `<option>` per value the `source` vocabulary defines, so a source with
 no option is a source the user cannot isolate), severity
 select, **Security only** checkbox (`data-sec="1"`), "Only relevant to me"
-toggle (hides tools with empty `relevancy[]`), sort select (**Needs decision
+toggle (hides tools with no item carrying a `local` block — `maxSeverity()`
+returns `''` for them, so `data-max-severity` is empty), sort select (**Needs decision
 first** [default] | Incompatible first | Name | Source | Major-delta first),
 the auto-advance toggle, and Collapse all / Expand all.
 
@@ -1021,7 +1020,7 @@ decision-oriented pair and neither substitutes for the others.
   as the `config_status` "ok" badge) — the badge never disappears, it just
   stops demanding attention.
 - **Severity-tier counts**: one small count per severity level actually
-  present among the tool's headliners+relevancy items (info/notable/warning/
+  present among the tool's `items[]` (info/notable/warning/
   incompatible), using the same icon/color mapping as per-item severity
   (below) — e.g. "⛔1 ⚠2". Omit a tier with zero items rather than showing
   "0". This is the "how significant is this tool's changelog" signal,
@@ -1056,23 +1055,37 @@ one-at-a-time walk).
 ### Content Groups
 
 **There is no separate "headliners" bullet list and no separate "links row"
-wall of buttons — both `headliners[]` and `relevancy[]` render entirely
-inside four content groups: Security, Fixes, Features, Notes.** Each item
-carries its own `category` (which group) and `severity` (`schemas.md`, both
-assigned by research) — the groups themselves are neutral, purely-
-organizational containers with no color of their own; **only individual
-items are colored**, by their own `severity`, independent of which group
-they're in. This is a deliberate change from an earlier version of this
-design that colored the whole group box by a single severity/notability
-accent and derived category client-side from keyword matching — that
-heuristic is exactly what caused topic and urgency to get conflated (a
-low-profile security item reading as "minor" would get bucketed into Notes
-by the same signal that was supposed to be its severity, not its topic).
-Research assigns both explicitly now; the page just renders what it's given,
-no classification logic of its own. Nothing is shown twice: a headliner
-that's really a security fix renders once, under Security, not also in a
-generic list. Evidence paths for relevancy items stay attached to their item
-wherever it lands. Lead with title + one-line description for each item;
+wall of buttons — `items[]` renders entirely inside four content groups:
+Security, Fixes, Features, Notes.** Each item carries its own `tags` (topic,
+a closed set of eight) and `severity` (`schemas.md`, both assigned by the
+checker); the **group is derived from the tags** by the same map the contract
+publishes (`items.GROUP_OF_TAG` / `contract.json` `groups.of_tag`), with
+`GROUP_PRECEDENCE` settling an item that carries tags from more than one.
+The groups themselves are neutral, purely-organizational containers with no
+color of their own; **only individual items are colored**, by their own
+`severity`, independent of which group they're in.
+
+This is a deliberate change from an earlier version of this design that
+colored the whole group box by a single severity/notability accent and derived
+category client-side from keyword matching — that heuristic is exactly what
+caused topic and urgency to get conflated (a low-profile security item reading
+as "minor" would get bucketed into Notes by the same signal that was supposed
+to be its severity, not its topic). The checker assigns both explicitly now;
+the page derives one map lookup and nothing else.
+
+**One item appears exactly once**, which is the whole point of the item model:
+the old headliners/relevancy/notable split wrote one change into three arrays
+with three severities implied, and the dedupe that tried to reconcile them
+silently downgraded a card. An item's secondary tags render as a plain "Also
+tagged: …" line in its expanded detail — the primary tag already chose the
+group, so repeating it would be noise on every row, and only ~7% of items
+carry more than one tag.
+
+Evidence paths stay attached to their item wherever it lands, and a citation
+renders beside them but distinctly: `local.evidence[]` is paths only and
+`local.citations[]` is prose, and conflating the two is what produced 272
+"evidence not found" warnings against one real defect. Lead with title +
+`body` for each item;
 push its changelog/release link into a compact footer-style reference per
 item (a direct deep link where the source supports line-level anchors, e.g.
 a CHANGELOG.md section) rather than a shared links block.
@@ -1094,11 +1107,16 @@ items renders the detail — and, when the tool is not vendor-silent, no pill:
 the pill states that the vendor published nothing, which is a different claim
 from the group simply having no item in it.
 
-Within a group, items sort **worst severity first**, with a relevancy item
-placed just above a headliner of the same severity — a finding about *this
-setup* outranks the generic changelog line that motivated it. The Overview's
-mixed-card comparator reads the same ordering, so the two views agree about
-which item is a tool's worst (§Overview Tab → Security Section).
+Within a group the page **does not sort at all**. `items[]` arrives in the
+contract's canonical order (`items.order_items`: group, then severity
+worst-first, then `local.direction`, then `local.effect`, then id), so a stable
+group-by reproduces it exactly — and that order already puts a finding about
+*this setup* above the generic changelog line of the same severity, which is
+what the old `sevRank + 0.5` half-step was arbitrating. There is nothing left
+to tie-break, and re-sorting on the page is how two renders of one report came
+to differ. The Overview's mixed-card comparator reads the same ordering, so
+the two views agree about which item is a tool's worst (§Overview Tab →
+Security Section).
 
 ### Per-Item Severity → Color/Icon Mapping
 
@@ -1123,15 +1141,13 @@ the tool's research populated them — most tools have neither):
 
 ### Context Section
 
-From `context[]` (`schemas.md`): a callout, visually distinct from the four
-groups above — no severity coloring, since these aren't change-risk items.
-Each item starts **collapsed to its `title` only**; clicking expands to show
-`detail`/`evidence`/`link`. This is a stronger collapse default than
-suggestion cards or content-group items get elsewhere — context items tend
-to be a one-line claim followed by a full paragraph (e.g. "the existing
-warning and control flow remain accurate as written" followed by the
-reasoning why), and showing that expanded by default for every tool would
-bury the actual changelog content above it.
+*(Retired. `context[]` no longer exists.)* A present-tense repo-scope note is
+an item like any other now — `change: null`, a `local` block carrying the
+statement and its evidence, and a `packaging` or `chore` tag — so it renders in
+its content group with the rest, at the severity the checker gave it. The
+separate collapsed callout is gone with the array: a second home for the same
+kind of claim is what made "is this relevancy or context?" a judgement call at
+authoring time.
 
 ### Release Inventory Section
 
@@ -1326,9 +1342,10 @@ icon, the name, the remediation command in a copyable chip, and
 by `source === 'brew-health'` and `summary.health_count`, **never** by
 `review_bucket`: bucket is a review-effort axis orthogonal to source, and
 `routine` on the one expected PATH note means "nothing to decide here", not
-"hide it". A health finding carries its severity on `headliners[]` rather than
-`relevancy[]`, so the band's row severity falls back to the headliners the
-same way `data-max-severity` does on the tool section.
+"hide it". `findingRowSeverity()` is `maxSeverity()` with a floor — the
+per-source fallback it used to need is gone, because a health finding's
+synthesized item carries a `local` block by construction and `maxSeverity()`
+reads exactly those.
 
 **The null-version rule also applies in `highlights[]`.** A health finding
 that scores high enough to be ranked renders its finding category label in the
@@ -1379,10 +1396,9 @@ name, the sync command in a copyable `.cmd` chip, `details →` — and never in
 the routine/attention chip clouds. They are grouped and counted by
 `source === 'skill-drift'` and `summary.skill_drift_count`, **never** by
 `review_bucket`: `routine` on a `local_only` finding means "nothing to decide
-here", not "hide it". As with health findings, a drift finding carries its
-severity on `headliners[]` rather than `relevancy[]`, so the band's row
-severity falls back to the headliners the same way `data-max-severity` does
-on the tool section.
+here", not "hide it". As with health findings, the band's row severity is
+`maxSeverity()` with a floor: the synthesized item carries a `local` block, so
+no per-source fallback is needed.
 
 **Its suggestion, when it has one, never renders pre-accepted**, whatever
 else is true of the tool: the id ends `:sync`, so assembly wrote
@@ -1507,7 +1523,8 @@ html = html.replace('__REPORT_DATA__', report_json)
 JS expression. The other two sit inside attribute quotes, so the replacement
 target includes the quotes. The `"</"` → `"<\\/"` escape on `__REPORT_DATA__`
 guards against a literal `</script>` inside any agent-written free-text
-field (headliners, rationale, `config_status.detail`, `tool_comments`, ...)
+field (item titles and bodies, rationale, `config_status.detail`,
+`tool_comments`, ...)
 — release notes and security advisories routinely quote HTML/JS snippets —
 prematurely closing the `<script>` tag and corrupting the rest of the page.
 `rendering-results.md` §Markdown Rendering reuses this same escape-first

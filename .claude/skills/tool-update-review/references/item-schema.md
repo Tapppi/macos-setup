@@ -385,9 +385,24 @@ report-wide CVE **union** (per-tool counts summed to 77; the union is 76).
 | **V6** bucket | `initial_review_bucket` plus `bucket_inputs` |
 
 Output: `{session_dir}/validation.json` — the machine-readable primary and the
-**pre-convergence artifact** — and `{session_dir}/validation.warn`, the same
+**pre-convergence artifact** — and `{session_dir}/assemble.warn`, the same
 findings one per line, code-prefixed, in the same order. A clean run produces
 zero findings and an empty warn file.
+
+`assemble.warn` is the **spec-conformance channel for the run and nothing
+else** (§3.3). Everything that is not a conformance finding — what assembly
+did, renamed, or could not do — goes to `{session_dir}/assemble.log`. The old
+channel was one undifferentiated stderr tail running 275 lines at a 1:272
+signal ratio, which is what made the single genuinely wrong evidence path
+invisible.
+
+**Who runs this.** In a normal run `assemble.py` calls `validate_session()`
+directly and writes all four files; the validator's own CLI exists so the stage
+can be run, and its output diffed, on its own. Assembly consumes the views:
+`items`, `links`, `config_status`, `suggestions`, `vendor_silent_categories`,
+`impact`, `risk_level` and the bucket are all read off the view, never
+recomputed — two implementations of "does this release touch this setup" is the
+drift §C3 exists to remove.
 
 Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
@@ -456,6 +471,29 @@ The bucket carries `bucket_inputs: {has_security, security_only, impact,
 version_delta, runnable}` so convergence can see *why* without re-deriving it.
 **It is a baseline for convergence to review, not a decision.**
 
+**`has_security` is wider than the tag, and computed once.** It is true when
+any item is tagged `security`, **or** `vendor_silent_categories` contains
+`"security"`, **or** any item carries a `security` block at all. The second
+limb is research's explicit statement "this release has security content the
+vendor refused to detail" — and dropping it does not merely lose a label:
+`risk_level` only elevates a tool with no items when `vendor_silent_categories`
+is *also* empty, so a non-empty one suppresses that elevation too. Tag-only
+therefore produces the worst combination available — not elevated, not
+security, `routine`, pre-accepted — from a field whose entire purpose is "look
+at this". The third limb closes the same hole from the other side: I-4 reports
+a `security` block on an item that forgot the tag (`E-SEC-BLOCK-ORPHAN`), and
+reporting it while treating the tool as non-security is how a CVE-carrying tool
+would reach a bucket that pre-accepts.
+
+`items.recompute_flags` stays **tag-only**, deliberately: it is what
+`E-FLAG-DISAGREE` compares a checker's claim against, and a checker that
+correctly reported `has_security: false` from its own items must not read as
+disagreeing. The widening happens at the point of use, once, and the same value
+feeds `security_only`, the bucket and `bucket_inputs` — a value that is
+"security" for bucketing and "not security" for the security-only test is its
+own auto-accept route, and a bucket its own recorded inputs cannot explain is
+exactly the opacity §C3 removes.
+
 ### Security display
 
 The replacement for `notable[]`: an item is shown inline in the security block
@@ -489,5 +527,5 @@ defect by another route. So `validator_error` makes `impact` read `unknown` and
 | no entry at all for a candidate | tool | `research_error` set |
 
 Three loudness channels, all required: `validation.json` (the machine-readable
-primary), `validation.warn` (the human tail), and `tool.spec_violations[]` so a
+primary), `assemble.warn` (the human tail), and `tool.spec_violations[]` so a
 consumer sees it without opening a second file.
