@@ -519,13 +519,39 @@ class SemanticClassificationTests(unittest.TestCase):
 		past. Both halves are needed, and the second is easy to miss — moving
 		the tool into a security bucket makes it visible, but `pre_accept`
 		reads `risk_level`, so without the risk limb it arrives already
-		accepted in the section it was just made visible in."""
+		accepted in the section it was just made visible in.
+
+		How far the risk limb reaches is set by the bucket precedence, not by
+		it: `security_auto` returns from clause 2 and `risk_level` is not read
+		until clause 4, and `pre_accept` is `risk_level == "low"` OR
+		`review_bucket == "security_auto"`. So elevated risk is no bar for a
+		tool that reaches `security_auto`; this fixture misses clause 2 because
+		its `feature` item makes `security_only` false, which is the shape that
+		motivated the fix. `test_security_only_silence_still_reaches_auto`
+		pins the other side."""
 		_, candidate, research, _ = _fixture("S13")
 		tool = build_one(candidate, research)
 		self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed"))
 		self.assertTrue(tool["security"]["has_security"])
 		self.assertTrue(tool["bucket_inputs"]["has_security"])
 		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_security_only_silence_still_reaches_auto(self):
+		"""The other side of the clause, pinned so nobody reads the risk limb as
+		a blanket bar. A vendor-silent-security tool whose READABLE items are
+		all security-only still reaches `security_auto` and is still
+		pre-accepted, `risk_level: elevated` notwithstanding — `security_auto`
+		returns from clause 2, `risk_level` is not consulted until clause 4, and
+		`pre_accept` accepts on either. That is the designed path (the content
+		we could read is security-only, so taking the update is the safe
+		action), and it is a judgement about precedence rather than a
+		consequence of the risk clause."""
+		tool = build_one(_cand("brew:vs", "vs", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:vs", "links": [], "vendor_silent_categories": ["security"],
+				"items": [_item("a", tags=["chore"], severity="info")]})
+		self.assertEqual(tool["risk_level"], "elevated")
+		self.assertEqual(tool["review_bucket"], "security_auto")
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_health_suggestions_never_pre_accept(self):
 		# brew link tree-sitter IS auto_runnable — it is excluded because a
@@ -1007,6 +1033,25 @@ class ReportInvariantTests(unittest.TestCase):
 		self.assertEqual(sec["tools_with_security"], 0)
 		self.assertNotIn("CVE-2026-9999", report["_log"])
 
+	def test_a_finding_source_never_notes_a_rating_for_an_id_it_does_not_count(self):
+		"""`tool_cve_ratings` notes a within-tool disagreement as it resolves
+		one, so the report-wide rollup has to skip a non-counting tool BEFORE
+		calling it — otherwise `assemble.log` carries "rated both critical and
+		low" about an id the report counts nowhere."""
+		report, _ = assemble_session(
+			{"generated_at": "t", "machine": {},
+				"brew_health": {"findings": [{"id": "brew-health:untrusted_tap:x",
+					"name": "x", "source": "brew-health", "category": "untrusted_tap",
+					"severity": "warning", "detail": "d", "remediation": None,
+					"expected": False}], "suppressed": []}},
+			[{"id": "brew-health:untrusted_tap:x", "links": [], "items": [
+				_item("a", tags=["security"], severity="warning",
+					security=_sec("CVE-2026-9999", "critical", "vendor")),
+				_item("b", tags=["security"], severity="info",
+					security=_sec("CVE-2026-9999", "low", "nvd"))]}])
+		self.assertEqual(report["summary"]["security"]["cve_count"], 0)
+		self.assertNotIn("CVE-2026-9999", report["_log"])
+
 	def test_the_report_states_whether_the_corpus_validated(self):
 		self.assertIn("validation", self.report)
 		self.assertIsInstance(self.report["validation"]["clean"], bool)
@@ -1287,14 +1332,25 @@ class PageContractTests(unittest.TestCase):
 		self.assertIn("isNonVersion(tool)", fn.group(1),
 			"maxSeverity() lost its finding-source exemption")
 
-	def test_a_second_tag_sharing_the_group_still_renders(self):
-		"""Filtering the tag line by GROUP hides a second tag that maps to the
-		same one — `["fix", "breaking"]` would render no `breaking` anywhere,
-		and `breaking` is the most decision-relevant tag in the set."""
-		fn = re.search(r"const tags = tagsOf\(item\);\n\t\t\tconst extraTags = (.*?);", self.template)
-		self.assertIsNotNone(fn, "the tag line stopped reading tagsOf(item)")
-		self.assertNotIn("GROUP_OF_TAG", fn.group(1),
+	def test_the_tag_line_shows_a_same_group_pair_and_a_lone_unknown_tag(self):
+		"""Two ways to render nothing where something was needed.
+
+		Filtering by GROUP hides a second tag that maps to the same one —
+		`["fix", "breaking"]` renders no `breaking` anywhere, and `breaking` is
+		the most decision-relevant tag in the set. And an item whose only tag is
+		unrecognised must still say so: the validator kept that tag deliberately
+		(E-TAG-UNKNOWN reports and keeps), the item lands in Notes, and nothing
+		else on the page surfaces it."""
+		block = re.search(
+			r"const tags = tagsOf\(item\);\n(.*?)const tagsHtml", self.template, re.S)
+		self.assertIsNotNone(block, "the tag line stopped reading tagsOf(item)")
+		body = block.group(1)
+		self.assertNotIn("GROUP_OF_TAG[t] !== cat", body,
 			"the tag line is filtered by group again — a same-group second tag is hidden")
+		self.assertIn("tags.length > 1", body,
+			"a multi-tag item must render its tags")
+		self.assertIn("!GROUP_OF_TAG[t]", body,
+			"a lone unrecognised tag must still render — nothing else surfaces E-TAG-UNKNOWN")
 
 	def test_the_renderer_refuses_a_schema_one_report(self):
 		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.py"),

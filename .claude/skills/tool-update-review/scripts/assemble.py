@@ -1477,8 +1477,18 @@ def summarize_security(tools: list) -> dict:
 		# and fire a "rated differently on two tools" note about it.
 		tool_ids = set(tool["security"]["cve_ids"])
 		ids.update(tool_ids)
+		if not tool_ids:
+			# Skip before CALLING it, not after reading it: `tool_cve_ratings`
+			# notes a within-tool disagreement as it resolves one, so a
+			# non-version source with two items grading one CVE would write
+			# "rated both critical and low" to assemble.log about an id this
+			# report counts nowhere.
+			continue
 		for cve_id, severity in tool_cve_ratings(tool).items():
 			if cve_id not in tool_ids:
+				# Unreachable for a version source — every id `item_cve_id`
+				# returns is in `cve_ids` by construction — and kept as the
+				# structural guarantee rather than a second thing to remember.
 				continue
 			prior = severity_by_id.get(cve_id)
 			if prior is not None and prior != severity:

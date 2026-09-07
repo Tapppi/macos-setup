@@ -2866,6 +2866,11 @@
 		function maxSeverity(tool) {
 			let best = 99;
 			let bestSev = '';
+			/* `isNonVersion` is declared further down the file, so this is a
+			 * backwards reference into its temporal dead zone. Safe because
+			 * every call site is render-time, by which point the whole script
+			 * has evaluated — but a future TOP-LEVEL call to maxSeverity()
+			 * would ReferenceError rather than misbehave quietly. */
 			const everyItemIsLocal = isNonVersion(tool);
 			for (const item of itemsOf(tool)) {
 				if (!everyItemIsLocal && !localOf(item)) continue;
@@ -3456,9 +3461,16 @@
 			 * only moves the question to which one, and the model ranks tags
 			 * within a group nowhere. Only ~7% of items carry more than one tag
 			 * (max two), so showing the pair costs a line on 7% of rows and can
-			 * never swallow the tag a reader needed. */
+			 * never swallow the tag a reader needed.
+			 *
+			 * An item whose ONLY tag is unrecognised is the second case that
+			 * has to render. The validator kept that tag deliberately
+			 * (E-TAG-UNKNOWN reports and keeps; it never drops one) and nothing
+			 * else on this page surfaces it — the item would otherwise land in
+			 * Notes with nothing saying why it is there. */
 			const tags = tagsOf(item);
-			const extraTags = tags.length > 1 ? tags : [];
+			const showTags = tags.length > 1 || tags.some(t => !GROUP_OF_TAG[t]);
+			const extraTags = showTags ? tags : [];
 			const tagsHtml = extraTags.length
 				? `<div class="item-tags">Tagged: ${esc(extraTags.join(', '))}</div>`
 				: '';

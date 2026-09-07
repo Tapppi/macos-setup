@@ -575,8 +575,29 @@ not read it. Without the clause the two rules combine into the worst answer
 available — not elevated, because the list is non-empty — and since
 `pre_accept` reads `risk_level`, an unread security release arrives
 auto-approved. Widening `has_security` moves such a tool into `security_mixed`,
-which makes it visible; this clause is what stops it being pre-accepted while
-it sits there.
+which makes it visible; the risk clause is what stops it being pre-accepted
+while it sits there.
+
+**And be precise about how far that goes, because the clause ordering decides
+it.** `pre_accept` is `risk_level == "low"` **OR**
+`review_bucket == "security_auto"` (§1.6), and `security_auto` is returned by
+clause 2 of the bucket precedence while `risk_level` is not consulted until
+clause 4. So:
+
+- **`risk_level: "elevated"` is not a bar on pre-acceptance for a tool that
+  reaches `security_auto`.** It never has been. A security-only release with no
+  impact here, a non-major delta and a runnable baseline is pre-accepted
+  whatever its risk level says — that is what the bucket means.
+- The risk clause therefore stops pre-acceptance for exactly the tools that
+  *miss* clause 2 — the vendor-silent-security tool with any non-security
+  content, which is the shape that motivated it (`cask:slack`: one `feature`
+  item, so `security_only` is false).
+- A vendor-silent-security tool whose **readable** items are all security-only
+  still reaches `security_auto` and is still pre-accepted. That is the designed
+  path — the content we could read is security-only and taking the update is
+  the safe action — but it is a judgement, not a consequence of the risk
+  clause, and this paragraph exists so the next reader does not mistake one for
+  the other.
 
 `risk_level` is computed by the **validator** (`validate_items.compute_risk_level`)
 and read off its view by assembly, so there is exactly one implementation.

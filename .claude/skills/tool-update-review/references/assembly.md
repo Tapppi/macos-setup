@@ -644,6 +644,15 @@ clause the first rule swallows the second, the tool is not elevated, and
 `pre_accept` — which reads `risk_level` — auto-approves an unread security
 release.
 
+**How far the clause reaches is decided by the bucket precedence, not by it.**
+`security_auto` returns from clause 2 and `risk_level` is not consulted until
+clause 4, while `pre_accept` is `risk_level == "low"` **or**
+`review_bucket == "security_auto"`. So elevated risk is not a bar on
+pre-acceptance for any tool that reaches `security_auto`, and this clause stops
+pre-acceptance for exactly the tools that miss it — which is the shape that
+motivated it, a vendor-silent-security tool carrying non-security content. One
+whose readable items are all security-only is still pre-accepted, by design.
+
 The last three conditions extend the "an unknown delta size is never low-risk"
 doctrine to unknown *content*: a tool whose checker failed has no items and no
 edit suggestions, and would otherwise score `"low"` and get pre-accepted — the

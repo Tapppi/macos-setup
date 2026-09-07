@@ -492,6 +492,13 @@ pre-accepted, because `pre_accept` reads `risk_level` and
 `vendor_silent_categories`. So `"security"`-silence elevates on its own. Both
 halves are needed and the second is the easy one to miss.
 
+It reaches exactly as far as the bucket precedence lets it: `security_auto`
+returns from clause 2 and `risk_level` is not read until clause 4, so elevated
+risk is **not** a bar on pre-acceptance for a tool that reaches `security_auto`.
+The clause stops pre-acceptance for the tools that miss clause 2 — a
+vendor-silent-security tool carrying non-security content — and a tool whose
+readable items are all security-only is still pre-accepted, by design.
+
 `items.recompute_flags` stays **tag-only**, deliberately: it is what
 `E-FLAG-DISAGREE` compares a checker's claim against, and a checker that
 correctly reported `has_security: false` from its own items must not read as
