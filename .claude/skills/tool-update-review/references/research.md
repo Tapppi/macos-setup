@@ -36,6 +36,9 @@ Table of contents:
   - Current → Target Is the Only Frame
   - Suggestions Are Always `kind: "edit"`
   - Config Status
+  - Standing Notes: Three Stores
+  - Research-Method Notes vs Watch Items
+  - Writing a Research-Method Note
   - Watch Items (Reading)
   - Watch Items (Proposing)
   - Deduplicate Facts (Across Arrays, and Within One)
@@ -817,7 +820,176 @@ level up without answering it. If the re-verification concludes the old fix
 still holds after all, that's `"up_to_date"`, not `"needs_attention"` with no
 suggestion.
 
+### Standing Notes: Three Stores
+
+Three things survive a run and reach the next one. They are three different
+stores because they answer three different questions, and the last run's eight
+watch-item proposals conflated all three into one — two of them were method
+notes filed as watch items, and both said so in their own first sentence.
+
+| Store | Scope | Answers | How many exist |
+|---|---|---|---|
+| **Global method notes** | across many tools | how research works *in general* here | **rare** |
+| **Per-tool method notes** | one tool | how to research **this** tool correctly | **many** |
+| **Watch items** | one tool | what to tell the user if it happens | **many** |
+
+Read the "how many" column as a description of the store, not as an allowance
+for you. Tools have weird conventions and unusual places to publish, so per-tool
+notes and watch items are both expected to be numerous across the fleet. A
+global note is rare **by definition**: holding across many tools is its entry
+condition, not a quota anybody enforces. §There Is No Volume Target says why
+none of these three has a number attached, and why you must not invent one.
+
+**Route at the point of writing.** Two questions, in this order.
+
+  1. **Is this about how to research, or about what to report?**
+
+     A method note changes the next *researcher's* behaviour. A watch item
+     changes the next *report*. "Never trust this project's release notes, read
+     the commit range" is the first. "Tell me if they ever change the
+     credential format" is the second.
+
+  2. **If it is a method note: does it hold for this tool, or for many?**
+
+     Name the tools it holds for. If they are all tools you are researching
+     right now, it is a per-tool note — write it against this tool. A global
+     note has to hold for tools you are not looking at, and you have to be able
+     to name some. "GitHub release bodies are sometimes thin" is not a global
+     note; it is an observation about one project stated at the wrong altitude.
+
+Question 1 has a sharper form when the answer feels like "both", and it is the
+one that decides every real case:
+
+### Research-Method Notes vs Watch Items
+
+Two different standing notes, two different stores, one question apart.
+
+```
+A research-method note answers: how do I research this tool correctly?
+A watch item answers:           what should I tell the user if it happens?
+```
+
+Before you write either, run the **routing test**:
+
+> **Could a future release's published text plausibly contain words that match
+> this topic?**
+
+  - **No** → it is a research-method note. Write it as one. Stop here.
+  - **Yes** → it may be a watch item. Continue to §Watch Items (Proposing).
+
+The read path for watch items is changelog-content matching: next run's
+researcher looks its tools up and reports a hit when this run's changelog
+touches a stored `topic`. **A topic no changelog can contain will never fire.**
+Filing one as a watch item does not preserve the knowledge — it files it where
+nothing will read it back out.
+
+Two worked examples, both filed as watch items last run, and neither was one:
+
+  **`brew:iproute2mac`** — *"always research this formula by reading the
+  `git compare vOLD...vNEW` commit range and the repo's issue tracker, never by
+  the release notes, whose emptiness is not evidence that a release is
+  cosmetic."* That is an instruction to the researcher. It fires every run
+  regardless of what shipped. **Method note.**
+
+  **`brew:nnn`** — *"This is a packaging state, not a release event, so nothing
+  in a future current→latest changelog delta would surface a change to it."*
+  The proposal disqualifies itself in its own first sentence. **Method note.**
+
+**If your rationale contains a sentence saying no future changelog would
+surface this, you have already answered the routing test. Believe it.**
+
+**A method note absorbs the watch item inside it.** Many concerns are half
+method and half worry: *"this vendor's release page is boilerplate, and if they
+ever changed the credential format we would not see it."* Write the method
+note; the worry is its reason for existing. Propose a watch item **as well**
+only if the worry independently clears the bar on its own evidence — not
+because writing the method note reminded you of it.
+
+Routing is not dropping. Both stores are read back into a future run; they are
+read by different readers, at different moments, for different purposes. Putting
+a note in the right one is the whole of this section.
+
+### Writing a Research-Method Note
+
+A method note is a durable correction to how a tool gets researched. It is
+worth writing when the ordinary path — read the release notes, check for CVEs —
+returns a wrong or empty answer **for this tool specifically**, and will keep
+doing so.
+
+Propose one as a suggestion with `kind: "method-note"`
+(`references/schemas.md` §1.7b), carrying:
+
+```
+method_topic  what the note is about, in a few words
+              ("where the real changelog lives")
+method_note   the instruction, written so it reads sensibly when copied
+              verbatim into the next run's context — because that is exactly
+              what happens on accept
+rationale     how you know the ordinary path fails here
+```
+
+**The rationale must name a failure, not predict one.** Good:
+
+> "ClaudeBar's GitHub release bodies are boilerplate — verified: identical text
+> across all twelve releases in this range. The real detail is only in
+> CHANGELOG.md at the repo root. The prior review read the Releases page and
+> concluded the app 'does not maintain a structured CHANGELOG.md', which cost
+> this cask a real review."
+
+That names a failure that already happened, to this tool, in a previous run of
+this skill. Bad:
+
+> "Release notes for this project are sometimes thin, so a future run might
+> miss something."
+
+The second is a worry about a vendor. The first is a correction to a procedure.
+If you cannot point at the wrong answer the ordinary path produced — in a prior
+run, in this run's own research, or in the source you had to fall back on — you
+have the second one, and it belongs in the note's `self_test_failed` tag rather
+than in the store unexamined (§Before You Propose a Watch Item covers the tag;
+`unwitnessed` is the limb a method note fails).
+
+A method note that is right stays useful for years, and it is cheap: it changes
+how one researcher looks, not what the report says. That is why it does not get
+the watch item's bar. What it does get is the requirement above — say what went
+wrong, and how you know.
+
 ### Watch Items (Reading)
+
+This section is the **read** side of the stores above — both of them.
+
+**You are given your tools' entries; you do not go looking for them.** The
+dispatching step reads both stores by tool id and puts the matching entries in
+your prompt (`references/research-prompt-template.md`'s `{{STANDING_NOTES}}`).
+The stores themselves are siblings of `changelog.md`:
+
+```
+${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json
+${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json
+```
+
+If your prompt carries no entries for a tool, that tool has none — an empty
+`{{STANDING_NOTES}}` is a fact, not an omission to go and correct by reading
+the files yourself.
+
+The two are read at different moments:
+
+- **Method notes are read first, before you look anything up.** They change
+  where you look and what you trust. A note saying "this project's release
+  bodies are boilerplate, read CHANGELOG.md at the repo root" is worthless
+  after you have already read the release page and concluded there was nothing
+  in the range. Read the notes for your tools, then start.
+- **Watch items are matched as you read.** They are topics to notice in the
+  changelog you are going through anyway.
+
+Method notes carry no reporting obligation: an accepted note is an instruction
+to you, and following it is all it asks. If a note turns out to be wrong — the
+vendor started publishing properly, the path it names no longer exists — say so
+in your `context[]` findings, so the store can be corrected. A stale method note
+that nobody contradicts is worse than none, because it sends every future run
+to the wrong place with confidence.
+
+The rest of this section is the watch-item half.
 
 `config_status` above is backward-looking: "was this tool's config already
 handled." Watch items are forward-looking: "the user flagged an ongoing
@@ -827,7 +999,7 @@ future cursor-cli changelog mentioning shell-integration/recording to be
 called out automatically, not re-investigated from scratch or missed.
 
 **File**: `${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json`
-— a sibling to `changelog.md`, same directory, created on first use. Shape:
+— created on first use. Shape:
 
 ```jsonc
 {
@@ -849,8 +1021,7 @@ everything.
 **Reading watch items** (this is the research-time half of the workflow;
 the write side — appending a new entry during step 7's `tool_comments`/
 `discuss` investigation — is `references/apply.md` §Watch Items, which
-cross-links back here): before researching, check whether your assigned
-tool(s) have any `watch-items.json` entries and include their `topic`/`note`
+cross-links back here): include your tools' `topic`/`note` entries
 in your own context. If this run's headliners/changelog touch a watched
 topic, that's not a normal `info` relevancy finding — bump it to at least
 `notable` severity (`references/schemas.md` §Report Object), prefix the

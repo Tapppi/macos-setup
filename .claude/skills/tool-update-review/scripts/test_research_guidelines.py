@@ -159,5 +159,92 @@ class OrphanedInstructionTests(unittest.TestCase):
 		self.assertEqual(used - documented, set())
 
 
+# ── the three stores (REDESIGN.md L1, criterion 16) ─────────────────────────
+class ThreeStoresTests(unittest.TestCase):
+	"""The volume disagreement that stalled this was a category error. There is
+	no single answer to "how many" because there are three different things,
+	and a guideline that conflates them produces last run's mess: eight
+	proposals, of which two were method notes in a watch item's container."""
+
+	SECTION = "### Standing Notes: Three Stores"
+
+	def section(self):
+		start = RESEARCH.index(self.SECTION)
+		return RESEARCH[start:RESEARCH.index("### Research-Method Notes vs Watch Items")]
+
+	def test_all_three_stores_are_named_with_their_scope_and_volume(self):
+		text = self.section()
+		for phrase in ("Global method notes", "Per-tool method notes", "Watch items"):
+			self.assertIn(phrase, text)
+		self.assertIn("across many tools", text)
+		self.assertIn("**rare**", text)
+		self.assertIn("**many**", text)
+
+	def test_rare_is_justified_by_definition_and_not_by_a_number(self):
+		"""A global note is rare because holding across many tools is its entry
+		condition. Stated any other way it reads as a budget, and a budget is
+		what criterion 14 forbids."""
+		text = self.section()
+		self.assertIn("by definition", text)
+		self.assertNotRegex(text, r"\b(?:at most|no more than|up to)\s+\w+\s+(?:notes?|items?)")
+
+	def test_the_agent_is_told_to_route_at_the_point_of_writing(self):
+		text = self.section()
+		self.assertIn("Route at the point of writing", text)
+		# Two ordered questions, not a table to interpret.
+		self.assertIn("how to research, or about what to report", text)
+		self.assertIn("does it hold for this tool, or for many", text)
+
+	def test_the_routing_test_precedes_the_watch_item_bar(self):
+		"""It has to run first: a topic no changelog can match is filed in a
+		store whose only mechanism cannot reach it."""
+		self.assertLess(RESEARCH.index("### Research-Method Notes vs Watch Items"),
+			RESEARCH.index("### Watch Items (Proposing)"))
+
+	def test_the_routing_test_is_stated_as_one_answerable_question(self):
+		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
+		text = text[:text.index("### Writing a Research-Method Note")]
+		self.assertIn("Could a future release's published text plausibly contain words that match",
+			" ".join(text.split()))
+		self.assertIn("**No**", text)
+		self.assertIn("**Yes**", text)
+		# Both worked failures, named, with the sentence that gives them away.
+		self.assertIn("brew:iproute2mac", text)
+		self.assertIn("brew:nnn", text)
+		self.assertIn("Believe it.", text)
+
+	def test_routing_is_stated_not_to_be_dropping(self):
+		"""L7's companion: moving a note between stores keeps the knowledge. An
+		agent that reads routing as rejection stops writing them."""
+		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
+		self.assertIn("Routing is not dropping", text)
+
+	def test_a_method_note_must_name_a_failure_rather_than_predict_one(self):
+		text = RESEARCH[RESEARCH.index("### Writing a Research-Method Note"):]
+		text = text[:text.index("### Watch Items (Reading)")]
+		self.assertIn("name a failure, not predict one", text)
+		for field in ("method_topic", "method_note", "rationale"):
+			self.assertIn(field, text)
+
+	def test_method_notes_are_read_before_research_begins(self):
+		"""A note saying "read CHANGELOG.md, the release page is boilerplate"
+		is worthless delivered after the release page has been read."""
+		text = RESEARCH[RESEARCH.index("### Watch Items (Reading)"):]
+		text = text[:text.index("### Watch Items (Proposing)")]
+		self.assertIn("read first, before you look anything up", text)
+
+	def test_both_stores_reach_the_checker_through_the_prompt(self):
+		"""REDESIGN.md I4: the per-tool agent is GIVEN its watch items rather
+		than sent to find them."""
+		self.assertIn("{{STANDING_NOTES}}", TEMPLATE)
+		self.assertIn("{{STANDING_NOTES}}", RESEARCH)
+		self.assertIn("method-notes.json", RESEARCH)
+
+	def test_the_method_note_kind_is_in_the_schema_the_checker_writes_against(self):
+		self.assertIn('kind: "method-note"', SCHEMAS)
+		self.assertIn("method_topic", SCHEMAS)
+		self.assertIn("method_note", SCHEMAS)
+
+
 if __name__ == "__main__":
 	unittest.main()
