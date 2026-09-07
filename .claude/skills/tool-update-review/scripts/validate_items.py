@@ -17,7 +17,7 @@ Six stages:
 	V2   spec validation      — required fields, types, closed vocabularies
 	V3   shape normalization  — the normalizations §5.3 licenses, and no others
 	V3b  id assignment and uniqueness, from the checker's declared anchor
-	V4   the eighteen invariants
+	V4   the nineteen invariants
 	V5   impact
 	V6   initial bucketing
 
