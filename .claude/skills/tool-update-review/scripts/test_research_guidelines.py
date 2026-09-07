@@ -507,5 +507,60 @@ class HypothesisTests(unittest.TestCase):
 		self.assertIn("Writing Hypotheses", SKILL_MD)
 
 
+# ── items are outward-facing (REDESIGN.md L3, criterion 7) ──────────────────
+class OutwardFacingTests(unittest.TestCase):
+	"""WP1 put the rule in the schema and in `contract.json`'s `scope`, and
+	deliberately did NOT make it a validator filter — a regex that deleted
+	"internal-looking" items would be exactly the banned behaviour. That leaves
+	the checker's guidelines as the only place it is enforced."""
+
+	def section(self):
+		start = RESEARCH.index("### Items Are Outward-Facing Changes")
+		return RESEARCH[start:RESEARCH.index("### Headliners")]
+
+	def test_the_rule_reaches_the_agent_that_writes_items(self):
+		text = self.section()
+		self.assertIn("Project-internal maintenance never becomes an item", text)
+		for named in ("Repo upkeep", "convention changes", "documentation updates"):
+			self.assertIn(named, text)
+
+	def test_it_is_stated_as_one_answerable_question(self):
+		self.assertIn("Did anything change for a person who uses this tool without reading its",
+			self.section())
+
+	def test_internal_work_with_an_outward_consequence_is_kept(self):
+		"""The rule has to not over-fire: a reproducible-build switch changes
+		the published checksum, and that is a real item."""
+		self.assertIn("Internal work with an outward consequence is outward-facing",
+			self.section())
+
+	def test_chore_is_not_offered_as_a_place_to_put_internal_maintenance(self):
+		"""Without this the rule converts into a tag choice and nothing is
+		actually excluded."""
+		text = self.section()
+		self.assertIn("`chore` is not the place to put internal maintenance", text)
+		self.assertIn("it is not an item", text)
+
+	def test_it_is_distinguished_from_the_noise_floor(self):
+		"""Different rule, different moment: the noise floor deletes from what
+		was written and carries a hard boundary because a deletion there can
+		approve an update. This one asks whether there was an item at all."""
+		text = self.section()
+		self.assertIn("This is not the noise floor", text)
+		self.assertLess(RESEARCH.index("### Items Are Outward-Facing Changes"),
+			RESEARCH.index("### The Noise Floor"))
+
+	def test_the_absence_of_a_deterministic_filter_is_stated(self):
+		flat = " ".join(self.section().split())
+		self.assertIn("Nothing in the deterministic layer enforces it", flat)
+
+	def test_the_schema_and_the_guidelines_agree(self):
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		self.assertIn("outward-facing changes only", model.contract()["scope"]["items_are"])
+		self.assertIn("outward-facing", self.section())
+
+
 if __name__ == "__main__":
 	unittest.main()

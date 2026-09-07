@@ -25,6 +25,7 @@ Table of contents:
 - Part 2 — Subagent Quality Bar
   - What You May Touch
   - Prior Findings Are Hypotheses
+  - Items Are Outward-Facing Changes
   - Headliners
   - Category vs. Severity — Independent Axes
   - CVE Severity Capture
@@ -268,6 +269,46 @@ The same asymmetry applies to a hypothesis you *disprove*. "A prior review said
 v5.3 flips this default; it does not — the flag was reverted in 5.3.1, here is
 the commit" is a real finding and worth writing, in `context[]`. Silently not
 mentioning a disproved hypothesis leaves the next run to rediscover it.
+
+### Items Are Outward-Facing Changes
+
+**Project-internal maintenance never becomes an item.** Repo upkeep,
+convention changes, documentation updates, CI and release-tooling churn, test
+refactors, internal renames, lockfile bumps that change nothing anyone
+installs — none of it is a finding, at any tag or severity. Do not write it
+down and then rate it low; do not write it down at all.
+
+The test is one question:
+
+> **Did anything change for a person who uses this tool without reading its
+> repository?**
+
+If the only way to notice is to read the project's own commits, issue
+templates or CONTRIBUTING file, it is internal. A rewritten test suite, a
+switch of CI provider, a new linter in the pipeline, a docs site
+redesign — all internal, however large the diff.
+
+Three boundaries worth stating, because they are where this gets misapplied:
+
+  - **Internal work with an outward consequence is outward-facing.** "Switched
+    the release pipeline to reproducible builds, so the published binary's
+    checksum now changes" is a real item — the consequence is, even though the
+    work was internal. Cite the consequence, not the work.
+  - **`chore` is not the place to put internal maintenance.** The `chore` tag
+    is for a real, *outward-facing*, cited change that has no consequence for
+    any reader of this report. Internal maintenance is not a low-consequence
+    item; it is not an item.
+  - **This is not the noise floor.** The noise floor (below) decides what to
+    delete from items you have already written, and it has a hard boundary
+    because a deletion there can approve an update. This rule runs earlier and
+    asks something else: whether there was ever an item to write. Nothing in
+    the deterministic layer enforces it — a regex that dropped
+    "internal-looking" items would be exactly the behaviour this pipeline
+    forbids — so it holds here or it does not hold at all.
+
+Read this together with §Don't Author "I Checked, Found Nothing": an empty
+result for a tool whose whole range was internal maintenance is the correct
+result. Say nothing rather than reporting the maintenance to fill the space.
 
 ### Headliners
 
