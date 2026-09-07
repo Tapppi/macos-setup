@@ -4,46 +4,49 @@ test_assemble.py — the test matrix for assemble.py's derived fields.
 Usage: python3 test_assemble.py [-v]
 
 Stdlib `unittest` only (no pytest, no fixtures directory, no network) so it
-runs on the same bare python3 assemble.py itself targets. Four groups, in the
-order references/assembly.md documents the computations:
+runs on the same bare python3 assemble.py itself targets.
+
+Every fixture here is written in the **item model** (`references/item-schema.md`):
+one `items[]` array carrying tags, one severity, and two optional blocks
+(`change` upstream, `local` about this setup). The four parallel arrays
+`headliners[]`/`relevancy[]`/`context[]`/`security.notable[]` are gone, and so
+are the tests that only existed to reconcile them with each other.
+
+Groups, in the order references/assembly.md documents the computations:
 
 1. Version classification — the worked-example table that motivated
    compute_version_delta(). Every row is a real current→latest pair seen in a
    live run; the point of writing them down is that the next person changing
    the classifier does not have to re-derive "is `7.99 → 7.991` a minor?" from
-   scratch.
-2. Semantic classification — thirteen minimal Tool fixtures (headliner/relevancy
-   category+severity shapes distilled from real research/*.json entries) run
-   through build_tool()/build_health_tool()/build_drift_tool(), asserting the whole
+   scratch. Unchanged by the item model: a version is a version.
+2. Semantic classification — minimal Tool fixtures run through the whole
+   pipeline (validator → build_tool → finalize_tool), asserting the
    security → risk_level → review_bucket → pre_accept chain end to end rather
    than each function in isolation, since the bugs live in their interaction.
-3. Regex cases — the CVE-id and CVE-claim patterns, including the two
-   real-world false positives their bounds exist to reject.
+3. The CVE rollup — the id scan's sources under the item model, the claim
+   pattern's two real-world false positives, and the structural
+   `security.cve_id`/`anchor` path that replaced `security.cve_severities[]`.
 4. Shape drift — research is agent-written free-form JSON, so every array it
    supplies is fed back in the wrong shape sooner or later. One report is
    assembled from ~22 files covering ~77 tools, so the contract is that a
-   drifted file costs one warned-about tool, never the whole run.
+   drifted file costs one reported-about tool, never the whole run.
 5. Report-level invariants — a synthetic session dir assembled through main(),
    so the ordering constraints (finalize_tool before the id-uniqueness pass,
    build_highlights after it) are exercised, not just asserted in prose.
-6. CVE severity, `notable` security items, and the noise floor — the security
-   block research supplies and assembly validates. Its two load-bearing
-   properties are structural: `sum(severity_counts) == cve_count` holds because
-   the rollup iterates the ids rather than the ratings, and no decision
-   (`review_bucket`, `pre_accept`) can move as a result of the noise floor
-   deleting items.
-7. The assembly ↔ page contract for `security.notable[]` — the one place where
-   the report's producer and its only consumer both sort the same array, and
-   where `[]` and an absent key have to keep meaning two different things.
-   These read `assets/report-template.html` because prose agreement between
-   the two sides has already drifted once without a single test failing.
+6. The severity rollup — `sum(severity_counts) == cve_count` holds because the
+   rollup iterates the ids rather than the ratings.
+7. The assembly ↔ page contract — the tag→group map and the CVE ordering rank
+   exist on both sides, and the page must not read a legacy array. These read
+   `assets/report-template.html` because prose agreement between the two sides
+   has already drifted once without a single test failing.
+8. Degradation — per file, per entry, per tool. Nothing malformed may cost the
+   run.
 """
 import contextlib
 import io
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -51,6 +54,10 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import assemble  # noqa: E402
+import items as model  # noqa: E402
+
+TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets",
+	"report-template.html")
 
 
 # ── 1. Version classification (references/assembly.md §Version Delta) ────────
@@ -110,7 +117,8 @@ class VersionDeltaTests(unittest.TestCase):
 			("unknown", "none", "no numeric component"))
 
 	def test_equal_versions(self):
-		delta, scheme, note = assemble.compute_version_delta("1.2.3", "1.2.3", "brew")
+		with contextlib.redirect_stderr(io.StringIO()):
+			delta, scheme, note = assemble.compute_version_delta("1.2.3", "1.2.3", "brew")
 		self.assertEqual((delta, note), ("unknown", "versions compare equal"))
 		self.assertEqual(scheme, "semver")
 
@@ -157,21 +165,38 @@ class VersionHelperTests(unittest.TestCase):
 		self.assertEqual(assemble.first_difference(a, assemble.parse_version_components("1.2")), (2, "numeric"))
 
 
-# ── 2. Semantic classification (references/assembly.md §Security Extraction,
-#      §Review Buckets and Pre-Accept) ────────────────────────────────────────
-def _hl(category, severity, text="A changelog fact."):
-	return {"text": text, "category": category, "severity": severity}
-
-
-def _rel(category, severity, summary="Affects this setup.", detail=""):
-	return {
-		"category": category,
+# ── the item-model fixture kit ──────────────────────────────────────────────
+def _item(slug, *, title="A changelog fact.", body=None, tags=("fix",), severity="info",
+		change=True, local=None, security=None, anchor=None, **extra):
+	"""One conforming item. `slug` only has to be unique within its tool — the
+	validator derives the id from the anchor, checkers never write one."""
+	item = {
+		"anchor": anchor if anchor is not None else {"kind": "release", "value": "1.0.1/" + slug},
+		"title": title,
+		"tags": list(tags),
 		"severity": severity,
-		"summary": summary,
-		"detail": detail,
-		"evidence": [],
-		"motivating_change": "release notes entry",
 	}
+	if body is not None:
+		item["body"] = body
+	if change:
+		item["change"] = {"version": "1.0.1", "citation": "upstream release note for " + slug}
+	if local is not None:
+		item["local"] = local
+	if security is not None:
+		item["security"] = security
+	item.update(extra)
+	return item
+
+
+def _local(direction="unclear", effect="none", statement="Reasoning about this setup.",
+		evidence=(), citations=()):
+	return {"direction": direction, "effect": effect, "statement": statement,
+		"evidence": list(evidence), "citations": list(citations)}
+
+
+def _sec(cve_id=None, rating="unknown", basis="unrated", wild=False, advisory=None):
+	return {"cve_id": cve_id, "advisory_id": advisory, "rating": rating,
+		"rating_basis": basis, "exploited_in_wild": wild}
 
 
 def _cand(tool_id, name, source, current, latest, **extra):
@@ -181,198 +206,247 @@ def _cand(tool_id, name, source, current, latest, **extra):
 	return cand
 
 
-def build(candidate, research):
-	"""build_tool() with stderr silenced — several fixtures deliberately trip
-	the needs_attention/equal-version warnings."""
-	with contextlib.redirect_stderr(io.StringIO()):
-		return assemble.build_tool(candidate, research)
+def assemble_session(collect, research_entries, extra_files=None):
+	"""Write a throwaway session dir, run it through main(), and return
+	(report, stderr). Going through main() rather than build_tool() is the
+	point: it is the only way to exercise validation, the two ordering
+	constraints and the id-uniqueness pass together.
+
+	`extra_files` maps a research/ filename to raw bytes or text, for the
+	degradation cases where the file itself is the hostile input."""
+	with tempfile.TemporaryDirectory() as tmp:
+		session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
+		os.makedirs(os.path.join(session, "research"))
+		with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
+			json.dump(collect, fh)
+		if research_entries is not None:
+			with open(os.path.join(session, "research", "01-all.json"), "w", encoding="utf-8") as fh:
+				json.dump(research_entries, fh)
+		for name, blob in (extra_files or {}).items():
+			mode = "wb" if isinstance(blob, bytes) else "w"
+			kwargs = {} if isinstance(blob, bytes) else {"encoding": "utf-8"}
+			with open(os.path.join(session, "research", name), mode, **kwargs) as fh:
+				fh.write(blob)
+		argv, err = sys.argv, io.StringIO()
+		sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
+			"--dotfiles-root", tmp, "--systems-root", tmp]
+		try:
+			with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+				assemble.main()
+		finally:
+			sys.argv = argv
+		with open(os.path.join(session, "report.json"), "r", encoding="utf-8") as fh:
+			report = json.load(fh)
+		with open(os.path.join(session, "assemble.warn"), "r", encoding="utf-8") as fh:
+			report["_warn"] = fh.read()
+		with open(os.path.join(session, "assemble.log"), "r", encoding="utf-8") as fh:
+			report["_log"] = fh.read()
+		return report, err.getvalue()
 
 
+def build_one(candidate, research, **collect_extra):
+	"""One candidate through the whole path → its Tool object."""
+	key = {"brew-health": "brew_health", "skill-drift": "skill_drift"}.get(candidate["source"])
+	collect = {"generated_at": "2026-08-22T11:33:44Z", "machine": {}}
+	if key:
+		collect[key] = {"findings": [candidate], "suppressed": []}
+	else:
+		collect[{"mise": "mise", "standalone": "standalone", "macos": "macos"}
+			.get(candidate["source"], "brew")] = [candidate]
+	collect.update(collect_extra)
+	report, _ = assemble_session(collect, [research] if research is not None else [])
+	return report["tools"][0]
+
+
+# ── 2. Semantic classification ──────────────────────────────────────────────
 # Every key a fixture expectation dict may carry. Asserted as an allowlist so
 # a typo'd key fails loudly instead of being silently never checked — the
 # failure mode that makes a green matrix meaningless.
 EXPECT_KEYS = {
 	"has_security", "security_only", "impact", "cve_count", "cve_claimed_count",
 	"review_bucket", "risk_level", "version_delta", "version_scheme",
-	"suggestions", "pre_accept", "needs_sudo",
+	"suggestions", "pre_accept", "needs_sudo", "display_item_ids",
 }
 
 
-# Each fixture: (label, candidate, research_obj, expectations)
 def _fixtures():
 	return [
 		(
-			"S1 brew:duckdb — security-only, nothing touching this setup",
-			_cand("brew:duckdb", "duckdb", "brew", "1.4.2", "1.4.3"),
-			{
-				"headliners": [_hl("security", "notable"), _hl("security", "info")] +
-					[_hl("fixes", "notable")] * 4,
-				"relevancy": [_rel("security", "notable")],
-				"config_status": {"state": "up_to_date", "detail": "Reviewed at 1.4.2.", "evidence": []},
-			},
+			"S1 security-only patch, nothing reaches here → security_auto, pre-accepted",
+			_cand("brew:s1", "s1", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s1", "links": [], "items": [
+				_item("cve", tags=["security"], severity="notable",
+					title="Fixes CVE-2026-53789 in the agent forwarding path",
+					security=_sec("CVE-2026-53789", "high", "vendor")),
+				_item("chore", tags=["chore"], severity="info"),
+			]},
 			{"has_security": True, "security_only": True, "impact": "none",
-				"review_bucket": "security_auto", "risk_level": "low", "pre_accept": True},
+				"review_bucket": "security_auto", "risk_level": "low",
+				"pre_accept": True, "cve_count": 1},
 		),
 		(
-			"S2 brew:libpq — security_auto overriding an elevated risk_level",
-			_cand("brew:libpq", "libpq", "brew", "18.4", "18.6"),
-			{
-				"headliners": [_hl("security", "warning"), _hl("security", "notable"),
-					_hl("security", "notable"), _hl("fixes", "notable"),
-					_hl("fixes", "info"), _hl("notes", "info")],
-				"relevancy": [_rel("security", "warning")],
-			},
-			{"has_security": True, "security_only": True, "impact": "none",
-				"review_bucket": "security_auto", "risk_level": "elevated", "pre_accept": True},
+			"S2 a feature alongside the fix disqualifies security_only",
+			_cand("brew:s2", "s2", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s2", "links": [], "items": [
+				_item("cve", tags=["security"], severity="notable", security=_sec("CVE-2026-1111")),
+				_item("feat", tags=["feature"], severity="notable"),
+			]},
+			{"has_security": True, "security_only": False,
+				"review_bucket": "security_mixed", "pre_accept": True},
 		),
 		(
-			"S3 cask:wireshark-app — security_auto cask, needs_sudo, claim without ids",
-			_cand("cask:wireshark-app", "wireshark-app", "cask", "4.6.5", "4.6.6"),
-			{
-				"headliners": [_hl("security", "warning", "28 security advisories fixed (wnpa-sec-2026-64)"),
-					_hl("notes", "info"), _hl("notes", "info"), _hl("fixes", "info")],
-				"relevancy": [_rel("security", "warning")],
-			},
-			{"has_security": True, "security_only": True, "impact": "none",
-				"review_bucket": "security_auto", "pre_accept": True,
-				"needs_sudo": True, "cve_count": 0, "cve_claimed_count": 28},
-		),
-		(
-			"S4 brew:rsync — security plus notes/notable and a watch-item",
-			_cand("brew:rsync", "rsync", "brew", "3.4.1", "3.4.2"),
-			{
-				"headliners": [
-					_hl("security", "warning", "Fixes 33 CVEs including CVE-2026-53789 and CVE-2026-53790"),
-					_hl("security", "warning", "CVE-2026-53791, CVE-2026-53792"),
-					_hl("security", "notable", "CVE-2026-53793 CVE-2026-53794 CVE-2026-53795"),
-					_hl("notes", "notable"), _hl("notes", "notable"), _hl("fixes", "info"),
-				],
-				"relevancy": [_rel("security", "notable"), _rel("security", "warning")],
-				"suggestions": [{
-					"id": "brew:rsync:watch-protocol", "kind": "watch-item",
-					"title": "Watch: protocol negotiation", "target_files": [], "command": None,
-					"auto_runnable": False, "needs_sudo": False, "rationale": "",
-					"motivating_link": None, "diff_preview": None,
-					"watch_topic": "protocol negotiation", "watch_note": "…",
-				}],
-			},
+			"S3 a `breaking` item at warning is impact, and never security_only",
+			_cand("brew:s3", "s3", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s3", "links": [], "items": [
+				_item("cve", tags=["security"], severity="notable", security=_sec("CVE-2026-2222")),
+				_item("brk", tags=["breaking"], severity="warning",
+					local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+			]},
 			{"has_security": True, "security_only": False, "impact": "possible",
-				"review_bucket": "security_mixed", "pre_accept": False,
-				"cve_count": 7, "cve_claimed_count": 33},
+				"review_bucket": "security_mixed", "risk_level": "elevated",
+				"pre_accept": False},
 		),
 		(
-			"S5 mise:node — security plus features, pre-accepts via risk low",
-			_cand("mise:node", "node", "mise", "24.5.0", "24.6.0"),
-			{
-				"headliners": [
-					_hl("security", "warning", "Fixes 11 CVEs: CVE-2026-1001, CVE-2026-1002, CVE-2026-1003"),
-					_hl("security", "notable", "CVE-2026-1004 CVE-2026-1005 CVE-2026-1006 CVE-2026-1007"),
-					_hl("features", "notable"), _hl("features", "notable"),
-					_hl("features", "info", "CVE-2026-1008, CVE-2026-1009, CVE-2026-1010"),
-					_hl("notes", "info"),
-				],
-				"relevancy": [],
-			},
-			{"has_security": True, "security_only": False, "impact": "none",
-				"review_bucket": "security_mixed", "risk_level": "low", "pre_accept": True,
-				"cve_count": 10, "cve_claimed_count": 11},
+			"S4 pinned is impact and elevated",
+			_cand("brew:s4", "s4", "brew", "1.0.0", "1.0.1", pinned=True),
+			{"id": "brew:s4", "links": [], "items": [_item("a", tags=["fix"], severity="info")]},
+			{"impact": "possible", "risk_level": "elevated",
+				"review_bucket": "attention", "pre_accept": False},
 		),
 		(
-			"S6 cask:slack — vendor silent about security",
-			_cand("cask:slack", "slack", "cask", "4.45.0", "4.46.0"),
-			{"headliners": [], "vendor_silent_categories": ["security"]},
-			{"has_security": True, "security_only": False, "impact": "unknown",
-				"review_bucket": "security_mixed", "risk_level": "low", "pre_accept": True},
-		),
-		(
-			"S7 cask:claudebar — vendor publishes nothing, stays routine",
-			_cand("cask:claudebar", "claudebar", "cask", "0.4.73", "0.4.81"),
-			{"headliners": [], "vendor_silent_categories": ["fixes"]},
-			{"has_security": False, "security_only": False, "impact": "unknown",
-				"review_bucket": "routine", "risk_level": "low", "pre_accept": True},
-		),
-		(
-			"S8 research failed — never pre-accepted",
-			_cand("brew:ripgrep", "ripgrep", "brew", "14.1.0", "14.1.1"),
+			"S5 research that told us nothing is never security_only",
+			_cand("brew:s5", "s5", "brew", "1.0.0", "1.0.1"),
 			None,
 			{"has_security": False, "security_only": False, "impact": "unknown",
-				"review_bucket": "attention", "risk_level": "elevated", "pre_accept": False},
+				"risk_level": "elevated", "review_bucket": "attention", "pre_accept": False},
 		),
 		(
-			"S9 cask:codex — 0.x major with a breaking note",
-			_cand("cask:codex", "codex", "cask", "0.144.6", "0.149.0"),
-			{
-				"headliners": [_hl("notes", "notable", "`codex exec --full-auto` was removed"),
-					_hl("security", "notable"), _hl("security", "notable"),
-					_hl("features", "notable"), _hl("features", "info"), _hl("features", "info")],
-				"relevancy": [_rel("security", "notable"), _rel("features", "notable")],
-			},
-			{"has_security": True, "security_only": False, "impact": "possible",
-				"review_bucket": "security_mixed", "risk_level": "elevated", "pre_accept": False,
-				"version_delta": "major"},
+			"S6 config needs_attention with an edit suggestion → attention, impact possible",
+			_cand("brew:s6", "s6", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s6", "links": [], "items": [_item("a", tags=["fix"], severity="info")],
+				"config_status": {"state": "needs_attention", "detail": "The Brewfile pin is stale.",
+					"evidence": [{"path": "Brewfile"}], "citations": []},
+				"suggestions": [{"id": "brew:s6:edit", "kind": "edit", "title": "Update the pin",
+					"target_files": [{"path": "Brewfile", "description": "pin"}],
+					"rationale": "", "motivating_link": None, "diff_preview": None}]},
+			{"impact": "possible", "review_bucket": "attention", "pre_accept": False,
+				"suggestions": 2},
 		),
 		(
-			"S10 brew-health missing_dependency — structural finding",
-			_cand("brew-health:missing_dependency:dtc", "Missing dependency: dtc", "brew-health", None, None,
-				category="missing_dependency", severity="notable", expected=False,
-				detail="An installed formula/cask is missing dependency `dtc`.",
-				remediation={"command": "brew install dtc", "auto_runnable": True,
-				"needs_sudo": False, "label": "Install dtc"}),
-			{
-				"headliners": [_hl("fixes", "warning")] + [_hl("fixes", "notable")] * 4 + [_hl("notes", "info")],
-				"relevancy": [_rel("fixes", "warning")],
-				"config_status": {"state": "needs_attention", "detail": "Brewfile lacks dtc.", "evidence": []},
-				"suggestions": [{
-					"id": "brew-health:missing_dependency:dtc:add-brewfile-line", "kind": "edit",
-					"title": "Add dtc to the Brewfile", "target_files": [{"path": "Brewfile", "description": "add dtc"}],
-					"rationale": "", "motivating_link": None, "diff_preview": None,
-				}],
-			},
-			{"has_security": False, "security_only": False, "impact": "possible",
-				"review_bucket": "attention", "risk_level": "elevated", "pre_accept": False,
-				"version_delta": "unknown", "version_scheme": "none"},
+			"S7 a major bump is elevated on its own",
+			_cand("brew:s7", "s7", "brew", "1.0.0", "2.0.0"),
+			{"id": "brew:s7", "links": [], "items": [_item("a", tags=["feature"], severity="info")]},
+			{"version_delta": "major", "risk_level": "elevated",
+				"review_bucket": "attention", "pre_accept": False},
 		),
 		(
-			"S11 brew-health path_note — expected, nothing to decide",
-			_cand("brew-health:path_note:gnu-utils-path", "GNU utils in PATH (intentional)", "brew-health", None, None,
-				category="path_note", severity="info", expected=True,
-				detail="Non-prefixed GNU utilities are earlier in PATH than the macOS defaults.",
-				remediation=None),
+			"S8 an expected brew-health note needs no decision",
+			{"id": "brew-health:path_note:gnubin", "name": "GNU coreutils on PATH",
+				"source": "brew-health", "category": "path_note", "severity": "info",
+				"detail": "GNU coreutils shadow the system ones — intentional here.",
+				"remediation": None, "expected": True},
 			None,
-			{"has_security": False, "security_only": False, "impact": "none",
-				"review_bucket": "routine", "risk_level": "low", "suggestions": 0},
+			{"has_security": False, "impact": "none", "risk_level": "low",
+				"review_bucket": "routine", "pre_accept": False, "suggestions": 0},
 		),
 		(
-			"S12 skill-drift upstream_ahead — the vendored copy is behind its source",
-			_cand("skill-drift:anthropics/pptx", "pptx (anthropics)", "skill-drift", None, None,
-				drift_state="upstream_ahead", severity="notable", expected=False,
-				vendor="anthropics", skill="pptx",
-				detail="Upstream moved since the last sync; the vendored tree is unmodified.",
-				remediation={"command": "bash config/agent-skills/sync-upstream.sh",
-				"auto_runnable": False, "needs_sudo": False,
-				"label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"}),
+			"S9 a real brew-health finding is attention, and its remediation never pre-accepts",
+			{"id": "brew-health:unlinked_keg:tree-sitter", "name": "Unlinked keg: tree-sitter",
+				"source": "brew-health", "category": "unlinked_keg", "severity": "warning",
+				"detail": "Keg `tree-sitter` is unlinked in the Cellar.",
+				"remediation": {"command": "brew link tree-sitter", "auto_runnable": True,
+					"needs_sudo": False, "label": "Relink tree-sitter"},
+				"expected": False},
 			None,
-			{"has_security": False, "security_only": False, "impact": "possible",
-				"review_bucket": "attention", "risk_level": "elevated", "pre_accept": False,
-				"version_delta": "unknown", "version_scheme": "none", "suggestions": 1},
+			{"has_security": False, "impact": "possible", "risk_level": "elevated",
+				"review_bucket": "attention", "pre_accept": False, "suggestions": 1},
 		),
 		(
-			"S13 skill-drift local_only — expected, nothing to decide",
-			_cand("skill-drift:google/gke-basics", "gke-basics (google)", "skill-drift", None, None,
-				drift_state="local_only", severity="info", expected=True,
-				vendor="google", skill="gke-basics",
-				detail="The vendored copy carries local patches; upstream has not moved since the sync.",
-				remediation=None),
+			"S10 a skill drift the user must resolve is attention; `:sync` never pre-accepts",
+			{"id": "skill-drift:anthropics/pptx", "name": "pptx (anthropics)",
+				"source": "skill-drift", "drift_state": "upstream_ahead", "severity": "notable",
+				"detail": "Upstream moved since the last sync.",
+				"vendor": "anthropics", "skill": "pptx",
+				"remediation": {"command": "bash config/agent-skills/sync-upstream.sh",
+					"auto_runnable": True, "needs_sudo": False, "label": "Sync anthropics"},
+				"expected": False},
 			None,
-			{"has_security": False, "security_only": False, "impact": "none",
-				"review_bucket": "routine", "risk_level": "low", "suggestions": 0,
-				"version_delta": "unknown", "version_scheme": "none"},
+			{"review_bucket": "attention", "pre_accept": False, "suggestions": 1},
+		),
+		(
+			"S11 a locally-patched skill needs no decision",
+			{"id": "skill-drift:tapppi/jira", "name": "jira (tapppi)",
+				"source": "skill-drift", "drift_state": "local_only", "severity": "info",
+				"detail": "The local copy is deliberately patched.",
+				"vendor": "tapppi", "skill": "jira", "remediation": None, "expected": True},
+			None,
+			{"review_bucket": "routine", "pre_accept": False, "suggestions": 0},
+		),
+		(
+			"S12 a macOS security update cannot be run, so it never reaches security_auto",
+			_cand("macos:Safari", "Safari", "macos", "26.0", "26.1"),
+			{"id": "macos:Safari", "links": [], "items": [
+				_item("cve", tags=["security"], severity="notable", security=_sec("CVE-2026-3333"))]},
+			{"has_security": True, "security_only": True,
+				"review_bucket": "security_mixed", "version_delta": "unknown",
+				"pre_accept": False, "needs_sudo": True},
+		),
+		(
+			"S13 vendor-silent security with no security item still lands in a security bucket",
+			# THE REGRESSION TEST. `vendor_silent_categories: ["security"]` is
+			# research saying "this release has security content the vendor
+			# refused to detail". Read only the tag-derived has_security flag
+			# and the tool computes: not security (no security tag), and NOT
+			# elevated either — because compute_risk_level's "no items" clause
+			# is suppressed by the non-empty vendor_silent list. It lands in
+			# `routine`, out of the security section entirely, and stays
+			# pre-accepted: a field whose entire purpose is "look at this"
+			# would guarantee nobody does.
+			_cand("brew:s13", "s13", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s13", "links": [], "vendor_silent_categories": ["security"],
+				"items": [_item("feat", tags=["feature"], severity="notable")]},
+			{"has_security": True, "security_only": False,
+				"review_bucket": "security_mixed"},
+		),
+		(
+			"S14 an item whose local effect is a risk at notable is impact",
+			_cand("brew:s14", "s14", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s14", "links": [], "items": [
+				_item("a", tags=["fix"], severity="notable",
+					local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))]},
+			# `review_bucket` deliberately does NOT read impact outside the
+			# security_auto clause, so this stays routine — impact and bucket
+			# are different axes and always have been.
+			{"impact": "possible", "review_bucket": "routine"},
+		),
+		(
+			"S15 an info-level local finding is not impact on its own",
+			_cand("brew:s15", "s15", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s15", "links": [], "items": [
+				_item("a", tags=["fix"], severity="info",
+					local=_local("does_not_reach", "benefit"))]},
+			{"impact": "none", "risk_level": "low", "review_bucket": "routine",
+				"pre_accept": True},
+		),
+		(
+			"S16 a security item that reaches this machine is shown inline; one that does not is not",
+			_cand("brew:s16", "s16", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:s16", "links": [], "items": [
+				_item("reaches", tags=["security"], severity="notable",
+					security=_sec("CVE-2026-4444", "medium", "nvd"),
+					local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+				_item("misses", tags=["security"], severity="info",
+					security=_sec("CVE-2026-5555"),
+					local=_local("does_not_reach", "benefit")),
+			]},
+			{"has_security": True, "cve_count": 2,
+				"display_item_ids": ["brew:s16#release:1.0.1%2Freaches"]},
 		),
 	]
 
 
 def _fixture(prefix):
-	"""Look a fixture up by label prefix (S1…S13). A positional index silently
+	"""Look a fixture up by label prefix (S1…S16). A positional index silently
 	retargets the moment a row is inserted above it."""
 	matches = [f for f in _fixtures() if f[0].startswith(prefix + " ")]
 	assert len(matches) == 1, f"{prefix}: expected 1 fixture, found {len(matches)}"
@@ -384,14 +458,13 @@ class SemanticClassificationTests(unittest.TestCase):
 		for label, candidate, research, expect in _fixtures():
 			with self.subTest(label):
 				self.assertEqual(set(expect) - EXPECT_KEYS, set(), f"{label}: unknown expectation key")
-				tool = build(candidate, research)
+				tool = build_one(candidate, research)
 				sec = tool["security"]
-				for key in ("has_security", "security_only", "impact"):
+				for key in ("has_security", "security_only", "impact", "cve_count",
+						"cve_claimed_count", "display_item_ids"):
 					if key in expect:
-						self.assertEqual(sec[key], expect[key], f"{label}: security.{key}")
-				for key in ("cve_count", "cve_claimed_count"):
-					if key in expect:
-						self.assertEqual(sec[key], expect[key], f"{label}: security.{key}")
+						got = sec["display_item_ids"] if key == "display_item_ids" else sec[key]
+						self.assertEqual(got, expect[key], f"{label}: security.{key}")
 				for key in ("review_bucket", "risk_level", "version_delta", "version_scheme"):
 					if key in expect:
 						self.assertEqual(tool[key], expect[key], f"{label}: {key}")
@@ -402,8 +475,8 @@ class SemanticClassificationTests(unittest.TestCase):
 					if baseline is not None:
 						self.assertEqual(baseline["pre_accept"], expect["pre_accept"], f"{label}: pre_accept")
 					else:
-						# No baseline at all (a brew-health finding) — nothing on
-						# the tool may pre-accept.
+						# No baseline at all (a finding source) — nothing on the
+						# tool may pre-accept.
 						self.assertFalse(expect["pre_accept"], f"{label}: fixture expects a baseline that isn't there")
 						self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]), f"{label}: pre_accept")
 				if "needs_sudo" in expect:
@@ -411,348 +484,292 @@ class SemanticClassificationTests(unittest.TestCase):
 				# Invariants that hold for every tool, no exceptions.
 				self.assertEqual(sec["cve_count"], len(sec["cve_ids"]), f"{label}: cve_count is id-backed")
 				self.assertEqual(sec["cve_ids"], sorted(set(sec["cve_ids"]), key=assemble.cve_sort_key), label)
+				self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"], label)
 				for sug in tool["suggestions"]:
 					self.assertIn("pre_accept", sug, f"{label}: every suggestion carries pre_accept")
 
+	def test_the_bucket_is_explained_by_its_own_recorded_inputs(self):
+		"""`bucket_inputs` is what convergence reads instead of re-deriving the
+		bucket. A bucket its own inputs cannot explain is exactly the opacity
+		§C3 exists to remove — so the two must never be computed from different
+		values of `has_security`."""
+		for label, candidate, research, _ in _fixtures():
+			with self.subTest(label):
+				tool = build_one(candidate, research)
+				inputs = tool["bucket_inputs"]
+				self.assertEqual(tool["security"]["has_security"], inputs["has_security"], label)
+				self.assertEqual(tool["security"]["security_only"], inputs["security_only"], label)
+				self.assertEqual(tool["security"]["impact"], inputs["impact"], label)
+				self.assertEqual(tool["version_delta"], inputs["version_delta"], label)
+				if tool["review_bucket"] == "security_mixed":
+					self.assertTrue(inputs["has_security"], label)
+				if tool["review_bucket"] == "security_auto":
+					self.assertTrue(inputs["has_security"] and inputs["security_only"], label)
+					self.assertEqual(inputs["impact"], "none", label)
+
+	def test_vendor_silent_security_still_reaches_the_security_section(self):
+		"""The named regression, asserted as its consequence rather than its
+		mechanism: a tool whose vendor admitted undetailed security content
+		must stay visible as security work. Against the tag-only flag this
+		lands in `routine` — collapsed into "everything else", counted in no
+		security total, and still pre-accepted."""
+		_, candidate, research, _ = _fixture("S13")
+		tool = build_one(candidate, research)
+		self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed"))
+		self.assertTrue(tool["security"]["has_security"])
+		self.assertTrue(tool["bucket_inputs"]["has_security"])
+
 	def test_health_suggestions_never_pre_accept(self):
-		# brew install dtc IS auto_runnable — it is excluded because a health
-		# remediation is not a `:upgrade`-suffixed baseline, not because it
-		# could not be run.
-		_, candidate, research, _ = _fixture("S10")
-		research = dict(research)
-		research.pop("suggestions")
-		tool = build(candidate, research)
-		self.assertEqual([s["id"] for s in tool["suggestions"]], ["brew-health:missing_dependency:dtc:remediate"])
+		# brew link tree-sitter IS auto_runnable — it is excluded because a
+		# health remediation is not a `:upgrade`-suffixed baseline, not because
+		# it could not be run.
+		_, candidate, research, _ = _fixture("S9")
+		tool = build_one(candidate, research)
 		self.assertTrue(tool["suggestions"][0]["auto_runnable"])
 		self.assertFalse(tool["suggestions"][0]["pre_accept"])
 		self.assertIsNone(assemble.baseline_upgrade(tool))
 
 	def test_drift_suggestions_never_pre_accept(self):
-		# Same mechanism, same reason as brew-health above: this fixture's sync
-		# command is flipped to auto_runnable on purpose, so the assertion can
-		# only pass because the suggestion id ends `:sync` rather than being a
-		# `:upgrade`-suffixed baseline — never because it happened to be
-		# unrunnable. Re-syncing rewrites vendored files inside the dotfiles
-		# submodule and can conflict; it is never a "just do it".
-		_, candidate, _, _ = _fixture("S12")
-		candidate = dict(candidate)
-		candidate["remediation"] = dict(candidate["remediation"], auto_runnable=True)
-		tool = build(candidate, None)
-		self.assertEqual([s["id"] for s in tool["suggestions"]], ["skill-drift:anthropics/pptx:sync"])
-		self.assertTrue(tool["suggestions"][0]["auto_runnable"])
+		_, candidate, research, _ = _fixture("S10")
+		tool = build_one(candidate, research)
+		self.assertTrue(tool["suggestions"][0]["id"].endswith(":sync"))
 		self.assertFalse(tool["suggestions"][0]["pre_accept"])
 		self.assertIsNone(assemble.baseline_upgrade(tool))
 
-	def test_drift_headliner_falls_back_to_the_finding_detail(self):
-		# No research subagent ran, so the finding's own detail has to carry the
-		# card — filed in the content group its drift_state maps to, since a
-		# drift is not a changelog fact but still reads best in one of the four.
-		for prefix, category in (("S12", "fixes"), ("S13", "notes")):
-			with self.subTest(prefix):
-				_, candidate, _, _ = _fixture(prefix)
-				tool = build(candidate, None)
-				self.assertEqual(len(tool["headliners"]), 1)
-				self.assertEqual(tool["headliners"][0]["text"], candidate["detail"])
-				self.assertEqual(tool["headliners"][0]["category"], category)
-				self.assertEqual(tool["headliners"][0]["severity"], candidate["severity"])
-				# The Tool object carries the drift facts the page renders in the
-				# slot a version pair would occupy.
-				self.assertEqual(tool["drift_state"], candidate["drift_state"])
-				self.assertEqual(tool["drift_expected"], candidate["expected"])
-				self.assertEqual((tool["drift_vendor"], tool["drift_skill"]),
-					(candidate["vendor"], candidate["skill"]))
-				self.assertIsNone(tool["current_version"])
-				self.assertIsNone(tool["latest_version"])
+	def test_a_finding_item_is_synthesized_with_a_local_block_and_no_change(self):
+		"""A health finding is not an upstream change at all — it is a statement
+		about this install, so the synthesized item carries `local` and
+		`change: null`. The page's severity filters read `local`, so a finding
+		with none would vanish from "relevant only"."""
+		_, candidate, research, _ = _fixture("S9")
+		tool = build_one(candidate, research)
+		self.assertEqual(len(tool["items"]), 1)
+		item = tool["items"][0]
+		self.assertIsNone(item["change"])
+		self.assertEqual(item["local"]["direction"], "reaches")
+		self.assertEqual(item["local"]["effect"], "risk")
+		self.assertIn("tree-sitter", item["title"])
+		self.assertEqual(model.primary_group(item), "fixes")
+
+	def test_an_expected_finding_is_synthesized_with_no_risk(self):
+		_, candidate, research, _ = _fixture("S8")
+		tool = build_one(candidate, research)
+		self.assertEqual(tool["items"][0]["local"]["effect"], "none")
+		self.assertEqual(model.primary_group(tool["items"][0]), "notes")
+
+	def test_a_health_finding_never_reports_security_content(self):
+		"""An untrusted tap tags `security` so it files under the security
+		group, but the security *section* is about patches the user can take —
+		counting it would make the section's count disagree with its cards."""
+		tool = build_one({"id": "brew-health:untrusted_tap:x", "name": "Untrusted tap: x",
+			"source": "brew-health", "category": "untrusted_tap", "severity": "warning",
+			"detail": "Tap x is not in the trusted list.", "remediation": None,
+			"expected": False}, None)
+		self.assertEqual(model.primary_group(tool["items"][0]), "security")
+		self.assertFalse(tool["security"]["has_security"])
+		self.assertEqual(tool["security"]["cve_ids"], [])
 
 	def test_auto_runnable_false_blocks_pre_accept(self):
-		# A macos/standalone baseline has no command the skill can run, so
-		# "accepted" would claim a decision about something it cannot execute.
-		tool = build(_cand("macos:Safari", "Safari", "macos", "15.6", "15.6"), {"headliners": [_hl("fixes", "info")]})
+		tool = build_one(_cand("standalone:x", "x", "standalone", "1.0.0", "1.0.1"),
+			{"id": "standalone:x", "links": [], "items": [_item("a", severity="info")]})
 		baseline = assemble.baseline_upgrade(tool)
 		self.assertFalse(baseline["auto_runnable"])
 		self.assertFalse(baseline["pre_accept"])
 		self.assertEqual(tool["review_bucket"], "attention")
 
-	def test_security_only_macos_lands_in_mixed_not_auto(self):
-		tool = build(_cand("macos:Safari", "Safari", "macos", "15.6", "15.6"),
-			{"headliners": [_hl("security", "notable")]})
-		self.assertTrue(tool["security"]["security_only"])
-		self.assertEqual(tool["review_bucket"], "security_mixed")
-		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
-
-	def test_research_error_never_reads_as_security_only(self):
-		# "We know nothing" must never be reported as "nothing but security
-		# fixes" — even with a CVE id somewhere in the shell of an object.
-		tool = build(_cand("brew:foo", "foo", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [], "context": [{"title": "t", "detail": "CVE-2026-1111", "evidence": []}]})
-		self.assertTrue(tool["security"]["has_security"])
-		self.assertFalse(tool["security"]["security_only"])
-		self.assertEqual(tool["security"]["impact"], "unknown")
-
-	def test_pinned_is_impact_and_elevated(self):
-		tool = build(_cand("brew:podman", "podman", "brew", "5.5.1", "5.5.2", pinned=True),
-			{"headliners": [_hl("fixes", "info")]})
-		self.assertEqual(tool["security"]["impact"], "possible")
-		self.assertEqual(tool["risk_level"], "elevated")
-		self.assertEqual(tool["review_bucket"], "attention")
-
-	def test_non_security_headliner_warning_is_impact(self):
-		# mise:rust in the live run: three fixes/warning headliners, no
-		# relevancy — impact-shaped whether or not a subagent wrote it up.
-		tool = build(_cand("mise:rust", "rust", "mise", "1.90.0", "1.91.0"),
-			{"headliners": [_hl("fixes", "warning")], "relevancy": []})
-		self.assertEqual(tool["security"]["impact"], "possible")
-
-	def test_info_relevancy_alone_is_not_impact(self):
-		tool = build(_cand("brew:jq", "jq", "brew", "1.8.0", "1.8.1"),
-			{"headliners": [_hl("fixes", "info")], "relevancy": [_rel("fixes", "info")]})
-		self.assertEqual(tool["security"]["impact"], "none")
-		self.assertEqual(tool["review_bucket"], "routine")
+	def test_items_arrive_in_the_contracts_canonical_order(self):
+		"""Assembly never sorts items itself — the order is the contract's, and
+		the page renders it verbatim. Re-sorting on either side is how two
+		copies of one corpus stopped being byte-identical."""
+		tool = build_one(_cand("brew:ord", "ord", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:ord", "links": [], "items": [
+				_item("c", tags=["chore"], severity="info"),
+				_item("a", tags=["security"], severity="warning",
+					security=_sec(), local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+				_item("b", tags=["feature"], severity="notable"),
+			]})
+		self.assertEqual(tool["items"], model.order_items(tool["items"]))
+		self.assertEqual([model.primary_group(i) for i in tool["items"]],
+			["security", "features", "notes"])
 
 
-# ── 3. Regexes (references/assembly.md §Security Extraction) ─────────────────
-class RegexTests(unittest.TestCase):
+# ── 3. The CVE rollup ───────────────────────────────────────────────────────
+class CveScanTests(unittest.TestCase):
 	def test_cve_ids(self):
-		cases = [
-			("Fixes CVE-2026-12345 and CVE-2026-9", ["CVE-2026-12345"]),
-			("cve-2025-0001", ["CVE-2025-0001"]),
-			("CVE-2026-1234567890", ["CVE-2026-1234567890"]),
-			("NOTCVE-2026-1234", []),
-			("CVE-3026-1234", []),
-			("CVE-2026-123", []),
-			("https://nvd.nist.gov/vuln/detail/CVE-2026-4242", ["CVE-2026-4242"]),
-		]
-		for text, expected in cases:
+		for text, want in [
+			("Fixes CVE-2026-53789 in the parser", ["CVE-2026-53789"]),
+			("cve-2026-1234 lowercase", ["CVE-2026-1234"]),
+			("NOTCVE-2026-1234 is not one", []),
+			("CVE-3026-1234 has an impossible year", []),
+			("CVE-2026-123 is too short", []),
+			("CVE-2026-1234567 seven digits is fine", ["CVE-2026-1234567"]),
+		]:
 			with self.subTest(text):
-				self.assertEqual([m.upper() for m in assemble._CVE_RE.findall(text)], expected)
-
-	def test_cve_claims(self):
-		cases = [
-			("Both 5.80 CVEs need a running service", []),
-			("33 CVEs fixed in one release", ["33"]),
-			("28 security advisories fixed (wnpa-sec-2026-64)", ["28"]),
-			("fixes 1234 CVEs", []),
-			("resolves twelve CVEs", []),
-			("50 security vulnerabilities and 3 security fixes", ["50", "3"]),
-		]
-		for text, expected in cases:
-			with self.subTest(text):
-				self.assertEqual(assemble._CVE_CLAIM_RE.findall(text), expected)
-
-	def test_claim_takes_the_max_never_the_sum(self):
-		# Chrome: a 370-fix headliner plus a relevancy detail about a 68-fix
-		# subset. Summing double-counts the subset.
-		tool = build(_cand("cask:google-chrome", "google-chrome", "cask", "150.0.7871.129", "151.0.7922.174"),
-			{"headliners": [_hl("security", "warning", "Shipped 370 security fixes")],
-			"relevancy": [_rel("security", "warning", "68 CVEs affect the renderer", "")]})
-		self.assertEqual(tool["security"]["cve_claimed_count"], 370)
-
-	def test_claims_are_not_scanned_in_context(self):
-		# stunnel's real context note: "Both 5.80 CVEs need a running service".
-		# The lookbehind rejects it; scoping the claim scan away from context[]
-		# is the second, independent guard.
-		tool = build(_cand("brew:stunnel", "stunnel", "brew", "5.79", "5.80"),
-			{"headliners": [_hl("security", "notable")],
-			"context": [{"title": "Not a running service here",
-			"detail": "Both 80 CVEs need a running service", "evidence": []}]})
-		self.assertIsNone(tool["security"]["cve_claimed_count"])
-
-	def test_cve_ids_are_scanned_in_context_but_not_links(self):
-		tool = build(_cand("brew:rsync", "rsync", "brew", "3.4.1", "3.4.2"),
-			{"headliners": [_hl("security", "notable")],
-			"context": [{"title": "In range", "detail": "CVE-2026-53789 is in this range", "evidence": []}],
-			"links": [{"type": "changelog", "label": "CVE-2026-99999", "url": None,
-			"embedded_content": "CVE-2026-88888 from an out-of-range release"}]})
-		self.assertEqual(tool["security"]["cve_ids"], ["CVE-2026-53789"])
+				tool = {"items": [_item("a", title=text)]}
+				self.assertEqual(assemble.extract_cve_ids(tool), want)
 
 	def test_cve_ids_sort_numerically_not_lexically(self):
-		tool = build(_cand("brew:x", "x", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("security", "notable", "CVE-2026-12143 CVE-2026-9595 CVE-2025-9999")]})
-		self.assertEqual(tool["security"]["cve_ids"], ["CVE-2025-9999", "CVE-2026-9595", "CVE-2026-12143"])
+		tool = {"items": [_item("a", title="CVE-2026-12143 and CVE-2026-9595")]}
+		self.assertEqual(assemble.extract_cve_ids(tool),
+			["CVE-2026-9595", "CVE-2026-12143"])
+
+	def test_a_structural_cve_id_is_counted_without_being_written_in_prose(self):
+		"""The point of the item model: the id is a field, not a sentence."""
+		tool = {"items": [_item("a", tags=["security"], security=_sec("CVE-2026-7777"))]}
+		self.assertEqual(assemble.extract_cve_ids(tool), ["CVE-2026-7777"])
+
+	def test_a_cve_anchor_is_counted_too(self):
+		tool = {"items": [_item("a", tags=["security"], security=_sec(),
+			anchor={"kind": "cve", "value": "CVE-2026-8888"})]}
+		self.assertEqual(assemble.extract_cve_ids(tool), ["CVE-2026-8888"])
+
+	def test_a_malformed_structural_id_is_not_counted(self):
+		"""I-5 reports it; counting it would put an unresolvable chip on the
+		card, and `cve_count` is defined as the size of a list the page can
+		link every member of."""
+		tool = {"items": [_item("a", tags=["security"], security=_sec("CVE-26-1"))]}
+		self.assertEqual(assemble.extract_cve_ids(tool), [])
+
+	def test_the_id_scan_reads_the_local_statement_but_not_its_citations(self):
+		"""A `prior_review` citation legitimately names an advisory from
+		outside this current→latest range; the statement is about this range by
+		construction."""
+		tool = {"items": [_item("a",
+			local=_local(statement="CVE-2026-1111 is the one that matters here",
+				citations=[{"kind": "prior_review", "text": "CVE-2020-9999 last time", "url": None}]))]}
+		self.assertEqual(assemble.extract_cve_ids(tool), ["CVE-2026-1111"])
+
+	def test_cve_claims(self):
+		for text, want in [
+			("fixes 33 CVEs", 33),
+			("addresses 12 security issues", 12),
+			("resolves 4 vulnerabilities", 4),
+			("Both 5.80 CVEs need a running service", None),  # the stunnel false positive
+			("1234 CVEs", None),  # \d{1,3} plus the lookbehind
+			("no numbers here", None),
+		]:
+			with self.subTest(text):
+				tool = {"items": [_item("a", title=text)]}
+				self.assertEqual(assemble.extract_cve_claim(tool), want)
+
+	def test_claim_takes_the_max_never_the_sum(self):
+		tool = {"items": [_item("a", title="fixes 50 CVEs"), _item("b", title="fixes 47 CVEs")]}
+		self.assertEqual(assemble.extract_cve_claim(tool), 50)
+
+	def test_a_claim_is_never_read_out_of_our_own_analysis(self):
+		"""`local.statement` is what WE concluded. "the 5 CVEs above do not
+		reach us" is not the vendor claiming five fixes."""
+		tool = {"items": [_item("a", local=_local(statement="the 5 CVEs above do not reach us"))]}
+		self.assertIsNone(assemble.extract_cve_claim(tool))
 
 
-class EvidenceCitationTests(unittest.TestCase):
-	"""_COMMIT_LIKE decides whether an evidence string is a checkable path or a
-	commit citation with nothing to check — so a path it wrongly claims is a
-	citation is never validated at all."""
+class SeverityRollupTests(unittest.TestCase):
+	def _tool(self, items):
+		return build_one(_cand("brew:r", "r", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:r", "links": [], "items": items})
 
-	def test_a_path_segment_named_commit_is_still_checked(self):
-		for path in ("dotfiles/commit-hooks/prepare-msg.sh", "config/commit/template"):
-			with self.subTest(path):
-				self.assertIs(assemble.evidence_exists(path, [os.sep + "nonexistent"]), False)
+	def test_counts_have_the_whole_vocabulary_and_sum_to_cve_count(self):
+		tool = self._tool([
+			_item("a", tags=["security"], security=_sec("CVE-2026-1111", "high", "vendor")),
+			_item("b", tags=["security"], security=_sec("CVE-2026-2222")),
+		])
+		sec = tool["security"]
+		self.assertEqual(set(sec["severity_counts"]), set(model.CVE_RATINGS))
+		self.assertEqual(sec["severity_counts"]["high"], 1)
+		self.assertEqual(sec["severity_counts"]["unknown"], 1)
+		self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
 
-	def test_real_commit_citations_are_still_skipped(self):
-		# Verbatim shapes from one live run — anchoring the pattern to the start
-		# of the string instead would have turned all 19 of these into spurious
-		# "evidence not found" warnings.
-		for citation in (
-			'macos-setup commit 5f25045 — "Add gh auth login to manual steps"',
-			'dotfiles commit 1a55cef — "Add gh cli configs"',
-			"git log -- Brewfile intel.Brewfile — no commit subject references azcopy",
-			"a1b2c3d4e5f",
-		):
-			with self.subTest(citation):
-				self.assertIsNone(assemble.evidence_exists(citation, [os.sep + "nonexistent"]))
+	def test_the_sum_holds_when_nothing_is_rated_at_all(self):
+		tool = self._tool([_item("a", title="Fixes CVE-2026-1111 and CVE-2026-2222")])
+		sec = tool["security"]
+		self.assertEqual(sec["cve_count"], 2)
+		self.assertEqual(sec["severity_counts"]["unknown"], 2)
+		self.assertEqual(sum(sec["severity_counts"].values()), 2)
+
+	def test_a_rating_with_no_basis_is_unknown_never_a_guess(self):
+		"""Research is forbidden from deriving a severity from how a
+		description reads; `rating_basis` is how assembly can tell a fetched
+		rating from an impression. I-6 reports it too."""
+		tool = self._tool([_item("a", tags=["security"],
+			security=_sec("CVE-2026-1111", "critical", "unrated"))])
+		self.assertEqual(tool["security"]["severity_counts"]["critical"], 0)
+		self.assertEqual(tool["security"]["severity_counts"]["unknown"], 1)
+
+	def test_two_items_rating_one_id_keep_the_worse(self):
+		tool = self._tool([
+			_item("a", tags=["security"], security=_sec("CVE-2026-1111", "medium", "nvd")),
+			_item("b", tags=["security"], security=_sec("CVE-2026-1111", "high", "vendor")),
+		])
+		self.assertEqual(tool["security"]["severity_counts"]["high"], 1)
+		self.assertEqual(tool["security"]["severity_counts"]["medium"], 0)
+
+	def test_a_finding_source_carries_a_zeroed_block(self):
+		_, candidate, research, _ = _fixture("S9")
+		sec = build_one(candidate, research)["security"]
+		self.assertEqual(sec["cve_ids"], [])
+		self.assertEqual(sec["cve_count"], 0)
+		self.assertFalse(sec["has_security"])
+		self.assertEqual(set(sec["severity_counts"]), set(model.CVE_RATINGS))
+		self.assertEqual(sum(sec["severity_counts"].values()), 0)
 
 
-# ── 4. Shape drift at the research boundary (references/assembly.md §Loading and Merging) ──
-# Every shape below was either observed to abort the run outright or is the
-# same class of drift. The assertion is never "we understood it" — only that
-# one bad array degrades to one warned-about tool with a usable card.
-DRIFT_SHAPES = [
-	("headliners as a bare string", {"headliners": "no notable changes"}),
-	("headliners as bare strings", {"headliners": ["a change", "another"]}),
-	("headliners as a single object", {"headliners": {"text": "x", "category": "notes", "severity": "info"}}),
-	("headliners null", {"headliners": None}),
-	("relevancy null", {"relevancy": None}),
-	("relevancy as a bare string", {"relevancy": "none found"}),
-	("relevancy as bare strings", {"relevancy": ["nothing here"]}),
-	("context as bare strings", {"context": ["some note"]}),
-	("suggestions null", {"suggestions": None}),
-	("links null", {"links": None}),
-	("release_inventory as bare strings", {"release_inventory": ["1.0.0", "1.0.1"]}),
-	("vendor_silent_categories as a bare string", {"vendor_silent_categories": "security"}),
-	("vendor_silent_categories of objects", {"vendor_silent_categories": [{"category": "security"}]}),
-	("mixed good and bad members", {"headliners": [_hl("fixes", "info"), "junk", None, 42]}),
-]
-
-# field → the member type the schema declares for it
-_ARRAY_FIELDS = {
-	"headliners": dict, "links": dict, "relevancy": dict, "context": dict,
-	"release_inventory": dict, "suggestions": dict, "vendor_silent_categories": str,
+# ── 4. Shape drift at the research boundary ─────────────────────────────────
+DRIFTED = {
+	"id": "brew:drift",
+	"items": "no notable changes",          # a string where an array belongs
+	"links": None,                          # present-but-null
+	"config_status": "up to date",          # a string where an object belongs
+	"suggestions": [{"kind": "edit", "title": "ok", "id": "brew:drift:e1"}, "not an object"],
+	"vendor_silent_categories": {"security": True},
+	"release_inventory": "none",
 }
 
 
 class ShapeDriftTests(unittest.TestCase):
-	def _assert_well_shaped(self, tool, label):
-		for field, member in _ARRAY_FIELDS.items():
-			self.assertIsInstance(tool[field], list, f"{label}: {field}")
-			for item in tool[field]:
-				self.assertIsInstance(item, member, f"{label}: {field} member")
+	@classmethod
+	def setUpClass(cls):
+		cls.report, cls.stderr = assemble_session(
+			{"generated_at": "2026-08-22T11:33:44Z", "machine": {},
+				"brew": [_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"),
+					_cand("brew:fine", "fine", "brew", "1.0.0", "1.0.1")]},
+			[DRIFTED, {"id": "brew:fine", "links": [], "items": [_item("a")]}])
 
-	def test_drifted_shapes_still_build_a_usable_tool(self):
-		for label, research in DRIFT_SHAPES:
-			with self.subTest(label):
-				tool = build(_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"), dict(research))
-				self._assert_well_shaped(tool, label)
-				# Still fully classified, and still carrying a decidable baseline.
-				self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed", "attention", "routine"))
-				baseline = assemble.baseline_upgrade(tool)
-				self.assertIsNotNone(baseline, label)
-				self.assertIn("pre_accept", baseline)
-				assemble.score_tool(tool)   # the post-rename reader must not choke either
+	def test_a_drifted_file_costs_no_tool(self):
+		self.assertEqual([t["id"] for t in self.report["tools"]], ["brew:drift", "brew:fine"])
 
-	def test_health_path_survives_the_same_drift(self):
-		_, candidate, _, _ = _fixture("S10")
-		for label, research in DRIFT_SHAPES:
-			with self.subTest(label):
-				tool = build(candidate, dict(research))
-				self._assert_well_shaped(tool, label)
-				self.assertEqual(tool["review_bucket"], "attention", label)
-				# A drifted headliners array still leaves the finding's own detail
-				# on the card, through the synthesized fallback.
-				self.assertTrue(tool["headliners"], label)
+	def test_every_array_reads_as_a_list_downstream(self):
+		tool = self.report["tools"][0]
+		for key in ("items", "links", "suggestions", "vendor_silent_categories",
+				"release_inventory", "quarantine", "spec_violations"):
+			self.assertIsInstance(tool[key], list, key)
+		self.assertIsInstance(tool["config_status"], dict)
 
-	def test_drift_path_survives_the_same_drift(self):
-		_, candidate, _, _ = _fixture("S12")
-		for label, research in DRIFT_SHAPES:
-			with self.subTest(label):
-				tool = build(candidate, dict(research))
-				self._assert_well_shaped(tool, label)
-				self.assertEqual(tool["review_bucket"], "attention", label)
-				self.assertTrue(tool["headliners"], label)
-				# Whatever research returned, the sync suggestion is never a
-				# baseline and so can never be pre-accepted.
-				self.assertIsNone(assemble.baseline_upgrade(tool), label)
-				self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]), label)
+	def test_a_wrong_typed_member_is_quarantined_not_dropped(self):
+		"""Dropping is deletion, and a human would have read it
+		(references/item-schema.md §0)."""
+		tool = self.report["tools"][0]
+		self.assertIn("not an object", json.dumps(tool["quarantine"]))
 
-	def test_good_members_survive_next_to_bad_ones(self):
-		tool = build(_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("security", "notable", "Fixes CVE-2026-4242"), "junk", None]})
-		self.assertEqual(len(tool["headliners"]), 1)
-		self.assertTrue(tool["security"]["has_security"])
-		self.assertEqual(tool["security"]["cve_ids"], ["CVE-2026-4242"])
+	def test_the_drift_is_reported_in_the_conformance_channel(self):
+		self.assertTrue(self.report["_warn"].strip())
+		for line in self.report["_warn"].splitlines():
+			self.assertRegex(line, r"^[EW]-[A-Z0-9-]+ ")
+		self.assertIn("brew:drift", self.report["_warn"])
+		self.assertNotIn("brew:fine", self.report["_warn"])
 
-	def test_drift_is_warned_about_not_swallowed(self):
-		buf = io.StringIO()
-		with contextlib.redirect_stderr(buf):
-			assemble.build_tool(_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"),
-				{"headliners": "no notable changes", "relevancy": [{"severity": "info"}, "junk"]})
-		warnings = buf.getvalue()
-		self.assertIn("headliners was str", warnings)
-		self.assertIn("relevancy entry was str", warnings)
+	def test_the_good_tool_is_untouched(self):
+		fine = self.report["tools"][1]
+		self.assertEqual(fine["spec_violations"], [])
+		self.assertEqual(len(fine["items"]), 1)
 
-	def test_one_drifted_file_costs_one_tool_not_the_run(self):
-		# The actual failure mode: 22 files in, one of them drifted, and the
-		# report for all the other tools has to survive it.
-		research = [dict(entry) for entry in RESEARCH]
-		research[0] = {"id": "brew:openssh", "headliners": "no notable changes",
-			"relevancy": None, "suggestions": None, "context": ["a note"]}
-		report, stderr = assemble_session(COLLECT, research)
-		self.assertEqual(len(report["tools"]), 7)
-		drifted = next(t for t in report["tools"] if t["id"] == "brew:openssh")
-		self.assertEqual(drifted["headliners"], [])
-		self.assertEqual(drifted["review_bucket"], "attention")   # no content ⇒ never quietly routine
-		self.assertFalse(drifted["suggestions"][0]["pre_accept"])
-		self.assertIn("brew:openssh: headliners was str", stderr)
-		# …and every other tool is untouched.
-		podman = next(t for t in report["tools"] if t["id"] == "brew:podman")
-		self.assertEqual(podman["version_delta"], "major")
+	def test_a_drifted_tool_can_never_be_pre_accepted(self):
+		"""A tool the validator could not read is the last thing that should be
+		auto-approved."""
+		tool = self.report["tools"][0]
+		self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]))
 
 
-# ── 5. Highlights and report-level invariants ───────────────────────────────
-class HighlightScoringTests(unittest.TestCase):
-	def test_bare_major_does_not_clear_the_threshold(self):
-		tool = build(_cand("cask:google-chrome", "google-chrome", "cask", "150.0.7871.129", "151.0.7922.174"),
-			{"headliners": [_hl("features", "info")]})
-		score, reasons = assemble.score_tool(tool)
-		self.assertEqual(reasons, ["major_bump"])
-		self.assertEqual(score, 25)
-		self.assertEqual(assemble.build_highlights([tool]), [])
-
-	def test_watch_item_hit_phrase_scores(self):
-		tool = build(_cand("cask:cursor", "cursor", "cask", "3.12.17", "3.17.8"),
-			{"headliners": [_hl("features", "notable")],
-			"relevancy": [_rel("features", "notable", "⚠ Watch item hit: shell integration changed again")]})
-		score, reasons = assemble.score_tool(tool)
-		self.assertIn("watch_item_hit", reasons)
-		self.assertGreaterEqual(score, 70)
-
-	def test_highlight_object_shape_and_ordering(self):
-		low = build(_cand("brew:aaa", "aaa", "brew", "1.0.0", "2.0.0"),
-			{"headliners": [_hl("features", "warning")]})           # 25 + 20 = 45
-		high = build(_cand("brew:zzz", "zzz", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("fixes", "info")],
-			"relevancy": [_rel("fixes", "incompatible", "Breaks the wrapper script here")]})  # 100 + 45
-		highlights = assemble.build_highlights([low, high])
-		self.assertEqual([h["tool_id"] for h in highlights], ["brew:zzz", "brew:aaa"])
-		top = highlights[0]
-		self.assertEqual(top["title"], "zzz 1.0.0 → 1.0.1")
-		self.assertEqual(top["why"], "Breaks the wrapper script here")
-		self.assertEqual(top["severity"], "incompatible")
-		self.assertEqual(top["suggestion_ids"], ["brew:zzz:upgrade"])
-		self.assertEqual(top["reasons"], ["incompatible_finding"])
-		self.assertEqual(top["score"], 100)
-
-	def test_why_truncates_on_a_word_boundary(self):
-		summary = "word " * 80
-		tool = build(_cand("brew:verbose", "verbose", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("fixes", "info")],
-			"relevancy": [_rel("fixes", "incompatible", summary.strip())]})
-		why = assemble.build_highlights([tool])[0]["why"]
-		self.assertLessEqual(len(why), 220)
-		self.assertTrue(why.endswith("…"))
-		self.assertFalse(why[:-1].endswith(" "))
-
-	def test_cap_is_eight(self):
-		tools = []
-		for i in range(12):
-			tools.append(build(_cand(f"brew:t{i:02d}", f"t{i:02d}", "brew", "1.0.0", "1.0.1"),
-				{"headliners": [_hl("fixes", "info")],
-				"relevancy": [_rel("fixes", "incompatible", f"Breaks thing {i}")]}))
-		self.assertEqual(len(assemble.build_highlights(tools)), 8)
-
-
+# ── 5. Report-level invariants ──────────────────────────────────────────────
 # A synthetic session, small enough to reason about and shaped to exercise the
 # things prose invariants cannot: a CVE shared by two tools (union < sum), a
 # duplicate suggestion id (the rename pass runs between finalize_tool and
@@ -795,14 +812,9 @@ COLLECT = {
 			"source": "skill-drift", "drift_state": "upstream_ahead", "severity": "notable",
 			"detail": "Upstream moved since the last sync; the vendored tree is unmodified.",
 			"vendor": "anthropics", "skill": "pptx", "vendor_kind": "subtree",
-			"upstream_url": "https://github.com/anthropics/skills", "upstream_branch": "main",
-			"upstream_subpath": "skills/pptx",
-			"local_path": "config/agent-skills/anthropics/skills/pptx",
-			"baseline_sha": "5128e1865d670f5d6c9cef000e6dfc4e951fb5b9",
-			"upstream_sha": "3b3fad96af16a10759d930941b4520ba0c40edae",
 			"remediation": {"command": "bash config/agent-skills/sync-upstream.sh",
 				"auto_runnable": False, "needs_sudo": False,
-				"label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"},
+				"label": "Sync anthropics from upstream"},
 			"expected": False, "pinned": False, "current_version": None, "latest_version": None,
 		}],
 		"suppressed": ["anthropics/docx: in sync with upstream"],
@@ -810,59 +822,35 @@ COLLECT = {
 }
 
 RESEARCH = [
-	{"id": "brew:openssh",
-		"headliners": [_hl("security", "notable", "Fixes CVE-2026-53789 in the agent forwarding path")],
-		"relevancy": [_rel("security", "notable", "Agent forwarding is how this machine reaches its remotes.")],
-		"links": [], "context": [], "suggestions": [],
-		"security": {
-			"cve_severities": [{"cve_id": "CVE-2026-53789", "severity": "high", "basis": "vendor"}],
-			"notable": [{"cve_id": "CVE-2026-53789", "advisory_id": None, "severity": "high",
-				"summary": "Agent forwarding is how this machine reaches its remotes.", "affects_me": True}]}},
-	{"id": "brew:ssh-copy-id",
-		"headliners": [_hl("security", "notable", "Same source tarball: CVE-2026-53789")],
-		"relevancy": [], "links": [], "context": [], "suggestions": [],
-		# The same advisory rated differently by a second source — the report-wide
-		# union must take the worse of the two, never the last one seen.
-		"security": {"cve_severities": [{"cve_id": "CVE-2026-53789", "severity": "medium", "basis": "nvd"}]}},
-	{"id": "brew:podman",
-		"headliners": [_hl("fixes", "warning", "libkrun required")],
-		"relevancy": [_rel("fixes", "incompatible", "Intel Mac not supported in v5+")],
-		"suggestions": [
-			{"id": "brew:podman:upgrade", "kind": "edit",  # collides with the baseline id
-			"title": "Annotate the Brewfile pin", "target_files": [{"path": "Brewfile", "description": "note"}],
+	{"id": "brew:openssh", "links": [], "items": [
+		_item("cve", tags=["security"], severity="notable",
+			title="Fixes CVE-2026-53789 in the agent forwarding path",
+			security=_sec("CVE-2026-53789", "high", "vendor"),
+			local=_local("reaches", "risk",
+				statement="Agent forwarding is how this machine reaches its remotes.",
+				evidence=[{"path": "Brewfile"}])),
+	]},
+	# The same advisory rated differently by a second source — the report-wide
+	# union must take the worse of the two, never the last one seen.
+	{"id": "brew:ssh-copy-id", "links": [], "items": [
+		_item("cve", tags=["security"], severity="info",
+			title="Same source tarball: CVE-2026-53789",
+			security=_sec("CVE-2026-53789", "medium", "nvd")),
+	]},
+	{"id": "brew:podman", "links": [], "items": [
+		_item("krun", tags=["breaking"], severity="incompatible",
+			title="Intel Mac not supported in v5+",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+	], "suggestions": [
+		{"id": "brew:podman:upgrade", "kind": "edit",  # collides with the baseline id
+			"title": "Annotate the Brewfile pin", "target_files": [{"path": "Brewfile"}],
 			"rationale": "", "motivating_link": None, "diff_preview": None},
-			{"kind": "edit", "title": "No id at all", "target_files": [],  # id omitted entirely
+		{"kind": "edit", "title": "No id at all", "target_files": [],  # id omitted entirely
 			"rationale": "", "motivating_link": None, "diff_preview": None},
-		]},
-	{"id": "brew:parallel", "headliners": [_hl("notes", "info", "Monthly snapshot")], "relevancy": []},
-	{"id": "mise:uv", "headliners": [_hl("features", "notable", "New resolver")], "relevancy": []},
-	{"id": "brew-health:unlinked_keg:tree-sitter", "headliners": [], "relevancy": []},
-	{"id": "skill-drift:anthropics/pptx", "headliners": [], "relevancy": []},
+	]},
+	{"id": "brew:parallel", "links": [], "items": [_item("snap", tags=["chore"], severity="info")]},
+	{"id": "mise:uv", "links": [], "items": [_item("res", tags=["feature"], severity="notable")]},
 ]
-
-
-def assemble_session(collect, research_entries):
-	"""Write a throwaway session dir, run it through main(), and return
-	(report, stderr). Going through main() rather than build_tool() is the
-	point: it is the only way to exercise the two ordering constraints and
-	the id-uniqueness pass together."""
-	with tempfile.TemporaryDirectory() as tmp:
-		session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
-		os.makedirs(os.path.join(session, "research"))
-		with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
-			json.dump(collect, fh)
-		with open(os.path.join(session, "research", "01-all.json"), "w", encoding="utf-8") as fh:
-			json.dump(research_entries, fh)
-		argv, err = sys.argv, io.StringIO()
-		sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
-			"--dotfiles-root", tmp, "--systems-root", tmp]
-		try:
-			with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-				assemble.main()
-		finally:
-			sys.argv = argv
-		with open(os.path.join(session, "report.json"), "r", encoding="utf-8") as fh:
-			return json.load(fh), err.getvalue()
 
 
 class ReportInvariantTests(unittest.TestCase):
@@ -870,8 +858,11 @@ class ReportInvariantTests(unittest.TestCase):
 	def setUpClass(cls):
 		cls.report, cls.stderr = assemble_session(COLLECT, RESEARCH)
 
-	def test_schema_version_unchanged(self):
-		self.assertEqual(self.report["schema_version"], 1)
+	def test_schema_version_is_two(self):
+		"""`tools[].items[]` replaced four arrays, so a schema-1 consumer
+		cannot read this report and must not try."""
+		self.assertEqual(self.report["schema_version"], 2)
+		self.assertEqual(self.report["contract_version"], model.CONTRACT_VERSION)
 
 	def test_by_delta_sums_to_total_outdated(self):
 		summary = self.report["summary"]
@@ -879,1294 +870,493 @@ class ReportInvariantTests(unittest.TestCase):
 		self.assertEqual(set(summary["by_delta"]), {"major", "minor", "patch", "revision", "unknown"})
 
 	def test_by_bucket_sums_to_every_tool(self):
-		# Deliberately a different denominator from by_delta (which excludes
-		# every non-version source): every Tool object is bucketed exactly once,
-		# so by_bucket sums to len(tools) — and the page renders health and
-		# skill-drift cards inside the bucket lists alongside version updates.
-		# The arithmetic form of that is total_outdated + health_count +
-		# skill_drift_count: one term per finding source excluded from
-		# total_outdated. A third term appeared when skill-drift did, and a
-		# fourth will appear with the next finding source — len(tools) is the
-		# durable statement, the sum is the concrete check. Anything mixing this
-		# denominator with by_delta's into one percentage is comparing 77
-		# against 74.
 		summary = self.report["summary"]
 		self.assertEqual(sum(summary["by_bucket"].values()), len(self.report["tools"]))
-		self.assertEqual(len(self.report["tools"]),
+		self.assertEqual(sum(summary["by_bucket"].values()),
 			summary["total_outdated"] + summary["health_count"] + summary["skill_drift_count"])
 
-	def test_security_bucket_counts_fit_inside_tools_with_security(self):
-		sec = self.report["summary"]["security"]
-		self.assertLessEqual(sec["auto_count"] + sec["mixed_count"], sec["tools_with_security"])
-
 	def test_report_cve_count_is_a_union(self):
-		sec = self.report["summary"]["security"]
-		per_tool_sum = sum(t["security"]["cve_count"] for t in self.report["tools"])
-		self.assertLessEqual(sec["cve_count"], per_tool_sum)
-		# openssh and ssh-copy-id ship the same advisory — union must be
-		# strictly smaller here, or the dedupe is not happening at all.
-		self.assertLess(sec["cve_count"], per_tool_sum)
+		"""One advisory on two tools counts once report-wide and once per
+		tool, so the union is strictly smaller than the sum."""
+		per_tool = sum(t["security"]["cve_count"] for t in self.report["tools"])
+		self.assertEqual(per_tool, 2)
+		self.assertEqual(self.report["summary"]["security"]["cve_count"], 1)
 
-	def test_highlights_are_capped_and_resolvable(self):
-		tool_ids = {t["id"] for t in self.report["tools"]}
-		suggestion_ids = {s["id"] for t in self.report["tools"] for s in t["suggestions"]}
-		self.assertLessEqual(len(self.report["highlights"]), 8)
-		for h in self.report["highlights"]:
-			self.assertIn(h["tool_id"], tool_ids)
-			for sid in h["suggestion_ids"]:
-				self.assertIn(sid, suggestion_ids)
+	def test_summary_severity_counts_is_a_union_taking_the_worse(self):
+		counts = self.report["summary"]["security"]["severity_counts"]
+		self.assertEqual(sum(counts.values()), self.report["summary"]["security"]["cve_count"])
+		self.assertEqual(counts["high"], 1)
+		self.assertEqual(counts["medium"], 0)
+		self.assertIn("keeping the worse", self.report["_log"])
 
-	def test_highlight_ids_are_post_rename(self):
-		# The renamed id ("…:upgrade-2") must reach highlights[], which is only
-		# true if build_highlights() runs after the uniqueness pass.
-		podman = next(t for t in self.report["tools"] if t["id"] == "brew:podman")
-		self.assertEqual([s["id"] for s in podman["suggestions"]],
-			["brew:podman:upgrade", "brew:podman:upgrade-2", "brew:podman:sug-1"])
-		highlight = next(h for h in self.report["highlights"] if h["tool_id"] == "brew:podman")
-		self.assertEqual(highlight["suggestion_ids"],
-			["brew:podman:upgrade", "brew:podman:upgrade-2", "brew:podman:sug-1"])
+	def test_severity_counts_sum_to_cve_count_on_every_tool(self):
+		for tool in self.report["tools"]:
+			with self.subTest(tool["id"]):
+				sec = tool["security"]
+				self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
 
 	def test_id_less_suggestion_gets_one_synthesized(self):
-		# write_status.py indexes by sug["id"] and KeyErrors on a missing one,
-		# long after the user has already decided about it.
-		ids = [s["id"] for t in self.report["tools"] for s in t["suggestions"]]
-		self.assertEqual(len(ids), len(set(ids)))
+		podman = next(t for t in self.report["tools"] if t["id"] == "brew:podman")
+		ids = [s["id"] for s in podman["suggestions"]]
 		self.assertTrue(all(ids))
-		self.assertIn("brew:podman: suggestion with no id", self.stderr)
+		self.assertEqual(len(set(ids)), len(ids))
 
 	def test_baseline_detection_survives_the_rename(self):
-		# finalize_tool() runs before the rename, so the baseline is still the
-		# one identified by position + kind + ":upgrade" suffix.
+		"""The baseline is suggestions[0] and claims its id first, so a
+		colliding research suggestion is what gets renamed."""
 		podman = next(t for t in self.report["tools"] if t["id"] == "brew:podman")
-		self.assertFalse(podman["suggestions"][0]["pre_accept"])  # pinned + edit ⇒ elevated
-		self.assertTrue(podman["suggestions"][0]["kind"] == "upgrade")
+		self.assertEqual(podman["suggestions"][0]["id"], "brew:podman:upgrade")
+		self.assertIn("brew:podman:upgrade-2", [s["id"] for s in podman["suggestions"]])
+
+	def test_highlights_are_capped_and_resolvable(self):
+		by_id = {t["id"]: t for t in self.report["tools"]}
+		self.assertLessEqual(len(self.report["highlights"]), 8)
+		for h in self.report["highlights"]:
+			self.assertIn(h["tool_id"], by_id)
+			self.assertIn(h["why_source"], assemble._WHY_SOURCES)
+			for sid in h["suggestion_ids"]:
+				self.assertIn(sid, [s["id"] for s in by_id[h["tool_id"]]["suggestions"]])
+
+	def test_a_highlight_why_ref_is_an_item_id(self):
+		"""`content_ref()`'s `"rel:0"` / `"hl:2"` slots are gone — there is one
+		array, and its members carry validator-assigned ids."""
+		by_id = {t["id"]: t for t in self.report["tools"]}
+		for h in self.report["highlights"]:
+			if h["why_ref"] is None:
+				continue
+			item_ids = [i["id"] for i in by_id[h["tool_id"]]["items"]]
+			self.assertIn(h["why_ref"], item_ids)
 
 	def test_every_tool_carries_the_new_fields(self):
 		for tool in self.report["tools"]:
-			self.assertIn(tool["version_delta"], ("major", "minor", "patch", "revision", "unknown"))
-			self.assertIn(tool["version_scheme"], ("semver", "calver", "date", "opaque", "none"))
-			self.assertIsInstance(tool["version_delta_note"], str)
-			self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed", "attention", "routine"))
-			# Eight keys always; `notable` is the ninth and is emitted only when
-			# assembly has an answer to give (§7 below), so a tool may carry no
-			# `notable` key at all — but never a `notable` that is not a list.
-			self.assertEqual(set(tool["security"]) - {"notable"},
-				{"cve_ids", "cve_count", "cve_claimed_count", "has_security", "security_only", "impact",
-				"severity_counts", "cve_severities"})
-			if "notable" in tool["security"]:
-				self.assertIsInstance(tool["security"]["notable"], list, tool["id"])
-
-	def test_health_tool_is_excluded_from_by_delta_and_security(self):
-		health = next(t for t in self.report["tools"] if t["source"] == "brew-health")
-		self.assertEqual(health["version_delta"], "unknown")
-		self.assertEqual(health["version_scheme"], "none")
-		self.assertFalse(health["security"]["has_security"])
-		self.assertEqual(self.report["summary"]["by_delta"]["unknown"], 0)
-
-	def test_skill_drift_tool_is_excluded_from_by_delta_and_security(self):
-		drift = next(t for t in self.report["tools"] if t["source"] == "skill-drift")
-		self.assertEqual(drift["version_delta"], "unknown")
-		self.assertEqual(drift["version_scheme"], "none")
-		self.assertFalse(drift["security"]["has_security"])
-		# Neither non-version source may reach the unknown box — the five version
-		# tools in COLLECT all classify, so any count above zero here is a
-		# finding leaking into by_delta.
-		self.assertEqual(self.report["summary"]["by_delta"]["unknown"], 0)
-		self.assertEqual(drift["review_bucket"], "attention")
-		self.assertEqual([s["id"] for s in drift["suggestions"]], ["skill-drift:anthropics/pptx:sync"])
-
-	def test_skill_drift_is_counted_separately_from_outdated(self):
-		summary = self.report["summary"]
-		drift = [t for t in self.report["tools"] if t["source"] == "skill-drift"]
-		self.assertEqual(summary["skill_drift_count"], len(drift))
-		self.assertEqual(summary["total_outdated"],
-			len(self.report["tools"]) - summary["health_count"] - summary["skill_drift_count"])
-		# A suppressed (in-sync) skill is reported to stderr, never dropped in
-		# silence — the same contract brew-health's suppressed list has.
-		self.assertIn("skill-drift suppressed", self.stderr)
-
-	def test_absent_skill_drift_key_still_reports_a_zero_count(self):
-		# A session collected before the detector existed has no skill_drift key
-		# at all; reopening it must produce the same report it always did, plus
-		# an honest zero.
-		collect = {k: v for k, v in COLLECT.items() if k != "skill_drift"}
-		report, _ = assemble_session(collect, RESEARCH)
-		self.assertEqual(report["summary"]["skill_drift_count"], 0)
-		self.assertEqual(len(report["tools"]), 6)
-		self.assertEqual(sum(report["summary"]["by_bucket"].values()), len(report["tools"]))
-
-	def test_malformed_skill_drift_key_costs_the_findings_not_the_run(self):
-		# collect.json is assembled by a shell pipeline around a detector that
-		# can fail or time out mid-write. A finding source is an *addition* to
-		# the report — a bad shape must never cost the version updates the run
-		# was actually for.
-		shapes = [
-			("null", None),
-			("a bare list", [{"id": "skill-drift:x/y", "source": "skill-drift"}]),
-			("a string", "boom"),
-			("findings not an array", {"findings": "boom", "suppressed": None}),
-			("findings of junk", {"findings": ["boom", None, {}], "suppressed": "nope"}),
-		]
-		for label, value in shapes:
-			with self.subTest(label):
-				report, _ = assemble_session(dict(COLLECT, skill_drift=value), RESEARCH)
-				self.assertEqual(report["summary"]["skill_drift_count"], 0)
-				self.assertEqual(len(report["tools"]), 6)
-				self.assertEqual(sum(report["summary"]["by_delta"].values()),
-					report["summary"]["total_outdated"])
-
-	def test_date_version_is_no_longer_a_major_bump(self):
-		# The old leading-integer rule called parallel's monthly snapshot major
-		# and elevated it; the shared classifier calls it minor.
-		parallel = next(t for t in self.report["tools"] if t["id"] == "brew:parallel")
-		self.assertEqual(parallel["version_delta"], "minor")
-		self.assertEqual(parallel["risk_level"], "low")
-
-	def test_severity_counts_sum_to_cve_count_on_every_tool(self):
-		# Structural, not asserted: the rollup iterates cve_ids, so an id nobody
-		# rated becomes `unknown` rather than a broken sum.
-		for tool in self.report["tools"]:
-			sec = tool["security"]
-			self.assertEqual(set(sec["severity_counts"]), set(assemble._CVE_SEVERITIES), tool["id"])
-			self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"], tool["id"])
-
-	def test_summary_severity_counts_is_a_union_taking_the_worse(self):
-		sec = self.report["summary"]["security"]
-		self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
-		# openssh rates the shared advisory `high`, ssh-copy-id `medium`; the
-		# union counts it once, at the worse of the two.
-		self.assertEqual(sec["severity_counts"]["high"], 1)
-		self.assertEqual(sec["severity_counts"]["medium"], 0)
-		self.assertLessEqual(sec["severity_counts"]["high"],
-			sum(t["security"]["severity_counts"]["high"] for t in self.report["tools"]))
-
-	def test_notable_is_capped_and_every_id_it_names_resolves(self):
-		for tool in self.report["tools"]:
-			sec = tool["security"]
-			self.assertLessEqual(len(sec.get("notable") or []), 3, tool["id"])
-			for entry in sec.get("notable") or []:
-				self.assertTrue(entry["cve_id"] is None or entry["cve_id"] in sec["cve_ids"], tool["id"])
-			for entry in sec["cve_severities"]:
-				self.assertIn(entry["cve_id"], sec["cve_ids"], tool["id"])
-			if tool["source"] == "brew-health" or tool["research_error"]:
-				self.assertEqual(sec["notable"], [], tool["id"])
-
-	def test_highlights_carry_their_provenance(self):
-		for h in self.report["highlights"]:
-			self.assertIn(h["why_source"], (
-				"relevancy_security", "relevancy_other", "config_status", "research_error",
-				"headliner_security", "headliner_other", "major_bump", "none"))
-			self.assertTrue(h["why_ref"] is None or h["why_ref"].split(":")[0] in ("rel", "hl"))
-
-	def test_no_highlight_restates_its_tools_security_card(self):
-		by_id = {t["id"]: t for t in self.report["tools"]}
-		for h in self.report["highlights"]:
-			refs = {n["source_ref"] for n in by_id[h["tool_id"]]["security"].get("notable") or []
-				if n["source_ref"]}
-			self.assertNotIn(h["why_ref"], refs, h["tool_id"])
-
-	def test_zero_dot_x_major_is_caught(self):
-		uv = next(t for t in self.report["tools"] if t["id"] == "mise:uv")
-		self.assertEqual(uv["version_delta"], "major")
-		self.assertEqual(uv["risk_level"], "elevated")
-		self.assertFalse(uv["suggestions"][0]["pre_accept"])
-
-
-
-# ── 6. CVE severity, notable security items, and the noise floor ────────────
-#      (references/assembly.md §Severity Rollup and the Sum Invariant,
-#       §Validating Research's `notable`; references/research.md §The Noise Floor)
-def _sev(cve_id, severity, basis="vendor"):
-	return {"cve_id": cve_id, "severity": severity, "basis": basis}
-
-
-def _not(summary, severity="high", cve_id=None, advisory_id=None, affects_me=False):
-	return {"cve_id": cve_id, "advisory_id": advisory_id, "severity": severity,
-		"summary": summary, "affects_me": affects_me}
-
-
-def _sec_research(**kw):
-	"""A research object whose security content is a security headliner plus
-	whatever security block the case under test needs."""
-	research = {"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001 and CVE-2026-1002.")],
-		"relevancy": [], "context": []}
-	research.update(kw)
-	return research
-
-
-class SeverityRollupTests(unittest.TestCase):
-	def _sec(self, research, tool_id="brew:sev"):
-		return build(_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"), research)["security"]
-
-	def test_counts_have_the_whole_vocabulary_and_sum_to_cve_count(self):
-		sec = self._sec(_sec_research(security={"cve_severities": [_sev("CVE-2026-1001", "critical")]}))
-		self.assertEqual(set(sec["severity_counts"]), set(assemble._CVE_SEVERITIES))
-		self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
-		self.assertEqual(sec["severity_counts"]["critical"], 1)
-		# The un-rated id is not an error and not a gap — it is `unknown`.
-		self.assertEqual(sec["severity_counts"]["unknown"], 1)
-
-	def test_the_sum_holds_when_research_rates_nothing_at_all(self):
-		# The expected steady state (R2): most ids are never graded.
-		sec = self._sec(_sec_research())
-		self.assertEqual(sec["severity_counts"]["unknown"], 2)
-		self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
-		self.assertEqual(sec["cve_severities"], [])
-
-	def test_a_rating_for_an_id_this_range_does_not_contain_is_dropped(self):
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			tool = assemble.build_tool(_cand("brew:sev", "sev", "brew", "1.0.0", "1.0.1"),
-				_sec_research(security={"cve_severities": [_sev("CVE-2019-4242", "critical")]}))
-		sec = tool["security"]
-		self.assertEqual(sec["severity_counts"]["critical"], 0)
-		self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"])
-		self.assertIn("CVE-2019-4242", err.getvalue())
-
-	def test_a_rating_with_no_basis_is_unknown_never_a_guess(self):
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			tool = assemble.build_tool(_cand("brew:sev", "sev", "brew", "1.0.0", "1.0.1"),
-				_sec_research(security={"cve_severities": [
-					{"cve_id": "CVE-2026-1001", "severity": "critical"},
-					{"cve_id": "CVE-2026-1002", "severity": "apocalyptic", "basis": "vendor"}]}))
-		sec = tool["security"]
-		self.assertEqual(sec["severity_counts"], dict(critical=0, high=0, medium=0, low=0, unknown=2))
-		self.assertEqual(sec["cve_severities"], [])
-		self.assertIn("basis", err.getvalue())
-
-	def test_conflicting_ratings_for_one_id_keep_the_worse(self):
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			tool = assemble.build_tool(_cand("brew:sev", "sev", "brew", "1.0.0", "1.0.1"),
-				_sec_research(security={"cve_severities": [
-					_sev("CVE-2026-1001", "low", "nvd"), _sev("CVE-2026-1001", "critical", "vendor")]}))
-		self.assertEqual(tool["security"]["severity_counts"]["critical"], 1)
-		self.assertEqual(tool["security"]["severity_counts"]["low"], 0)
-		self.assertIn("CVE-2026-1001", err.getvalue())
-
-	def test_the_report_wide_worse_wins_resolution_is_not_silent(self):
-		# Its per-tool twin in resolve_cve_severities() warns on exactly this
-		# disagreement; the report-wide one used to resolve it in silence, so a
-		# header reading "1 critical" could come from one tool's page
-		# contradicting another's with nothing said about it.
-		a = self._tool_rating("brew:a", "low", "nvd")
-		b = self._tool_rating("brew:b", "critical", "vendor")
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			summary = assemble.summarize_security([a, b])
-		self.assertEqual(summary["severity_counts"]["critical"], 1)
-		self.assertEqual(summary["severity_counts"]["low"], 0)
-		self.assertIn("CVE-2026-1001", err.getvalue())
-		self.assertIn("keeping the worse", err.getvalue())
-		# Agreement stays quiet — the warning has to mean something.
-		quiet = io.StringIO()
-		with contextlib.redirect_stderr(quiet):
-			assemble.summarize_security([a, self._tool_rating("brew:c", "low", "vendor")])
-		self.assertNotIn("keeping the worse", quiet.getvalue())
-
-	def _tool_rating(self, tool_id, severity, basis):
-		return build(_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-				"security": {"cve_severities": [_sev("CVE-2026-1001", severity, basis)]}})
-
-	def test_emitted_cve_severities_are_the_resolved_graded_subset(self):
-		sec = self._sec(_sec_research(security={"cve_severities": [
-			_sev("CVE-2026-1002", "medium", "nvd"), _sev("CVE-2026-1001", "high", "vendor")]}))
-		# Ordered by (year, sequence) like cve_ids, one entry per graded id, and
-		# every id resolvable in cve_ids — so summarize_security() can rebuild
-		# the union map from report.json alone.
-		self.assertEqual(sec["cve_severities"],
-			[_sev("CVE-2026-1001", "high", "vendor"), _sev("CVE-2026-1002", "medium", "nvd")])
-		for entry in sec["cve_severities"]:
-			self.assertIn(entry["cve_id"], sec["cve_ids"])
-
-	def test_health_tool_carries_a_zeroed_block(self):
-		_, candidate, research, _ = _fixture("S10")
-		with contextlib.redirect_stderr(io.StringIO()):
-			tool = assemble.build_health_tool(candidate, research)
-		sec = tool["security"]
-		self.assertEqual(sec["severity_counts"], dict(critical=0, high=0, medium=0, low=0, unknown=0))
-		self.assertEqual(sec["notable"], [])
-		self.assertEqual(sec["cve_severities"], [])
-
-
-class NotableValidationTests(unittest.TestCase):
-	def _build(self, research, tool_id="brew:nota", capture=False):
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			tool = assemble.build_tool(
-				_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"), research)
-		return (tool, err.getvalue()) if capture else tool
-
-	def test_an_over_cap_list_keeps_the_worst_three(self):
-		tool, err = self._build(_sec_research(security={"notable": [
-			_not("low one", "low"), _not("critical one", "critical"),
-			_not("medium one", "medium"), _not("high one", "high")]}), capture=True)
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]],
-			["critical one", "high one", "medium one"])
-		self.assertIn("notable", err)
-
-	def test_affects_me_breaks_ties_between_equal_severities(self):
-		tool = self._build(_sec_research(
-			relevancy=[_rel("security", "notable", "Reaches this machine's sshd config.")],
-			security={"notable": [
-				_not("second", "high"), _not("first", "high", affects_me=True), _not("third", "medium")]}))
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]], ["first", "second", "third"])
-
-	def test_a_touchpoint_outranks_higher_rated_items_that_miss_this_machine(self):
-		"""R5 clause 3's whole purpose: an id-less, ungraded flaw that lands on
-		something this machine runs. With severity ordered first it sorted last
-		and the cap evicted it — three `low` CVEs nobody here can reach beat a
-		reproduced command injection (`brew:iproute2mac`, the recorded run)."""
-		lows = [_not(f"low {i}", "low", cve_id=f"CVE-2026-100{i}") for i in (1, 2, 3)]
-		mine = _not("Command injection in the wrapper this machine runs.", "unknown", affects_me=True)
-		tool = self._build({
-			"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001, CVE-2026-1002, CVE-2026-1003.")],
-			"relevancy": [_rel("security", "notable", "The wrapper this machine runs takes the injected argv.")],
-			"security": {
-				"cve_severities": [_sev(f"CVE-2026-100{i}", "low") for i in (1, 2, 3)],
-				"notable": lows + [mine]}})
-		summaries = [n["summary"] for n in tool["security"]["notable"]]
-		self.assertEqual(summaries[0], "Command injection in the wrapper this machine runs.")
-		self.assertIn("low 1", summaries)   # … and it evicted the weakest, not the first
-
-	def test_unknown_is_not_ranked_below_low(self):
-		# `unknown` is 0 in _CVE_SEVERITY_RANK because there it means "no rating
-		# recorded" and must never beat one. On a notable[] entry it means
-		# "research selected this and nobody graded it", which is not evidence
-		# of a small flaw — the two maps are deliberately different.
-		self.assertGreater(assemble._NOTABLE_SEVERITY_RANK["unknown"],
-			assemble._NOTABLE_SEVERITY_RANK["low"])
-		self.assertLess(assemble._NOTABLE_SEVERITY_RANK["unknown"],
-			assemble._NOTABLE_SEVERITY_RANK["medium"])
-		self.assertEqual(set(assemble._NOTABLE_SEVERITY_RANK), set(assemble._CVE_SEVERITIES))
-		tool = self._build(_sec_research(security={"notable": [
-			_not("graded low", "low"), _not("nobody graded it", "unknown")]}))
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]],
-			["nobody graded it", "graded low"])
-
-	def test_ordering_strictly_precedes_the_cap(self):
-		"""The cap keeps the *worst* three, never the first three — so research
-		writing its strongest item last costs nothing."""
-		tool, err = self._build(_sec_research(security={"notable": [
-			_not("u1", "unknown"), _not("u2", "unknown"), _not("u3", "unknown"),
-			_not("the critical one, written last", "critical")]}), capture=True)
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]][0],
-			"the critical one, written last")
-		self.assertEqual(len(tool["security"]["notable"]), assemble._NOTABLE_CAP)
-		self.assertIn("dropping 1", err)
-
-	def test_a_grade_only_on_the_notable_warns_that_the_rollup_never_sees_it(self):
-		# The card would read `critical` while severity_counts buckets the same
-		# id as `unknown` — the disagreement the map-wins rule exists to stop,
-		# reached by omission rather than by contradiction. The grade is kept
-		# (it is the only one research found) and the gap is warned about.
-		tool, err = self._build(_sec_research(security={
-			"notable": [_not("x", "critical", cve_id="CVE-2026-1001")]}), capture=True)
-		self.assertEqual(tool["security"]["notable"][0]["severity"], "critical")
-		self.assertEqual(tool["security"]["severity_counts"]["critical"], 0)
-		self.assertEqual(tool["security"]["severity_counts"]["unknown"], 2)
-		self.assertIn("cve_severities has no entry for it", err)
-		# … and an ungraded entry is the normal case, so it stays silent.
-		_, quiet = self._build(_sec_research(security={
-			"notable": [_not("x", "unknown", cve_id="CVE-2026-1001")]}), capture=True)
-		self.assertNotIn("cve_severities has no entry", quiet)
-
-	def test_a_non_string_summary_is_dropped_not_stringified(self):
-		# _norm_text() would render {"text": …} as its repr and 42 as "42", and
-		# the page's `typeof === 'string'` guard passes both by then — the drift
-		# has to be caught on this side or not at all.
-		tool, err = self._build(_sec_research(security={"notable": [
-			{"cve_id": None, "advisory_id": None, "severity": "high",
-				"summary": {"text": "wrapped"}, "affects_me": False},
-			{"cve_id": None, "advisory_id": None, "severity": "high",
-				"summary": 42, "affects_me": False},
-			_not("a real line")]}), capture=True)
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]], ["a real line"])
-		# Counted on clean_notable()'s own sentence rather than on the bare
-		# words "not a string": as_item_list() reports the same drift once more
-		# at the array boundary (_warn_odd_strings), and this assertion is about
-		# *this* validator dropping the entry, not about how many warnings the
-		# entry collects on its way through.
-		self.assertEqual(err.count("dropping the entry rather than rendering its repr"), 2)
-
-	def test_source_ref_picks_the_max_severity_relevancy_match(self):
-		# Two relevancy items naming one CVE. _highlight_why_parts() takes the
-		# max-severity one, so this must too — otherwise the two refs disagree
-		# and the R6 dedupe below silently misses.
-		tool = self._build({
-			"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [
-				_rel("security", "notable", "CVE-2026-1001 is bundled in the vendored copy."),
-				_rel("security", "incompatible", "CVE-2026-1001 lands on the gh commands this machine pre-approves.")],
-			"security": {"notable": [_not("x", "critical", cve_id="CVE-2026-1001", affects_me=True)]}})
-		self.assertEqual(tool["security"]["notable"][0]["source_ref"], "rel:1")
-		self.assertEqual(assemble._highlight_why_parts(tool)[2], "rel:1")
-
-	def test_an_entry_with_no_summary_is_dropped(self):
-		tool, err = self._build(_sec_research(security={"notable": [
-			_not(""), {"cve_id": "CVE-2026-1001", "severity": "high"}, _not("real one")]}), capture=True)
-		self.assertEqual([n["summary"] for n in tool["security"]["notable"]], ["real one"])
-		self.assertIn("summary", err)
-
-	def test_an_unknown_severity_is_coerced_not_guessed(self):
-		tool, err = self._build(_sec_research(security={"notable": [_not("x", "catastrophic")]}), capture=True)
-		self.assertEqual(tool["security"]["notable"][0]["severity"], "unknown")
-		self.assertIn("catastrophic", err)
-
-	def test_the_severity_map_wins_over_the_entrys_own_rating(self):
-		# One source of truth: severity_counts and the card must agree.
-		tool, err = self._build(_sec_research(security={
-			"cve_severities": [_sev("CVE-2026-1001", "critical")],
-			"notable": [_not("x", "low", cve_id="CVE-2026-1001")]}), capture=True)
-		self.assertEqual(tool["security"]["notable"][0]["severity"], "critical")
-		self.assertIn("CVE-2026-1001", err)
-
-	def test_a_notable_id_reaches_cve_ids_but_never_the_claim_count(self):
-		tool = self._build({"headliners": [_hl("security", "notable", "Security release.")],
-			"security": {"notable": [_not("Only 1 of 28 advisories lands here.",
-				cve_id="CVE-2026-4242")]}})
-		self.assertIn("CVE-2026-4242", tool["security"]["cve_ids"])
-		# The claim scan is deliberately NOT extended: "1 of 28 advisories" in a
-		# notable summary must not become a vendor claim of 28.
-		self.assertIsNone(tool["security"]["cve_claimed_count"])
-
-	def test_an_unresolvable_id_is_nulled_rather_than_emitted(self):
-		tool, err = self._build(_sec_research(security={"notable": [
-			_not("malformed id", cve_id="CVE-26-1")]}), capture=True)
-		self.assertIsNone(tool["security"]["notable"][0]["cve_id"])
-		self.assertIn("CVE-26-1", err)
-
-	def test_affects_me_with_no_security_relevancy_warns_but_is_never_forced(self):
-		# R1: direction is research's call. Assembly warns, never rewrites — a
-		# negative-direction finding ("the fix does not reach this machine") is
-		# affects_me: false and stays that way.
-		tool, err = self._build(_sec_research(security={"notable": [_not("x", affects_me=True)]}), capture=True)
-		self.assertTrue(tool["security"]["notable"][0]["affects_me"])
-		self.assertIn("affects_me", err)
-		quiet = self._build(_sec_research(
-			relevancy=[_rel("security", "info", "The sshd fix reaches Apple's sshd, not Homebrew's.")],
-			security={"notable": [_not("x", affects_me=False)]}))
-		self.assertFalse(quiet["security"]["notable"][0]["affects_me"])
-
-	def test_an_empty_notable_is_the_normal_correct_result(self):
-		# Research answered — it wrote a security block — and nothing in this
-		# release qualified. That is the common case, and it is a real answer,
-		# distinct from research that never addressed the question at all (§7,
-		# NotableAbsentVersusEmptyTests).
-		tool = self._build(_sec_research(security={"notable": []}))
-		self.assertEqual(tool["security"]["notable"], [])
-		self.assertTrue(tool["security"]["has_security"])   # the strip still renders
-
-	def test_research_that_told_us_nothing_never_carries_a_notable(self):
-		tool, err = self._build({"headliners": [], "security": {"notable": [_not("x")]}}, capture=True)
-		self.assertEqual(tool["security"]["notable"], [])
-		self.assertIn("notable", err)
-
-	def test_a_notable_is_security_content_on_its_own(self):
-		tool = self._build({"headliners": [_hl("fixes", "info", "A plain fix.")],
-			"security": {"notable": [_not("A vendor advisory with no CVE id.", advisory_id="TS-2026-011")]}})
-		self.assertTrue(tool["security"]["has_security"])
-		self.assertEqual(tool["security"]["notable"][0]["advisory_id"], "TS-2026-011")
-		self.assertIsNone(tool["security"]["notable"][0]["cve_id"])
-
-	def test_source_ref_points_at_the_item_the_notable_restates(self):
-		tool = self._build({
-			"headliners": [_hl("notes", "info", "Unrelated."), _hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [_rel("security", "notable", "CVE-2026-1002 lands on gh commands this machine pre-approves.")],
-			"security": {"notable": [
-				_not("Reachable here", cve_id="CVE-2026-1002"),
-				_not("Not reachable", cve_id="CVE-2026-1001"),
-				_not("No id at all, restating the note", advisory_id=None)]}})
-		refs = {n["summary"]: n["source_ref"] for n in tool["security"]["notable"]}
-		self.assertEqual(refs["Reachable here"], "rel:0")
-		self.assertEqual(refs["Not reachable"], "hl:1")
-		self.assertIsNone(refs["No id at all, restating the note"])
-
-
-class SecurityBlockDriftTests(unittest.TestCase):
-	"""Research files are model-written; the security block will arrive drifted
-	sooner or later, and a drifted block must cost one warned-about tool, never
-	the run (§4's doctrine applied to the newest arrays)."""
-	SHAPES = [
-		("security as a bare string", {"security": "none"}),
-		("security null", {"security": None}),
-		("security as a list", {"security": [{"notable": []}]}),
-		("notable as a bare string", {"security": {"notable": "no notable items"}}),
-		("notable of bare strings", {"security": {"notable": ["CVE-2026-1001 is bad"]}}),
-		("notable null", {"security": {"notable": None}}),
-		("cve_severities as a dict", {"security": {"cve_severities": {"CVE-2026-1001": "high"}}}),
-		("cve_severities of bare strings", {"security": {"cve_severities": ["CVE-2026-1001 high"]}}),
-		("severity as an int", {"security": {"notable": [_not("x", 9)]}}),
-		("affects_me as a string", {"security": {"notable": [_not("x", affects_me="yes")]}}),
-		("cve_id as an int", {"security": {"notable": [_not("x", cve_id=2026)]}}),
-		("advisory_id as a dict", {"security": {"notable": [_not("x", advisory_id={"id": "TS-1"})]}}),
-		("rating entry with no id", {"security": {"cve_severities": [{"severity": "high", "basis": "nvd"}]}}),
-	]
-
-	def test_a_drifted_security_block_costs_one_tool_not_the_run(self):
-		for label, extra in self.SHAPES:
-			with self.subTest(label):
-				research = _sec_research(**extra)
-				with contextlib.redirect_stderr(io.StringIO()):
-					tool = assemble.build_tool(_cand("brew:drift", "drift", "brew", "1.0.0", "1.0.1"), research)
-				sec = tool["security"]
-				# A block drifted at its *root* (a bare string, a list, null) is not
-				# an answer to "what is notable here", so the key is omitted and the
-				# page derives the column — §7's NotableAbsentVersusEmptyTests pins
-				# that. A block whose root reads and whose members drifted still
-				# answers, and the answer is always a well-shaped list.
-				notable = sec["notable"] if "notable" in sec else []
-				self.assertIsInstance(notable, list, label)
-				self.assertLessEqual(len(notable), 3, label)
-				self.assertIsInstance(sec["cve_severities"], list, label)
-				self.assertEqual(set(sec["severity_counts"]), set(assemble._CVE_SEVERITIES), label)
-				self.assertEqual(sum(sec["severity_counts"].values()), sec["cve_count"], label)
-				for entry in notable:
-					self.assertIsInstance(entry["summary"], str, label)
-					self.assertIn(entry["severity"], assemble._CVE_SEVERITIES, label)
-					self.assertIsInstance(entry["affects_me"], bool, label)
-					self.assertTrue(entry["cve_id"] is None or entry["cve_id"] in sec["cve_ids"], label)
-					self.assertTrue(entry["advisory_id"] is None or isinstance(entry["advisory_id"], str), label)
-				# Still fully classified — the card is usable either way.
-				self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed", "attention", "routine"))
-
-
-# ── The noise floor's decision-invariance (R3) ──────────────────────────────
-# `noise_suppressible()` is the machine-checkable statement of
-# references/research.md §The Noise Floor: the bounded set of items a research
-# subagent may delete outright. The property that matters is that deleting all
-# of them changes no decision — a presentation rule must never approve, or
-# un-approve, an update.
-def _decision(tool):
-	return (tool["security"]["has_security"], tool["security"]["security_only"],
-		tool["security"]["impact"], tool["risk_level"], tool["review_bucket"],
-		tuple(s.get("pre_accept") for s in tool["suggestions"]))
-
-
-def _suppress(research, tool):
-	"""Return a copy of `research` with every noise-suppressible item removed."""
-	out = dict(research)
-	for field, items in (("headliners", tool.get("headliners")), ("relevancy", tool.get("relevancy"))):
-		if isinstance(research.get(field), list):
-			out[field] = [i for i in items if not assemble.noise_suppressible(tool, i, field)]
-	return out
-
-
-class NoiseFloorTests(unittest.TestCase):
-	def test_suppressing_noise_changes_no_decision(self):
-		for label, candidate, research, _ in _fixtures():
-			if not isinstance(research, dict):
-				continue
-			with self.subTest(label):
-				before = build(candidate, research)
-				after = build(candidate, _suppress(research, before))
-				self.assertEqual(_decision(before), _decision(after), f"{label}: noise suppression moved a decision")
-
-	def test_a_features_item_is_never_suppressible_and_here_is_why(self):
-		# The counter-example that makes the boundary load-bearing rather than
-		# arbitrary: `features` at any severity is what security_only reads as
-		# "this release is more than patches". Delete the last one and the tool
-		# walks from security_mixed into security_auto and pre-accepts itself.
-		research = {"headliners": [_hl("security", "notable"), _hl("features", "info", "One fewer round-trip.")]}
-		tool = build(_cand("brew:op", "op", "brew", "1.0.0", "1.0.1"), research)
-		self.assertFalse(assemble.noise_suppressible(tool, research["headliners"][1], "headliners"))
-		self.assertEqual(tool["review_bucket"], "security_mixed")
-		deleted = build(_cand("brew:op", "op", "brew", "1.0.0", "1.0.1"),
-			{"headliners": [_hl("security", "notable")]})
-		self.assertEqual(deleted["review_bucket"], "security_auto")
-		self.assertTrue(deleted["suggestions"][0]["pre_accept"])
-
-	def test_a_security_item_is_never_suppressible(self):
-		# R3: the noise classes apply to fixes/features/notes only. Removing the
-		# last security item would take has_security with it.
-		research = {"headliners": [_hl("notes", "info"), _hl("security", "info", "A small hardening change.")],
-			"relevancy": [_rel("security", "info", "Reaches a config here.")]}
-		tool = build(_cand("brew:s", "s", "brew", "1.0.0", "1.0.1"), research)
-		self.assertFalse(assemble.noise_suppressible(tool, research["headliners"][1], "headliners"))
-		self.assertFalse(assemble.noise_suppressible(tool, research["relevancy"][0], "relevancy"))
-
-	def test_the_last_headliner_is_never_suppressible(self):
-		research = {"headliners": [_hl("notes", "info", "The only thing we know.")]}
-		tool = build(_cand("brew:one", "one", "brew", "1.0.0", "1.0.1"), research)
-		self.assertFalse(assemble.noise_suppressible(tool, research["headliners"][0], "headliners"))
-
-	def test_text_carrying_an_id_a_claim_or_a_watch_hit_is_never_suppressible(self):
-		research = {"headliners": [
-			_hl("notes", "info", "Routine."),
-			_hl("notes", "info", "Linux-only CVE-2026-19042 does not affect the macOS builds."),
-			_hl("fixes", "info", "The release fixes 33 CVEs upstream.")],
-			"relevancy": [_rel("notes", "info", "⚠ Watch item hit: bash 5 stays the login shell.")]}
-		tool = build(_cand("brew:w", "w", "brew", "1.0.0", "1.0.1"), research)
-		self.assertTrue(assemble.noise_suppressible(tool, research["headliners"][0], "headliners"))
-		for item in research["headliners"][1:]:
-			self.assertFalse(assemble.noise_suppressible(tool, item, "headliners"))
-		self.assertFalse(assemble.noise_suppressible(tool, research["relevancy"][0], "relevancy"))
-
-	def test_the_suppressible_set_is_exactly_the_inert_pairs(self):
-		research = {"headliners": [_hl("notes", "info"), _hl("notes", "info")]}
-		tool = build(_cand("brew:m", "m", "brew", "1.0.0", "1.0.1"), research)
-		expected = {
-			("headliners", "fixes", "info"): True,
-			("headliners", "fixes", "notable"): True,
-			("headliners", "notes", "info"): True,
-			("headliners", "notes", "notable"): False,   # notes above info disqualifies security_only
-			("headliners", "fixes", "warning"): False,   # a non-security warning headliner is impact
-			("headliners", "features", "info"): False,   # features at any severity disqualifies security_only
-			("relevancy", "fixes", "info"): True,
-			("relevancy", "notes", "info"): True,
-			("relevancy", "fixes", "notable"): False,    # a non-security notable relevancy is impact
-			("relevancy", "notes", "warning"): False,    # a warning relevancy elevates risk_level
-		}
-		for (field, category, severity), want in expected.items():
-			with self.subTest(field=field, category=category, severity=severity):
-				item = (_hl(category, severity) if field == "headliners" else _rel(category, severity))
-				self.assertEqual(assemble.noise_suppressible(tool, item, field), want)
-
-
-# ── Highlights: provenance, and the security de-duplication (R6) ────────────
-class HighlightProvenanceTests(unittest.TestCase):
-	def _tool(self, tool_id, research):
-		return build(_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"), research)
-
-	def test_why_source_and_ref_are_recorded(self):
-		tool = self._tool("brew:a", {"headliners": [_hl("fixes", "info")],
-			"relevancy": [_rel("fixes", "info", "Low."), _rel("security", "incompatible", "Breaks the pinned path.")]})
-		h = assemble.build_highlights([tool])[0]
-		self.assertEqual((h["why_source"], h["why_ref"]), ("relevancy_security", "rel:1"))
-		self.assertEqual(h["why"], "Breaks the pinned path.")
-
-	def test_a_security_bucket_prefers_a_non_security_headliner(self):
-		# Step 4 used to guarantee the duplication the user complained about:
-		# with no relevancy it returned the first security headliner, which is
-		# the same line the card's security column renders.
-		tool = self._tool("brew:b", {"headliners": [
-			_hl("security", "notable", "Fixes CVE-2026-1001."),
-			_hl("notes", "warning", "The config file moved to ~/.config/b.")],
-			"relevancy": []})
-		self.assertEqual(tool["review_bucket"], "security_mixed")
+			with self.subTest(tool["id"]):
+				for key in ("items", "quarantine", "spec_violations", "bucket_inputs",
+						"version_delta", "version_scheme", "version_delta_note",
+						"risk_level", "review_bucket", "security"):
+					self.assertIn(key, tool)
+				for gone in ("headliners", "relevancy", "context"):
+					self.assertNotIn(gone, tool)
+				self.assertNotIn("notable", tool["security"])
+				self.assertNotIn("cve_severities", tool["security"])
+
+	def test_the_report_states_whether_the_corpus_validated(self):
+		self.assertIn("validation", self.report)
+		self.assertIsInstance(self.report["validation"]["clean"], bool)
+
+	def test_local_findings_drive_the_two_summary_counters(self):
+		"""An item with no local block is a statement about the release, not
+		about this machine — the two boxes say "how many findings land on me"."""
+		self.assertEqual(self.report["summary"]["incompatible_count"], 1)
+		# The brew-health finding: `warning` severity, and its synthesized item
+		# carries a local block, so it counts. It could not before — a finding
+		# had no relevancy entry to be counted through — and counting it is the
+		# honest answer to "how many findings land on me".
+		self.assertEqual(self.report["summary"]["warning_count"], 1)
+
+	def test_the_two_channels_stay_apart(self):
+		"""assemble.warn is spec conformance and nothing else; the operational
+		notes are in assemble.log. One stream at a 1:272 signal ratio is what
+		made the single real defect invisible."""
+		self.assertIn("suppressed", self.report["_log"])
+		self.assertNotIn("suppressed", self.report["_warn"])
+		for line in self.report["_warn"].splitlines():
+			self.assertRegex(line, r"^[EW]-[A-Z0-9-]+ ")
+
+	def test_a_clean_corpus_leaves_the_warn_file_empty(self):
+		report, _ = assemble_session(
+			{"generated_at": "2026-08-22T11:33:44Z", "machine": {},
+				"brew": [_cand("brew:clean", "clean", "brew", "1.0.0", "1.0.1")]},
+			[{"id": "brew:clean", "links": [], "items": [_item("a")]}])
+		self.assertEqual(report["_warn"], "")
+		self.assertTrue(report["validation"]["clean"])
+
+
+class HighlightScoringTests(unittest.TestCase):
+	def _tool(self, items, **research):
+		research.setdefault("links", [])
+		research["items"] = items
+		research["id"] = "brew:h"
+		return build_one(_cand("brew:h", "h", "brew", "1.0.0", "1.0.1"), research)
+
+	def test_bare_major_does_not_clear_the_threshold(self):
+		tool = build_one(_cand("brew:h", "h", "brew", "1.0.0", "2.0.0"),
+			{"id": "brew:h", "links": [], "items": [_item("a", severity="info")]})
+		score, reasons = assemble.score_tool(tool)
+		self.assertIn("major_bump", reasons)
+		self.assertLess(score, assemble._HIGHLIGHT_THRESHOLD)
+
+	def test_a_local_incompatible_finding_outscores_a_release_level_one(self):
+		"""The old pair was relevancy-incompatible (100) vs
+		headliner-incompatible (40). The distinction survives the merge as
+		"does this item carry a local block", which is what it always meant."""
+		local = self._tool([_item("a", tags=["fix"], severity="incompatible",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))])
+		release = self._tool([_item("a", tags=["breaking"], severity="incompatible")])
+		self.assertIn("incompatible_finding", assemble.score_tool(local)[1])
+		self.assertNotIn("incompatible_finding", assemble.score_tool(release)[1])
+		self.assertIn("breaking_change", assemble.score_tool(release)[1])
+		self.assertGreater(assemble.score_tool(local)[0], assemble.score_tool(release)[0])
+
+	def test_no_watch_item_hit_signal_survives(self):
+		"""§I4 retires the literal-string channel outright: a paraphrase could
+		silently cost 70 points, and the replacement is a structured field on
+		the checker's output that does not exist yet. The signal is gone, not
+		reimplemented against prose."""
+		tool = self._tool([_item("a", title="Watch item hit: the quarantine flag moved",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))])
+		self.assertNotIn("watch_item_hit", assemble.score_tool(tool)[1])
+		self.assertNotIn("watch_item_hit", assemble._WHY_SOURCES)
+		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assemble.py"),
+				encoding="utf-8") as fh:
+			source = fh.read()
+		self.assertNotIn("_WATCH_HIT_RE", source)
+
+	def test_a_structural_suggestion_scores_like_an_edit(self):
+		tool = self._tool([_item("a")], suggestions=[{"id": "brew:h:s", "kind": "structural",
+			"title": "Add the quarantine task", "target_files": [],
+			"structural": {"op": "task_add", "subjects": [{"type": "cask", "name": "codex"}],
+				"manifest": None, "from": None,
+				"to": {"type": "task", "name": "setup.sh:quarantine"},
+				"anchor": {"file": "setup.sh"}}}])
+		self.assertIn("proposed_edit", assemble.score_tool(tool)[1])
+
+	def test_why_truncates_on_a_word_boundary(self):
+		long = "word " * 80
+		tool = self._tool([_item("a", title=long.strip(), severity="warning",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))])
 		why, source, ref = assemble._highlight_why_parts(tool)
-		self.assertEqual((why, source, ref), ("The config file moved to ~/.config/b.", "headliner_other", "hl:1"))
+		self.assertLessEqual(len(why), assemble._WHY_MAX)
+		self.assertTrue(why.endswith("…"))
+		self.assertEqual(source, "item_local_other")
+		self.assertEqual(ref, tool["items"][0]["id"])
 
-	def test_a_security_headliner_is_still_the_fallback_when_nothing_else_exists(self):
-		tool = self._tool("brew:c", {"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")]})
-		why, source, ref = assemble._highlight_why_parts(tool)
-		self.assertEqual((why, source, ref), ("Fixes CVE-2026-1001.", "headliner_security", "hl:0"))
+	def test_a_security_bucket_prefers_a_non_security_item(self):
+		"""A highlight slot spent restating the card's own security column is
+		a slot wasted."""
+		tool = self._tool([
+			_item("cve", tags=["security"], severity="notable",
+				title="A security line", security=_sec("CVE-2026-1111")),
+			_item("other", tags=["feature"], severity="notable", title="A feature line"),
+		])
+		self.assertEqual(tool["review_bucket"], "security_mixed")
+		why, source, _ = assemble._highlight_why_parts(tool)
+		self.assertEqual(why, "A feature line")
+		self.assertEqual(source, "item_other")
 
-	def _dup_corpus(self):
-		"""One top-ranked tool whose `why` restates a notable item, plus nine
-		ordinary candidates to backfill from."""
-		dup = self._tool("brew:dup", {
-			"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [_rel("security", "incompatible",
-				"CVE-2026-1001 lands on gh commands this machine pre-approves for agents.")],
-			"security": {"notable": [_not("CVE-2026-1001 lands on gh commands this machine pre-approves for agents.",
-				"critical", cve_id="CVE-2026-1001", affects_me=True)]}})
-		others = [self._tool(f"brew:t{i}", {"headliners": [_hl("fixes", "info")],
-			"relevancy": [_rel("fixes", "warning", f"Touches config {i}.")]}) for i in range(9)]
-		return dup, others
+	def test_a_security_item_is_still_the_fallback(self):
+		tool = self._tool([_item("cve", tags=["security"], severity="notable",
+			title="A security line", security=_sec("CVE-2026-1111"))])
+		why, source, _ = assemble._highlight_why_parts(tool)
+		self.assertEqual(why, "A security line")
+		self.assertEqual(source, "item_security")
 
-	def test_a_duplicating_highlight_yields_and_the_slot_is_backfilled(self):
-		dup, others = self._dup_corpus()
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			highlights = assemble.build_highlights([dup] + others)
-		ids = [h["tool_id"] for h in highlights]
-		self.assertNotIn("brew:dup", ids)               # the highlight yields …
-		self.assertEqual(len(ids), 8)                   # … and the section still carries 8
-		self.assertEqual(len(set(ids)), 8)              # … all distinct
-		self.assertEqual(ids, [f"brew:t{i}" for i in range(8)])
-		self.assertIn("brew:dup", err.getvalue())
-		# The security card keeps the sentence — nothing was removed there.
-		self.assertEqual(len(dup["security"]["notable"]), 1)
-
-	def test_without_the_duplicate_the_top_ranked_tool_still_leads(self):
-		# Control for the test above: same corpus, notable emptied, so the drop
-		# is attributable to the duplication and not to the ranking.
-		dup, others = self._dup_corpus()
-		dup["security"]["notable"] = []
-		with contextlib.redirect_stderr(io.StringIO()):
-			ids = [h["tool_id"] for h in assemble.build_highlights([dup] + others)]
-		self.assertEqual(ids[0], "brew:dup")
-		self.assertEqual(len(ids), 8)
-
-	def test_two_relevancy_items_naming_one_cve_still_dedupe(self):
-		# Latent until one of them outranks the other: source_ref resolved to
-		# the *first* naming item while `why` came from the max-severity one, so
-		# the refs never matched and the highlight restated the security card.
-		dup = self._tool("brew:two", {
-			"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [
-				_rel("security", "notable", "CVE-2026-1001 is bundled in the vendored copy."),
-				_rel("security", "incompatible", "CVE-2026-1001 lands on the gh commands this machine pre-approves.")],
-			"security": {"notable": [_not("CVE-2026-1001 lands on the gh commands this machine pre-approves.",
-				"critical", cve_id="CVE-2026-1001", affects_me=True)]}})
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			highlights = assemble.build_highlights([dup])
+	def test_a_highlight_restating_the_security_column_yields_its_slot(self):
+		"""The de-duplication is on the item id now, never on prose — the `why`
+		has already been truncated at 220 chars, so a text comparison silently
+		fails on a longer title."""
+		tools = []
+		for i in range(3):
+			tools.append(build_one(
+				_cand(f"brew:d{i}", f"d{i}", "brew", "1.0.0", "2.0.0"),
+				{"id": f"brew:d{i}", "links": [], "items": [
+					_item("cve", tags=["security"], severity="warning",
+						title="The one line that matters " + "x" * 300,
+						security=_sec(f"CVE-2026-111{i}", "critical", "vendor"),
+						local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+				]}))
+		for tool in tools:
+			self.assertTrue(tool["security"]["display_item_ids"])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			highlights = assemble.build_highlights(tools)
 		self.assertEqual(highlights, [])
-		self.assertIn("brew:two", err.getvalue())
-		self.assertEqual(len(dup["security"]["notable"]), 1)   # the card keeps the sentence
+		self.assertIn("restates security item", err.getvalue())
 
-	def test_why_sources_lists_every_branch_that_can_produce_one(self):
-		"""`_WHY_SOURCES` is documentation unless something checks it. Every
-		name in it must still appear in the two functions that emit one, so
-		renaming a branch fails here instead of drifting `report.json`."""
-		import inspect
-		emitted = (inspect.getsource(assemble._highlight_why_parts)
-			+ inspect.getsource(assemble._headliner_source))
-		for source in assemble._WHY_SOURCES:
-			self.assertIn(f'"{source}"', emitted)
-		self.assertEqual(len(set(assemble._WHY_SOURCES)), len(assemble._WHY_SOURCES))
-
-	def test_a_highlight_whose_why_is_not_a_security_item_is_kept(self):
-		tool = self._tool("brew:keep", {
-			"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [_rel("fixes", "incompatible", "The new default breaks this machine's wrapper.")],
-			"security": {"notable": [_not("An unrelated advisory.", "high", cve_id="CVE-2026-1001")]}})
+	def test_the_cap_is_eight(self):
+		tools = []
+		for i in range(12):
+			tools.append(build_one(_cand(f"brew:t{i:02d}", f"t{i:02d}", "brew", "1.0.0", "1.0.1"),
+				{"id": f"brew:t{i:02d}", "links": [], "items": [
+					_item("a", tags=["fix"], severity="incompatible",
+						title=f"Breaks thing {i}",
+						local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))]}))
 		with contextlib.redirect_stderr(io.StringIO()):
-			highlights = assemble.build_highlights([tool])
-		self.assertEqual([h["tool_id"] for h in highlights], ["brew:keep"])
-		self.assertFalse(highlights[0]["why_ref"] in
-			{n["source_ref"] for n in tool["security"]["notable"]})
-
-# ── 7. The assembly ↔ page contract for `security.notable[]` ────────────────
-#      (references/schemas.md §1.9 Ordering; references/rendering-report.md
-#       §Group (b) — `security_mixed`)
-#
-# assemble.py orders `notable[]` *and evicts by that order*, then the page
-# re-sorts what survived. So the two rankings are one contract with two
-# implementations, and they have already disagreed silently: the page led with
-# severity and ranked `unknown` below `low`, which rendered the id-less,
-# ungraded, machine-touching item — the class R5 clause 3 exists for — last on
-# the card, in the faintest ink it has.
-_TEMPLATE_PATH = os.path.join(
-	os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "report-template.html")
+			self.assertEqual(len(assemble.build_highlights(tools)), 8)
 
 
-def _template():
-	with open(_TEMPLATE_PATH, encoding="utf-8") as fh:
-		return fh.read()
+# ── 6. The assembly ↔ page contract ─────────────────────────────────────────
+class PageContractTests(unittest.TestCase):
+	"""The report's producer and its only consumer both speak the item model.
+	Prose agreement between the two sides has already drifted once without a
+	single test failing."""
+
+	@classmethod
+	def setUpClass(cls):
+		with open(TEMPLATE, encoding="utf-8") as fh:
+			cls.template = fh.read()
+
+	def _js_object(self, name):
+		match = re.search(r"const " + name + r" = \{(.*?)\n\t\t\};", self.template, re.S)
+		self.assertIsNotNone(match, f"{name} not found in the template")
+		body = match.group(1)
+		out = {}
+		for key, value in re.findall(r"([A-Za-z_]+)\s*:\s*'([a-z_]+)'", body):
+			out[key] = value
+		for key, value in re.findall(r"([A-Za-z_]+)\s*:\s*(\d+)", body):
+			out[key] = int(value)
+		return out
+
+	def test_the_tag_group_map_agrees_with_the_contract(self):
+		self.assertEqual(self._js_object("GROUP_OF_TAG"), model.GROUP_OF_TAG)
+
+	def test_the_group_precedence_agrees_with_the_contract(self):
+		match = re.search(r"const CATEGORY_ORDER = \[(.*?)\];", self.template)
+		order = tuple(re.findall(r"'([a-z]+)'", match.group(1)))
+		self.assertEqual(order, model.GROUP_PRECEDENCE)
+
+	def test_the_cve_ordering_rank_agrees_tier_for_tier(self):
+		"""`unknown` outranks `low` here and loses to it when resolving — the
+		two tables are not interchangeable (items.py). The page renders a list
+		the contract already ordered, so a disagreement silently reshuffles
+		it."""
+		rank = self._js_object("NOTABLE_RANK")
+		by_tier = {}
+		for name, value in rank.items():
+			by_tier.setdefault(value, set()).add(name)
+		# The page's table covers both vocabularies; project it back onto the
+		# CVE ratings and it must be the contract's order, worst first.
+		cve_order = sorted(model.CVE_ORDER_RANK, key=lambda k: -model.CVE_ORDER_RANK[k])
+		page_order = [r for _, names in sorted(by_tier.items())
+			for r in cve_order if r in names]
+		self.assertEqual(page_order, cve_order)
+
+	def test_the_page_reads_no_legacy_array(self):
+		"""Every one of these would render as `undefined` against a schema-2
+		report — silently, and looking entirely correct."""
+		for gone in ("tool.headliners", "tool.relevancy", "tool.context",
+				"sec.notable", "n.affects_me", "r.motivating_change", "source_ref"):
+			self.assertNotIn(gone, self.template, gone)
+
+	def test_the_page_reads_the_body_field_not_detail(self):
+		"""WP1 renamed the overflow field to `body` and pinned it in
+		contract.json precisely so this could not be got wrong silently."""
+		self.assertIn("item.body", self.template)
+		self.assertIn("display_item_ids", self.template)
+
+	def test_the_renderer_refuses_a_schema_one_report(self):
+		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.py"),
+				encoding="utf-8") as fh:
+			self.assertIn('report.get("schema_version") != 2', fh.read())
 
 
-def _brace_block(text: str, start: int) -> str:
-	"""The `{...}` beginning at or after `start`, brace-matched with string and
-	comment literals skipped — so a `{` inside a comment or a quoted string
-	cannot run the scan off the end of the file."""
-	i = text.index("{", start)
-	depth, j = 0, i
-	while j < len(text):
-		c = text[j]
-		if c in "'\"`":
-			quote, j = c, j + 1
-			while j < len(text) and text[j] != quote:
-				j += 2 if text[j] == "\\" else 1
-		elif text.startswith("/*", j):
-			j = text.index("*/", j) + 1
-		elif text.startswith("//", j):
-			j = text.index("\n", j)
-		elif c == "{":
-			depth += 1
-		elif c == "}":
-			depth -= 1
-			if depth == 0:
-				return text[i:j + 1]
-		j += 1
-	raise AssertionError("unbalanced braces from offset %d" % start)
-
-
-def _js_const(name: str, text: str) -> str:
-	m = re.search(r"\bconst %s\s*=\s*" % re.escape(name), text)
-	assert m, "%s is gone from the template" % name
-	return "const %s = %s;" % (name, _brace_block(text, m.end()))
-
-
-def _js_function(name: str, text: str) -> str:
-	m = re.search(r"\bfunction %s\s*\(" % re.escape(name), text)
-	assert m, "%s() is gone from the template" % name
-	close = text.index(")", m.end())
-	return "function %s%s %s" % (name, text[m.end() - 1:close + 1], _brace_block(text, close))
-
-
-def _rank_table(name: str) -> dict:
-	"""`{key: int}` out of one of the page's rank objects."""
-	body = _js_const(name, _template())
-	return {k: int(v) for k, v in re.findall(r"(\w+)\s*:\s*(\d+)", body)}
-
-
-def _sev_table(name: str) -> dict:
-	body = _js_const(name, _template())
-	return dict(re.findall(r"(\w+)\s*:\s*'(\w+)'", body))
-
-
-def _run_page(snippet: str) -> object:
-	"""Evaluate the page's own notable[] functions, lifted verbatim out of the
-	template, under node. Only these functions — no DOM, no report — so the
-	test pins the code that shipped rather than a paraphrase of it."""
-	tmpl = _template()
-	prelude = "\n".join([
-		_js_const("NOTABLE_SEV", tmpl),
-		_js_const("NOTABLE_RANK", tmpl),
-		_js_function("normNotable", tmpl),
-		_js_function("notableItems", tmpl),
-		# The fallback path notableItems() takes when `notable` is absent. A
-		# distinctive value, so "it fell back" is observable rather than
-		# inferred from an empty array.
-		"function buildContentGroups() { return { security: "
-		"[{ title: 'DERIVED', severity: 'warning' }] }; }",
-	])
-	with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as fh:
-		fh.write(prelude + "\n" + snippet + "\n")
-		path = fh.name
-	try:
-		out = subprocess.run([shutil.which("node"), path], capture_output=True, text=True, timeout=30)
-		assert out.returncode == 0, out.stderr
-		return json.loads(out.stdout)
-	finally:
-		os.unlink(path)
-
-
-class PageNotableOrderingTests(unittest.TestCase):
-	"""Two implementations of one ranking. The table comparison always runs;
-	the behavioural half needs node and skips without it."""
-
-	def _emit(self, research, tool_id="brew:order"):
-		with contextlib.redirect_stderr(io.StringIO()):
-			tool = assemble.build_tool(
-				_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"), research)
-		return tool["security"]["notable"]
-
-	def test_the_page_rank_table_agrees_with_assembly_tier_for_tier(self):
-		"""`NOTABLE_RANK` ascends where `_NOTABLE_SEVERITY_RANK` descends, over
-		the same five-value vocabulary. This is the assertion whose absence let
-		the page keep `unknown` below `low` after assembly moved it above."""
-		page = _rank_table("NOTABLE_RANK")
-		for sev in assemble._CVE_SEVERITIES:
-			self.assertIn(sev, page, "the page's rank table lost %r" % sev)
-		by_assembly = sorted(assemble._CVE_SEVERITIES,
-			key=lambda s: -assemble._NOTABLE_SEVERITY_RANK[s])
-		by_page = sorted(assemble._CVE_SEVERITIES, key=lambda s: page[s])
-		self.assertEqual(by_page, by_assembly)
-		# …and the page's own item vocabulary rides the same scale, so a
-		# notable promoted out of a relevancy item interleaves correctly.
-		for cve_sev, item_sev in (("critical", "incompatible"), ("high", "warning"),
-				("medium", "notable"), ("low", "info")):
-			self.assertEqual(page[cve_sev], page[item_sev], cve_sev)
-
-	def test_an_ungraded_notable_is_not_painted_the_faintest_class(self):
-		"""`unknown` means "nobody published a grade", never "a small flaw" —
-		and every route into notable[] that leaves the grade absent already
-		cleared `notable`+ on this machine's own scale (R5 clauses 3 and 4).
-		Painting it `info` put it in the lightest ink the card has."""
-		sev, rank = _sev_table("NOTABLE_SEV"), _rank_table("NOTABLE_RANK")
-		self.assertNotEqual(sev["unknown"], sev["low"])
-		self.assertLess(rank[sev["unknown"]], rank[sev["low"]])
-
-	@unittest.skipUnless(shutil.which("node"), "node not available")
-	def test_the_page_renders_the_order_assembly_emitted(self):
-		"""End to end across the seam: whatever order assembly emits is the
-		order the page's own notableItems() puts on the card."""
-		cases = {
-			# R5 clause 3's item — id-less, ungraded, lands on this machine —
-			# against three `low` CVEs that do not. Assembly ranks it first and
-			# the cap keeps it; the page must not sort it back down.
-			"touchpoint beats higher-rated misses": {
-				"headliners": [_hl("security", "notable",
-					"Fixes CVE-2026-1001, CVE-2026-1002, CVE-2026-1003.")],
-				"relevancy": [_rel("security", "notable",
-					"The wrapper this machine runs takes the injected argv.")],
-				"security": {
-					"cve_severities": [_sev("CVE-2026-100%d" % i, "low") for i in (1, 2, 3)],
-					"notable": [_not("low %d" % i, "low", cve_id="CVE-2026-100%d" % i)
-						for i in (1, 2, 3)]
-						+ [_not("Command injection in the wrapper this machine runs.",
-							"unknown", affects_me=True)]}},
-			# No affects_me anywhere: the tier order alone has to match.
-			"unknown outranks low on severity alone": _sec_research(security={"notable": [
-				_not("graded low", "low"), _not("nobody graded it", "unknown"),
-				_not("graded medium", "medium")]}),
-		}
-		for label, research in cases.items():
-			with self.subTest(label):
-				emitted = self._emit(research)
-				rendered = _run_page(
-					"console.log(JSON.stringify(notableItems({ notable: normNotable(%s) }, {})));"
-					% json.dumps(emitted))
-				self.assertEqual([r["text"] for r in rendered], [n["summary"] for n in emitted])
-		# …and the item the whole ranking exists to protect does not arrive in
-		# the faintest class the card has.
-		emitted = self._emit(cases["touchpoint beats higher-rated misses"])
-		rendered = _run_page(
-			"console.log(JSON.stringify(notableItems({ notable: normNotable(%s) }, {})));"
-			% json.dumps(emitted))
-		self.assertTrue(rendered[0]["mine"])
-		self.assertNotEqual(rendered[0]["severity"], "info")
-		self.assertEqual(rendered[-1]["severity"], "info")   # the graded `low` CVEs still are
-
-
-class NotableAbsentVersusEmptyTests(unittest.TestCase):
-	"""`notable: []` and no `notable` key are two different answers. Empty says
-	the selection ran and nothing qualified — the single-column card. Absent
-	says the question was never put, and the page derives the column the way it
-	did before the field existed. Emitting `[]` for research that predates the
-	field asserted "nothing here is notable" about 77 of the 78 tools in the
-	recorded run and deleted the security column from every one of them."""
-
-	def _sec(self, research, tool_id="brew:empt"):
-		with contextlib.redirect_stderr(io.StringIO()):
-			tool = assemble.build_tool(
-				_cand(tool_id, tool_id.split(":")[1], "brew", "1.0.0", "1.0.1"), research)
-		return tool["security"]
-
-	def test_research_that_never_mentions_security_omits_the_key(self):
-		sec = self._sec({"headliners": [_hl("security", "notable", "Fixes CVE-2026-1001.")],
-			"relevancy": [_rel("security", "warning", "Reaches this machine's sshd config.")]})
-		self.assertNotIn("notable", sec)
-		self.assertTrue(sec["has_security"])   # the tool is still a security card
-
-	def test_a_security_block_with_nothing_notable_emits_the_empty_answer(self):
-		sec = self._sec(_sec_research(security={"cve_severities": [_sev("CVE-2026-1001", "high")]}))
-		self.assertEqual(sec["notable"], [])
-		sec = self._sec(_sec_research(security={"notable": []}))
-		self.assertEqual(sec["notable"], [])
-
-	def test_assembly_answers_for_itself_where_it_forces_the_list_empty(self):
-		"""The two cases where assembly, not research, decides: a brew-health
-		tool and research that told us nothing. Both are real answers, so both
-		carry the key."""
-		_, candidate, research, _ = _fixture("S10")
-		with contextlib.redirect_stderr(io.StringIO()):
-			health = assemble.build_health_tool(candidate, research)
-		self.assertEqual(health["security"]["notable"], [])
-		self.assertEqual(self._sec({"headliners": [], "research_error": "subagent timed out"},
-			tool_id="brew:err")["notable"], [])
-
-	def test_a_block_too_drifted_to_read_is_not_an_answer(self):
-		for shape in ("none", None, [{"notable": []}]):
-			with self.subTest(repr(shape)):
-				self.assertNotIn("notable", self._sec(_sec_research(security=shape)))
-
-	@unittest.skipUnless(shutil.which("node"), "node not available")
-	def test_the_page_keeps_the_two_answers_apart(self):
-		self.assertIsNone(_run_page("console.log(JSON.stringify(normNotable(undefined)));"))
-		self.assertEqual(_run_page("console.log(JSON.stringify(normNotable([])));"), [])
-		# [] → nothing to show, which is what collapses the card to one column.
-		self.assertEqual(_run_page("console.log(JSON.stringify(notableItems({ notable: [] }, {})));"), [])
-		# absent → the derivation, reached through the stubbed buildContentGroups().
-		self.assertEqual(
-			[i["text"] for i in _run_page(
-				"console.log(JSON.stringify(notableItems({ notable: null }, {})));")],
-			["DERIVED"])
-
-
+# ── 7. Degradation: per file, per entry, per tool ───────────────────────────
 class LoadResearchDegradationTests(unittest.TestCase):
-	"""A research file is subagent output, so any member can be any shape.
-	One malformed entry must cost that entry, never the run — the failure this
-	guards used to abort assembly for all 78 tools."""
+	"""`load_research` reads ~22 agent-written files. One hostile shape in one
+	of them must cost that file or that entry — never the run."""
 
 	HOSTILE_ENTRIES = [
-		("bare string", "krunkit"),
-		("bare int", 7),
-		("null", None),
-		("bool", True),
-		("nested array", ["brew:foo"]),
-		("id is a dict", {"id": {"name": "brew:foo"}}),
-		("id is an int", {"id": 42}),
-		("id is a list", {"id": ["brew:foo"]}),
-		("id is empty", {"id": ""}),
-		("no id at all", {"headliners": []}),
+		"a bare string",
+		42,
+		None,
+		True,
+		[],
+		{},                                   # no id
+		{"id": None},
+		{"id": 42},
+		{"id": ""},
+		{"id": ["brew:list-id"]},
 	]
 
 	def _load(self, entries):
 		with tempfile.TemporaryDirectory() as td:
-			with open(os.path.join(td, "g1.json"), "w", encoding="utf-8") as fh:
+			with open(os.path.join(td, "01.json"), "w", encoding="utf-8") as fh:
 				json.dump(entries, fh)
-			with contextlib.redirect_stderr(io.StringIO()):
-				return assemble.load_research(td)
+			with contextlib.redirect_stderr(io.StringIO()) as err:
+				return assemble.load_research(td), err.getvalue()
 
 	def test_one_hostile_entry_never_costs_the_good_ones(self):
-		good = {"id": "brew:good", "headliners": []}
-		for label, bad in self.HOSTILE_ENTRIES:
-			with self.subTest(label):
-				by_id = self._load([bad, good])
-				self.assertEqual(list(by_id), ["brew:good"], label)
+		for hostile in self.HOSTILE_ENTRIES:
+			with self.subTest(repr(hostile)):
+				by_id, _ = self._load([hostile, {"id": "brew:good", "items": []}])
+				self.assertEqual(list(by_id), ["brew:good"])
 
 	def test_a_file_of_nothing_but_garbage_is_empty_not_fatal(self):
-		self.assertEqual(self._load([e for _, e in self.HOSTILE_ENTRIES]), {})
+		by_id, _ = self._load(self.HOSTILE_ENTRIES)
+		self.assertEqual(by_id, {})
 
 	def test_the_warning_names_the_file_so_it_is_actionable(self):
 		with tempfile.TemporaryDirectory() as td:
-			with open(os.path.join(td, "g7.json"), "w", encoding="utf-8") as fh:
-				json.dump(["krunkit"], fh)
-			err = io.StringIO()
-			with contextlib.redirect_stderr(err):
+			with open(os.path.join(td, "07-networking.json"), "w", encoding="utf-8") as fh:
+				json.dump(["a bare string"], fh)
+			with contextlib.redirect_stderr(io.StringIO()) as err:
 				assemble.load_research(td)
-			self.assertIn("g7.json", err.getvalue())
-			self.assertIn("str", err.getvalue())
-
-	# ── the file itself, not its entries ────────────────────────────────
-	# `except (OSError, json.JSONDecodeError)` was narrower than what reading
-	# an agent-written file can actually raise. Neither shape below is an
-	# OSError or a ValueError, so both escaped the handler and aborted the
-	# report for all 78 tools — after the whole research phase had been spent.
-	UNREADABLE_FILES = [
-		# A subagent killed mid-write, truncating a multi-byte character:
-		# UnicodeDecodeError, raised by the decoder, not the JSON parser.
-		("truncated utf-8", b'[{"id": "brew:bad", "headliners": [{"text": "caf\xe9"}]}]'),
-		# Pathological nesting: RecursionError, which is not an Exception the
-		# JSON module documents at all.
-		("nesting too deep", (b"[" * 60000) + (b"]" * 60000)),
-	]
+			self.assertIn("07-networking.json", err.getvalue())
 
 	def test_an_unreadable_file_costs_that_file_and_no_other(self):
-		for label, payload in self.UNREADABLE_FILES:
-			with self.subTest(label), tempfile.TemporaryDirectory() as td:
-				with open(os.path.join(td, "01-bad.json"), "wb") as fh:
-					fh.write(payload)
-				with open(os.path.join(td, "02-good.json"), "w", encoding="utf-8") as fh:
-					json.dump([{"id": "brew:good", "headliners": []}], fh)
-				err = io.StringIO()
-				with contextlib.redirect_stderr(err):
-					by_id = assemble.load_research(td)
-				self.assertEqual(list(by_id), ["brew:good"], label)
-				# Loud, and specific enough to go and look at the file.
-				self.assertIn("01-bad.json", err.getvalue(), label)
+		with tempfile.TemporaryDirectory() as td:
+			with open(os.path.join(td, "01-bad.json"), "wb") as fh:
+				fh.write(b'[{"id": "brew:x", "title": "caf\xc3')   # truncated UTF-8
+			with open(os.path.join(td, "02-good.json"), "w", encoding="utf-8") as fh:
+				json.dump([{"id": "brew:good", "items": []}], fh)
+			with contextlib.redirect_stderr(io.StringIO()) as err:
+				by_id = assemble.load_research(td)
+			self.assertEqual(list(by_id), ["brew:good"])
+			self.assertIn("01-bad.json", err.getvalue())
+
+	def test_a_missing_research_dir_is_a_warning_not_a_crash(self):
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(assemble.load_research("/no/such/dir"), {})
+		self.assertIn("research_error", err.getvalue())
 
 
-# ── 9. The whole-run boundaries: one bad unit must never cost the report ────
-# Same doctrine as LoadResearchDegradationTests one class up, applied at the
-# three later boundaries where a single malformed unit used to abort main()
-# itself: collect.json's candidate sections, the per-tool build, and the
-# highlight pass. Every case here raised an uncaught TypeError/AttributeError/
-# KeyError out of main() before the guards existed, so report.json was never
-# written at all — the run's entire cost lost to one drifted field.
+class ItemAssemblyDegradationTests(unittest.TestCase):
+	"""The item-model twin of LoadResearchDegradationTests: one hostile shape
+	*inside* an entry's `items[]` must cost that item's checks, never the tool
+	and never the run. The item itself is always kept — deleting it is the one
+	thing this layer may not do (criterion 1)."""
+
+	HOSTILE_ITEMS = [
+		"a bare string",
+		42,
+		None,
+		[],
+		{},                                                  # nothing at all
+		{"anchor": None},
+		{"anchor": "not-an-object"},
+		{"anchor": {"kind": "cve", "value": "CVE-26-1"}},     # malformed id
+		{"anchor": {"kind": "nonsense", "value": "x"}},
+		{"title": 42, "anchor": {"kind": "none", "slug": "a"}},
+		{"title": "t", "tags": "security", "anchor": {"kind": "none", "slug": "b"}},
+		{"title": "t", "tags": [["security"]], "anchor": {"kind": "none", "slug": "c"}},
+		{"title": "t", "severity": ["warning"], "anchor": {"kind": "none", "slug": "d"}},
+		{"title": "t", "local": "not-an-object", "anchor": {"kind": "none", "slug": "e"}},
+		{"title": "t", "change": 7, "anchor": {"kind": "none", "slug": "f"}},
+		{"title": "t", "security": "not-an-object", "tags": ["security"],
+			"anchor": {"kind": "none", "slug": "g"}},
+		{"title": "t", "local": {"evidence": "Brewfile"}, "anchor": {"kind": "none", "slug": "h"}},
+		{"title": "t", "local": {"evidence": [{"path": 7}]}, "anchor": {"kind": "none", "slug": "i"}},
+	]
+
+	def _run(self, items):
+		return assemble_session(
+			{"generated_at": "2026-08-22T11:33:44Z", "machine": {},
+				"brew": [_cand("brew:hostile", "hostile", "brew", "1.0.0", "1.0.1"),
+					_cand("brew:fine", "fine", "brew", "1.0.0", "1.0.1")]},
+			[{"id": "brew:hostile", "links": [], "items": items},
+				{"id": "brew:fine", "links": [], "items": [_item("a")]}])
+
+	def test_one_hostile_item_never_costs_the_tool_or_the_run(self):
+		for hostile in self.HOSTILE_ITEMS:
+			with self.subTest(repr(hostile)[:60]):
+				report, _ = self._run([hostile, _item("good")])
+				ids = [t["id"] for t in report["tools"]]
+				self.assertEqual(ids, ["brew:hostile", "brew:fine"])
+				fine = report["tools"][1]
+				self.assertEqual(len(fine["items"]), 1)
+
+	def test_a_hostile_item_is_kept_somewhere_it_can_be_read(self):
+		"""Either normalized onto items[] with an assigned id, or quarantined
+		verbatim. Never gone: a human would have read it, and convergence has
+		to be able to address it."""
+		for hostile in self.HOSTILE_ITEMS:
+			with self.subTest(repr(hostile)[:60]):
+				report, _ = self._run([hostile])
+				tool = report["tools"][0]
+				blob = json.dumps(tool["items"]) + json.dumps(tool["quarantine"])
+				self.assertTrue(tool["items"] or tool["quarantine"], repr(hostile))
+				if isinstance(hostile, dict) and isinstance(hostile.get("title"), str):
+					self.assertIn(hostile["title"], blob)
+
+	def test_a_whole_corpus_of_hostile_items_still_produces_a_report(self):
+		report, _ = self._run(list(self.HOSTILE_ITEMS))
+		self.assertEqual(len(report["tools"]), 2)
+		self.assertEqual(report["summary"]["total_outdated"], 2)
+		self.assertTrue(report["_warn"].strip())
+
+	def test_a_hostile_item_never_promotes_its_tool(self):
+		"""The `brew:libpq` shape by another route: a tool whose corpus could
+		not be read is the last thing that should be auto-approved."""
+		for hostile in self.HOSTILE_ITEMS:
+			with self.subTest(repr(hostile)[:60]):
+				report, _ = self._run([hostile])
+				tool = report["tools"][0]
+				if tool["validator_error"]:
+					self.assertEqual(tool["security"]["impact"], "unknown")
+					self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]))
+
+	def test_every_hostile_item_is_reported_by_code(self):
+		for hostile in self.HOSTILE_ITEMS:
+			with self.subTest(repr(hostile)[:60]):
+				report, _ = self._run([hostile])
+				self.assertTrue(report["_warn"].strip(), repr(hostile))
+				self.assertTrue(report["tools"][0]["spec_violations"], repr(hostile))
+
+
 class RunBoundaryDegradationTests(unittest.TestCase):
-	ALL_IDS = ["brew:openssh", "brew:ssh-copy-id", "brew:podman", "brew:parallel",
-		"mise:uv", "brew-health:unlinked_keg:tree-sitter", "skill-drift:anthropics/pptx"]
-
-	@classmethod
-	def setUpClass(cls):
-		# The clean run every degraded run is compared against: the point is
-		# never "it did not crash", it is "the other tools are untouched".
-		report, _ = assemble_session(COLLECT, RESEARCH)
-		cls.clean = {t["id"]: cls._fingerprint(t) for t in report["tools"]}
-
-	@staticmethod
-	def _fingerprint(tool):
-		return (tool["version_delta"], tool["risk_level"], tool["review_bucket"],
-			tool["security"]["has_security"],
-			tuple(s.get("pre_accept") for s in tool["suggestions"]))
-
-	def _with_research(self, tool_id, entry):
-		"""RESEARCH with one entry replaced, run through main()."""
-		entries = [dict(e) for e in RESEARCH if e["id"] != tool_id]
-		entries.append(dict(entry, id=tool_id))
-		return assemble_session(COLLECT, entries)
-
-	def _assert_siblings_untouched(self, report, hostile_id, label):
-		self.assertEqual([t["id"] for t in report["tools"]], self.ALL_IDS, label)
-		for tool in report["tools"]:
-			if tool["id"] == hostile_id:
-				continue
-			self.assertEqual(self._fingerprint(tool), self.clean[tool["id"]],
-				f"{label}: {tool['id']} changed")
-
-	# `brew:podman` is the carrier for every shape below because it is the one
-	# fixture that clears _HIGHLIGHT_THRESHOLD — the highlight pass is where
-	# three of these five used to raise, and a tool that never gets scored
-	# never reaches it.
-	HOSTILE_SHAPES = [
-		# `{}.get(["warning"])` is TypeError: unhashable type. Every other read
-		# of a severity is an `==`, which survives any shape; the rank lookups
-		# in build_highlights() are the exception.
-		("severity is a list", {
-			"headliners": [{"text": "A change", "category": "fixes", "severity": ["warning"]}],
-			"relevancy": [_rel("fixes", "incompatible")]}),
-		("severity is a dict", {
-			"headliners": [_hl("fixes", "warning")],
-			"relevancy": [{"summary": "s", "category": "fixes", "severity": {"level": "warning"}},
-				_rel("fixes", "incompatible")]}),
-		# Prose nested one level too deep reaches _truncate_why()'s .split().
-		("relevancy summary is an object", {
-			"headliners": [_hl("fixes", "warning")],
-			"relevancy": [dict(_rel("fixes", "incompatible"), summary={"text": "Breaks the pipeline"})]}),
-		# The same read as the row above (_truncate_why(item["text"])), reached
-		# through the *headliner* branch of _highlight_why_parts()' fixed order
-		# rather than the relevancy one. Getting there takes both halves of this
-		# fixture: a `security` relevancy is what puts podman in a security
-		# bucket, which is the only branch that reads headliners at all, and an
-		# empty summary on that relevancy is what makes the branch above yield
-		# rather than return first.
-		("headliner text is a number", {
-			"headliners": [{"text": 4242, "category": "fixes", "severity": "warning"},
-				_hl("security", "warning")],
-			"relevancy": [_rel("security", "incompatible", "")]}),
-		("config_status detail is an object", {
-			"headliners": [_hl("fixes", "warning")],
-			"relevancy": [],
-			"config_status": {"state": "needs_attention", "detail": {"text": "stale"}, "evidence": []},
-			"suggestions": [{"id": "brew:podman:edit", "kind": "edit", "title": "t", "target_files": []}]}),
-		# A structured citation reaches evidence_exists()'s regex as a dict.
-		("evidence members are objects", {
-			"headliners": [_hl("fixes", "warning")],
-			"relevancy": [dict(_rel("fixes", "incompatible"),
-				evidence=[{"path": "Brewfile", "line": 3}])]}),
-		# `sid in seen_ids` is a dict lookup too — same TypeError, two steps
-		# after every tool has already been built.
-		("suggestion id is a list", {
-			"headliners": [_hl("fixes", "warning")],
-			"relevancy": [_rel("fixes", "incompatible")],
-			"suggestions": [{"id": ["brew:podman:edit"], "kind": "edit", "title": "t",
-				"target_files": []}]}),
-	]
-
-	def test_a_hostile_shape_costs_one_tool_not_the_report(self):
-		for label, research in self.HOSTILE_SHAPES:
-			with self.subTest(label):
-				report, _ = self._with_research("brew:podman", research)
-				self._assert_siblings_untouched(report, "brew:podman", label)
-				# And the hostile tool itself is still a card, still decided.
-				podman = next(t for t in report["tools"] if t["id"] == "brew:podman")
-				self.assertIn(podman["review_bucket"],
-					("security_auto", "security_mixed", "attention", "routine"), label)
-				self.assertTrue(all(isinstance(s.get("id"), str) and s["id"]
-					for s in podman["suggestions"]), label)
-
-	def test_every_hostile_shape_is_warned_about_by_name(self):
-		for label, research in self.HOSTILE_SHAPES:
-			with self.subTest(label):
-				_, stderr = self._with_research("brew:podman", research)
-				self.assertIn("brew:podman", stderr, label)
-
-	def test_a_repr_is_never_rendered_as_a_highlight_line(self):
-		# The alternative fix — str() the value — passes the page's
-		# `typeof === 'string'` guard by then, which is the failure
-		# clean_notable() already refuses one field over.
-		report, _ = self._with_research("brew:podman", {
-			"headliners": [_hl("fixes", "warning", "A readable fact.")],
-			"relevancy": [dict(_rel("fixes", "incompatible"), summary={"text": "Breaks the pipeline"})]})
-		highlight = next(h for h in report["highlights"] if h["tool_id"] == "brew:podman")
-		self.assertNotIn("{", highlight["why"])
-		self.assertNotIn("Breaks the pipeline", highlight["why"])
-		# The unreadable relevancy summary yields its slot; the line comes from
-		# the next branch of _highlight_why_parts()'s fixed order, exactly as it
-		# would for a tool whose relevancy carried no summary at all.
-		self.assertEqual(highlight["why_source"], "major_bump")
-		self.assertIsNone(highlight["why_ref"])
-
-	# ── collect.json's own candidate sections ───────────────────────────
-	# read_findings_block() has read the two finding blocks defensively since
-	# they existed; the four version sections were still spliced together with
-	# `collect.get(key, []) + …`, which substitutes its default only when the
-	# key is *absent*.
-	HOSTILE_SECTIONS = [
-		("null", None),
-		("a bare string", "no runtimes outdated"),
-		("an object", {"uv": "0.12.5"}),
-		("a list of bare strings", ["mise:uv"]),
-		("a list of nulls", [None]),
-	]
+	"""One bad unit must never cost the report."""
 
 	def test_a_malformed_section_costs_that_section_only(self):
-		for label, value in self.HOSTILE_SECTIONS:
-			with self.subTest(label):
-				collect = dict(COLLECT, mise=value)
-				report, stderr = assemble_session(collect, RESEARCH)
-				# mise:uv is gone; the other six tools are untouched.
-				self.assertEqual([t["id"] for t in report["tools"]],
-					[i for i in self.ALL_IDS if i != "mise:uv"], label)
-				self.assertEqual(sum(report["summary"]["by_delta"].values()),
-					report["summary"]["total_outdated"], label)
-				self.assertIn("mise", stderr, label)
-
-	HOSTILE_CANDIDATES = [
-		("no id", {"name": "ghostly", "source": "brew",
-			"current_version": "1", "latest_version": "2"}),
-		("id is a list", {"id": ["brew:ghostly"], "name": "ghostly", "source": "brew",
-			"current_version": "1", "latest_version": "2"}),
-		("no source", {"id": "brew:ghostly", "name": "ghostly",
-			"current_version": "1", "latest_version": "2"}),
-		("no name", {"id": "brew:ghostly", "source": "brew",
-			"current_version": "1", "latest_version": "2"}),
-		("unknown source", {"id": "weird:ghostly", "name": "ghostly", "source": {"kind": "brew"},
-			"current_version": "1", "latest_version": "2"}),
-	]
+		collect = dict(COLLECT)
+		collect["mise"] = "not an array"
+		report, err = assemble_session(collect, RESEARCH)
+		self.assertNotIn("mise:uv", [t["id"] for t in report["tools"]])
+		self.assertTrue(any(t["id"] == "brew:openssh" for t in report["tools"]))
+		self.assertIn("mise", report["_log"])
 
 	def test_a_candidate_with_no_identity_costs_one_card(self):
-		for label, candidate in self.HOSTILE_CANDIDATES:
-			with self.subTest(label):
-				collect = dict(COLLECT, brew=[candidate] + COLLECT["brew"])
-				report, stderr = assemble_session(collect, RESEARCH)
-				self._assert_siblings_untouched(report, None, label)
-				self.assertTrue(stderr.strip(), label)
+		collect = json.loads(json.dumps(COLLECT))
+		collect["brew"].append({"name": "no-id", "source": "brew"})
+		collect["brew"].append({"id": "brew:no-source", "name": "x"})
+		report, _ = assemble_session(collect, RESEARCH)
+		self.assertEqual(len([t for t in report["tools"] if t["source"] == "brew"]), 4)
+
+	def test_a_malformed_finding_block_costs_the_findings_not_the_run(self):
+		collect = json.loads(json.dumps(COLLECT))
+		collect["skill_drift"] = "not an object"
+		report, _ = assemble_session(collect, RESEARCH)
+		self.assertEqual(report["summary"]["skill_drift_count"], 0)
+		self.assertEqual(report["summary"]["total_outdated"], 5)
+
+	def test_an_absent_finding_key_still_reports_a_zero_count(self):
+		collect = json.loads(json.dumps(COLLECT))
+		del collect["skill_drift"]
+		report, _ = assemble_session(collect, RESEARCH)
+		self.assertEqual(report["summary"]["skill_drift_count"], 0)
+		self.assertEqual(report["summary"]["by_bucket"]["attention"]
+			+ report["summary"]["by_bucket"]["routine"]
+			+ report["summary"]["by_bucket"]["security_auto"]
+			+ report["summary"]["by_bucket"]["security_mixed"], len(report["tools"]))
 
 	def test_a_collect_json_that_is_not_an_object_exits_saying_so(self):
-		"""The one input nothing can be salvaged from — it *is* the candidate
-		set — so this exits rather than degrading. What it must not do is exit
-		by traceback out of `collect.get(…)` three lines later: the operator
-		reading a failed session needs the file and the shape named."""
-		for shape in (None, "no updates", 42, [], ["brew:curl"]):
-			with self.subTest(repr(shape)), tempfile.TemporaryDirectory() as tmp:
-				session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
-				os.makedirs(os.path.join(session, "research"))
-				with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
-					json.dump(shape, fh)
-				argv, err = sys.argv, io.StringIO()
-				sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
-					"--dotfiles-root", tmp, "--systems-root", tmp]
-				try:
-					with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-						with self.assertRaises(SystemExit) as caught:
-							assemble.main()
-				finally:
-					sys.argv = argv
-				self.assertEqual(caught.exception.code, 1)
-				self.assertIn("collect.json", err.getvalue())
-				self.assertIn("not a JSON object", err.getvalue())
-
-	# ── repo_context.json, the one optional input ───────────────────────
-	# main() has always meant to degrade here — an absent or unparseable file
-	# falls back to a placeholder — but the handler only named OSError and
-	# JSONDecodeError, so a file `json.load` could not *decode* (a byte
-	# sequence that is not UTF-8, which repo_context.sh emits straight from
-	# `git log`) escaped it and aborted the report for all 78 tools over a
-	# section worth four keys.
-	UNREADABLE_REPO_CONTEXT = [
-		("invalid utf-8", b'{"macos_setup": {"recent_commits": ["caf\xe9"]}}'),
-		("a directory, not a file", None),
-	]
+		with tempfile.TemporaryDirectory() as tmp:
+			session = os.path.join(tmp, "tool-update-review-x")
+			os.makedirs(session)
+			with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
+				json.dump(["not", "an", "object"], fh)
+			argv = sys.argv
+			sys.argv = ["assemble.py", session]
+			try:
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					with self.assertRaises(SystemExit) as ctx:
+						assemble.main()
+			finally:
+				sys.argv = argv
+			self.assertEqual(ctx.exception.code, 1)
+			self.assertIn("not a JSON object", err.getvalue())
 
 	def test_an_unreadable_repo_context_falls_back_to_the_placeholder(self):
-		for label, payload in self.UNREADABLE_REPO_CONTEXT:
-			with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
-				session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
-				os.makedirs(os.path.join(session, "research"))
-				with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
-					json.dump(COLLECT, fh)
-				with open(os.path.join(session, "research", "01-all.json"), "w", encoding="utf-8") as fh:
-					json.dump(RESEARCH, fh)
-				rc_path = os.path.join(session, "repo_context.json")
-				if payload is None:
-					os.makedirs(rc_path)
-				else:
-					with open(rc_path, "wb") as fh:
-						fh.write(payload)
-				argv, err = sys.argv, io.StringIO()
-				sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
-					"--dotfiles-root", tmp, "--systems-root", tmp]
-				try:
-					with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-						assemble.main()
-				finally:
-					sys.argv = argv
-				with open(os.path.join(session, "report.json"), "r", encoding="utf-8") as fh:
-					report = json.load(fh)
-				self.assertEqual([t["id"] for t in report["tools"]], self.ALL_IDS, label)
-				self.assertTrue(report["repo_context"]["macos_setup"]["up_to_date"], label)
-				# Loud, and specific enough to go and look at the file.
-				self.assertIn("repo_context.json", err.getvalue(), label)
+		report, _ = assemble_session(COLLECT, RESEARCH)
+		self.assertEqual(set(report["repo_context"]), {"macos_setup", "dotfiles"})
+
+	def test_the_python39_interpreter_can_run_it(self):
+		"""assemble.py targets the bare `python3` on a freshly imaged Mac."""
+		if not os.path.exists("/usr/bin/python3"):
+			self.skipTest("no /usr/bin/python3")
+		here = os.path.dirname(os.path.abspath(__file__))
+		proc = subprocess.run(["/usr/bin/python3", "-c",
+			f"import sys; sys.path.insert(0, {here!r}); import assemble, validate_items"],
+			capture_output=True, text=True)
+		self.assertEqual(proc.returncode, 0, proc.stderr)
 
 
 if __name__ == "__main__":
-	unittest.main(verbosity=2)
+	unittest.main()

@@ -21,7 +21,6 @@ obvious drift, `["Brewfile"]` instead of `[{"path": "Brewfile"}]`. That cost
 the whole apply pass, not one action, which is the failure this file exists
 to keep fixed.
 """
-import io
 import json
 import os
 import subprocess
