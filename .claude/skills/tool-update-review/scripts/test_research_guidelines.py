@@ -310,6 +310,20 @@ class ThreeStoresTests(GuidelineTestCase):
 		for field in ("method_topic", "method_note", "rationale"):
 			self.assertSays(field, text)
 
+	def test_the_watch_item_shape_the_guideline_shows_is_the_one_that_validates(self):
+		"""Symmetric with the method note's. Both kinds owe the same fields, so
+		neither may show a shape the other's guarantee would reject."""
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		text = section_of(RESEARCH, "### Watch Items (Proposing)",
+			"### Before You Propose a Standing Note")
+		for field in model.MEMORY_PAYLOAD_FIELDS["watch-item"]:
+			self.assertSays('"{}"'.format(field), text)
+		for field in ("target_files", "command", "auto_runnable"):
+			self.assertSays('"{}"'.format(field), text)
+		self.assertSays("proposal, not a write", text)
+
 	def test_the_method_note_shape_the_guideline_shows_is_the_one_that_validates(self):
 		"""A worked shape that the validator rejects is worse than none — the
 		agent copies it and gets an error it cannot connect to the guideline."""
@@ -416,6 +430,25 @@ class SelfTestTests(GuidelineTestCase):
 	def test_the_reason_requirement_is_stated_where_the_tag_is_introduced(self):
 		self.assertSays("`reason` is required whenever the tag is present",
 			self.section())
+
+	def test_the_preamble_does_not_contradict_the_method_note_question(self):
+		"""The preamble said every answer comes from the object you just wrote.
+		Q5's witness is usually a *previous* run's mistake — and the section's
+		own celebrated example is exactly that, so read literally the preamble
+		tagged its own model answer `unwitnessed`."""
+		text = self.section()
+		self.assertSays("Q1–Q4 are answerable from text you have already written", text)
+		self.assertSays("Q5 is the exception and says so", text)
+
+	def test_q2_states_the_ordering_it_depends_on(self):
+		"""Q2 quotes `config_status.detail`. An agent that filled
+		`suggestions[]` first has nothing to quote and will either invent a
+		quote or tag `scope` spuriously — and a spurious tag is a proposal a
+		later pass is invited to drop."""
+		self.assertSays("write it before you write `suggestions[]`", self.section())
+		# ...and again where the output contract lives, not only inside the
+		# question that happens to need it.
+		self.assertSays("Write `config_status` Before `suggestions[]`", RESEARCH)
 
 	def test_a_method_note_has_its_own_limb(self):
 		self.assertSays("Q5 — THE WITNESS", self.section())

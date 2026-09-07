@@ -675,6 +675,9 @@ actually does.
 - `watch_note` (string, required): the fuller context, so a future hit can
   explain itself without re-deriving everything — copied verbatim into
   watch-items.json's `note` field on accept.
+- `rationale` (string, **required**): the self-test's answers, in the agent's
+  own words (`references/research.md` §Before You Propose a Standing Note).
+  See §1.7b's `rationale` bullet for why this one is validated.
 - **Accept** writes `{topic: watch_topic, note: watch_note, added_at:
   <today>}` under this tool's id in `watch-items.json`
   (`references/apply.md` §Watch Items (Writing)) — nothing else. **Reject**
@@ -714,9 +717,17 @@ different body:
 - `method_note` (string, required): the instruction itself, written so it
   reads sensibly **copied verbatim into the next run's context**, because that
   is exactly what happens on accept.
-- `rationale` (string): how you know the ordinary path fails for this tool.
-  It must name a failure that happened, not predict one that might
-  (`references/research.md` §Writing a Research-Method Note).
+- `rationale` (string, **required**): how you know the ordinary path fails for
+  this tool. It must name a failure that happened, not predict one that might
+  (`references/research.md` §Writing a Research-Method Note). Required on both
+  memory kinds, and for the same reason: it is where the self-test's answers
+  land and what convergence reads to decide whether to keep the proposal. The
+  validator checks it is present and non-empty and nothing more — whether the
+  answers are any good is convergence's call, and always was. But an
+  unvalidated load-bearing string is how `Watch item hit:` died, and the
+  measured failure here was never a missing topic: it was rationales reciting
+  the bar's own escape phrase, three of eight falsified by a sibling field in
+  the same object.
 - **Scope.** A `method-note` proposal is always written against **one tool**,
   and per-tool notes are expected to be **many** — tools have weird conventions
   and unusual changelog locations. The third store, **global** method notes, is

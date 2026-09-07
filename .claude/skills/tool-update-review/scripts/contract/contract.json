@@ -109,11 +109,13 @@
 		"payload": {
 			"method-note": {
 				"method_topic": "what the note is about, in a few words",
-				"method_note": "the instruction itself, written to read sensibly when copied verbatim into the next run's context"
+				"method_note": "the instruction itself, written to read sensibly when copied verbatim into the next run's context",
+				"rationale": "the failure the ordinary research path already produced here"
 			},
 			"watch-item": {
 				"watch_topic": "the short phrase a future run matches against its changelog",
-				"watch_note": "the context that lets a future hit explain itself without re-deriving everything"
+				"watch_note": "the context that lets a future hit explain itself without re-deriving everything",
+				"rationale": "your answers to the self-test, in your own words"
 			}
 		},
 		"self_test_failed": {

@@ -58,6 +58,7 @@ Table of contents:
   - Deduplicate Facts (Across Arrays, and Within One)
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
+  - Write `config_status` Before `suggestions[]`
   - Schema Strictness
   - Depth by Tool
   - One Host, One Manifest
@@ -1220,17 +1221,35 @@ touchpoint, or a `needs_attention` verdict — those are already tracked via
 `config_status`/relevancy on every run.
 
 **How to propose one**: add a suggestion to the tool's `suggestions[]` with
-`kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same
-schema strictness as any other suggestion, just a different shape:
-`target_files: []`, `command: null`, `auto_runnable: false`, and the
-proposal's payload in `watch_topic`/`watch_note` (same field meaning as
-`watch-items.json`'s `topic`/`note`, §Watch Items (Reading) above — write
-them so they'd read sensibly if copied verbatim into that file, because
-that's exactly what happens on accept). Give it a real `rationale` explaining
-why this is worth watching, same evidence-discipline as everything else
-here — and run the self-test below, writing its answers into that
-`rationale`. **This is a proposal, not a write** — nothing touches
-`watch-items.json` unless the user explicitly accepts it in the review UI
+`kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same schema
+strictness as any other suggestion, just a different shape:
+
+```jsonc
+{
+	"id": "cask:cursor-cli:watch-shell-integration",
+	"kind": "watch-item",
+	"title": "Watch: shell-integration / session recording",
+	"target_files": [],          // nothing to edit
+	"command": null,             // nothing to run
+	"auto_runnable": false,      // accepting it writes a watch item, nothing else
+	"watch_topic": "the short phrase a future run matches against its changelog",
+	"watch_note": "the fuller context, so a future hit can explain itself
+	               without re-deriving everything",
+	"rationale": "your answers to the self-test below, in your own words"
+}
+```
+
+`watch_topic`/`watch_note` mean exactly what `watch-items.json`'s
+`topic`/`note` mean (§Watch Items (Reading) above) — write them so they read
+sensibly copied verbatim into that file, because that is what happens on
+accept.
+
+**`rationale` is where the self-test lands, and it is required.** It is also
+the field a later pass reads to decide whether to keep this at all, so it
+carries the same evidence discipline as everything else here.
+
+**This is a proposal, not a write** — nothing touches `watch-items.json`
+unless the user explicitly accepts it in the review UI
 (`references/apply.md` §Watch Items (Writing)); do not also write the file
 yourself from research.
 
@@ -1240,9 +1259,15 @@ down. Read it before you decide to hold one back.
 ### Before You Propose a Standing Note: the Self-Test
 
 You are about to add a permanent entry to a machine-global file. Run these
-questions and **write your answers into the proposal's `rationale`**. Every one
-is answerable from text you have already written in this same object — if you
-have to go and find something new, that is the answer.
+questions and **write your answers into the proposal's `rationale`** — that
+field is required, and it is what a later pass reads.
+
+**Q1–Q4 are answerable from text you have already written in this same
+object.** If answering one sends you off to find something new, that is the
+answer: the support you were looking for is not there. Q5 is the exception and
+says so — a method note's witness is usually a *previous* run's mistake, which
+reaches you through the standing notes and hypotheses in your prompt rather
+than through anything you wrote today.
 
 **Nothing here deletes a proposal.** A question you fail tags the proposal and
 you write it anyway, with `self_test_failed: {limb, reason}` naming the
@@ -1263,8 +1288,9 @@ cutting. Never suppress a proposal because it failed a question here.
 > one.** This is the one answer that is a *route* rather than a tag: the
 > knowledge is kept, it just moves to the store that fits it.
 >
-> **Q2 — SCOPE.** Read the `config_status` you just wrote for this same tool.
-> Quote the sentence from its `detail` showing this concern is outside its
+> **Q2 — SCOPE.** Read the `config_status` you just wrote for this same tool —
+> **write it before you write `suggestions[]`**, because this question quotes
+> it. Quote the sentence from its `detail` showing this concern is outside its
 > scope — typically a sentence naming what `config_status` *did* check, which
 > does not include your concern.
 >
@@ -1490,6 +1516,18 @@ The baseline `upgrade` suggestion (added in step 4,
 problem in the *surrounding* task code is not a reason to block the
 *package* upgrade itself from auto-running. Only mark it `false` if no
 command for this tool is safely testable at all, which should be rare.
+
+### Write `config_status` Before `suggestions[]`
+
+Within one tool object, author `config_status` first. The self-test's Q2
+(§Before You Propose a Standing Note) quotes `config_status.detail` to decide
+whether a concern is already covered, so a proposal written before there is a
+`detail` to quote has nothing to answer with — and the agent then either
+invents a quote or tags the proposal `scope` for the wrong reason, which
+invites a later pass to drop something that was fine.
+
+Nothing enforces the order; it is an ordering between two fields of one object
+you write in one pass. Just do it in that order.
 
 ### Schema Strictness
 

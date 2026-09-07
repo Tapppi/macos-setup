@@ -134,16 +134,28 @@ def needs_a_decision(kind) -> bool:
 # What each memory kind must carry, and what each field is for. Both payloads
 # are written so they read sensibly copied verbatim into the store on accept,
 # because that is exactly what happens (`references/research.md`).
+#
+# `rationale` is required on both, and that is the one that answers the
+# measured failure. The last run's defect was never a missing topic — it was
+# rationales reciting the bar's own escape phrase, three of eight falsified by
+# a sibling field in the same object. The self-test writes its four answers
+# into `rationale`, §Standing Notes puts the generalisation claim there, and
+# convergence promotes on it: requiring it non-empty is the least that field
+# can be owed. Nothing here judges whether the answers are good — that is
+# convergence's, and always was — but an unvalidated load-bearing string is
+# how `Watch item hit:` died.
 MEMORY_PAYLOAD_FIELDS = {
 	"watch-item": {
 		"watch_topic": "the short phrase a future run matches against its changelog",
 		"watch_note": "the context that lets a future hit explain itself without "
 			"re-deriving everything",
+		"rationale": "your answers to the self-test, in your own words",
 	},
 	"method-note": {
 		"method_topic": "what the note is about, in a few words",
 		"method_note": "the instruction itself, written to read sensibly when copied "
 			"verbatim into the next run's context",
+		"rationale": "the failure the ordinary research path already produced here",
 	},
 }
 

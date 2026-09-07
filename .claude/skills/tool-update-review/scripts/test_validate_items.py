@@ -978,12 +978,26 @@ class MemoryProposalTests(unittest.TestCase):
 						if f["code"] == "E-FIELD-MISSING"}
 					self.assertEqual(missing, {field})
 
-	def test_the_two_payloads_do_not_share_field_names(self):
+	def test_the_two_payloads_do_not_share_a_topic_or_note_field(self):
 		"""A watch item's topic and a method note's topic are different stores.
-		Sharing a field name is how they got conflated in the first place."""
+		Sharing a field name is how they got conflated in the first place.
+		`rationale` is deliberately common to both — it is the same obligation
+		in both stores, and the field convergence reads."""
 		watch = set(model.MEMORY_PAYLOAD_FIELDS["watch-item"])
 		method = set(model.MEMORY_PAYLOAD_FIELDS["method-note"])
-		self.assertEqual(watch & method, set())
+		self.assertEqual(watch & method, {"rationale"})
+
+	def test_both_memory_kinds_owe_a_rationale(self):
+		"""The measured failure was never a missing topic — it was rationales
+		reciting the bar's own escape phrase. The self-test writes its answers
+		into this field and convergence promotes on it, so an empty one is a
+		proposal nobody downstream can review."""
+		for kind in model.MEMORY_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				self.assertIn("rationale", model.MEMORY_PAYLOAD_FIELDS[kind])
+				_, findings = self._view([_memory(kind, rationale="   ")])
+				missing = [f for f in findings.entries if f["code"] == "E-FIELD-MISSING"]
+				self.assertEqual([f["field"] for f in missing], ["rationale"])
 
 	# — the self-test tag —
 	def test_a_well_formed_tag_is_accepted_and_exported(self):
