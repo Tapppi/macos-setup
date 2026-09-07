@@ -1488,7 +1488,10 @@
 		}
 
 		.content-item[data-expanded="0"] .content-item-desc,
+		.content-item[data-expanded="0"] .item-statement,
 		.content-item[data-expanded="0"] .item-evidence,
+		.content-item[data-expanded="0"] .item-citations,
+		.content-item[data-expanded="0"] .item-tags,
 		.content-item[data-expanded="0"] .item-motivating,
 		.content-item[data-expanded="0"] .item-ref {
 			display: none;
@@ -1539,6 +1542,31 @@
 			color: var(--base01);
 		}
 
+		/* `local.statement` — what this change means for THIS setup, which is
+		 * a different claim from the upstream fact in the title. */
+		.item-statement {
+			margin-top: 4px;
+			font-size: 12px;
+			color: var(--base0);
+		}
+
+		.item-citations { margin-top: 4px; font-size: 12px; color: var(--base01); }
+		.item-citation { margin-top: 2px; }
+		.item-citation .ck {
+			font-size: 10px;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: var(--base01);
+		}
+		.item-citation a { color: var(--base01); }
+		.item-citation a:hover { color: var(--blue); }
+
+		/* Only a SECOND tag renders — the first one already chose the group
+		 * this item is filed under, so repeating it would be noise on every
+		 * row. Measured on the prototype corpus: 7% of items carry more than
+		 * one tag, maximum two. */
+		.item-tags { margin-top: 4px; font-size: 11px; color: var(--base01); }
+
 		.item-ref {
 			margin-top: 3px;
 			font-size: 11px;
@@ -1557,36 +1585,6 @@
 			color: var(--base01);
 			font-style: italic;
 		}
-
-		/* ── Context section (references/schemas.md §Report Object context[]; references/rendering-report.md §Page Layout) — no severity coloring,
-		 * whole-item collapse (starts collapsed to title only, unlike the
-		 * lighter per-item detail-only collapse in the four content groups
-		 * above). ────────────────────────────────────────────────────────── */
-		.context-section {
-			margin-top: 14px;
-			padding: 10px 12px;
-			border: 1px solid var(--base01);
-			border-radius: 4px;
-			background: rgba(255,255,255,0.02);
-		}
-
-		.context-item { margin-bottom: 4px; }
-		.context-item:last-child { margin-bottom: 0; }
-
-		.context-item-title {
-			font-size: 12px;
-			color: var(--base1);
-			cursor: pointer;
-			display: flex;
-			align-items: baseline;
-			gap: 6px;
-		}
-
-		.context-item-title::before { content: "▸"; color: var(--base01); font-size: 10px; }
-		.context-item[data-expanded="1"] .context-item-title::before { content: "▾"; }
-
-		.context-item-body { display: none; margin: 4px 0 4px 16px; font-size: 12px; color: var(--base00); }
-		.context-item[data-expanded="1"] .context-item-body { display: block; }
 
 		/* ── Release inventory (references/schemas.md §Report Object release_inventory[]; references/rendering-report.md §Page Layout) — short, not
 		 * collapsed. ──────────────────────────────────────────────────────── */
@@ -2846,16 +2844,52 @@
 			}).join('');
 		}
 
-		/* ── Compute max severity for a tool ────────────────────────────── */
+		/* ── Compute max severity for a tool ──────────────────────────────
+		 * Over the items that carry a `local` block, NOT over every item.
+		 * That is what "relevant" means on this page — an item with a local
+		 * finding says something about THIS machine, an item without says
+		 * something about the release — and it is what the "relevant only"
+		 * filter and the incompatible-tool jump lists read, through
+		 * data-max-severity. A brew-health or skill-drift finding carries a
+		 * local block by construction (assembly synthesizes one), so the two
+		 * per-source special cases this function used to need are gone: the
+		 * headliner/relevancy distinction they worked around no longer
+		 * exists. */
 		function maxSeverity(tool) {
-			if (!tool.relevancy || tool.relevancy.length === 0) return '';
 			let best = 99;
 			let bestSev = '';
-			for (const r of tool.relevancy) {
-				const o = SEV_ORDER[r.severity] ?? 99;
-				if (o < best) { best = o; bestSev = r.severity; }
+			for (const item of itemsOf(tool)) {
+				if (!localOf(item)) continue;
+				const o = SEV_ORDER[item.severity] ?? 99;
+				if (o < best) { best = o; bestSev = item.severity; }
 			}
 			return bestSev;
+		}
+
+		/* ── The item model, read defensively ─────────────────────────────
+		 * Every accessor below tolerates a shape the validator reported and
+		 * then KEPT — a wrong-typed `local` or `change` is a finding, not a
+		 * reason to null the field, so the page meets the original value
+		 * (references/item-schema.md §7, stage V2). None of these ever
+		 * classify: `tags` and `severity` come from the checker, and the
+		 * group is derived from the tag map the contract publishes. */
+		function itemsOf(tool) {
+			return (tool.items || []).filter(i => i && typeof i === 'object');
+		}
+		function localOf(item) {
+			return (item.local && typeof item.local === 'object') ? item.local : null;
+		}
+		function changeOf(item) {
+			return (item.change && typeof item.change === 'object') ? item.change : null;
+		}
+		function itemSecurityOf(item) {
+			return (item.security && typeof item.security === 'object') ? item.security : null;
+		}
+		function tagsOf(item) {
+			return Array.isArray(item.tags) ? item.tags.filter(t => typeof t === 'string') : [];
+		}
+		function hasTag(item, tag) {
+			return tagsOf(item).includes(tag);
 		}
 
 		/* ── Triage-field accessors (references/schemas.md §1.8/§1.9/§1.10)
@@ -2885,7 +2919,7 @@
 		const EMPTY_SECURITY = {
 			cve_ids: [], cve_count: 0, has_security: false,
 			security_only: false, impact: 'unknown',
-			cve_claimed_count: null, severity_counts: null, notable: null,
+			cve_claimed_count: null, severity_counts: null, display_item_ids: [],
 		};
 
 		/* The CVE-severity vocabulary, worst first. `unknown` is a real class
@@ -2895,34 +2929,34 @@
 		const CVSS_GRADED = ['critical', 'high', 'medium', 'low'];
 		const CVSS_ALL = CVSS_GRADED.concat(['unknown']);
 
-		/* notable[].severity arrives in either vocabulary — the CVE classes
-		 * above, or the page's own item severities, since a notable can be
-		 * promoted straight out of a relevancy item. Both map onto the
-		 * existing icon/colour table (§Per-Item Severity), so no new icon and
-		 * no new colour enters the page.
+		/* A security item's display class comes from either vocabulary — the
+		 * CVE ratings above (`item.security.rating`), or the item's own
+		 * severity when nothing graded it. Both map onto the existing
+		 * icon/colour table (§Per-Item Severity), so no new icon and no new
+		 * colour enters the page.
 		 *
 		 * `unknown` paints as `notable`, not as `info`. It does not mean "a
-		 * small flaw", it means "research selected this item and nobody
-		 * published a grade for it" — and every route into notable[] that can
-		 * leave the grade absent already cleared a bar at least this high: R5's
-		 * third clause takes the subject of a `security` relevancy item at
-		 * `notable`+, and its fourth takes something exploited in the wild.
-		 * Painting it `·` grey put the id-less, ungraded, machine-touching item
-		 * — the class R5 clause 3 exists for — at the bottom of the card in the
-		 * lightest ink on it. `low` keeps `info`: a graded-low CVE really is
-		 * the least of what a card shows. */
+		 * small flaw", it means "nobody published a grade for it" — and every
+		 * route past `items.is_security_display_item`'s bar that can leave the
+		 * grade absent already cleared something at least this high: the item
+		 * reaches this machine, or it is at warning+, or it is exploited in
+		 * the wild. Painting it `·` grey put the id-less, ungraded,
+		 * machine-touching item at the bottom of the card in the lightest ink
+		 * on it. `low` keeps `info`: a graded-low CVE really is the least of
+		 * what a card shows. */
 		const NOTABLE_SEV = {
 			critical: 'incompatible', high: 'warning', medium: 'notable', low: 'info',
 			unknown: 'notable',
 			incompatible: 'incompatible', warning: 'warning', notable: 'notable', info: 'info',
 		};
-		/* Ordering rank, and it must agree with assembly's `_NOTABLE_SEVERITY_RANK`
-		 * (scripts/assemble.py) tier for tier — the page re-sorts a list assembly
-		 * already ordered *and evicted by*, so a disagreement here silently
-		 * reshuffles the three entries assembly chose. `unknown` therefore sits
-		 * above `low`, matching that map, and does so even though NOTABLE_SEV
-		 * paints it the same colour as `medium`: four display classes cover five
-		 * ordering tiers, so the two cannot be one table. */
+		/* Ordering rank, and it must agree with `items.CVE_ORDER_RANK`
+		 * (scripts/items.py) tier for tier — the page renders a list the
+		 * contract already ordered, so a disagreement here silently reshuffles
+		 * it. `unknown` therefore sits above `low`, matching that map, and does
+		 * so even though NOTABLE_SEV paints it the same colour as `medium`:
+		 * four display classes cover five ordering tiers, so the two cannot be
+		 * one table. Nothing here evicts — the security list is a bar, not a
+		 * cap (references/item-schema.md §7 "Security display"). */
 		const NOTABLE_RANK = {
 			critical: 0, incompatible: 0, high: 1, warning: 1, medium: 2, notable: 2,
 			unknown: 3, low: 4, info: 4,
@@ -2949,34 +2983,6 @@
 				if (v) any = true;
 			}
 			return any ? out : null;
-		}
-
-		/* notable[] is the only security list a mixed card shows by default,
-		 * so a malformed entry must never be able to occupy one of its three
-		 * slots. An entry with no summary carries no claim and is dropped; an
-		 * unrecognised severity degrades to `unknown` rather than being
-		 * guessed upward. The page re-caps at 3 rather than trusting the
-		 * contract's cap — exactly as it already does for highlights[] — but
-		 * it caps in notableItems(), *after* the ranking sort. Capping
-		 * here would cap in array order, which is not a ranking: a fourth
-		 * entry marked `critical` was being dropped in favour of a first one
-		 * marked `unknown`, and the card lost the only item that mattered.
-		 *
-		 * `null` (no field at all) and `[]` (assembly found nothing notable)
-		 * are different answers and stay different: null falls back to the
-		 * old derivation, [] is the single-column card. */
-		function normNotable(raw) {
-			if (!Array.isArray(raw)) return null;
-			return raw
-				.filter(n => n && typeof n === 'object'
-					&& typeof n.summary === 'string' && n.summary.trim())
-				.map(n => ({
-					summary: n.summary.trim(),
-					cve_id: (typeof n.cve_id === 'string' && n.cve_id.trim())
-						? n.cve_id.trim().slice(0, 40) : '',
-					severity: NOTABLE_SEV[n.severity] ? n.severity : 'unknown',
-					affects_me: n.affects_me === true,
-				}));
 		}
 
 		/* A whitelisting normalizer: a field this function does not copy out
@@ -3011,7 +3017,13 @@
 				cve_claimed_count: (isCount(s.cve_claimed_count) && s.cve_claimed_count > count)
 					? s.cve_claimed_count : null,
 				severity_counts: normSeverityCounts(s.severity_counts),
-				notable: normNotable(s.notable),
+				/* Ids, not copies. The security column renders the tool's own
+				 * items, looked up by the id the validator assigned, so the
+				 * column and the item list below it cannot say different
+				 * things about one change — which is exactly what
+				 * `security.notable[]` and `headliners[]` did. */
+				display_item_ids: Array.isArray(s.display_item_ids)
+					? s.display_item_ids.filter(x => typeof x === 'string') : [],
 			};
 		}
 
@@ -3193,15 +3205,18 @@
 			</div>`;
 		}
 
-		/* ── Content grouping: headliners[] + relevancy[] → 4 groups ──────
-		 * Security / Fixes / Features / Notes. Each item already carries its
-		 * own explicit `category` (topic) and `severity` (urgency) from
-		 * research (references/schemas.md §Report Object) — the page does no classification of its
-		 * own. Groups are purely organizational containers; only items are
-		 * colored, by severity (references/rendering-report.md §Page Layout). This replaced an earlier client-side
-		 * keyword-heuristic classifier that conflated topic with urgency
-		 * (a low-profile security item would get bucketed into Notes by the
-		 * same signal that was supposed to be its severity, not its topic). */
+		/* ── Content grouping: items[] → 4 groups ─────────────────────────
+		 * Security / Fixes / Features / Notes. Each item carries its own
+		 * `tags` (topic, a closed set of eight) and `severity` (urgency) from
+		 * the checker — the page does no classification of its own. The group
+		 * is DERIVED from the tags, by the same map the contract publishes
+		 * (`items.GROUP_OF_TAG`, contract.json `groups.of_tag`), so one item
+		 * appears exactly once. That is the whole point of the item model: the
+		 * old headliners/relevancy/notable split wrote one change into three
+		 * arrays with three severities implied.
+		 *
+		 * Groups are purely organizational containers; only items are colored,
+		 * by severity (references/rendering-report.md §Page Layout). */
 		const CATEGORY_ORDER = ['security', 'fixes', 'features', 'notes'];
 		const CATEGORY_META = {
 			security: { label: 'Security' },
@@ -3210,6 +3225,21 @@
 			notes:    { label: 'Notes' },
 		};
 		const SEV_ICON = { incompatible: '⛔', warning: '⚠', notable: '●', info: '·' };
+
+		/* Tag → content group, and the precedence when an item carries tags
+		 * from more than one. Mirrors `items.GROUP_OF_TAG` /
+		 * `items.GROUP_PRECEDENCE` exactly; a disagreement would file an item
+		 * under a different heading here than the report says it is in.
+		 * An unrecognised tag contributes nothing (the validator kept it on the
+		 * item and reported E-TAG-UNKNOWN); an item with no recognised tag
+		 * falls to `notes` for rendering only, having already raised
+		 * E-TAG-NONE. */
+		const GROUP_OF_TAG = {
+			security: 'security',
+			breaking: 'fixes', deprecation: 'fixes', fix: 'fixes',
+			feature: 'features', perf: 'features',
+			packaging: 'notes', chore: 'notes',
+		};
 
 		/* Sources that carry findings rather than version deltas
 		 * (references/rendering-report.md §Brew-Health Rendering and
@@ -3249,10 +3279,6 @@
 				: (HEALTH_LABEL[tool.health_category] || 'environment health');
 		}
 
-		function normalizeCategory(cat) {
-			return CATEGORY_ORDER.includes(cat) ? cat : 'notes';
-		}
-
 		function normalizeSeverity(sev) {
 			return SEV_ORDER[sev] !== undefined ? sev : 'info';
 		}
@@ -3283,78 +3309,156 @@
 			return links[0];
 		}
 
+		/* The one group this item renders under. */
+		function primaryGroup(item) {
+			const present = new Set();
+			for (const tag of tagsOf(item)) {
+				const g = GROUP_OF_TAG[tag];
+				if (g) present.add(g);
+			}
+			for (const g of CATEGORY_ORDER) if (present.has(g)) return g;
+			return 'notes';
+		}
+
+		/* Group-by, and nothing else. `items[]` arrives in the canonical order
+		 * (`items.order_items`: group, then severity worst-first, then
+		 * direction, then effect, then id) so a stable group-by reproduces
+		 * that order exactly — the page must not re-sort, or two renders of
+		 * one report could differ. The `sevRank + 0.5` hack that settled a
+		 * headliner "just below a relevancy item of the same severity" is gone
+		 * with the two arrays it arbitrated between: there is nothing left to
+		 * tie-break. */
 		function buildContentGroups(tool) {
 			const groups = { security: [], fixes: [], features: [], notes: [] };
-
-			(tool.relevancy || []).forEach(r => {
-				groups[normalizeCategory(r.category)].push({
-					title: r.summary,
-					desc: r.detail || '',
-					evidence: r.evidence || [],
-					motivating: r.motivating_change || '',
-					severity: normalizeSeverity(r.severity),
-					sevRank: SEV_ORDER[normalizeSeverity(r.severity)],
-				});
-			});
-
-			(tool.headliners || []).forEach(h => {
-				/* Defensive: tolerate an older/malformed bare-string headliner
-				 * rather than crashing the whole render. */
-				const item = typeof h === 'string' ? { text: h } : (h || {});
-				groups[normalizeCategory(item.category)].push({
-					title: item.text || '',
-					desc: '',
-					evidence: [],
-					motivating: '',
-					severity: normalizeSeverity(item.severity),
-					sevRank: SEV_ORDER[normalizeSeverity(item.severity)] + 0.5, /* settles just below a relevancy item of the same severity */
-				});
-			});
-
-			CATEGORY_ORDER.forEach(cat => groups[cat].sort((a, b) => a.sevRank - b.sevRank));
+			for (const item of itemsOf(tool)) groups[primaryGroup(item)].push(item);
 			return groups;
 		}
 
 		/* Shared "Evidence: file:line file:line" markup — used by both
 		 * content-item rendering and the config_status banner below, so a
-		 * tweak to the evidence-list markup only needs to happen once. */
+		 * tweak to the evidence-list markup only needs to happen once.
+		 *
+		 * An evidence entry is an OBJECT now — `{path, lines, note}` — and
+		 * paths only (references/item-schema.md §3). `lines` members are an
+		 * int or a two-element [start, end]. `note` is a short human label the
+		 * validator ignores, so it renders as a tooltip and never as content.
+		 * A malformed entry the validator reported and kept reaches this
+		 * function as whatever it was written as; it renders as its own text
+		 * rather than vanishing, because vanishing is how a bad citation stays
+		 * invisible. */
+		function evidenceLabel(e) {
+			if (typeof e === 'string') return e;
+			if (!e || typeof e !== 'object' || typeof e.path !== 'string') {
+				try { return JSON.stringify(e); } catch (_) { return String(e); }
+			}
+			const lines = Array.isArray(e.lines) ? e.lines : [];
+			const spans = lines.map(l => Array.isArray(l) && l.length === 2
+				? `${l[0]}-${l[1]}` : String(l)).filter(Boolean);
+			return spans.length ? `${e.path}:${spans.join(',')}` : e.path;
+		}
+
 		function renderEvidenceHtml(evidence) {
-			if (!evidence || !evidence.length) return '';
+			if (!Array.isArray(evidence) || !evidence.length) return '';
 			return `<div class="item-evidence"><span class="ev-label">Evidence:</span> ${
-				evidence.map(e => `<span class="evidence-path">${esc(e)}</span>`).join(' ')
+				evidence.map(e => {
+					const title = (e && typeof e === 'object' && typeof e.note === 'string' && e.note)
+						? ` title="${esc(e.note)}"` : '';
+					return `<span class="evidence-path"${title}>${esc(evidenceLabel(e))}</span>`;
+				}).join(' ')
 			}</div>`;
+		}
+
+		/* `local.citations[]` and `change.citation` — prose, deliberately kept
+		 * apart from evidence. A citation is not checkable, so the validator
+		 * never resolves one against the filesystem and never fetches a URL;
+		 * splitting the two fields is what took 272 "evidence not found"
+		 * warnings down to single digits. */
+		function renderCitationsHtml(citations) {
+			if (!Array.isArray(citations) || !citations.length) return '';
+			const rows = citations
+				.filter(c => c && typeof c === 'object' && typeof c.text === 'string' && c.text.trim())
+				.map(c => {
+					const kind = typeof c.kind === 'string' ? c.kind : 'citation';
+					const text = esc(c.text.trim());
+					const body = (typeof c.url === 'string' && /^https?:\/\//.test(c.url))
+						? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${text} ↗</a>`
+						: text;
+					return `<div class="item-citation"><span class="ck">${esc(kind)}</span> ${body}</div>`;
+				});
+			return rows.length ? `<div class="item-citations">${rows.join('')}</div>` : '';
 		}
 
 		let contentItemSeq = 0;
 
+		/* The link this item points at. `change.link_index` is the checker's
+		 * own answer and is range-checked by I-8, so it wins outright; only
+		 * when it is absent does the page fall back to guessing from the
+		 * group. */
+		function pickLinkForItem(item, cat, links) {
+			const change = changeOf(item);
+			const idx = change ? change.link_index : null;
+			if (Number.isInteger(idx) && links && idx >= 0 && idx < links.length) return links[idx];
+			return pickLinkForCategory(links, cat, `${item.title || ''} ${item.body || ''}`);
+		}
+
 		/* Per-item detail collapse (references/rendering-report.md §Page Layout): an item with real secondary detail
 		 * shows only its title by default; one with nothing beyond the
-		 * title gets no expand control at all. */
+		 * title gets no expand control at all.
+		 *
+		 * `title` is the fact at a glance and `body` is everything that did
+		 * not fit (references/item-schema.md §2.1) — the split that took the
+		 * default surface down from a 142-character median. The title is
+		 * NEVER truncated here: an over-long one is a reported data defect
+		 * (W-TITLE-LONG), and clamping it in CSS would hide the defect rather
+		 * than fix it. */
 		function renderContentItem(item, cat, links) {
 			const id = `ci-${++contentItemSeq}`;
-			const evidenceHtml = renderEvidenceHtml(item.evidence);
-			const motivatingHtml = item.motivating
-				? `<div class="item-motivating">${esc(item.motivating)}</div>`
+			const severity = normalizeSeverity(item.severity);
+			const local = localOf(item);
+			const change = changeOf(item);
+			const evidence = local && Array.isArray(local.evidence) ? local.evidence : [];
+			const citations = local && Array.isArray(local.citations) ? local.citations : [];
+			const statement = local && typeof local.statement === 'string' ? local.statement : '';
+			const body = typeof item.body === 'string' ? item.body : '';
+			const motivating = change && typeof change.citation === 'string' ? change.citation : '';
+
+			const evidenceHtml = renderEvidenceHtml(evidence);
+			const citationsHtml = renderCitationsHtml(citations);
+			const statementHtml = statement ? `<div class="item-statement">${esc(statement)}</div>` : '';
+			const motivatingHtml = motivating
+				? `<div class="item-motivating">${esc(motivating)}</div>`
 				: '';
-			const link = pickLinkForCategory(links, cat, `${item.title} ${item.desc}`);
+			/* The primary tag already chose this item's group, so only the
+			 * others are worth a line — an item is `security` + `packaging`,
+			 * not "security" twice. An unrecognised tag shows too: the
+			 * validator kept it deliberately, and hiding it here would undo
+			 * that. */
+			const extraTags = tagsOf(item).filter(t => GROUP_OF_TAG[t] !== cat);
+			const tagsHtml = extraTags.length
+				? `<div class="item-tags">Also tagged: ${esc(extraTags.join(', '))}</div>`
+				: '';
+			const link = pickLinkForItem(item, cat, links);
 			const refHtml = link ? `<div class="item-ref">→ ${renderLinkAnchor(link, `${esc(link.type)}: ${esc(link.label)} ↗`)}</div>` : '';
 			/* hasExtra must also account for a picked ref link (references/rendering-report.md §Page Layout: expanding
-			 * "reveals the rest, evidence, and per-item link") — a headliner
-			 * item never carries desc/evidence/motivating (only relevancy
-			 * items do), so without this a headliner with a real link picked
-			 * would render no expand control at all, permanently hiding that
-			 * link behind CSS that gates .item-ref on data-expanded="1" with
-			 * no way to ever set it. */
-			const hasExtra = !!(item.desc || (item.evidence && item.evidence.length) || item.motivating || link);
+			 * "reveals the rest, evidence, and per-item link") — an item with
+			 * no body and no local block still gets a link picked for it, so
+			 * without this it would render no expand control at all,
+			 * permanently hiding that link behind CSS that gates .item-ref on
+			 * data-expanded="1" with no way to ever set it. */
+			const hasExtra = !!(body || statement || evidence.length || citations.length
+				|| motivating || extraTags.length || link);
 			return `
-			<div class="content-item sev-${item.severity}" id="${id}" data-expanded="0">
+			<div class="content-item sev-${severity}" id="${id}" data-expanded="0">
 				<div class="content-item-title${hasExtra ? ' has-expand' : ''}" ${hasExtra ? `onclick="toggleContentItem('${id}')"` : ''}>
-					<span class="content-item-icon">${SEV_ICON[item.severity]}</span>${esc(item.title)}
+					<span class="content-item-icon">${SEV_ICON[severity]}</span>${esc(item.title || '')}
 					${hasExtra ? `<span class="content-item-expand">▸ more</span>` : ''}
 				</div>
-				${item.desc ? `<div class="content-item-desc">${esc(item.desc)}</div>` : ''}
+				${body ? `<div class="content-item-desc">${esc(body)}</div>` : ''}
+				${statementHtml}
 				${evidenceHtml}
+				${citationsHtml}
 				${motivatingHtml}
+				${tagsHtml}
 				${refHtml}
 			</div>`;
 		}
@@ -3400,37 +3504,6 @@
 				${detail}
 			</div>`;
 			}).join('');
-		}
-
-		/* ── Context section (references/schemas.md §Report Object context[]; references/rendering-report.md §Page Layout) — whole-item collapse,
-		 * starts collapsed to title only. ─────────────────────────────────── */
-		function renderContextSection(tool) {
-			const items = tool.context || [];
-			if (!items.length) return '';
-			return `
-			<div class="context-section">
-				<div class="section-label">Context</div>
-				${items.map((c, i) => {
-					const id = `ctx-${contentItemSeq}-${i}`;
-					const evidenceHtml = renderEvidenceHtml(c.evidence);
-					const linkHtml = c.link ? `<div class="item-ref">→ ${renderLinkAnchor(c.link, `${esc(c.link.label || c.link.type || 'link')} ↗`)}</div>` : '';
-					return `
-				<div class="context-item" id="${id}" data-expanded="0">
-					<div class="context-item-title" onclick="toggleContextItem('${id}')">${esc(c.title)}</div>
-					<div class="context-item-body">
-						${c.detail ? `<div>${esc(c.detail)}</div>` : ''}
-						${evidenceHtml}
-						${linkHtml}
-					</div>
-				</div>`;
-				}).join('')}
-			</div>`;
-		}
-
-		function toggleContextItem(id) {
-			const el = document.getElementById(id);
-			if (!el) return;
-			el.dataset.expanded = el.dataset.expanded === '1' ? '0' : '1';
 		}
 
 		/* ── Release inventory (references/schemas.md §Report Object release_inventory[]; references/rendering-report.md §Page Layout) — short list,
@@ -3519,11 +3592,7 @@
 
 		function renderSeverityTierBadges(tool) {
 			const counts = { incompatible: 0, warning: 0, notable: 0, info: 0 };
-			(tool.relevancy || []).forEach(r => { counts[normalizeSeverity(r.severity)]++; });
-			(tool.headliners || []).forEach(h => {
-				const item = typeof h === 'string' ? {} : (h || {});
-				counts[normalizeSeverity(item.severity)]++;
-			});
+			itemsOf(tool).forEach(i => { counts[normalizeSeverity(i.severity)]++; });
 			const parts = ['incompatible', 'warning', 'notable', 'info']
 				.filter(t => counts[t] > 0)
 				.map(t => `<span class="tier-${t}">${SEV_ICON[t]}${counts[t]}</span>`);
@@ -3531,24 +3600,15 @@
 		}
 
 		function renderTool(tool) {
-			let sev = maxSeverity(tool);
-			/* Findings carry their severity on headliners, not relevancy
-			 * (which stays empty), so maxSeverity() returns '' for them —
-			 * derive data-max-severity from the headliners instead, or the
-			 * severity dropdown and "relevant only" filters would hide a real
-			 * warning-severity health or drift card. Normal tools are
-			 * unchanged. */
-			if (!sev && isNonVersion(tool)) {
-				let best = 99;
-				for (const h of (tool.headliners || [])) {
-					const o = SEV_ORDER[h.severity] ?? 99;
-					if (o < best) { best = o; sev = h.severity; }
-				}
-			}
+			/* One derivation, no per-source special case. A brew-health or
+			 * skill-drift finding carries a synthesized item with a `local`
+			 * block, so maxSeverity() sees it the same way it sees a checker's
+			 * own finding — the "findings carry their severity on headliners,
+			 * not relevancy" workaround died with the two arrays. */
+			const sev = maxSeverity(tool);
 
 			const groupsHtml = renderContentGroups(tool);
 			const configBannerHtml = renderConfigStatusBanner(tool);
-			const contextHtml = renderContextSection(tool);
 			const releaseInventoryHtml = renderReleaseInventory(tool);
 
 			/* Research error note */
@@ -3616,7 +3676,6 @@
 			<div class="tool-body">
 				${configBannerHtml}
 				${groupsHtml}
-				${contextHtml}
 				${releaseInventoryHtml}
 				${researchErrorHtml}
 				${suggestionsHtml}
@@ -3955,41 +4014,52 @@
 		 * Summary lines only — the per-CVE prose lives in the tool section,
 		 * one click away. These need confirming, not reading.
 		 *
-		 * The security column renders `security.notable[]` and nothing else:
-		 * the two or three items that could actually change a decision, not
-		 * every security sentence the run produced. Everything it leaves out
-		 * is still reachable, in place, in the collapsed detail below the
-		 * columns. */
-		function notableItems(sec, tool) {
-			if (Array.isArray(sec.notable)) {
-				/* `affects_me` first, then worst severity — assembly's own key
-				 * (references/schemas.md §1.9), because assembly both orders and
-				 * *evicts* by it and this list is what survived. An item with a
-				 * concrete touchpoint here is never pushed down the card by a
-				 * higher-rated one that misses this machine. Array order is the
-				 * last key, and since assembly's remaining keys only refine these
-				 * two, it reproduces assembly's order exactly rather than
-				 * approximating it — so the order is total and two renders of one
-				 * report cannot differ. */
-				return sec.notable
-					.map((n, i) => ({ n, i }))
-					.sort((a, b) =>
-						(Number(!!b.n.affects_me) - Number(!!a.n.affects_me))
-						|| ((NOTABLE_RANK[a.n.severity] ?? 9) - (NOTABLE_RANK[b.n.severity] ?? 9))
-						|| (a.i - b.i))
-					.slice(0, 3)
-					.map(x => ({
-						text: x.n.summary,
-						cve: x.n.cve_id,
-						severity: NOTABLE_SEV[x.n.severity] || 'info',
-						mine: x.n.affects_me,
-					}));
+		 * The security column renders the items `security.display_item_ids`
+		 * names and nothing else: the ones that could actually change a
+		 * decision, not every security sentence the run produced. Everything
+		 * it leaves out is still reachable, in place, in the collapsed detail
+		 * below the columns. */
+
+		/* One item → one line on a card. The display class prefers the CVE
+		 * rating (what the issuer said) and falls back to the item's own
+		 * severity (what it means here) — two vocabularies, one icon table,
+		 * exactly as before. */
+		function securityLine(item) {
+			const sec = itemSecurityOf(item) || {};
+			const local = localOf(item);
+			const rating = NOTABLE_SEV[sec.rating] ? sec.rating : null;
+			let cve = typeof sec.cve_id === 'string' ? sec.cve_id.trim() : '';
+			if (!cve && item.anchor && typeof item.anchor === 'object'
+				&& item.anchor.kind === 'cve' && typeof item.anchor.value === 'string') {
+				cve = item.anchor.value.trim();
 			}
-			/* No notable[] at all — a report from an older assembly. Fall
-			 * back to the derivation this column used before, capped the same
-			 * way. The card's shape does not change; only its source does. */
-			return buildContentGroups(tool).security.slice(0, 3).map(i =>
-				({ text: i.title, cve: '', severity: i.severity, mine: false }));
+			return {
+				text: typeof item.title === 'string' ? item.title : '',
+				cve: cve.slice(0, 40),
+				severity: NOTABLE_SEV[rating || normalizeSeverity(item.severity)] || 'info',
+				/* The successor to `affects_me`, and it is now derived rather
+				 * than declared: `direction` says whether the change lands on
+				 * something this setup runs, and the checker had to answer it
+				 * before the selection bar could read it. */
+				mine: !!(local && local.direction === 'reaches'),
+			};
+		}
+
+		/* Rendered in the order assembly emitted, which is the contract's
+		 * `security_display_sort_key` — rating first, then exploited-in-wild,
+		 * then whether it reaches us, then severity, then id. That order is
+		 * TOTAL, so following it reproduces the report exactly; re-deriving it
+		 * here is how the page and the report came to disagree before.
+		 * There is no cap: the selection is a bar, not a count
+		 * (references/item-schema.md §7). The card caps what it draws, in
+		 * mixColHtml(), and says how many it left. */
+		function securityDisplayItems(sec, tool) {
+			const byId = new Map(itemsOf(tool).filter(i => typeof i.id === 'string')
+				.map(i => [i.id, i]));
+			return (sec.display_item_ids || [])
+				.map(id => byId.get(id))
+				.filter(Boolean)
+				.map(securityLine);
 		}
 
 		function itemLineHtml(i) {
@@ -4129,16 +4199,15 @@
 		 * contract does guarantee (references/schemas.md §1.8/§1.9). */
 		const IMPACT_RANK = { possible: 0, unknown: 1, none: 2 };
 
-		/* Worst severity among the tool's security-category items — the same
-		 * items the card's left column shows, so the ranking matches what the
-		 * reader sees. Lower is worse. buildContentGroups() already sorts each
-		 * group worst-first; its half-step for headliners is floored away so
-		 * this stays exactly "max severity" and the CVE count breaks the tie.
-		 * A tool with no security item at all ranks below `info` rather than
-		 * tying with it. */
+		/* Worst severity among the tool's security-group items — the same
+		 * items the card's left column draws from, so the ranking matches what
+		 * the reader sees. Lower is worse. `items[]` arrives in canonical
+		 * order, which is severity worst-first inside a group, so the first
+		 * one is the worst; the CVE count breaks the tie. A tool with no
+		 * security item at all ranks below `info` rather than tying with it. */
 		function securitySeverityRank(tool) {
 			const items = buildContentGroups(tool).security;
-			return items.length ? Math.floor(items[0].sevRank) : 99;
+			return items.length ? (SEV_ORDER[normalizeSeverity(items[0].severity)] ?? 99) : 99;
 		}
 
 		function compareMixedTools(a, b) {
@@ -4156,21 +4225,19 @@
 			const silent = new Set(tool.vendor_silent_categories || []);
 			const secSilent = silent.has('security');
 
-			/* Left column: notable[] only. */
-			const secItems = notableItems(sec, tool);
+			/* Left column: the selected security items only. */
+			const secItems = securityDisplayItems(sec, tool);
 
-			/* Right column: every non-security item, relevancy first — they
-			 * are about *this machine*. */
-			const othItems = [];
-			(tool.relevancy || []).forEach(r => {
-				if (normalizeCategory(r.category) === 'security') return;
-				othItems.push({ text: r.summary, severity: normalizeSeverity(r.severity) });
-			});
-			(tool.headliners || []).forEach(h => {
-				const raw = typeof h === 'string' ? { text: h } : (h || {});
-				if (normalizeCategory(raw.category) === 'security') return;
-				othItems.push({ text: raw.text || '', severity: normalizeSeverity(raw.severity) });
-			});
+			/* Right column: every non-security item, in canonical order — which
+			 * already puts the ones that reach this machine first inside each
+			 * severity tier, so the old "relevancy first" pass is what the
+			 * ordering does for free. */
+			const othItems = itemsOf(tool)
+				.filter(i => primaryGroup(i) !== 'security')
+				.map(i => ({
+					text: typeof i.title === 'string' ? i.title : '',
+					severity: normalizeSeverity(i.severity),
+				}));
 
 			/* The single-column variant. Nothing was judged notable, so there
 			 * is no security column to draw — and an empty one would be a
@@ -4193,17 +4260,13 @@
 			 * report — so the clamp is routinely eating real text. The CSS
 			 * comment on that clamp promises the full text is "one click away
 			 * in place, in the detail below"; this is the line that makes the
-			 * promise true. The detail therefore renders *these* lines —
-			 * notable[] summaries, chips and all — and not a parallel list
-			 * built from buildContentGroups(), which is what it used to
-			 * render and which shares no entry with notable[] in general.
-			 * Security items the left column had no room for are appended,
-			 * matched on text so the fallback derivation (where the two lists
-			 * *are* the same items) does not print everything twice. */
-			const shownText = new Set(secItems.map(i => i.text));
+			 * promise true. The detail therefore renders *these* lines — the
+			 * selected items, chips and all — and then every other security
+			 * item on the tool. Both sides are now the same objects, so the
+			 * de-duplication is on the item id rather than on prose. */
+			const shownIds = new Set((sec.display_item_ids || []));
 			const detailLines = secItems.concat(
-				allSecItems.filter(i => !shownText.has(i.title)).map(i =>
-					({ text: i.title, cve: '', severity: i.severity, mine: false })));
+				allSecItems.filter(i => !shownIds.has(i.id)).map(securityLine));
 
 			const sug = baselineSuggestion(tool);
 			const extras = ((tool.suggestions || []).length) - (sug ? 1 : 0);
@@ -4517,21 +4580,11 @@
 				secSection + hlSection + elseSection;
 		}
 
-		/* Findings carry their severity on headliners rather than relevancy
-		 * (which stays empty) — the same derivation renderTool() applies for
-		 * data-max-severity. Only used for the finding bands' rows, where a
-		 * headliner is always synthesized. */
+		/* The finding bands' rows. maxSeverity() already covers the finding
+		 * sources — their one item is synthesized with a `local` block — so
+		 * this is the same derivation with a floor, not a second one. */
 		function findingRowSeverity(tool) {
-			let sev = maxSeverity(tool);
-			if (!sev) {
-				let best = 99;
-				for (const h of (tool.headliners || [])) {
-					const raw = typeof h === 'string' ? {} : (h || {});
-					const o = SEV_ORDER[raw.severity] ?? 99;
-					if (o < best) { best = o; sev = raw.severity; }
-				}
-			}
-			return sev || 'info';
+			return maxSeverity(tool) || 'info';
 		}
 
 		/* ── Decision state: one source of truth ────────────────────────────
