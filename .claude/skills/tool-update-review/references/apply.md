@@ -237,20 +237,165 @@ session to run anything itself:
    checkbox near Submit, **defaults to `true`** — an explicit user
    directive).
 
-**Not auto-runnable** (`auto_runnable: false`, or the toggle off): print the
+### Pinning the reviewed version (WP5/I2)
+
+**An applied upgrade must install `target_version` — the version that was
+reviewed — never whatever a package manager considers "latest" at apply
+time.** A review that approves 1.2.3 and installs 1.4.0 has approved
+nothing. **This is backstopped, not just documented**: `write_status.py
+set-action ... done` refuses the transition — leaving the action exactly
+as it was, nothing written — for any suggestion carrying a `target_version`
+on a check_pin.py-checkable source (brew/cask/mise —
+`assemble.PIN_CHECKABLE_SOURCES`) unless a matching `scripts/check_pin.py
+verify` result was already recorded onto that action via `record-pin-check`
+(below). **Be precise about what this is: a guardrail against a forgotten
+step, not a boundary against a dishonest caller.** The recorded result is
+whatever JSON the session hands `record-pin-check` — nothing in this skill
+re-runs `check_pin.py` itself to confirm a result file is genuine, and
+`record-pin-check` validates *shape* (§record-pin-check validation below),
+not *truth*. What it reliably catches is the actual failure mode this
+package was built for: a step silently skipped, a stale result reused, or
+a preflight filed as a verify (`phase` mismatch, same section) — not a
+session that deliberately fabricates a passing result. Never present this
+gate to a user as proof an upgrade is safe; it is proof the documented
+steps were actually run.
+
+**Every tool's *baseline* `{source}:{name}:upgrade` suggestion** — not
+every `kind: "upgrade"` suggestion generally — carries `target_version`
+(`references/schemas.md` §1.6) and `version_pinned`.
+A `brew-health` `:remediate` and a `skill-drift` `:sync` suggestion are
+*also* `kind: "upgrade"` (`references/assembly.md` §Baseline Suggestion
+Synthesis) but are never the baseline and never carry these fields —
+`record-pin-check`/the gate above key off whether `target_version` is
+present on the specific suggestion, never off `kind` alone, so a
+remediation or a sync is never mistaken for a pinnable upgrade.
+`scripts/check_pin.py` is the mechanism that holds the guarantee itself —
+not a rule re-derived by prose each run:
+
+**Branch on the suggestion's own `version_pinned`, never on `source` —**
+mise is `version_pinned: true` in the common case, but `false` whenever
+`name` already contains `@` (assemble.py's `upgrade_command_and_runnable`
+refuses to pin a shape it has not established is well-formed), and that
+mise-but-unpinned suggestion needs exactly the same preflight brew/cask
+get, not the mise shortcut:
+
+- **`version_pinned: true`**: `command` already pins the exact version as a
+  CLI argument (`mise upgrade {name}@{target_version}` — confirmed against
+  upstream mise docs, which rewrite the version-specific request rather
+  than "upgrade within range"). Nothing upstream can drift out from under
+  an argument, so there is no preflight query needed — but still run
+  `scripts/check_pin.py preflight --source mise --name {name}
+  --target-version {target_version} --pinned` (the `--pinned` flag is what
+  tells `check_pin.py` to take the trivial-match shortcut instead of
+  querying `mise outdated` — omitting it here would run a real, harmless
+  query, but passing it wrong the other way, on an unpinned suggestion,
+  would wrongly skip one) and record it, then go straight to running
+  `command`.
+- **`version_pinned: false`** (brew, cask, or a mise suggestion whose `name`
+  blocked pinning): the resolved `command` always resolves to whatever the
+  tap/mise currently calls latest — brew has no general
+  `brew install name@version` for an arbitrary formula/cask, and an
+  unpinned mise command has no version argument at all. **Run
+  `scripts/check_pin.py preflight --source {source} --name {name}
+  --target-version {target_version}` before running `command` at all**
+  (no `--pinned`) — read-only, makes no changes — then record it:
+  `scripts/write_status.py record-pin-check {session_dir} {action_id}
+  preflight <result-file>` (the check's own JSON stdout, saved to a file
+  first):
+  - exit `0` (match) — the tap/mise still resolves to `target_version`;
+    proceed.
+  - exit `1` (mismatch) or `2` (indeterminate — formula/cask renamed,
+    removed from its tap, moved, or an unresolvable mise id) — **refuse.**
+    Do not run `command`. Mark the action `"failed"`, with the tool's
+    `reason` string (from `check_pin.py`'s JSON output) as the note: it
+    already names both the reviewed version and what actually resolves
+    now, and tells the human to re-run the review or install manually.
+    This is the answer to "the reviewed version is no longer available" —
+    loud and specific, never a silent upgrade to whatever replaced it.
+- **After `command` actually runs** (either path, auto or manual — see
+  below), **run `scripts/check_pin.py verify --source {source} --name
+  {name} --target-version {target_version}`, then `scripts/write_status.py
+  record-pin-check {session_dir} {action_id} verify <result-file>`** before
+  attempting `set-action ... done` at all — the gate above refuses that
+  transition without it. Exit `1`/`2` from `check_pin.py verify` means the
+  installed version is not the one that was reviewed — most likely a race
+  where a new release landed in the (usually brief) window between preflight
+  and the command finishing, or, for a pinned brew formula, the command was
+  silently a no-op. **Mark the action `"failed"` with `check_pin.py`'s
+  `reason`, never attempt `"done"`** — an upgrade that ran but landed on an
+  unreviewed version is exactly the defect this whole mechanism exists to
+  catch, and running is not itself proof it reached the right place; the
+  gate would refuse the attempt anyway, but fail it deliberately rather than
+  letting the refusal be the first sign something is wrong.
+- **A baseline with no `target_version` at all** (`null`) means collection
+  could not determine a `latest_version` for this tool — assembly already
+  forces `auto_runnable: false` and a `manual_reason` explaining this
+  (`references/assembly.md` §Baseline Suggestion Synthesis) rather than
+  leaving a suggestion `check_pin.py verify` could never match. Treat it
+  like any other manual-only baseline: print the reason, do not attempt to
+  run or pin it, and it never reaches the `write_status.py` gate above
+  either (no `target_version` ⇒ not gated — see `record-pin-check`'s
+  docstring).
+- `standalone` and `macos` never reach either check — both are always
+  `auto_runnable: false` (`upgrade_command_and_runnable`), so they only ever
+  go through the manual polling path below, which verifies them its own way
+  (there is no single canonical `--version` output format to build a generic
+  parser against, unlike brew/mise), and `write_status.py`'s gate does not
+  apply to them either (`assemble.PIN_CHECKABLE_SOURCES` excludes both).
+
+#### `record-pin-check` validation and the phase mismatch it refuses
+
+A preflight and a verify can produce identical-looking JSON for the same
+tool at the same version — both are just "does X equal target_version". If
+`record-pin-check` trusted the phase named on its own command line, filing
+a saved *preflight* result under `verify` (by mistake, or because the
+upgrade was never actually run) would still open the `"done"` gate: nothing
+about the JSON itself would say otherwise. So `check_pin.py`'s `emit()`
+stamps `phase` and `checked_at` into the result **itself**, not left for
+whoever saves the file to assert — and `record-pin-check {session_dir}
+{action_id} {phase} <result-file>` refuses to file a result whose own
+`"phase"` disagrees with the `{phase}` argument it is being recorded under.
+It also validates the file's shape before writing anything — `source` in
+`assemble.PIN_CHECKABLE_SOURCES`, `name` a non-empty string, `match` a
+bool, and `target_version`/`observed_version`/`reason` each a string or
+`null` — and refuses (loudly, nothing written) rather than store a
+hand-built or truncated object that only fails later, silently, when the
+gate's own field reads come back `None`. This closes a mistake, not an
+attack: see the guardrail note at the top of this section for what the
+mechanism does and does not prove.
+
+### Executing the command
+
+**Not auto-runnable** (`auto_runnable: false`, or the toggle off): if the
+suggestion is `version_pinned: false` on a check_pin.py-checkable source
+(brew, cask, or an unpinned mise id), run the preflight check above
+**before** telling the user anything — a stale `command` that would install
+a different version than was reviewed shouldn't be handed to a human to run
+either. If it refuses, say so instead of printing the command. Otherwise print the
 suggestion's `command` and ask the user to run it themselves, then poll for
-completion by checking the installed version every ~30s (`mise current
-<tool>` for mise, `brew list --versions <name>` for brew/cask, `<tool>
---version` for standalone). Once the installed version reaches
-`latest_version`, mark `"done"` with the confirmed version. **Cap polling at
+completion every ~30s: `scripts/check_pin.py verify` for brew/cask/mise,
+**recording each attempt with `record-pin-check` as described above** (same
+exact-match semantics as above — **reaching a version is not enough; it
+must be `target_version` exactly**, and a strictly newer version counts
+as a mismatch, not a success), `<tool> --version` compared against
+`target_version` for standalone — standalone has no `check_pin.py` support
+and is not gated by `write_status.py`, so this comparison stays a judgment
+call rather than a recorded, enforced one. Once verify reports a match,
+mark `"done"` with the confirmed version; on a persistent mismatch use the
+same `"failed"`-with-`reason` handling as the auto-run path. **Cap polling at
 ~20 minutes** — past that, leave the action `"running"` with a reminder note
 rather than blocking the rest of the session; it can complete later and
 Finish is still available. This loop assumes an installed version exists to
 poll for; a `skill-drift` sync has none and is confirmed a different way
 (§Skill-Drift Remediation).
 
-**Auto-runnable and toggle on**: run `command` directly — plain subprocess
-for `needs_sudo: false`. For `needs_sudo: true`:
+**Auto-runnable and toggle on**: preflight-check and record it first as
+described above (pass `--pinned` when `version_pinned: true` — this is the
+one case, mise with a plain tool id, where the check is a trivial recorded
+match rather than a real query; every other `version_pinned: false`
+suggestion, mise included, gets the real one); refuse before running
+anything if it mismatches. Otherwise run `command`
+directly — plain subprocess for `needs_sudo: false`. For `needs_sudo: true`:
 
 - The **session** (the orchestrating Claude Code agent, in-conversation —
   never `server.py`, which never executes suggestions) is what runs the
@@ -280,8 +425,9 @@ for `needs_sudo: false`. For `needs_sudo: true`:
 - Never persist, cache, log, or extend-timestamp any credential. No
   `NOPASSWD` sudoers edits, no `sudo -v` timestamp tricks. Each privileged
   command gets its own fresh native prompt.
-- Same "poll to confirm the version landed" verification either way —
-  running the command isn't itself proof it worked.
+- Same `scripts/check_pin.py verify` check either way (§Pinning the
+  reviewed version above) — running the command isn't itself proof it
+  landed on the version that was reviewed.
 
 **`auto_run_upgrades` defaults and overrides**: the toggle defaults to
 `true` (explicit user directive), but two things always override it toward

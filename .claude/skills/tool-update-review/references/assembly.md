@@ -933,17 +933,43 @@ actually triggers at apply time (the askpass mechanism).
 ## `auto_runnable` / Command Per Source
 
 The baseline suggestion's `command` and `auto_runnable` default are also
-source-driven:
+source-driven, and so — WP5/I2 — is whether `command` pins the exact
+version that was reviewed (`target_version`, §1.6) or apply has to check
+for drift separately (`version_pinned`; `references/apply.md` §Pinning the
+reviewed version):
 
-| Source | Command | `auto_runnable` |
-|---|---|---|
-| `brew` | `brew upgrade {name}` | `true` |
-| `cask` | `brew upgrade --cask {name}` | `true` |
-| `mise` | `mise upgrade {name}` | `true` |
-| `standalone` | none | `false` — no generic upgrade command exists; check the tool's own docs |
-| `macos` | none | `false` — install via System Settings or `softwareupdate -i`, never auto-run by this skill |
-| `skill-drift` | none | `false` — vendored-skill sync is always manual (§Skill-Drift Assembly) |
-| unknown | none | `false` |
+| Source | Command | `auto_runnable` | `version_pinned` |
+|---|---|---|---|
+| `brew` | `brew upgrade {name}` | `true` | `false` — no general `brew install name@version` |
+| `cask` | `brew upgrade --cask {name}` | `true` | `false` — same reason |
+| `mise` | `mise upgrade {name}@{target_version}` (or `mise upgrade {name}` if `name` already contains `@`) | `true` | `true` unless `name` already contains `@`, in which case `false` — pinning is refused rather than risking a malformed `name@version@version` command |
+| `standalone` | none | `false` — no generic upgrade command exists; check the tool's own docs | `false` — moot, no command |
+| `macos` | none | `false` — install via System Settings or `softwareupdate -i`, never auto-run by this skill | `false` — moot, no command |
+| `skill-drift` | none | `false` — vendored-skill sync is always manual (§Skill-Drift Assembly) | `false` — moot, no command |
+| unknown | none | `false` | `false` |
+
+`upgrade_command_and_runnable(source, name, version)` takes the tool's
+`latest_version` as `version` and only mise's branch reads it — passing it
+to brew/cask changes nothing about their `command`, which is the point: a
+generic formula/cask upgrade cannot be pinned by argument, so
+`references/apply.md`'s `scripts/check_pin.py` preflight/verify is how
+apply catches drift for them instead. `version` defaults to `None` so a
+pre-assembly caller that only wants `auto_runnable` (`validate_items.py`,
+which runs before a version is finalized) keeps working unchanged and
+never pins by accident.
+
+**`build_tool()` refuses to synthesize a runnable or pinned baseline when
+`tool["latest_version"]` is falsy** — collection degrading per-tool rather
+than aborting (§G1) means a candidate can reach here with no usable
+`latest_version` at all (the same "missing version" shape
+`compute_version_delta` already recognizes for the version-delta axis). In
+that case `command`/`version_pinned` are forced to `None`/`false` and
+`auto_runnable` to `false` regardless of what the source table above says,
+with a `manual_reason` explaining there is nothing to pin or verify
+against. Never leave a suggestion runnable with a target `scripts/check_pin.py
+verify` could never match — that would report every such upgrade as failed
+forever, including ones that landed correctly, which is worse than no
+check at all.
 
 When `auto_runnable` is `false`, a `manual_reason` string is attached
 explaining why — the session always just tells the user what to run for
@@ -968,7 +994,13 @@ Research-authored `edit` suggestions are always additional to this baseline,
 never a replacement for it. The baseline's `rationale` is the fixed string
 "Picks up the changes described in headliners[] above."; its
 `motivating_link` is the tool's first `links[]` entry if one exists, else
-`null`.
+`null`; its `target_version` is `tool["latest_version"]` — the version that
+was reviewed, which `references/apply.md` must install or refuse (WP5/I2,
+§`auto_runnable` / Command Per Source above) — except when collection could
+not determine one at all, in which case `target_version` stays `null` and
+the baseline is forced `auto_runnable: false` rather than left runnable
+with nothing to verify against (§`auto_runnable` / Command Per Source
+above).
 
 **Exception: the two non-version sources get no baseline upgrade
 suggestion** — a `brew-health` or `skill-drift` finding has no version to

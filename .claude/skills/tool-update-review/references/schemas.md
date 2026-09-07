@@ -359,6 +359,9 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			"title":   "Upgrade wireshark-app 3.4.6 → 4.6.6",
 			"target_files": [],                             // always empty for kind "upgrade"
 			"command": "brew upgrade --cask wireshark-app", // what actually runs when accepted (see references/apply.md §Executing Upgrade Suggestions)
+			"target_version": "4.6.6",                      // the reviewed version apply must land on (§1.6, WP5/I2)
+			"version_pinned": false,                        // brew/cask can't pin a version in `command` — apply
+			                                                 // preflight/verify-checks against target_version instead
 			"auto_runnable": true,                          // may the session execute `command` itself? (subject to the
 			                                                 // report-level auto_run_upgrades toggle — see §2 below /
 			                                                 // references/apply.md)
@@ -380,6 +383,8 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			"title":   "Upgrade podman 4.9.3 → 5.5.1",
 			"target_files": [],
 			"command": "brew upgrade podman",
+			"target_version": "5.5.1",
+			"version_pinned": false,
 			"auto_runnable": true,                           // plain package upgrade — normal rules apply
 			"needs_sudo": false,
 			"rationale": "Picks up the changes described in headliners[] above.",
@@ -615,6 +620,49 @@ mechanism.)
   Suggestions) instead of a bare subprocess call. Default to `true` when
   genuinely unsure — assuming `false` and hitting an un-satisfiable
   password prompt is worse than an unnecessary askpass popup.
+- `target_version` (string | null, assembly-computed): the version this
+  suggestion upgrades to — the version that was reviewed, copied from the
+  tool's `latest_version` at assembly time (§1.2). **Apply must install
+  this version, or refuse — never whatever a package manager resolves as
+  latest when the command actually runs** (`references/apply.md` §Pinning
+  the reviewed version, WP5/I2). **Written onto every tool's *baseline*
+  `{source}:{name}:upgrade` suggestion only** (the one `baseline_upgrade()`
+  identifies — §Baseline Suggestion Synthesis below), including
+  manual-only ones (`macos`/`standalone`) — the manual polling step
+  compares against it too. **Not on a `brew-health` `:remediate` or
+  `skill-drift` `:sync` suggestion, even though both are also
+  `kind: "upgrade"`**: their `id` never ends `:upgrade`, so they are not
+  the baseline `baseline_upgrade()` identifies, and assembly's baseline-only
+  synthesis code path (`references/assembly.md` §Baseline Suggestion
+  Synthesis) is the only place that sets this key — key off baseline
+  identity when consuming this field, never off `kind` alone, or a
+  remediation/sync gets treated as a pinnable upgrade it structurally is
+  not. `null` when collection could not determine a `latest_version` at all
+  (§Baseline Suggestion Synthesis) — assembly refuses to synthesize a
+  runnable or pinned command in that case rather than leave apply comparing
+  against nothing.
+- `version_pinned` (bool, assembly-computed): whether `command` itself is
+  guaranteed to install exactly `target_version` if run as-is. Same
+  baseline-only scope as `target_version` above — absent on a
+  `:remediate`/`:sync` suggestion. **`true` only for mise, and only when
+  `name` does not already contain `@`** — `mise upgrade {name}@{target_version}`
+  pins the version as a CLI argument, confirmed against upstream mise docs
+  (`mise upgrade tiny@3.0.1` rewrites the version-specific request, not
+  "upgrade within range"; `mise use -g npm:prettier@3` confirms mise's own
+  qualifier syntax uses `:` for a backend, never `@` in the identifier, so
+  a backend-qualified name like `npm:prettier` still pins normally). If
+  `name` already carries an `@` — a shape mise's own docs never produce
+  today, guarded anyway rather than assumed absent — pinning is refused
+  rather than risking a malformed `name@version@version`-shaped command
+  that would still (wrongly) claim `version_pinned: true`. **`false` for
+  brew and cask** — Homebrew has no general `brew install name@version` for
+  an arbitrary formula/cask, so `brew upgrade`/`brew upgrade --cask` always
+  resolves to whatever the tap currently calls latest;
+  `references/apply.md`'s `scripts/check_pin.py` preflight/verify is how
+  apply catches drift for these instead of pinning the command. `false`
+  (not `null`) when there is no command to run at all
+  (`macos`/`standalone`, or a missing `latest_version`) — moot, but written
+  for the same "never absent" reason as `pre_accept` below.
 - `pre_accept` (bool, assembly-computed): whether this suggestion renders
   already-accepted before the user touches anything. Written onto **every**
   suggestion on every tool (so a consumer never has to distinguish "false"
@@ -1188,7 +1236,42 @@ signal itself.
       // debug comment to or retry from, using the exact same mechanism a
       // followup uses. Absent/empty for actions nothing has been added to
       // yet.
-      "thread": []
+      "thread": [],
+
+      // WP5/I2 (references/apply.md §Pinning the reviewed version): each
+      // present key is one scripts/check_pin.py JSON result, recorded via
+      // `write_status.py record-pin-check {session} {id} {phase}
+      // <result-file>` — not stored verbatim unvalidated: record-pin-check
+      // requires "source"/"name" (non-empty strings), "match" (bool), and
+      // "target_version"/"observed_version"/"reason" (each string or null)
+      // to be present and well-typed, and refuses (nothing written) rather
+      // than store a malformed object a later reader would have to guard
+      // against. It also refuses when the result's own "phase" (stamped by
+      // check_pin.py's emit() at the moment the check ran, never asserted
+      // by the caller) disagrees with the {phase} being recorded under —
+      // closes the one way a preflight result could be filed as a verify,
+      // since the two can otherwise look byte-identical for the same tool
+      // at the same version. `{}` for every action that isn't a
+      // pin-checkable upgrade (the common case). "verify" — not
+      // "preflight" — is what `set-action ... done` reads: it refuses that
+      // transition for any suggestion carrying a target_version on a
+      // check_pin.py-checkable source (assemble.PIN_CHECKABLE_SOURCES —
+      // brew/cask/mise) unless "verify" is present here, its "match" is
+      // `true`, and its "source"/"name"/"target_version" all match the
+      // suggestion's own — so a stale or copy-pasted result from a
+      // different tool, source, or an earlier target_version can never
+      // satisfy it either. This is a guardrail against a forgotten or
+      // misfiled step, not a boundary against a caller that deliberately
+      // fabricates a result — see references/apply.md §Pinning the
+      // reviewed version for that distinction stated plainly.
+      "pin_checks": {
+        "preflight": { "phase": "preflight", "checked_at": "2026-07-04T14:52:05Z",
+          "source": "brew", "name": "podman", "target_version": "5.5.1",
+          "observed_version": "5.5.1", "match": true, "reason": null },
+        "verify": { "phase": "verify", "checked_at": "2026-07-04T14:52:40Z",
+          "source": "brew", "name": "podman", "target_version": "5.5.1",
+          "observed_version": "5.5.1", "match": true, "reason": null }
+      }
     }
     // ... more actions in execution order
   ],
