@@ -12,6 +12,17 @@ hand for every status.json update during apply.
 Subcommands:
   init            <session_dir>                      write the initial status.json from feedback.json + report.json
   set-action      <session_dir> <id> <state> [--note TEXT] [--detail-file FILE] [--thread-turn-file FILE]
+                                                       REFUSES state "done" for a suggestion carrying a
+                                                       target_version on a check_pin.py-checkable source
+                                                       (assemble.PIN_CHECKABLE_SOURCES) unless record-pin-check
+                                                       already recorded a matching "verify" result for it
+                                                       (WP5/I2: references/apply.md §Pinning the reviewed version)
+  record-pin-check <session_dir> <id> {preflight|verify} <result-json-file>   record one scripts/check_pin.py
+                                                           JSON result onto an action's pin_checks{}; the "verify"
+                                                           phase is what set-action's "done" gate above reads.
+                                                           Validates required keys/types and REFUSES (nothing
+                                                           written) when the result's own "phase" disagrees with
+                                                           the {preflight|verify} it is being filed under.
   touch           <session_dir>                       bump written_at only (heartbeat, no other field changes)
   sync-turns      <session_dir>                        merge followup_turns.json into pending_followups[].turns / actions[].thread
   add-followup    <session_dir> <followup-json-file>  append (or replace, by id) a pending_followups entry
@@ -30,6 +41,12 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+
+# Same directory — see check_pin.py's own comment on why this needs no
+# sys.path manipulation. Used only for PIN_CHECKABLE_SOURCES: the "done" gate
+# below must ask the same question check_pin.py's own --source choices ask,
+# from the same single set, not a second hand-typed list that can drift.
+import assemble
 
 
 def now_iso() -> str:
@@ -103,7 +120,7 @@ def cmd_init(args):
 		label = entry[1].get("title", sid)
 		actions.append({
 			"id": sid, "label": label, "decision": decision, "state": state,
-			"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [],
+			"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [], "pin_checks": {},
 		})
 		if decision == "accept":
 			_, sug = entry
@@ -148,7 +165,7 @@ def cmd_init(args):
 			actions.append({
 				"id": f"investigate:{sid}", "label": f"Investigate: {sid} — {dec['comment']}",
 				"decision": None, "state": "pending",
-				"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [],
+				"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [], "pin_checks": {},
 			})
 
 	# Investigation actions — one per tool_comments entry (references/apply.md §Tool Comments and Discuss).
@@ -156,7 +173,7 @@ def cmd_init(args):
 		actions.append({
 			"id": f"investigate:{tool_id}", "label": f"Investigate: {tool_id} — {comment}",
 			"decision": None, "state": "pending",
-			"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [],
+			"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [], "pin_checks": {},
 		})
 
 	# Synthetic commit/push actions — only for repos that will actually get
@@ -164,19 +181,19 @@ def cmd_init(args):
 	if touches_dotfiles:
 		actions.append({"id": "commit:dotfiles", "label": "Commit changes in dotfiles submodule",
 			"decision": None, "state": "pending", "started_at": None, "finished_at": None,
-			"note": None, "detail": [], "thread": []})
+			"note": None, "detail": [], "thread": [], "pin_checks": {}})
 	if touches_dotfiles or touches_macos_setup:
 		actions.append({"id": "commit:macos-setup", "label": "Commit changes in macos-setup",
 			"decision": None, "state": "pending", "started_at": None, "finished_at": None,
-			"note": None, "detail": [], "thread": []})
+			"note": None, "detail": [], "thread": [], "pin_checks": {}})
 	if touches_dotfiles:
 		actions.append({"id": "push:dotfiles", "label": "Push dotfiles to origin",
 			"decision": None, "state": "pending", "started_at": None, "finished_at": None,
-			"note": None, "detail": [], "thread": []})
+			"note": None, "detail": [], "thread": [], "pin_checks": {}})
 	if touches_dotfiles or touches_macos_setup:
 		actions.append({"id": "push:macos-setup", "label": "Push macos-setup to origin",
 			"decision": None, "state": "pending", "started_at": None, "finished_at": None,
-			"note": None, "detail": [], "thread": []})
+			"note": None, "detail": [], "thread": [], "pin_checks": {}})
 
 	status = {
 		"schema_version": 2,
@@ -195,6 +212,65 @@ def cmd_init(args):
 	print(f"Initialized status.json with {len(actions)} actions")
 
 
+# ── pinning the reviewed version (WP5/I2) ─────────────────────────────────
+# Criterion 22 ("an applied upgrade installs the version that was reviewed,
+# or refuses") must be checkable from status.json itself, not merely
+# documented in references/apply.md's prose — a prompt instruction a session
+# skips leaves an artifact indistinguishable from one that followed it. This
+# is the enforcement: "done" is refused, not just discouraged, when the
+# evidence a real scripts/check_pin.py verify ran is missing.
+def _load_suggestion(session_dir: str, action_id: str):
+	"""(tool, suggestion) for this action id from report.json, or (None,
+	None) — a missing/unreadable report.json, or an id naming no suggestion
+	(a synthetic commit/push/investigate action), never raises. report.json
+	is small and this runs once per set-action call; re-reading it rather
+	than threading it through every caller keeps this function usable from
+	both cmd_set_action and cmd_record_pin_check without extra plumbing."""
+	report = load_json(os.path.join(session_dir, "report.json"))
+	if report is None:
+		return None, None
+	for tool in report.get("tools", []):
+		for sug in tool.get("suggestions", []):
+			if sug.get("id") == action_id:
+				return tool, sug
+	return None, None
+
+
+def _requires_pin_check(tool: dict, sug: dict) -> bool:
+	"""True when marking this suggestion's action "done" must be backed by a
+	recorded check_pin.py verify match. Deliberately narrower than "every
+	`kind: 'upgrade'` suggestion": a brew-health `:remediate` and a
+	skill-drift `:sync` suggestion are *also* `kind: "upgrade"`
+	(references/assembly.md §Baseline Suggestion Synthesis) but never carry
+	`target_version` at all, so the `is not None` check already excludes
+	them without needing to match on the id suffix. A `macos`/`standalone`
+	baseline *does* carry `target_version` (assemble.py writes it onto every
+	baseline) but is always `auto_runnable: false` and verified manually —
+	check_pin.py has no `--source` for either
+	(assemble.PIN_CHECKABLE_SOURCES), so gating them here would make it
+	impossible to ever mark them done at all."""
+	return (sug.get("kind") == "upgrade"
+		and sug.get("target_version") is not None
+		and tool.get("source") in assemble.PIN_CHECKABLE_SOURCES)
+
+
+def _pin_check_satisfied(action: dict, tool: dict, sug: dict) -> bool:
+	"""Not just "some verify was recorded" — it must match *this*
+	suggestion's own source/name/target_version, so evidence recorded for a
+	different tool (a copy-pasted result file, `mise:node` satisfying
+	`brew:node` at the same version, a stale record from a previous
+	target_version after a re-review) can never satisfy the gate. All three
+	fields, not just name/target_version — a source mismatch is exactly as
+	wrong as a name mismatch and was the one field this check used to skip."""
+	verify = (action.get("pin_checks") or {}).get("verify")
+	if not isinstance(verify, dict):
+		return False
+	return (verify.get("match") is True
+		and verify.get("source") == tool.get("source")
+		and verify.get("name") == tool.get("name")
+		and verify.get("target_version") == sug.get("target_version"))
+
+
 # ── set-action ──────────────────────────────────────────────────────────
 def cmd_set_action(args):
 	status = load_status(args.session_dir)
@@ -202,6 +278,19 @@ def cmd_set_action(args):
 	if action is None:
 		print(f"Error: no action with id {args.action_id!r}", file=sys.stderr)
 		sys.exit(1)
+
+	if args.state == "done":
+		tool, sug = _load_suggestion(args.session_dir, args.action_id)
+		if tool is not None and _requires_pin_check(tool, sug) and not _pin_check_satisfied(action, tool, sug):
+			print(
+				f"Error: refusing to mark {args.action_id!r} done — no recorded "
+				f"`scripts/check_pin.py verify` match for target_version "
+				f"{sug.get('target_version')!r} (WP5/I2: references/apply.md §Pinning "
+				f"the reviewed version). Run check_pin.py verify --source {tool.get('source')} "
+				f"--name {tool.get('name')} --target-version {sug.get('target_version')}, then "
+				f"record-pin-check {args.session_dir} {args.action_id} verify <result-file>, "
+				f"before retrying.", file=sys.stderr)
+			sys.exit(1)
 
 	action["state"] = args.state
 	if args.state == "running":
@@ -229,6 +318,69 @@ def cmd_set_action(args):
 	status["written_at"] = now_iso()
 	write_json_atomic(status_path(args.session_dir), status)
 	print(f"{args.action_id}: {args.state}")
+
+
+def _validate_pin_check_result(result, expected_phase: str):
+	"""Shape-validates one scripts/check_pin.py JSON result before it is
+	ever written to status.json — a hand-built or truncated object (a bare
+	`{"match": true}`, say) must fail loudly here, not silently later when
+	`_pin_check_satisfied`'s `.get()`s come back `None` and every future
+	reader of `pin_checks` has to re-derive the same defensiveness. Returns
+	an error string, or None if the shape is acceptable.
+
+	Also enforces the phase itself: check_pin.py's `emit()` stamps `phase`
+	into the result at the moment the check actually ran (never left for
+	whoever saves the file to assert), specifically so a preflight result —
+	which can be byte-for-byte identical to a verify result for the same
+	tool at the same version — can never be filed under the wrong phase.
+	Filing a preflight as a "verify" would otherwise open the `"done"` gate
+	with the upgrade never actually run."""
+	if not isinstance(result, dict):
+		return "result is not a JSON object"
+	phase = result.get("phase")
+	if phase != expected_phase:
+		return (f"result's own \"phase\" is {phase!r}, but this is being recorded as "
+			f"{expected_phase!r} — refusing to file a {phase!r} result under a different "
+			f"phase (a preflight and a verify can look identical otherwise)")
+	if not isinstance(result.get("source"), str) or not result["source"]:
+		return "\"source\" must be a non-empty string"
+	if not isinstance(result.get("name"), str) or not result["name"]:
+		return "\"name\" must be a non-empty string"
+	if not isinstance(result.get("match"), bool):
+		return "\"match\" must be a bool"
+	for key in ("target_version", "observed_version", "reason"):
+		if key in result and result[key] is not None and not isinstance(result[key], str):
+			return f"{key!r} must be a string or null"
+	return None
+
+
+# ── record-pin-check (WP5/I2) ──────────────────────────────────────────────
+def cmd_record_pin_check(args):
+	"""Records one scripts/check_pin.py JSON result verbatim onto an
+	action's `pin_checks{phase}` — the artifact `set-action`'s "done" gate
+	above reads. Two calls per pinnable upgrade in the normal flow
+	(references/apply.md §Pinning the reviewed version): "preflight" before
+	running `command`, "verify" after — only "verify" gates anything, but
+	"preflight" is recorded too so a refused run is visible in the same
+	place rather than only in a stderr line nobody kept."""
+	status = load_status(args.session_dir)
+	action = next((a for a in status["actions"] if a["id"] == args.action_id), None)
+	if action is None:
+		print(f"Error: no action with id {args.action_id!r}", file=sys.stderr)
+		sys.exit(1)
+	with open(args.result_file, "r", encoding="utf-8") as fh:
+		result = json.load(fh)
+
+	problem = _validate_pin_check_result(result, args.phase)
+	if problem is not None:
+		print(f"Error: refusing to record pin-check for {args.action_id!r}: {problem}", file=sys.stderr)
+		sys.exit(1)
+
+	action.setdefault("pin_checks", {})[args.phase] = result
+	status["written_at"] = now_iso()
+	write_json_atomic(status_path(args.session_dir), status)
+	verdict = "match" if result.get("match") else "no match"
+	print(f"{args.action_id}: recorded {args.phase} pin-check ({verdict})")
 
 
 # ── touch (heartbeat, task #24) ──────────────────────────────────────────
@@ -408,6 +560,13 @@ def main():
 	p.add_argument("--detail-file")
 	p.add_argument("--thread-turn-file")
 	p.set_defaults(func=cmd_set_action)
+
+	p = sub.add_parser("record-pin-check")
+	p.add_argument("session_dir")
+	p.add_argument("action_id")
+	p.add_argument("phase", choices=["preflight", "verify"])
+	p.add_argument("result_file")
+	p.set_defaults(func=cmd_record_pin_check)
 
 	p = sub.add_parser("touch")
 	p.add_argument("session_dir")
