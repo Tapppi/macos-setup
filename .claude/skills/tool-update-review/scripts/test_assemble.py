@@ -399,14 +399,19 @@ def _fixtures():
 			# and the tool computes: not security (no security tag), and NOT
 			# elevated either — because compute_risk_level's "no items" clause
 			# is suppressed by the non-empty vendor_silent list. It lands in
-			# `routine`, out of the security section entirely, and stays
-			# pre-accepted: a field whose entire purpose is "look at this"
+			# `routine`, out of the security section entirely, and **arrives
+			# pre-accepted**: a field whose entire purpose is "look at this"
 			# would guarantee nobody does.
+			#
+			# Both halves are asserted. `has_security` is what makes it visible;
+			# `risk_level` is what stops it being auto-approved on the way past,
+			# because `apply_pre_accept` accepts on `risk_level == "low"` and
+			# widening `has_security` alone leaves that untouched.
 			_cand("brew:s13", "s13", "brew", "1.0.0", "1.0.1"),
 			{"id": "brew:s13", "links": [], "vendor_silent_categories": ["security"],
 				"items": [_item("feat", tags=["feature"], severity="notable")]},
-			{"has_security": True, "security_only": False,
-				"review_bucket": "security_mixed"},
+			{"has_security": True, "security_only": False, "risk_level": "elevated",
+				"review_bucket": "security_mixed", "pre_accept": False},
 		),
 		(
 			"S14 an item whose local effect is a risk at notable is impact",
@@ -507,17 +512,20 @@ class SemanticClassificationTests(unittest.TestCase):
 					self.assertTrue(inputs["has_security"] and inputs["security_only"], label)
 					self.assertEqual(inputs["impact"], "none", label)
 
-	def test_vendor_silent_security_still_reaches_the_security_section(self):
+	def test_vendor_silent_security_is_never_quietly_pre_accepted(self):
 		"""The named regression, asserted as its consequence rather than its
-		mechanism: a tool whose vendor admitted undetailed security content
-		must stay visible as security work. Against the tag-only flag this
-		lands in `routine` — collapsed into "everything else", counted in no
-		security total, and still pre-accepted."""
+		mechanism: a tool whose vendor admitted undetailed security content must
+		be visible as security work AND must not be auto-approved on the way
+		past. Both halves are needed, and the second is easy to miss — moving
+		the tool into a security bucket makes it visible, but `pre_accept`
+		reads `risk_level`, so without the risk limb it arrives already
+		accepted in the section it was just made visible in."""
 		_, candidate, research, _ = _fixture("S13")
 		tool = build_one(candidate, research)
 		self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed"))
 		self.assertTrue(tool["security"]["has_security"])
 		self.assertTrue(tool["bucket_inputs"]["has_security"])
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_health_suggestions_never_pre_accept(self):
 		# brew link tree-sitter IS auto_runnable — it is excluded because a
@@ -1109,6 +1117,26 @@ class HighlightScoringTests(unittest.TestCase):
 		self.assertEqual(highlights, [])
 		self.assertIn("restates security item", err.getvalue())
 
+	def test_a_memory_proposal_is_not_an_authored_action(self):
+		"""`REDESIGN.md` §O: a memory proposal changes what we REMEMBER, an
+		action proposal changes the user's system. Only the second scores
+		`proposed_edit`, and only the second may push a tool toward a decision.
+		`watch_item_proposed` keeps its own 25 points and gets no `method-note`
+		twin — the same rule, expressed in the highlight surface."""
+		for kind, want_action in (("edit", True), ("structural", True),
+				("watch-item", False), ("method-note", False),
+				("upgrade", False), ("edits", True)):
+			with self.subTest(kind=kind):
+				self.assertEqual(assemble.is_action_suggestion({"kind": kind}), want_action)
+
+	def test_an_unrecognized_suggestion_kind_fails_closed(self):
+		"""The predicate is a negation on purpose. The positive form ("is the
+		kind one of edit/structural") fails OPEN: a typo'd `"edits"` carrying a
+		real config edit falls through and scores nothing."""
+		tool = self._tool([_item("a")], suggestions=[{"id": "brew:h:s", "kind": "edits",
+			"title": "A real config edit with a typo'd kind", "target_files": []}])
+		self.assertIn("proposed_edit", assemble.score_tool(tool)[1])
+
 	def test_why_sources_lists_every_branch_that_can_produce_one(self):
 		"""`_WHY_SOURCES` is the published vocabulary of `highlights[].why_source`
 		(references/schemas.md §1.11). A branch that can fire and is not listed
@@ -1136,6 +1164,22 @@ class HighlightScoringTests(unittest.TestCase):
 		self.assertNotIn("nested one level too deep", why)
 		self.assertNotIn("{", why)
 		self.assertIn("not a string", err.getvalue())
+
+	def test_a_malformed_title_costs_one_item_not_the_whole_branch(self):
+		"""The worst local item's title being unreadable used to drop the tool
+		out of the local-finding branch entirely, down to `major_bump` — with
+		three good findings sitting behind it."""
+		tool = self._tool([
+			_item("bad", severity="incompatible", title={"nested": "too deep"},
+				local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+			_item("good", severity="warning", title="The next-worst thing we know",
+				local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}])),
+		])
+		with contextlib.redirect_stderr(io.StringIO()):
+			why, source, ref = assemble._highlight_why_parts(tool)
+		self.assertEqual(why, "The next-worst thing we know")
+		self.assertEqual(source, "item_local_other")
+		self.assertEqual(ref, [i["id"] for i in tool["items"] if i["title"] == why][0])
 
 	def test_the_cap_is_eight(self):
 		tools = []
@@ -1207,6 +1251,28 @@ class PageContractTests(unittest.TestCase):
 		contract.json precisely so this could not be got wrong silently."""
 		self.assertIn("item.body", self.template)
 		self.assertIn("display_item_ids", self.template)
+
+	def test_a_finding_sources_items_are_all_local_to_the_page(self):
+		"""`maxSeverity()` drives `data-max-severity`, the "relevant only"
+		filter and the severity dropdown. A brew-health or skill-drift card is a
+		statement about THIS install in its entirety, so every item on it counts
+		— including a checker's own items on an ENRICHED finding, which need no
+		`local` block. Without the exemption a warning-severity health finding
+		with `local: null` gets an empty `data-max-severity`, vanishes from both
+		filters, and floors to `info` on its Overview band."""
+		fn = re.search(r"function maxSeverity\(tool\) \{(.*?)\n\t\t\}", self.template, re.S)
+		self.assertIsNotNone(fn)
+		self.assertIn("isNonVersion(tool)", fn.group(1),
+			"maxSeverity() lost its finding-source exemption")
+
+	def test_a_second_tag_sharing_the_group_still_renders(self):
+		"""Filtering the tag line by GROUP hides a second tag that maps to the
+		same one — `["fix", "breaking"]` would render no `breaking` anywhere,
+		and `breaking` is the most decision-relevant tag in the set."""
+		fn = re.search(r"const tags = tagsOf\(item\);\n\t\t\tconst extraTags = (.*?);", self.template)
+		self.assertIsNotNone(fn, "the tag line stopped reading tagsOf(item)")
+		self.assertNotIn("GROUP_OF_TAG", fn.group(1),
+			"the tag line is filtered by group again — a same-group second tag is hidden")
 
 	def test_the_renderer_refuses_a_schema_one_report(self):
 		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.py"),

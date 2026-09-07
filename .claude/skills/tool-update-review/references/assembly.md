@@ -631,8 +631,18 @@ implementation, so the report never carries two answers.
 `"elevated"` if any of: `pinned`; any item carrying a `local` block at
 `warning`/`incompatible`; any `edit`- or `structural`-kind suggestion;
 `version_delta` is `major`/`unknown`; `research_error` or `validator_error` is
-set; or the tool has no items **and** an empty `vendor_silent_categories`.
-Otherwise `"low"`.
+set; `vendor_silent_categories` contains `"security"`; or the tool has no items
+**and** an empty `vendor_silent_categories`. Otherwise `"low"`.
+
+The `"security"`-silence clause and the no-items clause read the same field and
+mean opposite things, so they are worth keeping apart in your head. A non-empty
+`vendor_silent_categories` normally means "this vendor publishes nothing, ever"
+— claudebar, every run — and *suppresses* the no-items elevation, because
+demanding attention for it each time is noise. `["security"]` means the
+opposite: there is security content and we could not read it. Without its own
+clause the first rule swallows the second, the tool is not elevated, and
+`pre_accept` — which reads `risk_level` — auto-approves an unread security
+release.
 
 The last three conditions extend the "an unknown delta size is never low-risk"
 doctrine to unknown *content*: a tool whose checker failed has no items and no

@@ -530,12 +530,17 @@ def suggestion_kind(sug: dict) -> str:
 # open** — a typo'd `"edits"` carrying a real config edit falls through and
 # scores nothing. An unrecognized kind must count as an action.
 #
-# `validate_items` owns the same rule for the bucket, and once its
-# `items.needs_a_decision()` lands this set folds into that one function. Until
-# then this is the assembler's copy and the two must be changed together.
+# **The bucket does not follow this rule yet, and that divergence is real.**
+# `validate_items.compute_initial_bucket` still routes on
+# `any(suggestion_kind(s) != "upgrade")`, which counts a memory proposal as
+# decision-forcing — so a tool whose only extra suggestion is a watch item
+# buckets `attention` while this predicate says it proposes nothing. WP2 owns
+# that function and is landing `items.needs_a_decision()` there; this set folds
+# into it at that point. Until then the two answers differ, and the difference
+# is a bucket that is stricter than the rule, not looser.
 #
 # `method-note` is listed although it is not yet a legal kind here: nothing
-# emits one, so it costs nothing today, and it means the rule is already right
+# emits one, so it costs nothing today, and it means this half is already right
 # when the kind arrives rather than depending on someone remembering this line.
 _MEMORY_SUGGESTION_KINDS = frozenset({"watch-item", "method-note"})
 
@@ -1293,11 +1298,16 @@ def _highlight_why_parts(tool: dict) -> tuple:
 	the branches that synthesize their own text — the id the validator
 	assigned, so the dedupe below matches on identity rather than on prose."""
 	tool_id = tool.get("id", "<unknown>")
-	local = local_items(tool)
-	if local:
-		# Ties resolve to canonical order — max() keeps the first maximum, and
-		# items[] arrives already ordered by items.order_items().
-		best = max(local, key=lambda i: model.severity_rank(i.get("severity")))
+	# Worst first, then down the list. Ties resolve to canonical order, which
+	# `items[]` already arrives in — `sorted` is stable, so equal severities
+	# keep it.
+	#
+	# It walks rather than picking the single maximum for a reason: one
+	# malformed title on the worst item used to cost the tool this whole branch
+	# and drop it to `config_status`/`major_bump`, even with three perfectly
+	# good local findings behind it. Degrade one item, not one branch.
+	for best in sorted(local_items(tool),
+			key=lambda i: -model.severity_rank(i.get("severity"))):
 		title = _why_string(best.get("title"), tool_id, "items[{}].title".format(best.get("id")))
 		if title:
 			return (_truncate_why(title), _item_source(best, True), best.get("id"))

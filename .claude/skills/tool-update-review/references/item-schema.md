@@ -485,6 +485,13 @@ a `security` block on an item that forgot the tag (`E-SEC-BLOCK-ORPHAN`), and
 reporting it while treating the tool as non-security is how a CVE-carrying tool
 would reach a bucket that pre-accepts.
 
+**`risk_level` carries the other half of this.** `has_security` makes such a
+tool visible by moving it into `security_mixed`; it does not stop it being
+pre-accepted, because `pre_accept` reads `risk_level` and
+`compute_risk_level`'s no-items clause is *suppressed* by a non-empty
+`vendor_silent_categories`. So `"security"`-silence elevates on its own. Both
+halves are needed and the second is the easy one to miss.
+
 `items.recompute_flags` stays **tag-only**, deliberately: it is what
 `E-FLAG-DISAGREE` compares a checker's claim against, and a checker that
 correctly reported `has_security: false` from its own items must not read as

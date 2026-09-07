@@ -555,6 +555,7 @@ research subagent, so every run applies the same rule the same way.
 - `research_error` is set;
 - `validator_error` is set — the validator could not finish a stage for this
   tool, so what survived is not the corpus;
+- `vendor_silent_categories` contains `"security"` — see below;
 - the tool has no `items[]` **and** an empty `vendor_silent_categories`
   — research returned an object but wrote nothing and didn't say the vendor
   was silent.
@@ -567,6 +568,15 @@ silently auto-approve exactly the updates it understands least. Documented
 silence is different and stays `"low"`: a vendor that publishes nothing, ever
 (`vendor_silent_categories` non-empty, no `research_error`), is noise the user
 can't act on.
+
+**Documented silence about SECURITY is not that case**, which is why it has a
+clause of its own. `["security"]` says there *is* security content and we could
+not read it. Without the clause the two rules combine into the worst answer
+available — not elevated, because the list is non-empty — and since
+`pre_accept` reads `risk_level`, an unread security release arrives
+auto-approved. Widening `has_security` moves such a tool into `security_mixed`,
+which makes it visible; this clause is what stops it being pre-accepted while
+it sits there.
 
 `risk_level` is computed by the **validator** (`validate_items.compute_risk_level`)
 and read off its view by assembly, so there is exactly one implementation.

@@ -1109,6 +1109,19 @@ def compute_risk_level(view) -> str:
 		return "elevated"
 	if view.get("research_error") or view.get("validator_error"):
 		return "elevated"
+	if "security" in (view.get("vendor_silent_categories") or []):
+		# Documented silence is fine; documented silence ABOUT SECURITY is not.
+		# The clause below deliberately treats a non-empty
+		# `vendor_silent_categories` as "the vendor publishes nothing, ever" —
+		# claudebar, every run, forever — which is noise the user cannot act on.
+		# `["security"]` says something else entirely: there IS security content
+		# and we could not read it. Without this the two clauses combine into
+		# the worst answer available — not elevated because the list is
+		# non-empty, and so `pre_accept` on the baseline — and an unread
+		# security release is auto-approved. `has_security` moves such a tool
+		# into `security_mixed`, which makes it visible; this is what stops it
+		# being pre-accepted while it sits there.
+		return "elevated"
 	if not view["items"] and not (view.get("vendor_silent_categories") or []):
 		return "elevated"
 	return "low"

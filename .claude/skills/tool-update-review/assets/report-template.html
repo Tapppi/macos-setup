@@ -2850,16 +2850,25 @@
 		 * finding says something about THIS machine, an item without says
 		 * something about the release — and it is what the "relevant only"
 		 * filter and the incompatible-tool jump lists read, through
-		 * data-max-severity. A brew-health or skill-drift finding carries a
-		 * local block by construction (assembly synthesizes one), so the two
-		 * per-source special cases this function used to need are gone: the
-		 * headliner/relevancy distinction they worked around no longer
-		 * exists. */
+		 * data-max-severity.
+		 *
+		 * **A finding source is exempt from the `local` test**, and the reason
+		 * is not the synthesized item — it is that a `brew doctor` line or a
+		 * vendored-skill drift is a statement about THIS install in its
+		 * entirety, so every item on such a card is local whether or not the
+		 * checker wrote the block. Assembly synthesizes one that has it, but an
+		 * ENRICHED finding carries the checker's own items and those need not:
+		 * without this branch a `warning`-severity health finding whose research
+		 * item has `local: null` gets an empty data-max-severity, vanishes from
+		 * "relevant only" and from every severity filter, and floors to `info`
+		 * on its Overview band. That is the one thing the two per-source
+		 * headliner fallbacks were really covering. */
 		function maxSeverity(tool) {
 			let best = 99;
 			let bestSev = '';
+			const everyItemIsLocal = isNonVersion(tool);
 			for (const item of itemsOf(tool)) {
-				if (!localOf(item)) continue;
+				if (!everyItemIsLocal && !localOf(item)) continue;
 				const o = SEV_ORDER[item.severity] ?? 99;
 				if (o < best) { best = o; bestSev = item.severity; }
 			}
@@ -3435,14 +3444,23 @@
 			const motivatingHtml = motivating
 				? `<div class="item-motivating">${esc(motivating)}</div>`
 				: '';
-			/* The primary tag already chose this item's group, so only the
-			 * others are worth a line — an item is `security` + `packaging`,
-			 * not "security" twice. An unrecognised tag shows too: the
-			 * validator kept it deliberately, and hiding it here would undo
-			 * that. */
-			const extraTags = tagsOf(item).filter(t => GROUP_OF_TAG[t] !== cat);
+			/* A single-tag item says nothing its group heading has not already
+			 * said, so it gets no line. A multi-tag item renders **all** of its
+			 * tags, including the ones that map to this same group.
+			 *
+			 * Eliding "the tag that chose the group" is the obvious rule and it
+			 * is wrong: filtering on the group hides a second tag sharing it, so
+			 * `["fix", "breaking"]` would render no `breaking` anywhere — and
+			 * `breaking` is the most decision-relevant tag in the set. Same for
+			 * `deprecation`+`fix` and `perf`+`feature`. Eliding *one* of them
+			 * only moves the question to which one, and the model ranks tags
+			 * within a group nowhere. Only ~7% of items carry more than one tag
+			 * (max two), so showing the pair costs a line on 7% of rows and can
+			 * never swallow the tag a reader needed. */
+			const tags = tagsOf(item);
+			const extraTags = tags.length > 1 ? tags : [];
 			const tagsHtml = extraTags.length
-				? `<div class="item-tags">Also tagged: ${esc(extraTags.join(', '))}</div>`
+				? `<div class="item-tags">Tagged: ${esc(extraTags.join(', '))}</div>`
 				: '';
 			const link = pickLinkForItem(item, cat, links);
 			const refHtml = link ? `<div class="item-ref">→ ${renderLinkAnchor(link, `${esc(link.type)}: ${esc(link.label)} ↗`)}</div>` : '';

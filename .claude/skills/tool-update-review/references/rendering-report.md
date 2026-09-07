@@ -1076,10 +1076,14 @@ the page derives one map lookup and nothing else.
 **One item appears exactly once**, which is the whole point of the item model:
 the old headliners/relevancy/notable split wrote one change into three arrays
 with three severities implied, and the dedupe that tried to reconcile them
-silently downgraded a card. An item's secondary tags render as a plain "Also
-tagged: …" line in its expanded detail — the primary tag already chose the
-group, so repeating it would be noise on every row, and only ~7% of items
-carry more than one tag.
+silently downgraded a card. A single-tag item gets no tag line — its group heading
+already said it. A multi-tag item renders **all** of its tags on a plain
+"Tagged: …" line in its expanded detail, including ones that map to the same
+group: eliding "the tag that chose the group" hides a second tag sharing it, so
+`["fix", "breaking"]` would render no `breaking` anywhere, and `breaking` is the
+most decision-relevant tag in the set. Only ~7% of items carry more than one tag
+(max two), so the line costs 7% of rows and can never swallow the tag a reader
+needed.
 
 Evidence paths stay attached to their item wherever it lands, and a citation
 renders beside them but distinctly: `local.evidence[]` is paths only and
