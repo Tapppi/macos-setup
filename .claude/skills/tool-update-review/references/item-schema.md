@@ -8,9 +8,10 @@ evaporate into a prompt and cannot drift from what actually runs:
 | Thing | Where |
 |---|---|
 | The model — vocabularies, groups, ids, **the ordering and the comparator** | `scripts/items.py` |
-| The six stages, the eighteen invariants, the finding codes | `scripts/validate_items.py` |
+| The six stages, the nineteen invariants, the finding codes | `scripts/validate_items.py` |
 | The published fixtures a sibling package imports and asserts against | `scripts/contract/` (see its `README.md`) |
 | The tests | `scripts/test_items.py`, `scripts/test_validate_items.py` |
+| The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` and `HANDOFF.md` — **not in this repo.** Every `§A`/`§C3`/`§L1`/`criterion N` citation in the skill resolves there |
 
 Design record and the measurements behind every rule below:
 `~/.local/state/tool-update-review/scratch/design/item-schema.md`.

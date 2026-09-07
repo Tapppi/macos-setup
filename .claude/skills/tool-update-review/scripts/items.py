@@ -108,11 +108,28 @@ SUGGESTION_KINDS = ("upgrade", "edit", "structural", "watch-item", "method-note"
 # method notes and watch items, so leaving it would put most of the fleet on
 # the "needs you" list and undo the compaction §A and criterion 10 exist for.
 #
-# `compute_impact`, `compute_risk_level`, `compute_initial_bucket` and
-# `W-ATTENTION-NOSUG` all read these two tuples, so a bucket and its
-# explanation cannot drift apart.
+# `compute_initial_bucket` and `W-ATTENTION-NOSUG` both go through
+# `needs_a_decision` below, so a bucket and its explanation cannot drift apart.
+# `compute_impact` and `compute_risk_level` read `ACTION_SUGGESTION_KINDS`
+# directly, which is the closed set they have always tested.
 MEMORY_SUGGESTION_KINDS = ("watch-item", "method-note")
 ACTION_SUGGESTION_KINDS = ("edit", "structural")
+
+
+def needs_a_decision(kind) -> bool:
+	"""Does this suggestion mean a human has to look at the tool?
+
+	**Stated as a negation on purpose.** `kind not in MEMORY_SUGGESTION_KINDS`
+	rather than `kind in ACTION_SUGGESTION_KINDS`, so that a kind nobody
+	recognizes — a drifted `"edits"`, a kind from a future schema, a
+	wrong-typed value — fails **safe**, onto the attention list. Written the
+	other way, an unrecognized kind reads as a memory proposal and lets a tool
+	stay `routine`: `E-ENUM-INVALID` would be raised and would feed nothing.
+
+	The baseline `upgrade` suggestion is every tool's, so it decides nothing.
+	Anything unhashable is not a memory kind either — the membership test is
+	over a tuple, which any shape survives."""
+	return kind != "upgrade" and kind not in MEMORY_SUGGESTION_KINDS
 
 # What each memory kind must carry, and what each field is for. Both payloads
 # are written so they read sensibly copied verbatim into the store on accept,

@@ -47,7 +47,40 @@ CHECKER_FACING = {
 
 
 def lines_mentioning(text, needle):
-	return [ln for ln in text.splitlines() if needle in ln]
+	"""Every line containing `needle`, WITH its offset in the document.
+
+	The offset is the point. `text.index(line)` would resolve to the first
+	textual match of that line anywhere in the file, so two identical mentions
+	would both be judged by the context of the first — and an unexplained
+	second one would pass on the strength of the first one's justification."""
+	out, offset = [], 0
+	for line in text.splitlines(keepends=True):
+		if needle in line:
+			out.append((offset, line.rstrip("\n")))
+		offset += len(line)
+	return out
+
+
+def heading_at(text: str, head: str) -> int:
+	"""Offset of a heading, asserted present. Used by the ordering tests, where
+	the claim is "this section comes before that one" and a bare ValueError
+	from a rename says nothing about which claim broke."""
+	at = text.find(head)
+	assert at != -1, "no section {!r} — was it renamed?".format(head)
+	return at
+
+
+def section_of(text: str, head: str, until: str) -> str:
+	"""One section, from its heading to the next named one.
+
+	Both headings are asserted present with a readable message. A bare
+	`str.index` raises a `ValueError` traceback that tells whoever renamed a
+	heading nothing about which test wanted it."""
+	start = text.find(head)
+	assert start != -1, "no section {!r} — was it renamed?".format(head)
+	end = text.find(until, start)
+	assert end != -1, "no section {!r} after {!r}".format(until, head)
+	return text[start:end]
 
 
 def flat(text: str) -> str:
@@ -93,24 +126,29 @@ class IntelBrewfileTests(GuidelineTestCase):
 
 	def test_no_checker_facing_document_sends_anyone_to_the_intel_manifest(self):
 		for name, text in sorted(CHECKER_FACING.items()):
-			for line in lines_mentioning(text, "intel.Brewfile"):
+			for _, line in lines_mentioning(text, "intel.Brewfile"):
 				with self.subTest(name + ": " + line.strip()[:60]):
 					self.assertNotRegex(line, self.INSTRUCTIONAL)
 
 	def test_every_surviving_mention_is_a_prohibition(self):
 		"""An explicit exclusion beats silence here: an agent scanning
 		macos-setup finds the file whether or not we named it, and I-17 exists
-		because the last run cited it seven times."""
+		because the last run cited it seven times.
+
+		Judged at each mention's own offset. Anchoring on `text.index(line)`
+		would let a second, unexplained mention borrow the first one's
+		justification — precisely the case this test exists for."""
 		forbidding = ("out of this tool entirely", "do not read it", "never reaches apply")
 		for name, text in sorted(CHECKER_FACING.items()):
-			for line in lines_mentioning(text, "intel.Brewfile"):
-				with self.subTest(name):
-					self.assertTrue(any(f in line for f in forbidding)
-						or any(f in text[max(0, text.index(line)):][:600] for f in forbidding),
+			for offset, line in lines_mentioning(text, "intel.Brewfile"):
+				with self.subTest(name + ": " + line.strip()[:60]):
+					window = flat(text[offset:offset + 600])
+					self.assertTrue(any(f in window for f in forbidding),
 						"unexplained mention: " + line.strip())
 
 	def test_the_relevancy_scan_list_names_only_the_live_manifest(self):
-		scan = RESEARCH[RESEARCH.index("### Relevancy Is the Point"):][:600]
+		scan = section_of(RESEARCH, "### Relevancy Is the Point",
+			"### Classify Non-Changelog Findings Correctly")
 		self.assertSays("Brewfile", scan)
 		self.assertNotIn("intel.Brewfile", scan)
 
@@ -131,8 +169,8 @@ class OrphanedInstructionTests(GuidelineTestCase):
 	def test_the_read_only_discipline_governs_every_checker(self):
 		"""It existed only scoped to bespoke-setup testing; the general form —
 		and the session-dir write restriction — were in scratch alone."""
-		section = RESEARCH[RESEARCH.index("### What You May Touch"):]
-		section = section[:section.index("### Headliners")]
+		section = section_of(RESEARCH, "### What You May Touch",
+			"### Prior Findings Are Hypotheses")
 		self.assertSays("non-destructive and\n  read-only", section)
 		for banned in ("setup.sh", "tasks/*.sh", "dotfiles/bootstrap.sh"):
 			self.assertSays(banned, section)
@@ -141,14 +179,13 @@ class OrphanedInstructionTests(GuidelineTestCase):
 	def test_the_read_only_discipline_is_not_only_in_the_bespoke_section(self):
 		"""The point of the port: it governs every checker, including the ones
 		that never touch a `tasks/*.sh` function."""
-		general = RESEARCH.index("### What You May Touch")
-		bespoke = RESEARCH.index("### Bespoke `tasks/*.sh` Setup Testing")
+		general = heading_at(RESEARCH, "### What You May Touch")
+		bespoke = heading_at(RESEARCH, "### Bespoke `tasks/*.sh` Setup Testing")
 		self.assertLess(general, bespoke)
 
 	def test_vendored_skill_content_is_a_named_false_positive(self):
 		"""`grep -rn agent-skills` over the skill returned nothing before this."""
-		section = RESEARCH[RESEARCH.index("### Word-Boundary Grep Rule"):]
-		section = section[:section.index("### Spawning")]
+		section = section_of(RESEARCH, "### Word-Boundary Grep Rule", "### Spawning")
 		self.assertSays("dotfiles/config/agent-skills", section)
 		self.assertSays("almost never a real touchpoint", section)
 		# ...and the prompt a checker actually receives says so too.
@@ -195,8 +232,8 @@ class ThreeStoresTests(GuidelineTestCase):
 	SECTION = "### Standing Notes: Three Stores"
 
 	def section(self):
-		start = RESEARCH.index(self.SECTION)
-		return RESEARCH[start:RESEARCH.index("### Research-Method Notes vs Watch Items")]
+		return section_of(RESEARCH, self.SECTION,
+			"### Research-Method Notes vs Watch Items")
 
 	def test_all_three_stores_are_named_with_their_scope_and_volume(self):
 		text = self.section()
@@ -244,12 +281,12 @@ class ThreeStoresTests(GuidelineTestCase):
 	def test_the_routing_test_precedes_the_watch_item_bar(self):
 		"""It has to run first: a topic no changelog can match is filed in a
 		store whose only mechanism cannot reach it."""
-		self.assertLess(RESEARCH.index("### Research-Method Notes vs Watch Items"),
-			RESEARCH.index("### Watch Items (Proposing)"))
+		self.assertLess(heading_at(RESEARCH, "### Research-Method Notes vs Watch Items"),
+			heading_at(RESEARCH, "### Watch Items (Proposing)"))
 
 	def test_the_routing_test_is_stated_as_one_answerable_question(self):
-		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
-		text = text[:text.index("### Writing a Research-Method Note")]
+		text = section_of(RESEARCH, "### Research-Method Notes vs Watch Items",
+			"### Writing a Research-Method Note")
 		self.assertSays("Could a future release's published text plausibly contain words that match",
 			" ".join(text.split()))
 		self.assertSays("**No**", text)
@@ -262,12 +299,13 @@ class ThreeStoresTests(GuidelineTestCase):
 	def test_routing_is_stated_not_to_be_dropping(self):
 		"""L7's companion: moving a note between stores keeps the knowledge. An
 		agent that reads routing as rejection stops writing them."""
-		text = RESEARCH[RESEARCH.index("### Research-Method Notes vs Watch Items"):]
+		text = section_of(RESEARCH, "### Research-Method Notes vs Watch Items",
+			"### Writing a Research-Method Note")
 		self.assertSays("Routing is not dropping", text)
 
 	def test_a_method_note_must_name_a_failure_rather_than_predict_one(self):
-		text = RESEARCH[RESEARCH.index("### Writing a Research-Method Note"):]
-		text = text[:text.index("### Watch Items (Reading)")]
+		text = section_of(RESEARCH, "### Writing a Research-Method Note",
+			"### Watch Items (Reading)")
 		self.assertSays("name a failure, not predict one", text)
 		for field in ("method_topic", "method_note", "rationale"):
 			self.assertSays(field, text)
@@ -275,8 +313,8 @@ class ThreeStoresTests(GuidelineTestCase):
 	def test_method_notes_are_read_before_research_begins(self):
 		"""A note saying "read CHANGELOG.md, the release page is boilerplate"
 		is worthless delivered after the release page has been read."""
-		text = RESEARCH[RESEARCH.index("### Watch Items (Reading)"):]
-		text = text[:text.index("### Watch Items (Proposing)")]
+		text = section_of(RESEARCH, "### Watch Items (Reading)",
+			"### Watch Items (Proposing)")
 		self.assertSays("read first, before you look anything up", text)
 
 	def test_both_stores_reach_the_checker_through_the_prompt(self):
@@ -303,8 +341,7 @@ class SelfTestTests(GuidelineTestCase):
 	HEAD = "### Before You Propose a Standing Note: the Self-Test"
 
 	def section(self):
-		start = RESEARCH.index(self.HEAD)
-		return RESEARCH[start:RESEARCH.index("### There Is No Volume Target")]
+		return section_of(RESEARCH, self.HEAD, "### There Is No Volume Target")
 
 	def test_the_self_test_tags_and_never_deletes(self):
 		text = self.section()
@@ -372,17 +409,24 @@ class NoVolumeTargetTests(GuidelineTestCase):
 	HEAD = "### There Is No Volume Target"
 
 	def section(self):
-		start = RESEARCH.index(self.HEAD)
-		return RESEARCH[start:RESEARCH.index("### Deduplicate Facts")]
+		return section_of(RESEARCH, self.HEAD, "### Deduplicate Facts")
 
 	def explanations(self):
-		"""The two places a quota phrase may legitimately appear: the section
-		explaining why the old rule failed, and the prompt-builder's worked
-		example of the hint that must never be written again. Both quote the
-		historical text; neither instructs anyone."""
-		builder = TEMPLATE[TEMPLATE.index("## Writing Hypotheses"):]
-		builder = builder[:builder.index("## Batch sizing and tiering")]
-		return " ".join((self.section() + "\n" + builder).split())
+		"""The places a quota phrase may legitimately appear, **per document**:
+		research.md's section explaining why the old rule failed, and the
+		template's worked example of the hint that must never be written again.
+		Both quote the historical text; neither instructs anyone.
+
+		Kept per document deliberately. Pooling them and comparing counts
+		against one document's total compares mismatched scopes — a phrase
+		appearing legitimately in both regions counts 2 in the pool and 1 in
+		each file, and the test would fail on correct guidelines."""
+		return {
+			"research.md": flat(self.section()),
+			"research-prompt-template.md": flat(section_of(
+				TEMPLATE, "## Writing Hypotheses", "## Batch sizing and tiering")),
+			"schemas.md": "",
+		}
 
 	# Flattened, because the old rule's own text was line-wrapped and a
 	# line-oriented grep misses it — which is how it survived a check once.
@@ -398,16 +442,16 @@ class NoVolumeTargetTests(GuidelineTestCase):
 	)
 
 	def test_no_quota_phrase_survives_outside_the_explanation(self):
-		explanation = self.explanations()
-		for name, flat in sorted(self.FLAT.items()):
+		explained = self.explanations()
+		for name, document in sorted(self.FLAT.items()):
 			for phrase in self.QUOTA_PHRASES:
 				with self.subTest(name + ": " + phrase):
-					if phrase not in flat:
+					seen = document.count(phrase)
+					if not seen:
 						continue
-					self.assertSays(phrase, explanation,
-						"{} states a fleet quota outside the section explaining why "
+					self.assertEqual(seen, explained[name].count(phrase),
+						"{} states a fleet quota outside the passage explaining why "
 						"the old one failed".format(name))
-					self.assertEqual(flat.count(phrase), explanation.count(phrase))
 
 	def test_no_numeric_target_is_stated_to_a_per_tool_agent(self):
 		"""Criterion 14. Any sentence pairing a count with a proposal noun is
@@ -416,11 +460,11 @@ class NoVolumeTargetTests(GuidelineTestCase):
 			r"(?:at most|no more than|up to|expect|aim for|limit(?:ed)? to)\s+"
 			r"(?:one|two|three|a few|\d+)\b[^.]{0,60}"
 			r"(?:watch items?|method notes?|proposals?|suggestions?)", re.I)
-		explanation = self.explanations()
+		explained = self.explanations()
 		for name, text in sorted(CHECKER_FACING.items()):
-			for match in pattern.finditer(" ".join(text.split())):
+			for match in pattern.finditer(flat(text)):
 				with self.subTest(name + ": " + match.group(0)[:50]):
-					self.assertSays(match.group(0), explanation)
+					self.assertIn(match.group(0), explained[name])
 
 	def test_the_reason_is_in_the_guideline_text_not_only_a_design_doc(self):
 		"""An agent told "there is no budget" with no explanation infers the
@@ -449,8 +493,8 @@ class WatchItemBarTests(GuidelineTestCase):
 	reciting the rule's own escape phrase."""
 
 	def section(self):
-		start = RESEARCH.index("### Watch Items (Proposing)")
-		return RESEARCH[start:RESEARCH.index("### Before You Propose a Standing Note")]
+		return section_of(RESEARCH, "### Watch Items (Proposing)",
+			"### Before You Propose a Standing Note")
 
 	def test_both_limbs_are_stated_as_conjunctions_with_named_halves(self):
 		text = self.section()
@@ -490,12 +534,12 @@ class HypothesisTests(GuidelineTestCase):
 	The word "hypothesis" appeared nowhere in the skill before this."""
 
 	def checker_section(self):
-		start = RESEARCH.index("### Prior Findings Are Hypotheses")
-		return RESEARCH[start:RESEARCH.index("### Headliners")]
+		return section_of(RESEARCH, "### Prior Findings Are Hypotheses",
+			"### Items Are Outward-Facing Changes")
 
 	def builder_section(self):
-		start = TEMPLATE.index("## Writing Hypotheses")
-		return TEMPLATE[start:TEMPLATE.index("## Batch sizing and tiering")]
+		return section_of(TEMPLATE, "## Writing Hypotheses",
+			"## Batch sizing and tiering")
 
 	def test_the_word_reaches_the_skill_at_all(self):
 		self.assertRegex(RESEARCH, r"(?i)hypothes")
@@ -561,8 +605,8 @@ class OutwardFacingTests(GuidelineTestCase):
 	the checker's guidelines as the only place it is enforced."""
 
 	def section(self):
-		start = RESEARCH.index("### Items Are Outward-Facing Changes")
-		return RESEARCH[start:RESEARCH.index("### Headliners")]
+		return section_of(RESEARCH, "### Items Are Outward-Facing Changes",
+			"### Headliners")
 
 	def test_the_rule_reaches_the_agent_that_writes_items(self):
 		text = self.section()
@@ -593,8 +637,8 @@ class OutwardFacingTests(GuidelineTestCase):
 		approve an update. This one asks whether there was an item at all."""
 		text = self.section()
 		self.assertSays("This is not the noise floor", text)
-		self.assertLess(RESEARCH.index("### Items Are Outward-Facing Changes"),
-			RESEARCH.index("### The Noise Floor"))
+		self.assertLess(heading_at(RESEARCH, "### Items Are Outward-Facing Changes"),
+			heading_at(RESEARCH, "### The Noise Floor"))
 
 	def test_the_absence_of_a_deterministic_filter_is_stated(self):
 		self.assertSays("Nothing in the deterministic layer enforces it", self.section())
@@ -605,6 +649,34 @@ class OutwardFacingTests(GuidelineTestCase):
 		import items as model
 		self.assertSays("outward-facing changes only", model.contract()["scope"]["items_are"])
 		self.assertSays("outward-facing", self.section())
+
+
+# ── the claims stay true of the artifact they name ─────────────────────────
+class DocumentedScopeTests(GuidelineTestCase):
+	"""A doc that overstates where a rule holds is worse than one that does not
+	mention it: a reader checks the wrong file and concludes the code is
+	broken. §1.7c describes a property of `validation.json` today, not of
+	`report.json` — `assemble.py` has not been carried across."""
+
+	def test_the_memory_bucket_claim_names_the_file_it_holds_for(self):
+		text = section_of(SCHEMAS, "### 1.7c The self-test tag",
+			"### 1.8 `version_delta` semantics")
+		self.assertSays("scripts/validate_items.py` implements it", text)
+		self.assertSays("scripts/assemble.py` does not yet", text)
+
+	def test_the_claim_and_the_assembler_disagree_exactly_where_the_doc_says(self):
+		"""Pinned so the caveat is removed when — and only when — the
+		assembler stops needing it."""
+		assembler = read("scripts", "assemble.py")
+		self.assertIn('suggestion_kind(s) != "upgrade"', assembler)
+
+	def test_the_unresolvable_citations_have_an_address(self):
+		"""`REDESIGN.md`, `HANDOFF.md` and "criterion N" are cited across the
+		skill as the authority for load-bearing decisions and exist nowhere in
+		this repo. One row saying where they live is the difference between a
+		reference and a dead end."""
+		self.assertSays("REDESIGN.md", read("references", "item-schema.md"))
+		self.assertSays("not in this repo", read("references", "item-schema.md"))
 
 
 if __name__ == "__main__":

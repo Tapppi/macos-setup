@@ -1533,8 +1533,8 @@
 				"runnable": false
 			},
 			"security_display_item_ids": [],
-			"health_expected": true,
 			"self_test_tagged_suggestion_ids": [],
+			"health_expected": true,
 			"spec_violations": []
 		}
 	]

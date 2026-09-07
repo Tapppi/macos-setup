@@ -764,12 +764,24 @@ is appropriate.
   `self_test_tagged_suggestion_ids`, so convergence works from a list rather
   than re-reading prose for the tag.
 
-**Memory proposals never force a review.** `watch-item` and `method-note`
-propose changes to what we remember; `edit` and `structural` propose changes to
-the user's system. Only the latter raises `risk_level`, moves a tool into the
-`attention` bucket, or answers a `needs_attention` `config_status`. §L1 expects
-*many* method notes and watch items, so any other reading would put most of the
-fleet on the "needs you" list and undo the compaction this skill exists for.
+**Memory proposals are not meant to force a review.** `watch-item` and
+`method-note` propose changes to what we remember; `edit` and `structural`
+propose changes to the user's system. Only the latter should raise
+`risk_level`, move a tool into the `attention` bucket, or answer a
+`needs_attention` `config_status`. `REDESIGN.md` §L1 expects *many* method
+notes and watch items, so any other reading puts most of the fleet on the
+"needs you" list and undoes the compaction this skill exists for.
+
+**Where that holds today, exactly.** `scripts/validate_items.py` implements it:
+`compute_initial_bucket` and `W-ATTENTION-NOSUG` both ask
+`items.needs_a_decision`, so `initial_review_bucket` and `bucket_inputs` in
+`validation.json` behave as described. **`scripts/assemble.py` does not yet.**
+Its `compute_review_bucket` still reads "any suggestion that is not an
+upgrade", and its `compute_impact` still enumerates `("edit", "watch-item")`,
+so the `review_bucket` that reaches `report.json` and the rendered page still
+moves to `attention` for a tool carrying a method note. Until the assembler is
+carried across, believe this section about `validation.json` and not about the
+report object. Tracked as WP1b's rewrite of the assembler onto `items[]`.
 
 ### 1.8 `version_delta` semantics
 

@@ -910,14 +910,14 @@ def _memory(kind="method-note", **kw):
 
 
 def _action(kind="edit", **kw):
-	base = {"id": "brew:x:" + kind, "kind": kind, "title": "An action proposal",
+	base = {"id": "brew:x:" + str(kind), "kind": kind, "title": "An action proposal",
 		"target_files": [], "rationale": "why the user should change something"}
 	if kind == "structural":
 		base["structural"] = {"op": "tap_add", "subjects": [{"type": "tap", "name": "a/b"}],
 			"manifest": "Brewfile", "from": None, "to": {"type": "tap", "name": "a/b"},
 			"anchor": {"section": "TAPS"}}
 	base.update(kw)
-	return base
+	return {k: v for k, v in base.items() if not (k == "structural" and v is None)}
 
 
 class MemoryProposalTests(unittest.TestCase):
@@ -1040,6 +1040,53 @@ class MemoryProposalTests(unittest.TestCase):
 				self.assertIn("E-FIELD-TYPE",
 					codes({"id": "brew:x", "links": [], "items": [_item()],
 						"suggestions": [_memory("watch-item", self_test_failed=tag)]}))
+
+	# — failing safe —
+	def test_an_unrecognized_kind_still_forces_a_decision(self):
+		"""The rule is "memory kinds do not force attention", not "only two
+		kinds do". Spelled the second way, a typo'd `"edits"` carrying a real
+		config edit reads as a memory proposal and the tool stays `routine`,
+		with E-ENUM-INVALID raised and feeding nothing."""
+		for kind in ("edits", "watchitem", "method_note", "future-kind"):
+			with self.subTest(kind):
+				view, findings = self._view([_action(kind, structural=None)])
+				self.assertEqual(view["initial_review_bucket"], "attention")
+				self.assertIn("E-ENUM-INVALID", {f["code"] for f in findings.entries})
+
+	def test_an_unrecognized_kind_does_not_silence_the_attention_warning(self):
+		status = {"state": "needs_attention", "detail": "stale", "evidence": [],
+			"citations": []}
+		_, findings = self._view([_action("edits", structural=None)], config_status=status)
+		self.assertNotIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+
+	def test_an_unhashable_kind_costs_the_tool_no_suggestions(self):
+		"""`assemble.suggestion_kind` returns what the checker wrote, so a
+		drifted `"kind": ["edit"]` arrives unhashable. A dict lookup on it would
+		raise out of the whole stage and take this tool's real edit proposal
+		with it — deletion, over a shape the rest of this file survives."""
+		for kind in (["edit"], {"a": 1}, {"edit"}):
+			with self.subTest(repr(kind)):
+				real = _action("edit", id="brew:x:real-edit")
+				view, findings = self._view([{"id": "brew:x:drifted", "kind": kind,
+					"title": "A suggestion whose kind is not even a string"}, real])
+				codes_seen = {f["code"] for f in findings.entries}
+				self.assertNotIn("E-VALIDATOR-CRASH", codes_seen)
+				self.assertIn("E-ENUM-INVALID", codes_seen)
+				self.assertIn(real, view["suggestions"])
+				self.assertEqual(len(view["suggestions"]), 2)
+
+	def test_an_unhashable_kind_carrying_a_tag_is_reported_by_type(self):
+		view, findings = self._view([{"id": "brew:x:drifted", "kind": ["watch-item"],
+			"title": "t", "self_test_failed": {"limb": "scope", "reason": "r"}}])
+		messages = [f["message"] for f in findings.entries if f["code"] == "E-FIELD-TYPE"]
+		self.assertTrue(any("\"list\"" in m for m in messages), messages)
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_the_tagged_list_is_present_on_every_view_from_the_start(self):
+		"""It is what convergence works from. A tool that degraded is exactly
+		the tool a consumer must still be able to read without a KeyError."""
+		view, _ = validate_one(None)
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
 
 	def test_a_tagged_proposal_missing_its_id_is_still_listed(self):
 		"""Absent from the list is the one thing it must never be — convergence

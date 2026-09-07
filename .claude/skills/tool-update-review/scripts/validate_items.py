@@ -1048,9 +1048,12 @@ def compute_impact(view) -> str:
 
 	`"watch-item"` is NOT in the suggestion clause: `REDESIGN.md` §D row 4
 	accepts dropping it, and `item-schema.md` §5.5 flags its own draft as wrong
-	against that row. Landed here as `model.ACTION_SUGGESTION_KINDS` — the same
-	tuple the bucket clause reads, so the two cannot come to disagree about
-	which kinds mean "a human has to look at this"."""
+	against that row. Landed here as `model.ACTION_SUGGESTION_KINDS`, the closed
+	set this clause has always tested. Note it is *not* the bucket clause's
+	test: that one asks `needs_a_decision`, a negation, so an unrecognized kind
+	fails safe onto the attention list. Impact keeps the positive form because
+	an unrecognized kind is not evidence of impact — it is evidence of
+	nothing, and `E-ENUM-INVALID` reports it."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "none" if assemble.finding_expected(view) else "possible"
 	if not research_produced_content(view):
@@ -1123,8 +1126,13 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	**Memory proposals do not force `attention`; action proposals do.**
 	`method-note` and `watch-item` propose changes to what we remember; `edit`
 	and `structural` propose changes to the user's system. Only the latter
-	needs a decision, so the clause reads `model.ACTION_SUGGESTION_KINDS`
-	rather than "anything that is not an upgrade".
+	needs a decision, so the clause goes through `model.needs_a_decision`
+	rather than testing "anything that is not an upgrade".
+
+	That predicate is a negation — *not* a memory kind — so an unrecognized
+	kind still forces `attention`. Testing `in ACTION_SUGGESTION_KINDS` instead
+	would let a drifted `"edits"` read as a memory proposal and leave a real
+	edit on a `routine` tool, with `E-ENUM-INVALID` raised and feeding nothing.
 
 	The old spelling was harmless only while watch items were rare. `REDESIGN.md`
 	§L1 now expects **many** per-tool method notes and watch items, so "not an
@@ -1141,7 +1149,7 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 		return "security_mixed"
 	if (risk_level == "elevated"
 			or assemble.config_needs_attention(view)
-			or any(assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
+			or any(model.needs_a_decision(assemble.suggestion_kind(s))
 				for s in (view.get("suggestions") or []) if isinstance(s, dict))
 			or not runnable):
 		return "attention"
@@ -1188,6 +1196,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"bucket_inputs": {"has_security": False, "security_only": False,
 			"impact": "unknown", "version_delta": "unknown", "runnable": False},
 		"security_display_item_ids": [],
+		"self_test_tagged_suggestion_ids": [],
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1331,7 +1340,7 @@ def _derive_axes(view, candidate, findings):
 	# "needs_attention but what do I do about it", so it must not silence the
 	# warning any more than it may raise the bucket.
 	if assemble.config_needs_attention(view) and not any(
-			assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
+			model.needs_a_decision(assemble.suggestion_kind(s))
 			for s in view["suggestions"] if isinstance(s, dict)):
 		findings.add("W-ATTENTION-NOSUG",
 			"config_status is needs_attention but no edit or structural suggestion says "
@@ -1420,7 +1429,11 @@ def _validate_memory_proposal(sug, kind, findings, tool_id, sug_id):
 	A tag with no reason is a drop with extra steps, and criterion 17 exists to
 	prevent precisely that, so the reason is required whenever the tag is
 	present."""
-	payload = model.MEMORY_PAYLOAD_FIELDS.get(kind)
+	# `assemble.suggestion_kind` returns `sug.get("kind")` verbatim, so a
+	# drifted `"kind": ["edit"]` arrives unhashable and `.get()` would raise —
+	# costing this tool its entire suggestions array, which is deletion, which
+	# is the one thing this layer may not do. Same guard as `derive_item_id`'s.
+	payload = model.MEMORY_PAYLOAD_FIELDS.get(kind) if isinstance(kind, str) else None
 	if payload:
 		for field, purpose in sorted(payload.items()):
 			value = sug.get(field)
@@ -1435,7 +1448,9 @@ def _validate_memory_proposal(sug, kind, findings, tool_id, sug_id):
 	if payload is None:
 		findings.add("E-FIELD-TYPE",
 			"a `self_test_failed` tag on a suggestion of kind \"{}\" — the tag is present "
-			"iff the kind is one of: {}".format(kind, ", ".join(model.MEMORY_SUGGESTION_KINDS)),
+			"iff the kind is one of: {}".format(
+				kind if isinstance(kind, str) else type(kind).__name__,
+				", ".join(model.MEMORY_SUGGESTION_KINDS)),
 			tool_id=tool_id, item_id=sug_id, field="self_test_failed")
 		return
 	if not isinstance(tag, dict):
