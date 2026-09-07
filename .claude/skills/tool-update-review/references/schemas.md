@@ -308,7 +308,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			"detail":   "Longer explanation with the concrete failure mode.",
 			"evidence": [                   // file paths with optional :line suffix
 				"Brewfile:84",
-				"intel.Brewfile"
+				"tasks/install.sh:212"
 			],
 			"motivating_change": "v5.0.0 release notes — 'libkrun is now a required dependency'"
 		}

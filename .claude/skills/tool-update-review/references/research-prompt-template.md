@@ -39,11 +39,17 @@ Repo context — recent commits, for config_status cross-referencing and
 general awareness of what's already changed recently (`references/collection.md`):
 {{REPO_CONTEXT_JSON}}
 
-Paths you may scan for relevancy (`references/research.md`'s "Relevancy is the point
-of this skill"):
-    ~/project/github/tapppi/macos-setup  (Brewfile, intel.Brewfile, tasks/,
-        dotfiles/ submodule — shell/git/tmux/Claude configs)
-    ~/project/github/tapppi/systems       (NixOS flake)
+Paths you may scan for relevancy — the user's LIVE checkouts, read-only
+(`references/research.md`'s "Relevancy is the point of this skill"):
+    ~/project/github/tapppi/macos-setup  (Brewfile, tasks/*.sh, backup.sh,
+        restore.sh, dotfiles/ submodule — shell/git/tmux/Claude configs)
+    ~/project/github/tapppi/systems       (Nix flake)
+
+`intel.Brewfile` is out of this tool entirely — do not read it, cite it or
+target it (`references/research.md` §One Host, One Manifest).
+`dotfiles/config/agent-skills/**` is vendored third-party skill content: grep
+hits there are almost never a real touchpoint, so ignore them unless the tool
+is genuinely configured there.
 
 Audit trail to check for config_status and watch items (`references/research.md`):
     ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/changelog.md

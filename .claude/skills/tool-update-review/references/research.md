@@ -42,7 +42,7 @@ Table of contents:
   - Bespoke `tasks/*.sh` Setup Testing
   - Schema Strictness
   - Depth by Tool
-  - Heterogeneous Hosts
+  - One Host, One Manifest
   - Brew-Health Enrichment
   - Skill-Drift Enrichment
   - Pinned Tools
@@ -424,8 +424,8 @@ normal browsable page and should just link it.
 ### Relevancy Is the Point
 
 **Relevancy is the point of this skill.** Scan the user's setup repos —
-`~/project/github/tapppi/macos-setup` (Brewfile, intel.Brewfile, tasks/,
-dotfiles/ submodule with shell/git/tmux/Claude configs) and
+`~/project/github/tapppi/macos-setup` (Brewfile, tasks/, dotfiles/ submodule
+with shell/git/tmux/Claude configs) and
 `~/project/github/tapppi/systems` (NixOS flake) — plus machine facts, for
 places the tool is configured or its changed behavior lands. Severity:
 `incompatible` (won't work here — e.g. new major requires Apple Silicon on
@@ -1036,18 +1036,22 @@ Node semi-detailed (security advisories, breaking changes, notable features
 per minor); other runtimes coarse (breaking changes and majors only);
 everything else proportional to how much the user configures it.
 
-### Heterogeneous Hosts
+### One Host, One Manifest
 
-**The fleet has heterogeneous hosts** (until the eventual nix migration):
-`Brewfile` manifests the Apple Silicon host(s), `intel.Brewfile` the Intel
-host(s), and `tasks/*.sh` contain arch-conditional blocks. The collector's
-`machine` block describes only the host running this review. Assess impact
-per affected host/manifest — the same update can be `incompatible` on one
-host and desirable on the other (e.g. an ARM-only major on an Intel
-machine). Set severity to the worst affected host, spell out the per-host
-split in `detail`, and make each suggestion's `target_files` name the
-specific manifest(s) it touches (a Brewfile edit usually needs a decision
-about its intel counterpart, not a blind mirror).
+**This review covers the host it is running on, and `Brewfile` is the only
+manifest it looks at.** The collector's `machine` block describes that host;
+assess impact against it and against `tasks/*.sh`'s arch-conditional blocks as
+they apply there.
+
+`intel.Brewfile` is **out of this tool entirely**: not a source of candidates,
+not a compatibility check, not a suggestion target, and not on the page. Do
+not read it, cite it, or name it in a `target_files` entry — the deterministic
+layer rejects a suggestion that does (`references/item-schema.md` I-17), and
+the Intel host is going to NixOS rather than being reviewed here.
+
+Arch still matters *within* this host: an ARM-only dependency is an
+incompatibility on an x86_64 machine, not a footnote. Read it off the
+`machine` block rather than off which manifest a package is listed in.
 
 ### Brew-Health Enrichment
 

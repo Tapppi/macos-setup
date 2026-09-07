@@ -116,7 +116,9 @@ Applied directly to the macos-setup repo in-session:
 - Dotfiles paths go through the submodule workflow (commit inside
   `dotfiles/` first, then `git add dotfiles` + commit in the parent repo —
   see the macos-setup `CLAUDE.md`'s Dotfiles Submodule Workflow section).
-- Brewfile edits need per-host decisions (`Brewfile` vs. `intel.Brewfile`).
+- Brewfile edits target `Brewfile` only. `intel.Brewfile` is out of this tool
+  entirely (`references/research.md` §One Host, One Manifest) — a suggestion
+  naming it never reaches apply, because `E-INTEL-BREWFILE` rejects it first.
 - Commit per `CLAUDE.md`: specific paths staged, imperative-mood messages,
   no AI attribution.
 - **When a target file is managed by `tasks/projects.sh`** (workspace
