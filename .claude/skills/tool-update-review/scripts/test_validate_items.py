@@ -466,8 +466,14 @@ class NormalizationTests(unittest.TestCase):
 			with self.subTest(field):
 				view, findings = validate_one({"id": "brew:x", "links": [],
 					"items": [_item(**{field: authored})]})
+				got = {f["code"] for f in findings.entries}
 				self.assertEqual(view["items"][0][field], authored)
-				self.assertIn("E-FIELD-TYPE", {f["code"] for f in findings.entries})
+				self.assertIn("E-FIELD-TYPE", got)
+				# Keeping the field means every later read of it has to guard:
+				# a truthy non-dict reaching `(x or {}).get(...)` raises, and
+				# the tool loses its derived axes to a crash.
+				self.assertNotIn("E-VALIDATOR-CRASH", got)
+				self.assertIsNone(view["validator_error"])
 
 	def test_a_quarantined_member_is_stored_whole_not_as_a_truncated_repr(self):
 		member = ["deeply", {"nested": ["x" * 500]}]
@@ -656,6 +662,29 @@ class StructuralTests(unittest.TestCase):
 			"subjects": [{"type": "formula", "name": "sops"}], "manifest": "Brewfile",
 			"from": {"type": "formula", "name": "sops"}}))
 		self.assertEqual(got, ["E-FIELD-MISSING"])
+
+	def test_a_null_anchor_never_suppresses_a_precondition_that_ignores_it(self):
+		"""Five of the nine ops never read an anchor. A checker emitting a
+		uniform block with `"anchor": null` must not thereby skip I-16 with no
+		finding at all — that is the silent skip this outlet exists to
+		prevent."""
+		self.assertEqual(codes(self._sug({
+			"op": "manifest_remove", "subjects": [{"type": "formula", "name": "absent"}],
+			"manifest": "Brewfile", "from": {"type": "formula", "name": "absent"},
+			"anchor": None})), ["E-STRUCT-PRECOND"])
+
+	def test_an_anchor_reading_op_with_a_bad_anchor_reports_and_stops(self):
+		self.assertEqual(codes(self._sug({
+			"op": "manifest_move", "subjects": [{"type": "formula", "name": "sops"}],
+			"manifest": "Brewfile", "from": {"type": "formula", "name": "sops"},
+			"anchor": {"section": ["CORE"]}})), ["E-FIELD-TYPE"])
+
+	def test_i17_first_limb_also_reads_the_path(self):
+		self.assertEqual(codes(self._sug({
+			"op": "manifest_remove", "subjects": [{"type": "formula", "name": "sops"}],
+			"manifest": "./intel.Brewfile",
+			"from": {"type": "formula", "name": "sops"}})),
+			["E-INTEL-BREWFILE", "W-STRUCT-UNCHECKED"])
 
 	def test_an_unreadable_manifest_is_unchecked_never_satisfied(self):
 		"""A silent skip is how a structural fix covering the wrong subject set
@@ -994,6 +1023,32 @@ class DegradationTests(unittest.TestCase):
 		self.assertEqual(kept[0]["id"], "brew:x#issue:org%2Frepo%231")
 		self.assertEqual(document["tools"][1]["items"], [])
 
+	def test_an_unhashable_anchor_kind_costs_no_item(self):
+		"""Ids are assigned before V2 reports on the anchor, so `anchor.kind`
+		reaches the derivation unvalidated. A dict-membership test on an
+		unhashable one used to raise out of the whole stage and take every
+		later item and suggestion with it."""
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(title="FIRST"),
+			_item(anchor={"kind": ["issue"], "value": "org/repo#9"}, title="POISON"),
+			_item(anchor={"kind": "issue", "value": "org/repo#3"}, title="THIRD"),
+		], "suggestions": [{"id": "brew:x:e", "kind": "edit", "target_files": []}]})
+		self.assertEqual(sorted(i["title"] for i in view["items"]),
+			["FIRST", "POISON", "THIRD"])
+		self.assertEqual(len(view["suggestions"]), 1)
+		got = {f["code"] for f in findings.entries}
+		self.assertNotIn("E-VALIDATOR-CRASH", got)
+		self.assertIn("E-ENUM-INVALID", got)
+
+	def test_an_item_kept_through_a_crash_still_carries_its_assigned_fields(self):
+		"""The same "a consumer must not KeyError on precisely the item
+		degradation was meant to keep usable" argument as the view's defaults."""
+		document = self._with_exploding("validate_item", lambda: session_with(
+			{"a.json": [{"id": "brew:x", "links": [], "items": [_item()]}]}))
+		item = document["tools"][0]["items"][0]
+		self.assertEqual(item["id"], "brew:x#issue:org%2Frepo%231")
+		self.assertEqual(item["id_stability"], "anchored")
+
 	def test_a_crashing_stage_keeps_everything_that_conformed_before_it(self):
 		"""`_validate_suggestions` runs after the items are validated, so a
 		failure there must not take the items with it."""
@@ -1003,6 +1058,48 @@ class DegradationTests(unittest.TestCase):
 		self.assertIn("E-VALIDATOR-CRASH", document["counts"]["by_code"])
 		view = document["tools"][0]
 		self.assertEqual([i["title"] for i in view["items"]], ["AUTHORED TEXT"])
+		self.assertEqual(view["impact"], "unknown")
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_partial_stage_failure_can_never_promote_a_tool(self):
+		"""The `brew:libpq` defect by another route. A stage that fails halfway
+		leaves the view missing exactly what it had not reached yet, so a bucket
+		computed from what survived can pre-accept a tool *because* the thing
+		holding it back is the thing that went missing."""
+		security_item = _item(tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-18408", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		structural = {"id": "brew:x:s", "kind": "structural", "target_files": [],
+			"structural": {"op": "task_add", "subjects": [{"type": "cask", "name": "c"}],
+				"manifest": None, "to": {"type": "task", "name": "setup.sh:q"},
+				"anchor": {"file": "setup.sh"}}}
+
+		# The suggestion is what holds this tool out of the auto bucket…
+		alone, _ = validate_one({"id": "brew:x", "links": [], "items": [security_item]})
+		self.assertEqual(alone["initial_review_bucket"], "security_auto")
+		healthy, _ = validate_one({"id": "brew:x", "links": [], "items": [security_item],
+			"suggestions": [structural]})
+		self.assertEqual(healthy["initial_review_bucket"], "security_mixed")
+
+		# …so losing it to a crashed stage must not hand the tool the auto path.
+		document = self._with_exploding("_validate_suggestions",
+			lambda: session_with({"a.json": [{"id": "brew:x", "links": [],
+				"items": [security_item], "suggestions": [structural]}]}))
+		view = document["tools"][0]
+		self.assertIn("E-VALIDATOR-CRASH", document["counts"]["by_code"])
+		self.assertTrue(view["validator_error"])
+		self.assertEqual(view["suggestions"], [])
+		self.assertEqual(view["impact"], "unknown")
+		self.assertEqual(view["risk_level"], "elevated")
+		self.assertNotEqual(view["initial_review_bucket"], "security_auto")
+		self.assertFalse(view["bucket_inputs"]["security_only"])
+
+	def test_a_degraded_tool_with_no_security_content_lands_in_attention(self):
+		document = self._with_exploding("_validate_suggestions",
+			lambda: session_with({"a.json": [{"id": "brew:x", "links": [],
+				"items": [_item()]}]}))
+		view = document["tools"][0]
+		self.assertEqual(view["initial_review_bucket"], "attention")
 
 	def test_a_degraded_tool_still_carries_every_key_a_consumer_reads(self):
 		"""A KeyError on precisely the tool degradation was supposed to keep

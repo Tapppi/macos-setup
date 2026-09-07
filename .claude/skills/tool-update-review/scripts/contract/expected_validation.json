@@ -472,6 +472,7 @@
 			"name": "sops",
 			"pinned": false,
 			"research_error": null,
+			"validator_error": null,
 			"links": [
 				{
 					"type": "changelog",
@@ -634,6 +635,7 @@
 			"name": "openssh",
 			"pinned": false,
 			"research_error": null,
+			"validator_error": null,
 			"links": [
 				{
 					"type": "release",
@@ -821,6 +823,7 @@
 			"name": "codex",
 			"pinned": false,
 			"research_error": null,
+			"validator_error": null,
 			"links": [
 				{
 					"type": "changelog",
@@ -995,6 +998,7 @@
 			"name": "attention",
 			"pinned": false,
 			"research_error": null,
+			"validator_error": null,
 			"links": [
 				{
 					"type": "changelog",
@@ -1069,6 +1073,7 @@
 			"name": "nonconforming",
 			"pinned": false,
 			"research_error": null,
+			"validator_error": null,
 			"links": [],
 			"vendor_silent_categories": [],
 			"items": [
@@ -1392,6 +1397,7 @@
 			"name": "GNU utils ahead of Apple's on PATH",
 			"pinned": false,
 			"research_error": "no research entry for this candidate",
+			"validator_error": null,
 			"links": [],
 			"vendor_silent_categories": [],
 			"items": [],

@@ -476,8 +476,16 @@ renders in the collapsed detail, and still carries its finding.
 | an entry is not an object, or has no usable id | entry | recorded in `validation.json.orphans`; the run continues |
 | an entry names no collected candidate | entry | kept in `unmatched`, reported; merged into no tool |
 | a known entry fails spec | tool | the tool is built from whatever conformed, field by field; codes recorded on `tool.spec_violations[]` |
-| validating one item raises | item | `E-VALIDATOR-CRASH` naming the item; **the item is kept verbatim with its assigned id**, unchecked, so convergence can still address it |
-| a later stage raises | tool | `E-VALIDATOR-CRASH` naming the stage; **everything that conformed before the failure stays on the tool** — discarding it would be deletion |
+| validating one item raises | item | `E-VALIDATOR-CRASH` naming the item; **the item is kept verbatim with its assigned id and `id_stability`**, unchecked, so convergence can still address it |
+| a later stage raises | tool | `E-VALIDATOR-CRASH` naming the stage; **everything that conformed before the failure stays on the tool** — discarding it would be deletion — and `validator_error` is set |
+
+**A failed stage can never promote a tool.** Keeping what conformed is only half
+the rule. A stage that failed halfway leaves the view missing exactly the
+content it had not reached yet — the breaking item, the structural suggestion —
+so a bucket computed from what survived would pre-accept a tool *because* the
+thing holding it back is the thing that went missing. That is the `brew:libpq`
+defect by another route. So `validator_error` makes `impact` read `unknown` and
+`risk_level` read `elevated`, and no auto-accepting bucket accepts either.
 | no entry at all for a candidate | tool | `research_error` set |
 
 Three loudness channels, all required: `validation.json` (the machine-readable

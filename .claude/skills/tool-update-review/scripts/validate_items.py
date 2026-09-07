@@ -876,7 +876,7 @@ def validate_structural(block, tool_id, sug_id, findings: Findings, manifest: Ma
 
 	manifest_name = block.get("manifest")
 	if manifest_name is not None:
-		if manifest_name in model.FORBIDDEN_MANIFESTS:
+		if _names_forbidden_manifest(manifest_name):
 			findings.add("E-INTEL-BREWFILE",
 				"intel.Brewfile is out of this tool entirely — not a candidate source, not "
 				"a compatibility check, not a suggestion target, not on the page",
@@ -909,14 +909,19 @@ def validate_structural(block, tool_id, sug_id, findings: Findings, manifest: Ma
 	# Ref that already failed its own shape check would dereference `name` on
 	# something that has none — the shape failure is already reported, so stop
 	# here rather than trading one finding for a crashed stage.
-	if not refs_ok or not isinstance(block.get("anchor", {}), dict):
+	if not refs_ok:
 		return subjects
-	if any(not isinstance(_struct_get(block, r), str)
-			for r in _OP_REQUIRES[op] if r.startswith("anchor.")):
-		findings.add("E-FIELD-TYPE",
-			"structural.anchor's value for op \"{}\" is not a string".format(op),
-			tool_id=tool_id, item_id=sug_id, field="structural.anchor")
-		return subjects
+	# The anchor limb is scoped to the ops that actually read one. Applying it
+	# to all nine let a plain `"anchor": null` — a checker emitting a uniform
+	# block — skip I-16 entirely with no finding at all, which is the silent
+	# skip this outlet exists to prevent.
+	if any(r.startswith("anchor.") for r in _OP_REQUIRES[op]):
+		if any(not isinstance(_struct_get(block, r), str)
+				for r in _OP_REQUIRES[op] if r.startswith("anchor.")):
+			findings.add("E-FIELD-TYPE",
+				"structural.anchor's value for op \"{}\" is not a string".format(op),
+				tool_id=tool_id, item_id=sug_id, field="structural.anchor")
+			return subjects
 
 	_check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifest_name)
 	return subjects
@@ -1018,8 +1023,10 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 # ── V5: impact (§5.5) ───────────────────────────────────────────────────────
 def research_produced_content(view) -> bool:
 	"""A checker that failed, timed out or returned an empty shell has told us
-	nothing — never the same as "nothing but security fixes"."""
-	return not view.get("research_error") and bool(view["items"])
+	nothing — never the same as "nothing but security fixes". Neither has a
+	validator stage that failed partway: what survived is not the corpus."""
+	return (not view.get("research_error") and not view.get("validator_error")
+		and bool(view["items"]))
 
 
 def compute_impact(view) -> str:
@@ -1055,7 +1062,10 @@ def compute_impact(view) -> str:
 			or any(assemble.suggestion_kind(s) in ("edit", "structural")
 				for s in suggestions if isinstance(s, dict))
 			or any(i.get("severity") == "incompatible" for i in view["items"])
-			or any((i.get("local") or {}).get("effect") == "risk"
+			# `isinstance`, not `or {}`: V2 reports a wrong-typed `local` and
+			# leaves it on the item, so a truthy non-dict reaches this read.
+			or any(isinstance(i.get("local"), dict)
+				and i["local"].get("effect") == "risk"
 				and i.get("severity") in ("notable", "warning", "incompatible")
 				for i in view["items"])
 			or any(isinstance(i.get("tags"), list) and "breaking" in i["tags"]
@@ -1092,7 +1102,7 @@ def compute_risk_level(view) -> str:
 			return "elevated"
 	if view["version_delta"] in ("major", "unknown"):
 		return "elevated"
-	if view.get("research_error"):
+	if view.get("research_error") or view.get("validator_error"):
 		return "elevated"
 	if not view["items"] and not (view.get("vendor_silent_categories") or []):
 		return "elevated"
@@ -1132,16 +1142,22 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	name = candidate.get("name") or tool_id.split(":", 1)[-1]
 
 	# Every key a healthy view carries is present from the start, defaulted
-	# conservatively. A consumer reading `view["version_delta"]` must not
-	# KeyError on precisely the tool that degradation was supposed to keep
-	# usable, and the derived axes must default to the answers that can never
-	# reach an auto-accepting bucket.
+	# conservatively, so a consumer reading `view["version_delta"]` does not
+	# KeyError on precisely the tool degradation was supposed to keep usable.
+	# The conservative *values* are held by `validator_error` rather than by
+	# these defaults, since `_derive_axes` overwrites them whenever it runs.
 	view = {
 		"id": tool_id,
 		"source": source,
 		"name": name,
 		"pinned": bool(candidate.get("pinned")),
 		"research_error": None,
+		# Set by `_guard` when a stage fails. Distinct from `research_error`,
+		# which is the *checker* telling us it failed: this is the validator
+		# telling us its own view of the tool is incomplete. Both make the
+		# derived axes read `unknown`, which is the only honest answer and the
+		# one that can never reach an auto-accepting bucket.
+		"validator_error": None,
 		"links": [],
 		"vendor_silent_categories": [],
 		"items": [],
@@ -1170,29 +1186,41 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		view["research_error"] = "no research entry for this candidate"
 	else:
 		view["research_error"] = research.get("research_error")
-		_guard(findings, tool_id, "research section",
+		_guard(view, findings, "research section",
 			lambda: _read_research(view, research, findings, tool_id, resolver, manifest))
 
 	# version delta, then the derived axes, in dependency order.
-	_guard(findings, tool_id, "derived axes",
+	_guard(view, findings, "derived axes",
 		lambda: _derive_axes(view, candidate, findings))
 	return view
 
 
-def _guard(findings: Findings, tool_id, stage, work):
+def _guard(view, findings: Findings, stage, work):
 	"""Run one stage of a tool's validation, or report that it failed.
 
 	Criterion 4 with the constraint attached: the next unanticipated shape must
 	cost as little as possible and say so. It must NOT cost the items already
 	validated — discarding those is deletion, which is what this whole layer is
 	forbidden to do — so `view` is built up in place and whatever conformed
-	before the failure stays on it."""
+	before the failure stays on it.
+
+	And it must not *promote* the tool either. A stage that failed halfway
+	leaves a view missing exactly the content it had not reached yet — the
+	breaking item, the structural suggestion — so computing a bucket from what
+	survived is the `brew:libpq` defect by another route: a tool reaching
+	`security_auto`, pre-accepted, because the thing holding it back is the
+	thing that went missing. `validator_error` makes the derived axes read
+	`unknown`, which no auto-accepting bucket accepts."""
 	try:
 		work()
 	except Exception as exc:  # noqa: BLE001 — the point is to contain everything
+		note = "{}: {}".format(stage, type(exc).__name__)
+		view["validator_error"] = (note if not view.get("validator_error")
+			else view["validator_error"] + "; " + note)
 		findings.add("E-VALIDATOR-CRASH",
 			"the {} stage failed ({}: {}); this tool keeps whatever conformed before "
-			"the failure".format(stage, type(exc).__name__, exc), tool_id=tool_id)
+			"the failure, and its derived axes read \"unknown\" because the view is "
+			"incomplete".format(stage, type(exc).__name__, exc), tool_id=view["id"])
 
 
 def _read_research(view, research, findings, tool_id, resolver, manifest):
@@ -1232,7 +1260,8 @@ def _read_research(view, research, findings, tool_id, resolver, manifest):
 				"validating this item failed ({}: {}); it is kept verbatim and "
 				"unchecked".format(type(exc).__name__, exc),
 				tool_id=tool_id, item_id=item_id)
-			item, item_quarantine = dict(raw, id=item_id), []
+			item, item_quarantine = dict(raw, id=item_id,
+				id_stability=model.id_stability(raw.get("anchor"))), []
 		normalized.append(item)
 		quarantine.extend(item_quarantine)
 	view["items"] = model.order_items(normalized)
@@ -1249,9 +1278,10 @@ def _read_research(view, research, findings, tool_id, resolver, manifest):
 
 
 def _derive_axes(view, candidate, findings):
-	"""V5 and V6. Reads only what is on the view, so it produces the same answer
-	for a tool whose research stage failed as for one that had no research at
-	all — which is the honest answer in both cases: `unknown`."""
+	"""V5 and V6. Reads only what is on the view, and `research_produced_content`
+	refuses to read a view that a failed stage left incomplete — so a tool whose
+	research stage failed lands on `unknown`/`elevated`/`attention`, exactly
+	where one with no research at all lands."""
 	source, name = view["source"], view["name"]
 	view["version_delta"] = assemble.compute_version_delta(
 		candidate.get("current_version"), candidate.get("latest_version"), source,
@@ -1359,7 +1389,7 @@ def _names_forbidden_manifest(path) -> bool:
 	return os.path.basename(os.path.normpath(path)) in model.FORBIDDEN_MANIFESTS
 
 
-def _check_flags(research, view, findings, tool_id, recomputed=None):
+def _check_flags(research, view, findings, tool_id):
 	"""I-13 plus criterion 2's enforcement.
 
 	The four emittable flags are assertions, not inputs: the validator's
@@ -1368,7 +1398,7 @@ def _check_flags(research, view, findings, tool_id, recomputed=None):
 	validator-only flags gate `security_auto`/`pre_accept`; a checker emitting
 	one is an error, not an overrule — a wrong `has_security` is a wrong label,
 	a wrong `security_only` is an unreviewed upgrade."""
-	recomputed = model.recompute_flags(view["items"]) if recomputed is None else recomputed
+	recomputed = model.recompute_flags(view["items"])
 	declared = research.get("flags")
 	declared = declared if isinstance(declared, dict) else {}
 	for flag in model.CHECKER_FLAGS:

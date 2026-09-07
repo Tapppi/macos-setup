@@ -243,12 +243,15 @@ def derive_item_id(tool_id: str, anchor) -> str:
 	malformed or missing anchor still yields a usable, reported id — the item
 	is kept (E-ANCHOR-MALFORMED), and an item with no handle is unaddressable
 	by convergence, which is worse than an ugly one."""
+	# `kind` is unvalidated here — ids are assigned before V2 reports on it — so
+	# it can be any JSON value, and a dict-membership test on an unhashable one
+	# raises. Every comparison below is written to survive that.
 	kind = anchor.get("kind") if isinstance(anchor, dict) else None
 	if kind == "none":
 		slug = anchor.get("slug")
 		raw = slug if isinstance(slug, str) else ""
 		return "{}#slug:{}".format(tool_id, quote(raw, safe=""))
-	if kind in ANCHOR_PATTERNS:
+	if isinstance(kind, str) and kind in ANCHOR_PATTERNS:
 		value = anchor.get("value")
 		raw = value if isinstance(value, str) else ""
 		return "{}#{}:{}".format(tool_id, kind, quote(raw, safe=""))
@@ -510,12 +513,16 @@ def allowed_for_security_only(item) -> bool:
 	if not isinstance(item, dict):
 		return False
 	raw = item.get("tags")
-	# Only string members: a tag written as a list or a dict is kept verbatim on
-	# the item, so `set(tags)` would raise on an unhashable member. An
-	# unrecognized tag is not evidence of harmlessness either way — the
-	# subset test below disqualifies both.
-	tags = {t for t in raw if isinstance(t, str)} if isinstance(raw, list) else set()
-	if not tags or len(tags) != len(raw or ()) or not tags <= SECURITY_ONLY_TAGS:
+	if not isinstance(raw, list) or not raw:
+		return False
+	# A tag written as a list or a dict is kept verbatim on the item, so
+	# `set(tags)` would raise on an unhashable member. A non-string member
+	# disqualifies — it is not evidence of harmlessness — but a *repeated*
+	# string tag is not a defect and must not.
+	if any(not isinstance(t, str) for t in raw):
+		return False
+	tags = set(raw)
+	if not tags <= SECURITY_ONLY_TAGS:
 		# feature / breaking / deprecation / perf disqualify, and so does an
 		# unrecognized tag — an unknown tag is not evidence of harmlessness.
 		return False
