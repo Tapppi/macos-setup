@@ -14,6 +14,16 @@ two audiences and is split into two parts for them:
   `references/research-prompt-template.md`), so drift between runs doesn't
   creep in.
 
+**The checkable claims in this document have tests.**
+`scripts/test_research_guidelines.py` asserts them against this file, the
+prompt template and `schemas.md` — that the routing test precedes the bar, that
+the self-test tags rather than deletes, that no numeric volume target reaches a
+per-tool agent, that nothing sends a checker at the Intel manifest. Run it after
+editing any of them. The reason it exists is measured: the §Watch Items
+(Proposing) text was **byte-identical** across three runs that produced 11, 5
+and 8 proposals, so a rule here can be wrong, or quietly removed, without
+anything failing.
+
 Table of contents:
 - Part 1 — Orchestrator: Dispatch
   - Prompt Template
