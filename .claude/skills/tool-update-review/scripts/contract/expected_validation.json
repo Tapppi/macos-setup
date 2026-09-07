@@ -1,0 +1,1428 @@
+{
+	"contract_version": 1,
+	"generated_at": "2026-09-07T00:00:00Z",
+	"session_id": "session",
+	"clean": false,
+	"findings": [
+		{
+			"code": "E-RESEARCH-NOTARRAY",
+			"severity": "error",
+			"tool_id": null,
+			"item_id": null,
+			"field": "02-not-an-array.json",
+			"value": "",
+			"message": "expected a JSON array of tool objects, got dict"
+		},
+		{
+			"code": "W-ATTENTION-NOSUG",
+			"severity": "warning",
+			"tool_id": "brew:attention",
+			"item_id": null,
+			"field": "config_status.state",
+			"value": "",
+			"message": "config_status is needs_attention but no non-upgrade suggestion says what to do"
+		},
+		{
+			"code": "W-ENTRY-UNMATCHED",
+			"severity": "warning",
+			"tool_id": "brew:ghost",
+			"item_id": null,
+			"field": null,
+			"value": "",
+			"message": "names no candidate in collect.json — kept as unmatched, merged into no tool"
+		},
+		{
+			"code": "E-EVID-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "config_status.evidence",
+			"value": "the maintainer's mailing list post, June 2026",
+			"message": "not a path — evidence holds paths only; prose belongs in citations[]"
+		},
+		{
+			"code": "E-FLAG-DISAGREE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "flags.has_security",
+			"value": "False",
+			"message": "checker said False, items say True — the validator's value wins"
+		},
+		{
+			"code": "E-FLAG-DISAGREE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "flags.local_findings",
+			"value": "0",
+			"message": "checker said 0, items say 3 — the validator's value wins"
+		},
+		{
+			"code": "E-FLAG-DISAGREE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "flags.worst_severity",
+			"value": "info",
+			"message": "checker said 'info', items say 'incompatible' — the validator's value wins"
+		},
+		{
+			"code": "E-FLAG-FORBIDDEN",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "impact",
+			"value": "none",
+			"message": "a per-tool checker has no view of the corpus and does not decide this; it is computed here"
+		},
+		{
+			"code": "W-MEMBER-QUARANTINED",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "items",
+			"value": "an item written as a bare string",
+			"message": "a items entry is str, not an object — quarantined, not dropped"
+		},
+		{
+			"code": "E-CVE-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#commit:f2ff0b2a",
+			"field": "security.cve_id",
+			"value": "CVE-1",
+			"message": "not a CVE id"
+		},
+		{
+			"code": "E-FIELD-TYPE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#commit:f2ff0b2a",
+			"field": "security.exploited_in_wild",
+			"value": "yes",
+			"message": "security.exploited_in_wild is str, not a bool"
+		},
+		{
+			"code": "E-SEC-BLOCK-ORPHAN",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#commit:f2ff0b2a",
+			"field": "security",
+			"value": "",
+			"message": "a `security` block on an item not tagged `security`"
+		},
+		{
+			"code": "E-SEC-RATING-UNBASED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#commit:f2ff0b2a",
+			"field": "security.rating_basis",
+			"value": "",
+			"message": "a rating of \"high\" with basis \"unrated\" — a grade with no issuer is a guess"
+		},
+		{
+			"code": "E-ANCHOR-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#cve:CVE-26-1",
+			"field": "anchor.value",
+			"value": "CVE-26-1",
+			"message": "anchor.value does not match the grammar for kind \"cve\": ^CVE-(?:19|20)\\d{2}-\\d{4,}$"
+		},
+		{
+			"code": "E-SEC-BLOCK-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#cve:CVE-26-1",
+			"field": "security",
+			"value": "",
+			"message": "tagged `security` with no `security` block — the per-item rating lives there"
+		},
+		{
+			"code": "E-SEV-INCOMPAT-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#cve:CVE-26-1",
+			"field": "severity",
+			"value": "",
+			"message": "`incompatible` means something that works here today stops working, so it requires local.direction \"reaches\" and local.effect \"risk\""
+		},
+		{
+			"code": "W-TITLE-LONG",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#cve:CVE-26-1",
+			"field": "title",
+			"value": "A title that is well past the glanceable bar, written as a paragraph rather than a headline, so that the reader has to parse a whole argument before learning what the change actually is, which is exactly the defect the split exists to catch",
+			"message": "title is 240 chars (bar is 120); a title is readable at a glance and the rest belongs in `body`"
+		},
+		{
+			"code": "E-CHANGE-UNCITED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245",
+			"field": "change.citation",
+			"value": "",
+			"message": "change.citation must be the verbatim upstream text, never null or \"none found\""
+		},
+		{
+			"code": "E-LINK-INDEX",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245",
+			"field": "change.link_index",
+			"value": "7",
+			"message": "link_index 7 is out of range of links[] (length 0)"
+		},
+		{
+			"code": "E-SEV-WARNING-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245",
+			"field": "severity",
+			"value": "",
+			"message": "`warning` is a behaviour change *here*, so it requires a `local` block"
+		},
+		{
+			"code": "E-CITE-EMPTY",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "local.citations.text",
+			"value": "",
+			"message": "a citation carries no text"
+		},
+		{
+			"code": "E-CITE-KIND",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "local.citations.kind",
+			"value": "blogpost",
+			"message": "kind must be one of: changelog, release_notes, advisory, upstream_source, command, observation, prior_review"
+		},
+		{
+			"code": "E-CITE-URL",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "local.citations.url",
+			"value": "not a url",
+			"message": "not an absolute http(s) URL"
+		},
+		{
+			"code": "E-ITEM-DUP-ANCHOR",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "anchor",
+			"value": "brew:nonconforming#issue:%232245",
+			"message": "two items derive one id — the strongest available signal that one change was written twice. Both are KEPT and the later one suffixed; convergence decides"
+		},
+		{
+			"code": "E-REACHES-UNEVIDENCED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "local.evidence",
+			"value": "",
+			"message": "direction \"reaches\" with no evidence — the claim that it lands here needs a path"
+		},
+		{
+			"code": "E-ENUM-INVALID",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": "severity",
+			"value": "critical",
+			"message": "severity must be one of: info, notable, warning, incompatible"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": "anchor",
+			"value": "",
+			"message": "anchor is required — the id is derived from it"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": "title",
+			"value": "",
+			"message": "title is required"
+		},
+		{
+			"code": "E-ITEM-EMPTY",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": null,
+			"value": "",
+			"message": "an item with neither `change` nor `local` says nothing"
+		},
+		{
+			"code": "E-TAG-NONE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": "tags",
+			"value": "['securty']",
+			"message": "no recognized tag — the item groups under `notes` for rendering only and contributes to no derived flag. It is never dropped"
+		},
+		{
+			"code": "E-TAG-UNKNOWN",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#malformed:",
+			"field": "tags",
+			"value": "securty",
+			"message": "tag outside the closed set — kept on the item, ignored by every derived flag"
+		},
+		{
+			"code": "E-EVID-404",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "dotfiles/config/bash/.path",
+			"message": "well-formed path that resolves under no root"
+		},
+		{
+			"code": "E-EVID-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "CMake 4.4 release notes — \"the minimum is now 3.5\"",
+			"message": "not a path — evidence holds paths only; prose belongs in citations[]"
+		},
+		{
+			"code": "W-EVID-ROOT",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "tieto/konehuone/sysmi/notes.md",
+			"message": "resolves under \"tieto\", which is a real repo but not a configured root — a configuration finding about the run, not a checker defect"
+		},
+		{
+			"code": "E-ENUM-INVALID",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:bad-kind",
+			"field": "kind",
+			"value": "refactor",
+			"message": "suggestion kind must be one of: upgrade, edit, structural, watch-item"
+		},
+		{
+			"code": "E-INTEL-BREWFILE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:bad-kind",
+			"field": "target_files",
+			"value": "intel.Brewfile",
+			"message": "intel.Brewfile is out of this tool entirely — it is not a suggestion target"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:intel-manifest",
+			"field": "structural.subjects",
+			"value": "[]",
+			"message": "structural.subjects must name at least one entity the change is about — it is the collision key `target_files` cannot provide"
+		},
+		{
+			"code": "E-INTEL-BREWFILE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:intel-manifest",
+			"field": "structural.manifest",
+			"value": "intel.Brewfile",
+			"message": "intel.Brewfile is out of this tool entirely — not a candidate source, not a compatibility check, not a suggestion target, not on the page"
+		},
+		{
+			"code": "W-STRUCT-UNCHECKED",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:intel-manifest",
+			"field": "structural.op",
+			"value": "",
+			"message": "no readable manifest was named — the precondition for op \"manifest_move\" is unverified, not satisfied"
+		},
+		{
+			"code": "E-STRUCT-PRECOND",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:move-to-its-own-section",
+			"field": "structural.anchor.section",
+			"value": "CORE",
+			"message": "formula \"sops\" is already in section \"CORE\" — a move to where it already is"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:no-block",
+			"field": "structural",
+			"value": "",
+			"message": "a structural suggestion needs its `structural` block — that block, not the diff preview, is the reviewable artifact"
+		},
+		{
+			"code": "E-STRUCT-PRECOND",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:redispatch-install",
+			"field": "structural.to",
+			"value": "setup.sh:install",
+			"message": "setup.sh already dispatches \"install\""
+		},
+		{
+			"code": "W-SUG-DUP-ID",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": "cask:codex:add-quarantine-task",
+			"field": "suggestions[].id",
+			"value": "",
+			"message": "also used by cask:codex — a collision almost always means an id pattern was copied rather than derived"
+		}
+	],
+	"counts": {
+		"by_code": {
+			"E-ANCHOR-MALFORMED": 1,
+			"E-CHANGE-UNCITED": 1,
+			"E-CITE-EMPTY": 1,
+			"E-CITE-KIND": 1,
+			"E-CITE-URL": 1,
+			"E-CVE-MALFORMED": 1,
+			"E-ENUM-INVALID": 2,
+			"E-EVID-404": 1,
+			"E-EVID-MALFORMED": 2,
+			"E-FIELD-MISSING": 4,
+			"E-FIELD-TYPE": 1,
+			"E-FLAG-DISAGREE": 3,
+			"E-FLAG-FORBIDDEN": 1,
+			"E-INTEL-BREWFILE": 2,
+			"E-ITEM-DUP-ANCHOR": 1,
+			"E-ITEM-EMPTY": 1,
+			"E-LINK-INDEX": 1,
+			"E-REACHES-UNEVIDENCED": 1,
+			"E-RESEARCH-NOTARRAY": 1,
+			"E-SEC-BLOCK-MISSING": 1,
+			"E-SEC-BLOCK-ORPHAN": 1,
+			"E-SEC-RATING-UNBASED": 1,
+			"E-SEV-INCOMPAT-UNGROUNDED": 1,
+			"E-SEV-WARNING-UNGROUNDED": 1,
+			"E-STRUCT-PRECOND": 2,
+			"E-TAG-NONE": 1,
+			"E-TAG-UNKNOWN": 1,
+			"W-ATTENTION-NOSUG": 1,
+			"W-ENTRY-UNMATCHED": 1,
+			"W-EVID-ROOT": 1,
+			"W-MEMBER-QUARANTINED": 1,
+			"W-STRUCT-UNCHECKED": 1,
+			"W-SUG-DUP-ID": 1,
+			"W-TITLE-LONG": 1
+		},
+		"by_tool": {
+			"brew:attention": 1,
+			"brew:ghost": 1,
+			"brew:nonconforming": 40
+		},
+		"by_severity": {
+			"error": 36,
+			"warning": 7
+		}
+	},
+	"orphans": [],
+	"unmatched": [
+		"brew:ghost"
+	],
+	"subject_index": {
+		"cask:codex": [
+			"cask:codex:add-quarantine-task"
+		],
+		"cask:cursor-cli": [
+			"cask:codex:add-quarantine-task"
+		],
+		"formula:nonconforming": [
+			"brew:nonconforming:redispatch-install"
+		],
+		"formula:sops": [
+			"brew:nonconforming:move-to-its-own-section"
+		]
+	},
+	"target_file_index": {
+		"intel.Brewfile": [
+			"brew:nonconforming:bad-kind"
+		],
+		"setup.sh": [
+			"cask:codex:add-quarantine-task"
+		]
+	},
+	"tools": [
+		{
+			"id": "brew:sops",
+			"source": "brew",
+			"name": "sops",
+			"pinned": false,
+			"research_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "sops CHANGELOG.md — 3.13.3",
+					"url": "https://github.com/getsops/sops/blob/v3.13.3/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2245"
+					},
+					"title": "3.13.3 fixes a wrong MAC computed when decrypting YAML sequences that contain a comment",
+					"body": "3.13.2 — the installed version — mis-computes the MAC, so any file encrypted by 3.13.1 or earlier with a comment on a list item fails to decrypt with \"MAC mismatch\". Upstream notes it also breaks integrations built on sops.",
+					"tags": [
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Fix a bug introduced in 3.13.2 that computes a wrong MAC during decryption for sequences (YAML lists) that contain a comment (#2245)",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The defective binary is what runs here, so the upgrade is the fix rather than a change to step over. But nothing in these repos hands sops a file to decrypt: the sopsdiffer textconv driver is bound to no path, there is no .sops.yaml, no SOPS_* env var and no alias.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									6
+								]
+							},
+							{
+								"path": "dotfiles/config/git/config",
+								"lines": [
+									[
+										1,
+										2
+									]
+								],
+								"note": "diff \"sopsdiffer\" textconv"
+							},
+							{
+								"path": "dotfiles/config/git/config",
+								"lines": [
+									5
+								]
+							}
+						],
+						"citations": [
+							{
+								"kind": "command",
+								"text": "sops --version → 3.13.2",
+								"url": null
+							},
+							{
+								"kind": "command",
+								"text": "git check-attr diff -- Brewfile → \"diff: unspecified\"",
+								"url": null
+							},
+							{
+								"kind": "upstream_source",
+								"text": "getsops/sops compare v3.13.2...v3.13.3 — 13 non-dependency commits",
+								"url": "https://github.com/getsops/sops/compare/v3.13.2...v3.13.3"
+							}
+						]
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232245",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2253"
+					},
+					"title": "`sops completion` no longer emits a leading blank line before the shebang",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Fix `sops completion` emitting a leading newline before the shebang (#2253)",
+						"link_index": 0
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232253",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2239"
+					},
+					"title": "`ini` is now listed among the supported input/output types in the CLI help text",
+					"tags": [
+						"chore"
+					],
+					"severity": "info",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Add `ini` to the list of supported types in the CLI help (#2239)",
+						"link_index": 0
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232239",
+					"id_stability": "anchored"
+				}
+			],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "The 3.13.2 → 3.13.3 delta is #2245, #2253 and #2239. None touches the sopsdiffer wiring or the Brewfile line, so the prior handling still holds.",
+				"evidence": [
+					{
+						"path": "dotfiles/config/git/config",
+						"lines": [
+							[
+								1,
+								2
+							]
+						]
+					}
+				],
+				"citations": [
+					{
+						"kind": "prior_review",
+						"text": "changelog.md 2026-07-06: \"brew: sops 3.13.1 → 3.13.2\"",
+						"url": null
+					}
+				]
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"quarantine": [],
+			"version_delta": "patch",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": "warning",
+				"local_findings": 1
+			},
+			"impact": "none",
+			"risk_level": "elevated",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"spec_violations": []
+		},
+		{
+			"id": "brew:openssh",
+			"source": "brew",
+			"name": "openssh",
+			"pinned": false,
+			"research_error": null,
+			"links": [
+				{
+					"type": "release",
+					"label": "OpenSSH 10.5/10.5p1 release notes",
+					"url": "https://www.openssh.com/txt/release-10.5"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/ssh-mux-realloc-uaf"
+					},
+					"title": "ssh(1) use-after-free in the multiplexing client when a mux socket is torn down mid-request",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "10.5p1",
+						"citation": "ssh(1): fix a use-after-free in the multiplexing client",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "No ControlMaster is configured anywhere in these repos and no -R forwarding is set up, so the multiplexing path is never entered here.",
+						"evidence": [
+							{
+								"path": "dotfiles/config/1password/agent.toml",
+								"note": "the only ssh config this repo ships"
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": null,
+						"advisory_id": null,
+						"rating": "unknown",
+						"rating_basis": "unrated",
+						"exploited_in_wild": false
+					},
+					"id": "brew:openssh#release:10.5p1%2Fssh-mux-realloc-uaf",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/restrict-covers-tunnel"
+					},
+					"title": "sshd(8) `restrict` in authorized_keys now also disables tunnel forwarding",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "10.5p1",
+						"citation": "sshd(8): the restrict keyword now includes tunnel forwarding",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "none",
+						"statement": "launchd runs Apple's sshd on this machine, not Homebrew's, so a change to Homebrew's sshd(8) does not reach the running service.",
+						"evidence": [],
+						"citations": [
+							{
+								"kind": "command",
+								"text": "launchctl print system/com.openssh.sshd → Apple's /usr/sbin/sshd",
+								"url": null
+							}
+						]
+					},
+					"security": {
+						"cve_id": null,
+						"advisory_id": null,
+						"rating": "unknown",
+						"rating_basis": "unrated",
+						"exploited_in_wild": false
+					},
+					"id": "brew:openssh#release:10.5p1%2Frestrict-covers-tunnel",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/ssh-Z-key-order"
+					},
+					"title": "ssh(1) gains -Z, printing the order in which agent keys are offered",
+					"tags": [
+						"feature"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "10.5p1",
+						"citation": "ssh(1): add a -Z option to print the order of agent key offers",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first. -Z makes that inspectable rather than inferred.",
+						"evidence": [
+							{
+								"path": "dotfiles/config/1password/agent.toml",
+								"lines": [
+									[
+										1,
+										8
+									]
+								],
+								"note": "three vaults"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/libcrypto-ecc-required"
+					},
+					"title": "The configure step now requires ECC and NISTP521 support in libcrypto",
+					"tags": [
+						"packaging"
+					],
+					"severity": "info",
+					"change": {
+						"version": "10.5p1",
+						"citation": "OpenSSL builds now require ECC support including NISTP521",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "Homebrew builds against its own OpenSSL, and nothing in these repos pins that formula, so whether the floor binds here is not decidable from the repos alone.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:openssh#release:10.5p1%2Flibcrypto-ecc-required",
+					"id_stability": "slug"
+				}
+			],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "No ssh client or server configuration is tracked in these repos beyond the 1Password agent's vault list.",
+				"evidence": [
+					{
+						"path": "dotfiles/config/1password/agent.toml"
+					}
+				],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"quarantine": [],
+			"version_delta": "minor",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 4
+			},
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "minor",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"spec_violations": []
+		},
+		{
+			"id": "cask:codex",
+			"source": "cask",
+			"name": "codex",
+			"pinned": false,
+			"research_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "codex CHANGELOG — 0.47.0",
+					"url": "https://github.com/openai/codex/blob/main/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-18408"
+					},
+					"title": "A cask upgrade re-quarantines the bundled native binding, so every invocation dies",
+					"tags": [
+						"security",
+						"packaging"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "0.47.0",
+						"citation": "The published archive is notarized but the bundled native module is not stapled",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The quarantine flag has to be re-cleared after every cask upgrade here; nothing in setup.sh does it, so the next upgrade breaks the binary until someone clears it by hand.",
+						"evidence": [
+							{
+								"path": "setup.sh",
+								"lines": [
+									[
+										7,
+										12
+									]
+								],
+								"note": "the dispatch that would carry a quarantine task"
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": "CVE-2026-18408",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"id": "cask:codex#cve:CVE-2026-18408",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "openai/codex#4110"
+					},
+					"title": "`codex exec --full-auto` is removed; the flag now errors instead of running",
+					"body": "The replacement is `--sandbox danger-full-access`, which is spelled differently and is not a rename the launcher can absorb silently.",
+					"tags": [
+						"breaking"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "0.47.0",
+						"citation": "Removed `codex exec --full-auto`; use `--sandbox danger-full-access`",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The Brewfile installs this cask, so the removed flag lands on the machine at the next upgrade whether or not anything invokes it today.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									10
+								]
+							}
+						],
+						"citations": []
+					},
+					"id": "cask:codex#issue:openai%2Fcodex%234110",
+					"id_stability": "anchored"
+				}
+			],
+			"config_status": {
+				"state": "needs_attention",
+				"detail": "Nothing re-clears the cask quarantine after an upgrade.",
+				"evidence": [
+					{
+						"path": "setup.sh"
+					}
+				],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "cask:codex:add-quarantine-task",
+					"kind": "structural",
+					"title": "Add a `setup.sh quarantine` task so a plain cask upgrade can re-clear quarantine",
+					"structural": {
+						"op": "task_add",
+						"subjects": [
+							{
+								"type": "cask",
+								"name": "codex"
+							},
+							{
+								"type": "cask",
+								"name": "cursor-cli"
+							}
+						],
+						"manifest": null,
+						"from": null,
+						"to": {
+							"type": "task",
+							"name": "setup.sh:quarantine"
+						},
+						"anchor": {
+							"file": "setup.sh",
+							"after": "elif [[ \"${1}\" = \"herdr\" ]]"
+						}
+					},
+					"target_files": [
+						{
+							"path": "setup.sh",
+							"description": "add the quarantine dispatch branch"
+						}
+					],
+					"rationale": "Four casks need the quarantine flag cleared after an upgrade and none of them has a home for it today.",
+					"needs_sudo": false
+				}
+			],
+			"subject_refs": [
+				{
+					"subject": "cask:codex",
+					"suggestion_id": "cask:codex:add-quarantine-task"
+				},
+				{
+					"subject": "cask:cursor-cli",
+					"suggestion_id": "cask:codex:add-quarantine-task"
+				}
+			],
+			"quarantine": [],
+			"version_delta": "major",
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "warning",
+				"local_findings": 2
+			},
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "major",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"cask:codex#cve:CVE-2026-18408"
+			],
+			"spec_violations": []
+		},
+		{
+			"id": "brew:attention",
+			"source": "brew",
+			"name": "attention",
+			"pinned": false,
+			"research_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "attention 2.4.1",
+					"url": "https://example.invalid/attention/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "commit",
+						"value": "9f3c1de"
+					},
+					"title": "The default config path moves from ~/.attentionrc to $XDG_CONFIG_HOME/attention",
+					"tags": [
+						"breaking"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "2.4.1",
+						"citation": "attention now reads $XDG_CONFIG_HOME/attention/config; ~/.attentionrc is read only as a fallback",
+						"link_index": 0
+					},
+					"id": "brew:attention#commit:9f3c1de",
+					"id_stability": "anchored"
+				}
+			],
+			"config_status": {
+				"state": "needs_attention",
+				"detail": "The repos still ship the old path and nothing here says what to do about it.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "brew:attention:upgrade",
+					"kind": "upgrade",
+					"title": "Upgrade attention 2.4.0 → 2.4.1",
+					"command": "brew upgrade attention",
+					"auto_runnable": true,
+					"needs_sudo": false
+				}
+			],
+			"subject_refs": [],
+			"quarantine": [],
+			"version_delta": "patch",
+			"flags": {
+				"has_security": false,
+				"has_breaking": true,
+				"worst_severity": "notable",
+				"local_findings": 0
+			},
+			"impact": "possible",
+			"risk_level": "low",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"spec_violations": [
+				"W-ATTENTION-NOSUG"
+			]
+		},
+		{
+			"id": "brew:nonconforming",
+			"source": "brew",
+			"name": "nonconforming",
+			"pinned": false,
+			"research_error": null,
+			"links": [],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-26-1"
+					},
+					"title": "A title that is well past the glanceable bar, written as a paragraph rather than a headline, so that the reader has to parse a whole argument before learning what the change actually is, which is exactly the defect the split exists to catch",
+					"tags": [
+						"security"
+					],
+					"severity": "incompatible",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Something changed upstream"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "It does not land here.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:nonconforming#cve:CVE-26-1",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "#2245"
+					},
+					"title": "The first of two items that name one upstream issue",
+					"tags": [
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "1.0.1",
+						"citation": "",
+						"link_index": 7
+					},
+					"id": "brew:nonconforming#issue:%232245",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "#2245"
+					},
+					"title": "The second of two items that name one upstream issue",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "It lands here, but nothing is cited for the claim.",
+						"evidence": [],
+						"citations": [
+							{
+								"kind": "blogpost",
+								"text": "",
+								"url": "not a url"
+							}
+						]
+					},
+					"id": "brew:nonconforming#issue:%232245~2",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"slug": "evidence-shapes"
+					},
+					"title": "Three evidence entries, three different outcomes",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "One entry is prose, one resolves only under an unconfigured repo, one resolves nowhere.",
+						"evidence": [
+							"CMake 4.4 release notes — \"the minimum is now 3.5\"",
+							{
+								"path": "tieto/konehuone/sysmi/notes.md"
+							},
+							{
+								"path": "dotfiles/config/bash/.path"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:nonconforming#slug:evidence-shapes",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "commit",
+						"value": "f2ff0b2a"
+					},
+					"title": "A security block on an item that is not tagged security",
+					"tags": [
+						"chore"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "A dependency bump with no behavioural note"
+					},
+					"security": {
+						"cve_id": "CVE-1",
+						"advisory_id": null,
+						"rating": "high",
+						"rating_basis": "unrated",
+						"exploited_in_wild": "yes"
+					},
+					"id": "brew:nonconforming#commit:f2ff0b2a",
+					"id_stability": "anchored"
+				},
+				{
+					"tags": [
+						"securty"
+					],
+					"severity": "critical",
+					"id": "brew:nonconforming#malformed:",
+					"id_stability": "slug"
+				}
+			],
+			"config_status": {
+				"state": "needs_attention",
+				"detail": "Something wants doing, but no suggestion says what.",
+				"evidence": [
+					"the maintainer's mailing list post, June 2026"
+				],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "brew:nonconforming:upgrade",
+					"kind": "upgrade",
+					"title": "Upgrade nonconforming 1.0.0 → 1.0.1",
+					"command": "brew upgrade nonconforming",
+					"auto_runnable": true,
+					"needs_sudo": false
+				},
+				{
+					"id": "brew:nonconforming:no-block",
+					"kind": "structural",
+					"title": "A structural suggestion with no structural block",
+					"target_files": [],
+					"rationale": "The block is the reviewable artifact and it is absent."
+				},
+				{
+					"id": "brew:nonconforming:bad-kind",
+					"kind": "refactor",
+					"title": "A suggestion whose kind is outside the vocabulary",
+					"target_files": [
+						{
+							"path": "intel.Brewfile",
+							"description": "the Intel manifest is out of this tool"
+						}
+					],
+					"rationale": "Two findings in one suggestion."
+				},
+				{
+					"id": "brew:nonconforming:intel-manifest",
+					"kind": "structural",
+					"title": "A structural change against the manifest this tool does not look at",
+					"structural": {
+						"op": "manifest_move",
+						"subjects": [],
+						"manifest": "intel.Brewfile",
+						"from": {
+							"type": "formula",
+							"name": "sops"
+						},
+						"to": null,
+						"anchor": {
+							"section": "CORE"
+						}
+					},
+					"target_files": [],
+					"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in."
+				},
+				{
+					"id": "brew:nonconforming:move-to-its-own-section",
+					"kind": "structural",
+					"title": "Move sops into the section it is already in",
+					"structural": {
+						"op": "manifest_move",
+						"subjects": [
+							{
+								"type": "formula",
+								"name": "sops"
+							}
+						],
+						"manifest": "Brewfile",
+						"from": {
+							"type": "formula",
+							"name": "sops"
+						},
+						"to": null,
+						"anchor": {
+							"section": "CORE"
+						}
+					},
+					"target_files": [],
+					"rationale": "The precondition is that its current section differs from the target."
+				},
+				{
+					"id": "brew:nonconforming:redispatch-install",
+					"kind": "structural",
+					"title": "Add a `setup.sh install` task that setup.sh already dispatches",
+					"structural": {
+						"op": "task_add",
+						"subjects": [
+							{
+								"type": "formula",
+								"name": "nonconforming"
+							}
+						],
+						"manifest": null,
+						"from": null,
+						"to": {
+							"type": "task",
+							"name": "setup.sh:install"
+						},
+						"anchor": {
+							"file": "setup.sh"
+						}
+					},
+					"target_files": [],
+					"rationale": "The precondition is that the subcommand token is not already dispatched."
+				},
+				{
+					"id": "cask:codex:add-quarantine-task",
+					"kind": "edit",
+					"title": "A suggestion id already claimed by another tool",
+					"target_files": [],
+					"rationale": "A collision almost always means an id pattern was copied rather than derived."
+				}
+			],
+			"subject_refs": [
+				{
+					"subject": "formula:sops",
+					"suggestion_id": "brew:nonconforming:move-to-its-own-section"
+				},
+				{
+					"subject": "formula:nonconforming",
+					"suggestion_id": "brew:nonconforming:redispatch-install"
+				}
+			],
+			"quarantine": [
+				{
+					"field": "items",
+					"item_id": null,
+					"value": "an item written as a bare string"
+				}
+			],
+			"version_delta": "patch",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "incompatible",
+				"local_findings": 3
+			},
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:nonconforming#cve:CVE-26-1"
+			],
+			"spec_violations": [
+				"E-ANCHOR-MALFORMED",
+				"E-CHANGE-UNCITED",
+				"E-CITE-EMPTY",
+				"E-CITE-KIND",
+				"E-CITE-URL",
+				"E-CVE-MALFORMED",
+				"E-ENUM-INVALID",
+				"E-EVID-404",
+				"E-EVID-MALFORMED",
+				"E-FIELD-MISSING",
+				"E-FIELD-TYPE",
+				"E-FLAG-DISAGREE",
+				"E-FLAG-FORBIDDEN",
+				"E-INTEL-BREWFILE",
+				"E-ITEM-DUP-ANCHOR",
+				"E-ITEM-EMPTY",
+				"E-LINK-INDEX",
+				"E-REACHES-UNEVIDENCED",
+				"E-SEC-BLOCK-MISSING",
+				"E-SEC-BLOCK-ORPHAN",
+				"E-SEC-RATING-UNBASED",
+				"E-SEV-INCOMPAT-UNGROUNDED",
+				"E-SEV-WARNING-UNGROUNDED",
+				"E-STRUCT-PRECOND",
+				"E-TAG-NONE",
+				"E-TAG-UNKNOWN",
+				"W-EVID-ROOT",
+				"W-MEMBER-QUARANTINED",
+				"W-STRUCT-UNCHECKED",
+				"W-SUG-DUP-ID",
+				"W-TITLE-LONG"
+			]
+		},
+		{
+			"id": "brew-health:path_note:gnubin",
+			"source": "brew-health",
+			"name": "GNU utils ahead of Apple's on PATH",
+			"pinned": false,
+			"health_expected": true,
+			"research_error": "no research entry for this candidate",
+			"items": [],
+			"suggestions": [],
+			"links": [],
+			"quarantine": [],
+			"config_status": {
+				"state": "unknown",
+				"detail": "",
+				"evidence": [],
+				"citations": []
+			},
+			"vendor_silent_categories": [],
+			"version_delta": "unknown",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "routine",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "unknown",
+				"runnable": false
+			},
+			"security_display_item_ids": [],
+			"spec_violations": []
+		}
+	]
+}

@@ -1,0 +1,8 @@
+[[ssh-keys]]
+vault = "Personal"
+
+[[ssh-keys]]
+vault = "Work"
+
+[[ssh-keys]]
+vault = "Infra"

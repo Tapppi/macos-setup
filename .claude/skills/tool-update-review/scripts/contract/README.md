@@ -1,0 +1,84 @@
+# The published item contract
+
+**This directory is WP1's deliverable to WP2, WP3 and WP4.** It exists because
+the last time two implementer tracks worked against a pinned *field* contract,
+they still drifted on ordering and had to be reconciled afterwards
+(`HANDOFF.md` §8). Field names are not enough, so the comparator and the
+ordering are published here as things you can import and assert against.
+
+Normative prose: `references/item-schema.md`. Code: `scripts/items.py` (model,
+ordering, comparator) and `scripts/validate_items.py` (the six stages).
+
+## Importing it
+
+```python
+import sys
+sys.path.insert(0, "<skill>/scripts")
+import items, validate_items
+
+items.CONTRACT_VERSION          # pin against this, not a git revision
+items.contract()                # the whole contract as data == contract.json
+items.order_items(my_items)     # THE ordering — do not re-derive one
+items.compare_items(a, b)       # THE comparator, -1 / 0 / 1
+items.primary_group(item)       # which of the four content groups it renders under
+items.security_display_items(x) # the bar that replaced notable[]'s clause 3
+items.derive_item_id(tool, anchor)
+items.FINDING_CODES             # every code the deterministic layer can raise
+```
+
+Run the validator over your own corpus:
+
+```python
+document = validate_items.validate_session(session_dir, roots)
+```
+
+## The five fixtures
+
+| File | Generated? | Asserts |
+|---|---|---|
+| `contract.json` | yes, from `items.contract()` | the field table, every vocabulary, the group map, the rank tables, the ordering spec, the finding codes |
+| `ordering.json` | hand-written | a shuffled item list and the exact order `items.order_items()` must produce, one entry per tier of the sort key |
+| `comparator.json` | hand-written | pairwise comparisons, `worst_severity`, both CVE rank tables, the security-display bar, id derivation, the evidence shorthand grammar |
+| `session/` | hand-written | a complete research corpus: three conforming tools, one that violates nearly every invariant, one unmatched entry, one non-array file, one brew-health finding |
+| `expected_validation.json` | yes, from `session/` | the exact `validation.json` that corpus must produce — every finding, every id, every derived flag, every bucket |
+
+`session/roots/` ships the repo tree the fixture's evidence paths resolve
+against, so the golden output does not depend on what sits beside the repo on
+one machine. `session/roots/tieto/` is the stand-in for a real repo that is not
+a configured root — the `W-EVID-ROOT` case.
+
+## Asserting against the golden run
+
+```python
+session, roots, unconfigured = validate_items.fixture_session()
+got = validate_items.validate_session(session, roots,
+	manifest_root=roots[0], unconfigured_roots=unconfigured)
+assert got == items.load_fixture("expected_validation.json")
+```
+
+`validate_session` writes nothing, so this is read-only.
+
+## Changing the contract
+
+1. Change `items.py` / `validate_items.py`.
+2. `python3 contract/regenerate.py`
+3. **Read the diff.** A change in `expected_validation.json` you did not intend
+   is the fixture doing its job.
+4. `python3 -m unittest test_items test_validate_items`
+5. Bump `items.CONTRACT_VERSION` if a consumer would have to change.
+
+`test_items.py` asserts every fixture still agrees with the code, so a fixture
+cannot go stale — which is the only reason a published fixture is worth more
+than a paragraph.
+
+## What the contract will not do
+
+The deterministic layer validates, normalizes, counts, buckets and calculates
+impact. **It never deletes, trims or re-rates an item on a regex or heuristic
+rule** (`REDESIGN.md` §A, §C3, criterion 1). Judgement is convergence's.
+
+So: a malformed evidence string is reported and kept, not moved to
+`citations[]`. A duplicate id is reported and suffixed, not merged. An
+unrecognized tag is reported and kept, not dropped. An over-long title is
+reported, not truncated. `initial_review_bucket` is a baseline for convergence
+to review, not a decision.

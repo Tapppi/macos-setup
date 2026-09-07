@@ -19,9 +19,10 @@ Five groups:
 4. The two CVE rank tables, asserted tier for tier against `assemble.py`'s
    private copies. Those two tables are the single most drift-prone thing in
    the contract and they are NOT interchangeable.
-5. Fixture agreement — `contract.json` is generated, so the tests assert the
-   checked-in copy still matches what the code produces. A published fixture
-   that can go stale is worth no more than a paragraph.
+5. Fixture agreement — `contract.json` and `expected_validation.json` are
+   generated, so the tests assert the checked-in copies still match what the
+   code produces. A published fixture that can go stale is worth no more than
+   a paragraph.
 """
 import json
 import os
@@ -31,6 +32,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import assemble  # noqa: E402
 import items as model  # noqa: E402
+import validate_items  # noqa: E402
 
 
 ORDERING = model.load_fixture("ordering.json")
@@ -333,6 +335,21 @@ class PublishedFixtureTests(unittest.TestCase):
 	def test_contract_json_is_what_the_code_produces(self):
 		self.assertEqual(model.load_fixture("contract.json"), model.contract())
 
+	def test_the_golden_validation_run_still_matches(self):
+		session, roots, unconfigured = validate_items.fixture_session()
+		got = validate_items.validate_session(session, roots, manifest_root=roots[0],
+			unconfigured_roots=unconfigured)
+		expected = model.load_fixture("expected_validation.json")
+		self.assertEqual(json.loads(json.dumps(got)), expected)
+
+	def test_the_golden_run_is_reproducible_within_one_process(self):
+		session, roots, unconfigured = validate_items.fixture_session()
+		first = validate_items.validate_session(session, roots, manifest_root=roots[0],
+			unconfigured_roots=unconfigured)
+		second = validate_items.validate_session(session, roots, manifest_root=roots[0],
+			unconfigured_roots=unconfigured)
+		self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+
 	def test_every_finding_code_declares_a_severity_and_a_summary(self):
 		for code, (severity, invariant, summary) in model.FINDING_CODES.items():
 			with self.subTest(code):
@@ -355,6 +372,19 @@ class PublishedFixtureTests(unittest.TestCase):
 		self.assertIn("intel.Brewfile", contract["findings"]["E-INTEL-BREWFILE"]["summary"])
 		del contract["findings"]["E-INTEL-BREWFILE"]
 		self.assertNotIn("intel.Brewfile", json.dumps(contract))
+
+	def test_the_fixture_corpus_cites_no_intel_brewfile_except_as_the_rejected_case(self):
+		session, _, _ = validate_items.fixture_session()
+		nonconforming = os.path.join(session, "research", "01-nonconforming.json")
+		for name in sorted(os.listdir(os.path.join(session, "research"))):
+			path = os.path.join(session, "research", name)
+			with open(path, "r", encoding="utf-8") as fh:
+				text = fh.read()
+			with self.subTest(name):
+				if path == nonconforming:
+					self.assertIn("intel.Brewfile", text)
+				else:
+					self.assertNotIn("intel.Brewfile", text)
 
 
 if __name__ == "__main__":

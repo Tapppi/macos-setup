@@ -1,0 +1,41 @@
+[
+	{
+		"id": "brew:attention",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "attention 2.4.1",
+				"url": "https://example.invalid/attention/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {"kind": "commit", "value": "9f3c1de"},
+				"title": "The default config path moves from ~/.attentionrc to $XDG_CONFIG_HOME/attention",
+				"tags": ["breaking"],
+				"severity": "notable",
+				"change": {
+					"version": "2.4.1",
+					"citation": "attention now reads $XDG_CONFIG_HOME/attention/config; ~/.attentionrc is read only as a fallback",
+					"link_index": 0
+				}
+			}
+		],
+		"config_status": {
+			"state": "needs_attention",
+			"detail": "The repos still ship the old path and nothing here says what to do about it.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [
+			{
+				"id": "brew:attention:upgrade",
+				"kind": "upgrade",
+				"title": "Upgrade attention 2.4.0 → 2.4.1",
+				"command": "brew upgrade attention",
+				"auto_runnable": true,
+				"needs_sudo": false
+			}
+		]
+	}
+]

@@ -1,0 +1,71 @@
+{
+	"generated_at": "2026-09-07T00:00:00Z",
+	"machine": {
+		"arch": "arm64",
+		"os": "macOS 26.6.2",
+		"hostname": "contract-fixture"
+	},
+	"brew": [
+		{
+			"id": "brew:sops",
+			"name": "sops",
+			"source": "brew",
+			"current_version": "3.13.2",
+			"latest_version": "3.13.3",
+			"pinned": false
+		},
+		{
+			"id": "brew:openssh",
+			"name": "openssh",
+			"source": "brew",
+			"current_version": "10.4p1",
+			"latest_version": "10.5p1",
+			"pinned": false
+		},
+		{
+			"id": "cask:codex",
+			"name": "codex",
+			"source": "cask",
+			"current_version": "0.46.0",
+			"latest_version": "0.47.0",
+			"pinned": false
+		},
+		{
+			"id": "brew:attention",
+			"name": "attention",
+			"source": "brew",
+			"current_version": "2.4.0",
+			"latest_version": "2.4.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:nonconforming",
+			"name": "nonconforming",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		}
+	],
+	"mise": [],
+	"standalone": [],
+	"macos": [],
+	"brew_health": {
+		"findings": [
+			{
+				"id": "brew-health:path_note:gnubin",
+				"name": "GNU utils ahead of Apple's on PATH",
+				"source": "brew-health",
+				"category": "path_note",
+				"severity": "info",
+				"detail": "Homebrew's gnubin directories precede /usr/bin. Intentional here.",
+				"affected": ["coreutils"],
+				"expected": true,
+				"pinned": false,
+				"current_version": null,
+				"latest_version": null
+			}
+		],
+		"suppressed": []
+	}
+}

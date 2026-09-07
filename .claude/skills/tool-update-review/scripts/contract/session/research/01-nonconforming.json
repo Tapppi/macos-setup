@@ -1,0 +1,189 @@
+[
+	{
+		"id": "brew:nonconforming",
+		"impact": "none",
+		"flags": {
+			"has_security": false,
+			"has_breaking": false,
+			"worst_severity": "info",
+			"local_findings": 0
+		},
+		"links": [],
+		"items": [
+			{
+				"tags": ["securty"],
+				"severity": "critical"
+			},
+			{
+				"anchor": {"kind": "cve", "value": "CVE-26-1"},
+				"title": "A title that is well past the glanceable bar, written as a paragraph rather than a headline, so that the reader has to parse a whole argument before learning what the change actually is, which is exactly the defect the split exists to catch",
+				"tags": ["security"],
+				"severity": "incompatible",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Something changed upstream"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "It does not land here.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {"kind": "issue", "value": "#2245"},
+				"title": "The first of two items that name one upstream issue",
+				"tags": ["fix"],
+				"severity": "warning",
+				"change": {
+					"version": "1.0.1",
+					"citation": "",
+					"link_index": 7
+				}
+			},
+			{
+				"anchor": {"kind": "issue", "value": "#2245"},
+				"title": "The second of two items that name one upstream issue",
+				"tags": ["fix"],
+				"severity": "notable",
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "It lands here, but nothing is cited for the claim.",
+					"evidence": [],
+					"citations": [
+						{"kind": "blogpost", "text": "", "url": "not a url"}
+					]
+				}
+			},
+			{
+				"anchor": {"kind": "none", "slug": "evidence-shapes"},
+				"title": "Three evidence entries, three different outcomes",
+				"tags": ["fix"],
+				"severity": "info",
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "One entry is prose, one resolves only under an unconfigured repo, one resolves nowhere.",
+					"evidence": [
+						"CMake 4.4 release notes — \"the minimum is now 3.5\"",
+						"tieto/konehuone/sysmi/notes.md",
+						"dotfiles/config/bash/.path"
+					],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {"kind": "commit", "value": "f2ff0b2a"},
+				"title": "A security block on an item that is not tagged security",
+				"tags": ["chore"],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "A dependency bump with no behavioural note"
+				},
+				"security": {
+					"cve_id": "CVE-1",
+					"advisory_id": null,
+					"rating": "high",
+					"rating_basis": "unrated",
+					"exploited_in_wild": "yes"
+				}
+			},
+			"an item written as a bare string"
+		],
+		"config_status": {
+			"state": "needs_attention",
+			"detail": "Something wants doing, but no suggestion says what.",
+			"evidence": [
+				"the maintainer's mailing list post, June 2026"
+			],
+			"citations": []
+		},
+		"suggestions": [
+			{
+				"id": "brew:nonconforming:upgrade",
+				"kind": "upgrade",
+				"title": "Upgrade nonconforming 1.0.0 → 1.0.1",
+				"command": "brew upgrade nonconforming",
+				"auto_runnable": true,
+				"needs_sudo": false
+			},
+			{
+				"id": "brew:nonconforming:no-block",
+				"kind": "structural",
+				"title": "A structural suggestion with no structural block",
+				"target_files": [],
+				"rationale": "The block is the reviewable artifact and it is absent."
+			},
+			{
+				"id": "brew:nonconforming:bad-kind",
+				"kind": "refactor",
+				"title": "A suggestion whose kind is outside the vocabulary",
+				"target_files": [
+					{"path": "intel.Brewfile", "description": "the Intel manifest is out of this tool"}
+				],
+				"rationale": "Two findings in one suggestion."
+			},
+			{
+				"id": "brew:nonconforming:intel-manifest",
+				"kind": "structural",
+				"title": "A structural change against the manifest this tool does not look at",
+				"structural": {
+					"op": "manifest_move",
+					"subjects": [],
+					"manifest": "intel.Brewfile",
+					"from": {"type": "formula", "name": "sops"},
+					"to": null,
+					"anchor": {"section": "CORE"}
+				},
+				"target_files": [],
+				"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in."
+			},
+			{
+				"id": "brew:nonconforming:move-to-its-own-section",
+				"kind": "structural",
+				"title": "Move sops into the section it is already in",
+				"structural": {
+					"op": "manifest_move",
+					"subjects": [{"type": "formula", "name": "sops"}],
+					"manifest": "Brewfile",
+					"from": {"type": "formula", "name": "sops"},
+					"to": null,
+					"anchor": {"section": "CORE"}
+				},
+				"target_files": [],
+				"rationale": "The precondition is that its current section differs from the target."
+			},
+			{
+				"id": "brew:nonconforming:redispatch-install",
+				"kind": "structural",
+				"title": "Add a `setup.sh install` task that setup.sh already dispatches",
+				"structural": {
+					"op": "task_add",
+					"subjects": [{"type": "formula", "name": "nonconforming"}],
+					"manifest": null,
+					"from": null,
+					"to": {"type": "task", "name": "setup.sh:install"},
+					"anchor": {"file": "setup.sh"}
+				},
+				"target_files": [],
+				"rationale": "The precondition is that the subcommand token is not already dispatched."
+			},
+			{
+				"id": "cask:codex:add-quarantine-task",
+				"kind": "edit",
+				"title": "A suggestion id already claimed by another tool",
+				"target_files": [],
+				"rationale": "A collision almost always means an id pattern was copied rather than derived."
+			}
+		]
+	},
+	{
+		"id": "brew:ghost",
+		"links": [],
+		"items": [],
+		"suggestions": []
+	}
+]

@@ -1,0 +1,6 @@
+[diff "sopsdiffer"]
+	textconv = sops decrypt
+[core]
+	# attributesfile is deliberately commented out — the sopsdiffer driver is
+	# defined and bound to nothing.
+	# attributesfile = ~/.config/git/attributes
