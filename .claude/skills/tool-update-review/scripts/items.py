@@ -642,7 +642,7 @@ FINDING_CODES = {
 	"W-EVID-ROOT": ("warning", "I-12", "an evidence path resolves only under an unconfigured repo"),
 	"E-FLAG-DISAGREE": ("error", "I-13", "a checker-emitted flag disagrees with recomputation"),
 	"E-REACHES-UNEVIDENCED": ("error", "I-14", "`direction: reaches` with no evidence"),
-	"W-ATTENTION-NOSUG": ("warning", "I-15", "`config_needs_attention` with no non-upgrade suggestion"),
+	"W-ATTENTION-NOSUG": ("warning", "I-15", "`config_needs_attention` with no action suggestion"),
 	"E-STRUCT-PRECOND": ("error", "I-16", "a structural op's precondition does not hold"),
 	"E-INTEL-BREWFILE": ("error", "I-17", "intel.Brewfile is out of this tool entirely"),
 	"W-SUG-DUP-ID": ("warning", "I-18", "a suggestion id is not unique across the report"),

@@ -553,7 +553,7 @@
 		"W-ATTENTION-NOSUG": {
 			"severity": "warning",
 			"invariant": "I-15",
-			"summary": "`config_needs_attention` with no non-upgrade suggestion"
+			"summary": "`config_needs_attention` with no action suggestion"
 		},
 		"W-ENTRY-DUPLICATE": {
 			"severity": "warning",

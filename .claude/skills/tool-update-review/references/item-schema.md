@@ -415,7 +415,7 @@ runs. The workflow surfaces it; it never aborts.
 | I-12 | evidence entries are paths, and resolve | `E-EVID-MALFORMED` / `E-EVID-404` / `W-EVID-ROOT` |
 | I-13 | checker-emitted flags agree with recomputation | `E-FLAG-DISAGREE` |
 | I-14 | `direction == reaches` ⇒ evidence non-empty | `E-REACHES-UNEVIDENCED` |
-| I-15 | `config_needs_attention` ⇒ ≥1 non-upgrade suggestion | `W-ATTENTION-NOSUG` |
+| I-15 | `config_needs_attention` ⇒ ≥1 action suggestion (edit / structural) | `W-ATTENTION-NOSUG` |
 | I-16 | structural op preconditions hold | `E-STRUCT-PRECOND` / `W-STRUCT-UNCHECKED` |
 | I-17 | no `intel.Brewfile` in a manifest or a `target_files` path | `E-INTEL-BREWFILE` |
 | I-18 | suggestion ids unique across the whole report | `W-SUG-DUP-ID` |

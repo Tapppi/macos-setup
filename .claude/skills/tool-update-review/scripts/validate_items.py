@@ -1334,7 +1334,8 @@ def _derive_axes(view, candidate, findings):
 			assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
 			for s in view["suggestions"] if isinstance(s, dict)):
 		findings.add("W-ATTENTION-NOSUG",
-			"config_status is needs_attention but no non-upgrade suggestion says what to do",
+			"config_status is needs_attention but no edit or structural suggestion says "
+			"what to do about it",
 			tool_id=view["id"], field="config_status.state")
 
 

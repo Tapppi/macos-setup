@@ -20,7 +20,7 @@
 			"item_id": null,
 			"field": "config_status.state",
 			"value": "",
-			"message": "config_status is needs_attention but no non-upgrade suggestion says what to do"
+			"message": "config_status is needs_attention but no edit or structural suggestion says what to do about it"
 		},
 		{
 			"code": "W-ENTRY-UNMATCHED",
