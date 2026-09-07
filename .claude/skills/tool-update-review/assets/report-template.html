@@ -3349,7 +3349,14 @@
 		function evidenceLabel(e) {
 			if (typeof e === 'string') return e;
 			if (!e || typeof e !== 'object' || typeof e.path !== 'string') {
-				try { return JSON.stringify(e); } catch (_) { return String(e); }
+				/* Always a readable string. `JSON.stringify(undefined)` returns
+				 * `undefined` rather than throwing, and `esc()` renders that as
+				 * an empty chip — a malformed entry the validator deliberately
+				 * KEPT would then be invisible on the page, which defeats the
+				 * point of keeping it. */
+				let out;
+				try { out = JSON.stringify(e); } catch (_) { out = null; }
+				return typeof out === 'string' ? out : String(e);
 			}
 			const lines = Array.isArray(e.lines) ? e.lines : [];
 			const spans = lines.map(l => Array.isArray(l) && l.length === 2
