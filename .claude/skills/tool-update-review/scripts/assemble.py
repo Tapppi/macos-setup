@@ -533,7 +533,11 @@ def suggestion_kind(sug: dict) -> str:
 # `validate_items` owns the same rule for the bucket, and once its
 # `items.needs_a_decision()` lands this set folds into that one function. Until
 # then this is the assembler's copy and the two must be changed together.
-_MEMORY_SUGGESTION_KINDS = frozenset({"watch-item"})
+#
+# `method-note` is listed although it is not yet a legal kind here: nothing
+# emits one, so it costs nothing today, and it means the rule is already right
+# when the kind arrives rather than depending on someone remembering this line.
+_MEMORY_SUGGESTION_KINDS = frozenset({"watch-item", "method-note"})
 
 
 def is_action_suggestion(sug) -> bool:
