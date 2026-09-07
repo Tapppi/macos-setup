@@ -443,8 +443,16 @@ def extract_cve_claim(tool: dict) -> int | None:
 	return max(claims) if claims else None
 
 
-def tool_cve_ratings(tool: dict) -> dict:
+def tool_cve_ratings(tool: dict, announce: bool = True) -> dict:
 	"""→ {cve_id: rating} for the ids this tool's items actually grade.
+
+	`announce=False` returns the same map silently. A within-tool disagreement
+	is a fact about ONE tool and belongs in the log once, from the call that
+	computes that tool's own rollup — and this function is called twice per
+	tool, once from `compute_security` and once from `summarize_security`,
+	which needs the values rather than a second announcement. The array this
+	replaced (`security.cve_severities[]`) made the second call unnecessary by
+	existing; deleting it is what created the second reader.
 
 	Three rules survive verbatim from `resolve_cve_severities`, which this
 	replaces: a word outside the vocabulary reads as `unknown` rather than a
@@ -469,16 +477,18 @@ def tool_cve_ratings(tool: dict) -> dict:
 			# Reported as E-SEC-RATING-UNBASED; said here too, because the
 			# consequence — the id buckets as `unknown` in severity_counts —
 			# is assembly's and shows on the card.
-			note(f"note: {tool_id}: {cve_id} is rated {rating!r} with basis {basis!r} — a rating "
-				f"with no recorded source is not a rating; counting it as unknown")
+			if announce:
+				note(f"note: {tool_id}: {cve_id} is rated {rating!r} with basis {basis!r} — a rating "
+					f"with no recorded source is not a rating; counting it as unknown")
 			rating = "unknown"
 		if rating == "unknown":
 			# Recording it would say nothing an absent entry does not already say.
 			continue
 		prior = by_id.get(cve_id)
 		if prior is not None and prior != rating:
-			note(f"note: {tool_id}: {cve_id} is rated both {prior!r} and {rating!r} by two items — "
-				f"keeping the worse")
+			if announce:
+				note(f"note: {tool_id}: {cve_id} is rated both {prior!r} and {rating!r} by two "
+					f"items — keeping the worse")
 			if model.CVE_WORSE_RANK[rating] <= model.CVE_WORSE_RANK[prior]:
 				continue
 		by_id[cve_id] = rating
@@ -1484,7 +1494,10 @@ def summarize_security(tools: list) -> dict:
 			# "rated both critical and low" to assemble.log about an id this
 			# report counts nowhere.
 			continue
-		for cve_id, severity in tool_cve_ratings(tool).items():
+		# Silent: `compute_security` already announced this tool's own
+		# disagreements when it built the tool's rollup. The cross-tool note
+		# below is a different fact and is this loop's to make.
+		for cve_id, severity in tool_cve_ratings(tool, announce=False).items():
 			if cve_id not in tool_ids:
 				# Unreachable for a version source — every id `item_cve_id`
 				# returns is in `cve_ids` by construction — and kept as the

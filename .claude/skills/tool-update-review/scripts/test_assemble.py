@@ -1033,6 +1033,26 @@ class ReportInvariantTests(unittest.TestCase):
 		self.assertEqual(sec["tools_with_security"], 0)
 		self.assertNotIn("CVE-2026-9999", report["_log"])
 
+	def test_a_within_tool_rating_disagreement_is_logged_once(self):
+		"""`tool_cve_ratings` runs twice per version tool — once for the tool's
+		own rollup, once for the report-wide union — so the second caller has to
+		ask for the values without a second announcement. The array this
+		replaced (`security.cve_severities[]`) made that second call
+		unnecessary by existing; deleting it is what created the second
+		reader."""
+		report, _ = assemble_session(
+			{"generated_at": "t", "machine": {},
+				"brew": [_cand("brew:x", "x", "brew", "1.0.0", "1.0.1")]},
+			[{"id": "brew:x", "links": [], "items": [
+				_item("a", tags=["security"], severity="warning",
+					security=_sec("CVE-2026-9999", "critical", "vendor")),
+				_item("b", tags=["security"], severity="info",
+					security=_sec("CVE-2026-9999", "low", "nvd"))]}])
+		lines = [ln for ln in report["_log"].splitlines() if "rated both" in ln]
+		self.assertEqual(len(lines), 1, lines)
+		# The resolution itself is unaffected: the worse still wins.
+		self.assertEqual(report["tools"][0]["security"]["severity_counts"]["critical"], 1)
+
 	def test_a_finding_source_never_notes_a_rating_for_an_id_it_does_not_count(self):
 		"""`tool_cve_ratings` notes a within-tool disagreement as it resolves
 		one, so the report-wide rollup has to skip a non-counting tool BEFORE
