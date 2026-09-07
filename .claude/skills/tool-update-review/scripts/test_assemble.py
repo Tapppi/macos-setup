@@ -2168,5 +2168,112 @@ class RunBoundaryDegradationTests(unittest.TestCase):
 				self.assertIn("repo_context.json", err.getvalue(), label)
 
 
+# ── 8. Pinning the reviewed version (WP5/I2 — references/apply.md §Executing
+#      Upgrade Suggestions, references/schemas.md §1.6) ─────────────────────
+# The defect this closes: `command` used to be a bare `brew upgrade
+# {name}`/`mise upgrade {name}` with no reference to what was actually
+# reviewed, so running it later installed whatever the package manager
+# considered "latest" *at apply time* — not the version a human approved.
+# mise can pin an exact version as a CLI argument (confirmed against
+# upstream docs: `mise upgrade tiny@3.0.1`); brew/cask cannot do this
+# generically for an arbitrary formula/cask, so they stay unpinned in
+# `command` and rely on scripts/check_pin.py's preflight/verify instead
+# (tested separately in test_check_pin.py).
+class PinnedVersionTests(unittest.TestCase):
+	def test_mise_command_pins_the_reviewed_version(self):
+		command, auto_runnable, manual_reason, version_pinned = assemble.upgrade_command_and_runnable(
+			"mise", "node", "24.6.0")
+		self.assertEqual(command, "mise upgrade node@24.6.0")
+		self.assertTrue(auto_runnable)
+		self.assertIsNone(manual_reason)
+		self.assertTrue(version_pinned)
+
+	def test_mise_without_a_version_falls_back_to_the_old_unpinned_command(self):
+		# validate_items.py (pre-assembly) calls this with no version at all —
+		# omitting it must keep working exactly as before, never raise.
+		command, auto_runnable, manual_reason, version_pinned = assemble.upgrade_command_and_runnable(
+			"mise", "node")
+		self.assertEqual(command, "mise upgrade node")
+		self.assertTrue(auto_runnable)
+		self.assertFalse(version_pinned)
+
+	def test_mise_name_already_carrying_an_at_sign_refuses_to_pin(self):
+		# A pin that would produce "mise upgrade node@20@24.6.0" is worse than
+		# no pin: version_pinned=True on a command not established to be
+		# well-formed is a guarantee that reads as one without being one.
+		command, auto_runnable, manual_reason, version_pinned = assemble.upgrade_command_and_runnable(
+			"mise", "node@20", "24.6.0")
+		self.assertEqual(command, "mise upgrade node@20")
+		self.assertNotIn("24.6.0", command)
+		self.assertTrue(auto_runnable)
+		self.assertFalse(version_pinned)
+
+	def test_mise_backend_qualified_name_pins_normally(self):
+		# mise's own qualifier syntax uses ":" (npm:prettier), never "@" —
+		# confirmed against upstream docs (`mise use -g npm:prettier@3`) — so
+		# this shape is safe to pin exactly like a bare tool name.
+		command, auto_runnable, manual_reason, version_pinned = assemble.upgrade_command_and_runnable(
+			"mise", "npm:prettier", "3.3.1")
+		self.assertEqual(command, "mise upgrade npm:prettier@3.3.1")
+		self.assertTrue(version_pinned)
+
+	def test_missing_latest_version_refuses_to_synthesize_a_runnable_baseline(self):
+		# A verify step compared against a null target_version can never pass
+		# — worse than no check, because it would permanently report a
+		# correctly-landed upgrade as failed. Refuse to run or pin at all.
+		tool = build(_cand("mise:ghost", "ghost", "mise", "1.0.0", None), {"headliners": []})
+		baseline = assemble.baseline_upgrade(tool)
+		self.assertIsNone(baseline["command"])
+		self.assertFalse(baseline["auto_runnable"])
+		self.assertFalse(baseline["version_pinned"])
+		self.assertIsNone(baseline["target_version"])
+		self.assertIn("latest_version", baseline["manual_reason"])
+
+	def test_brew_and_cask_cannot_pin_a_version_in_the_command(self):
+		# Homebrew has no general `brew install name@version` for an arbitrary
+		# formula/cask — passing a version must never be silently swallowed
+		# into looking pinned when it structurally cannot be.
+		for source, name, expected_command in (
+			("brew", "podman", "brew upgrade podman"),
+			("cask", "wireshark-app", "brew upgrade --cask wireshark-app"),
+		):
+			with self.subTest(source):
+				command, auto_runnable, manual_reason, version_pinned = assemble.upgrade_command_and_runnable(
+					source, name, "5.5.1")
+				self.assertEqual(command, expected_command)
+				self.assertTrue(auto_runnable)
+				self.assertFalse(version_pinned)
+				self.assertNotIn("5.5.1", command)
+
+	def test_baseline_suggestion_carries_target_version_always(self):
+		# Every kind:"upgrade" baseline records the reviewed version on the
+		# suggestion itself — apply must never have to reach back into a
+		# different part of report.json to know what it is pinning to.
+		tool = build(_cand("mise:node", "node", "mise", "24.5.0", "24.6.0"), {"headliners": []})
+		baseline = assemble.baseline_upgrade(tool)
+		self.assertEqual(baseline["target_version"], "24.6.0")
+		self.assertEqual(baseline["command"], "mise upgrade node@24.6.0")
+		self.assertTrue(baseline["version_pinned"])
+
+	def test_baseline_suggestion_records_unpinned_for_brew_and_cask(self):
+		for source, name in (("brew", "podman"), ("cask", "wireshark-app")):
+			with self.subTest(source):
+				tool = build(_cand(f"{source}:{name}", name, source, "1.0.0", "2.0.0"), {"headliners": []})
+				baseline = assemble.baseline_upgrade(tool)
+				self.assertEqual(baseline["target_version"], "2.0.0")
+				self.assertFalse(baseline["version_pinned"])
+				self.assertNotIn("2.0.0", baseline["command"])
+
+	def test_manual_only_baseline_still_carries_target_version(self):
+		# macos/standalone never get a runnable command, but the reviewed
+		# version is still recorded — the manual polling step in
+		# references/apply.md compares against it.
+		tool = build(_cand("macos:Safari", "Safari", "macos", "15.6", "15.7"), {"headliners": []})
+		baseline = assemble.baseline_upgrade(tool)
+		self.assertEqual(baseline["target_version"], "15.7")
+		self.assertFalse(baseline["version_pinned"])
+		self.assertIsNone(baseline["command"])
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2)

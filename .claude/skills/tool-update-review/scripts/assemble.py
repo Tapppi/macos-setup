@@ -43,6 +43,22 @@ from datetime import datetime, timezone
 # written as `== "..."`.
 NON_VERSION_SOURCES = frozenset({"brew-health", "skill-drift"})
 
+# ── sources scripts/check_pin.py can preflight/verify against (WP5/I2:
+# references/apply.md §Pinning the reviewed version) ─────────────────────────
+# The three sources whose baseline `:upgrade` suggestion can actually run
+# unattended (`upgrade_command_and_runnable` below) AND have a package
+# manager query check_pin.py can compare against a recorded target_version.
+# standalone/macos are deliberately excluded even though they too can carry
+# `auto_runnable: true`-adjacent baselines in principle — standalone has no
+# canonical `--version` output format to build a generic parser against, and
+# macos is a system update, not a package-manager query — both stay on the
+# manual, human-verified path in references/apply.md instead. Exported (not
+# re-typed) so check_pin.py's `--source` choices and write_status.py's
+# `"done"` gate (§Pinning the reviewed version) read the same set and cannot
+# silently drift apart, the way a hand-copied list did for `curl` and PATH
+# ordering elsewhere in this project.
+PIN_CHECKABLE_SOURCES = frozenset({"brew", "cask", "mise"})
+
 
 def finding_expected(tool) -> bool:
 	"""True when a non-version finding needs no decision — brew-health's
@@ -79,25 +95,71 @@ def needs_sudo_for(source: str, research_obj: dict) -> bool:
 	return True
 
 
-# ── auto_runnable / command per source (references/assembly.md §Baseline Suggestion Synthesis) ──
-def upgrade_command_and_runnable(source: str, name: str):
+# ── auto_runnable / command per source (references/assembly.md §Baseline Suggestion Synthesis;
+# references/apply.md §Executing Upgrade Suggestions — pinning the reviewed version, WP5/I2) ──
+def upgrade_command_and_runnable(source: str, name: str, version: str | None = None):
+	"""Returns (command, auto_runnable, manual_reason, version_pinned).
+
+	`version` is the version that was reviewed (the Tool's `latest_version`
+	at assembly time) — the version apply must land on, not whatever is
+	latest when the command actually runs later. `version_pinned` tells the
+	caller whether `command` itself is guaranteed to reach exactly `version`:
+
+	- **mise** genuinely can pin — `mise upgrade tool@x.y.z` installs that
+	  exact version as a CLI argument, confirmed against upstream docs
+	  (`mise upgrade tiny@3.0.1` rewrites the version-specific request, not
+	  just "upgrade within range"). `version_pinned=True` whenever a version
+	  is given; the caller (scripts/check_pin.py) never needs a preflight
+	  query for mise as a result — there is nothing upstream can drift out
+	  from under an argument.
+	- **brew/cask have no such mechanism for an arbitrary formula/cask.**
+	  Only a curated handful of formulae ship separately versioned aliases
+	  (`python@3.11`); there is no general `brew install name@version`.
+	  `brew upgrade`/`brew upgrade --cask` always resolves to whatever the
+	  tap currently calls latest, so `version_pinned=False` — apply is
+	  expected to preflight-check what that resolves to (via
+	  `scripts/check_pin.py preflight`) *before* running it, and refuse
+	  rather than run when it has drifted past what was reviewed.
+	- `version` is accepted as optional (default `None`) so a caller that
+	  only wants `auto_runnable`/`manual_reason` and runs before a version is
+	  finalized (`validate_items.py`, pre-assembly) keeps working unchanged;
+	  omitting it just means "don't pin even where pinning is possible."
+	- **`name` already containing `@` blocks pinning rather than mangling
+	  it.** mise's own qualifier syntax uses `:` for a backend
+	  (`npm:prettier`, `cargo:ripgrep` — confirmed against upstream docs,
+	  `mise use -g npm:prettier@3`), never `@` inside the identifier itself,
+	  so `f"{name}@{version}"` is safe for every real mise tool id this
+	  project's own `~/.config/mise/config.toml` uses today. But nothing
+	  guarantees a future or third-party id can't carry an `@` some other
+	  way, and `mise upgrade node@20@24.6.0` would be a malformed request
+	  that still claims `version_pinned=True` — a guarantee that reads as
+	  one without being one. Refuse to pin in that case: fall back to the
+	  unpinned command exactly as when no version is given at all, rather
+	  than emit a command that has not been established to be well-formed.
+
+	`version` never changes `auto_runnable`/`manual_reason` for any source —
+	pinnability is orthogonal to whether the session may run the command at
+	all.
+	"""
 	if source == "brew":
-		return f"brew upgrade {name}", True, None
+		return f"brew upgrade {name}", True, None, False
 	if source == "cask":
-		return f"brew upgrade --cask {name}", True, None
+		return f"brew upgrade --cask {name}", True, None, False
 	if source == "mise":
-		return f"mise upgrade {name}", True, None
+		if version and "@" not in name:
+			return f"mise upgrade {name}@{version}", True, None, True
+		return f"mise upgrade {name}", True, None, False
 	if source == "standalone":
-		return None, False, "No generic upgrade command for a standalone CLI — check the tool's own docs."
+		return None, False, "No generic upgrade command for a standalone CLI — check the tool's own docs.", False
 	if source == "macos":
-		return None, False, "macOS system/app update — install via System Settings or `softwareupdate -i`, not auto-run by this skill."
+		return None, False, "macOS system/app update — install via System Settings or `softwareupdate -i`, not auto-run by this skill.", False
 	if source == "skill-drift":
 		# Unreachable from build_drift_tool (a drift finding gets no synthesized
 		# baseline at all — its action is its own `:sync` remediation), but
 		# answered explicitly so a future caller cannot get a runnable command
 		# for a subtree pull out of the fall-through.
-		return None, False, "Vendored-skill sync is always manual."
-	return None, False, "Unknown source — no safe default command."
+		return None, False, "Vendored-skill sync is always manual.", False
+	return None, False, "Unknown source — no safe default command.", False
 
 
 # ── version_delta (references/assembly.md §Version Delta) ───────────────────
@@ -1619,13 +1681,35 @@ def build_tool(candidate: dict, research_obj: dict | None) -> dict:
 
 	# Synthesize the baseline kind:"upgrade" suggestion (references/assembly.md §Baseline Suggestion Synthesis) —
 	# mechanical, every tool gets exactly one, never left to research.
-	command, auto_runnable, manual_reason = upgrade_command_and_runnable(source, name)
+	# `target_version` is the reviewed version apply must land on (WP5/I2:
+	# references/apply.md §Executing Upgrade Suggestions) — pass it into
+	# upgrade_command_and_runnable so `command` pins it wherever the source
+	# supports that (mise); `version_pinned` records whether it does.
+	command, auto_runnable, manual_reason, version_pinned = upgrade_command_and_runnable(
+		source, name, tool["latest_version"])
+	# A tool can reach here with no usable latest_version at all — collection
+	# degrading per-tool rather than aborting (§G1) means a source can supply
+	# a candidate whose own `latest` came back null (e.g. mise's own
+	# `outdated --json` failing to resolve one), the same "missing version"
+	# shape compute_version_delta already recognizes. Never synthesize a
+	# runnable, "pinned" suggestion with nothing to pin to or verify against:
+	# `check_pin.py verify --target-version` would then compare against
+	# nothing and could never pass, permanently reporting a failure for an
+	# upgrade that actually landed correctly — worse than no check at all,
+	# because it trains the reader to ignore it.
+	if not tool["latest_version"]:
+		command, auto_runnable, version_pinned = None, False, False
+		manual_reason = ("No latest_version available for this tool — collection could not "
+			"determine one, so there is nothing to pin or verify an upgrade against. "
+			"Investigate the collection gap; do not run this by hand until it reports one.")
 	upgrade_suggestion = {
 		"id": f"{tool_id}:upgrade",
 		"kind": "upgrade",
 		"title": f"Upgrade {name} {tool['current_version']} → {tool['latest_version']}",
 		"target_files": [],
 		"command": command,
+		"target_version": tool["latest_version"],
+		"version_pinned": version_pinned,
 		"auto_runnable": auto_runnable,
 		"needs_sudo": needs_sudo_for(source, research_obj),
 		"rationale": "Picks up the changes described in headliners[] above.",
