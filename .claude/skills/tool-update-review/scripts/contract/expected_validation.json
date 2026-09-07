@@ -14,6 +14,15 @@
 			"message": "expected a JSON array of tool objects, got dict"
 		},
 		{
+			"code": "W-ATTENTION-NOSUG",
+			"severity": "warning",
+			"tool_id": "brew:attention",
+			"item_id": null,
+			"field": "config_status.state",
+			"value": "",
+			"message": "config_status is needs_attention but no non-upgrade suggestion says what to do"
+		},
+		{
 			"code": "W-ENTRY-UNMATCHED",
 			"severity": "warning",
 			"tool_id": "brew:ghost",
@@ -458,6 +467,7 @@
 			"E-STRUCT-PRECOND": 2,
 			"E-TAG-NONE": 1,
 			"E-TAG-UNKNOWN": 1,
+			"W-ATTENTION-NOSUG": 1,
 			"W-ENTRY-UNMATCHED": 1,
 			"W-EVID-ROOT": 1,
 			"W-MEMBER-QUARANTINED": 1,
@@ -466,12 +476,13 @@
 			"W-TITLE-LONG": 1
 		},
 		"by_tool": {
+			"brew:attention": 1,
 			"brew:ghost": 1,
 			"brew:nonconforming": 45
 		},
 		"by_severity": {
 			"error": 41,
-			"warning": 6
+			"warning": 7
 		}
 	},
 	"orphans": [],
@@ -1113,7 +1124,9 @@
 			},
 			"security_display_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
-			"spec_violations": []
+			"spec_violations": [
+				"W-ATTENTION-NOSUG"
+			]
 		},
 		{
 			"id": "brew:nonconforming",

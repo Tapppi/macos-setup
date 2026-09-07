@@ -108,8 +108,9 @@ SUGGESTION_KINDS = ("upgrade", "edit", "structural", "watch-item", "method-note"
 # method notes and watch items, so leaving it would put most of the fleet on
 # the "needs you" list and undo the compaction §A and criterion 10 exist for.
 #
-# `compute_initial_bucket` and `W-ATTENTION-NOSUG` both read this one tuple so
-# a bucket and its explanation cannot drift apart.
+# `compute_impact`, `compute_risk_level`, `compute_initial_bucket` and
+# `W-ATTENTION-NOSUG` all read these two tuples, so a bucket and its
+# explanation cannot drift apart.
 MEMORY_SUGGESTION_KINDS = ("watch-item", "method-note")
 ACTION_SUGGESTION_KINDS = ("edit", "structural")
 
@@ -742,6 +743,11 @@ def contract() -> dict:
 		"memory_proposals": {
 			"kinds": list(MEMORY_SUGGESTION_KINDS),
 			"action_kinds": list(ACTION_SUGGESTION_KINDS),
+			"bucket_rule": "memory proposals do not force `attention`; action "
+				"proposals do. `watch-item` and `method-note` propose changes to what "
+				"we remember, `edit` and `structural` to the user's system — only the "
+				"latter needs a decision. compute_initial_bucket and W-ATTENTION-NOSUG "
+				"read one tuple so they cannot disagree.",
 			"payload": {kind: dict(fields)
 				for kind, fields in sorted(MEMORY_PAYLOAD_FIELDS.items())},
 			"self_test_failed": {

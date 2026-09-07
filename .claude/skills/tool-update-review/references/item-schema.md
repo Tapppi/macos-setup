@@ -426,6 +426,14 @@ touchpoint, you owe a relevancy item" — same claim, now checkable. It warns an
 never sets or clears the direction for you. Keep that discipline for all
 nineteen.
 
+I-15 and the bucket clause read one tuple, `model.ACTION_SUGGESTION_KINDS`:
+**memory proposals do not force `attention`; action proposals do.**
+`watch-item` and `method-note` propose changes to what we remember, `edit` and
+`structural` to the user's system, and only the latter needs a decision.
+`REDESIGN.md` §L1 expects *many* per-tool method notes and watch items, so the
+older spelling — "anything that is not an upgrade" — would put most of the
+fleet on the "needs you" list.
+
 I-19 validates the `self_test_failed` tag rather than letting it ride as an
 extra field the validator happens to tolerate. §L7 makes convergence key its
 review off that tag, and an unvalidated channel is exactly how `Watch item

@@ -1120,7 +1120,18 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	and carries `bucket_inputs` so convergence can see *why* without
 	re-deriving it.
 
-	"""
+	**Memory proposals do not force `attention`; action proposals do.**
+	`method-note` and `watch-item` propose changes to what we remember; `edit`
+	and `structural` propose changes to the user's system. Only the latter
+	needs a decision, so the clause reads `model.ACTION_SUGGESTION_KINDS`
+	rather than "anything that is not an upgrade".
+
+	The old spelling was harmless only while watch items were rare. `REDESIGN.md`
+	§L1 now expects **many** per-tool method notes and watch items, so "not an
+	upgrade" would put most of the fleet on the "needs you" list — inflating the
+	surface §A and criterion 10 exist to compact, and forcing exactly the review
+	§L5 was designed to make optional. `W-ATTENTION-NOSUG` reads the same tuple,
+	so a bucket and its explanation cannot drift apart."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "routine" if assemble.finding_expected(view) else "attention"
 	if (has_security and security_only and impact == "none"
@@ -1130,7 +1141,7 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 		return "security_mixed"
 	if (risk_level == "elevated"
 			or assemble.config_needs_attention(view)
-			or any(assemble.suggestion_kind(s) != "upgrade"
+			or any(assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
 				for s in (view.get("suggestions") or []) if isinstance(s, dict))
 			or not runnable):
 		return "attention"
@@ -1315,9 +1326,12 @@ def _derive_axes(view, candidate, findings):
 	view["self_test_tagged_suggestion_ids"] = _self_test_tagged_ids(
 		view["suggestions"], view["id"])
 
-	# I-15 — existing rule, kept.
+	# I-15 — existing rule, kept. It reads the same tuple as
+	# `compute_initial_bucket`: a memory proposal is not an answer to
+	# "needs_attention but what do I do about it", so it must not silence the
+	# warning any more than it may raise the bucket.
 	if assemble.config_needs_attention(view) and not any(
-			assemble.suggestion_kind(s) != "upgrade"
+			assemble.suggestion_kind(s) in model.ACTION_SUGGESTION_KINDS
 			for s in view["suggestions"] if isinstance(s, dict)):
 		findings.add("W-ATTENTION-NOSUG",
 			"config_status is needs_attention but no non-upgrade suggestion says what to do",

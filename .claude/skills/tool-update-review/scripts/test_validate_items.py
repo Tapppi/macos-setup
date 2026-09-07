@@ -933,6 +933,40 @@ class MemoryProposalTests(unittest.TestCase):
 		research.update(kw)
 		return validate_one(research)
 
+	# — the bucket rule —
+	def test_a_memory_proposal_alone_leaves_a_tool_routine(self):
+		"""The ruling, in one assertion. A method note or a watch item proposes
+		a change to what we remember; only `edit`/`structural` propose a change
+		to the user's system, and only those mean "a human has to look"."""
+		for kind in model.MEMORY_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				view, _ = self._view([_memory(kind)])
+				self.assertEqual(view["initial_review_bucket"], "routine")
+				self.assertEqual(view["risk_level"], "low")
+				self.assertEqual(view["impact"], "none")
+
+	def test_an_action_proposal_still_lands_in_attention(self):
+		for kind in model.ACTION_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				view, _ = self._view([_action(kind)])
+				self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_memory_proposal_beside_an_action_one_does_not_hide_it(self):
+		view, _ = self._view([_memory("watch-item"), _action("edit")])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_memory_proposal_does_not_answer_needs_attention(self):
+		"""I-15 reads the same tuple as the bucket clause. A note about how to
+		research this tool next time is not an answer to "the config may be
+		stale — what do I do about it", so it must not silence the warning any
+		more than it may raise the bucket."""
+		status = {"state": "needs_attention", "detail": "stale", "evidence": [],
+			"citations": []}
+		_, findings = self._view([_memory("method-note")], config_status=status)
+		self.assertIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+		_, findings = self._view([_action("edit")], config_status=status)
+		self.assertNotIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+
 	# — the payload —
 	def test_a_memory_proposal_without_its_payload_is_a_missing_field(self):
 		for kind, fields in sorted(model.MEMORY_PAYLOAD_FIELDS.items()):

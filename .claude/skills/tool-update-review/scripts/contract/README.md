@@ -76,6 +76,14 @@ than a paragraph.
 
 ## Memory proposals
 
+`watch-item` and `method-note` propose changes to **what we remember**; `edit`
+and `structural` propose changes to **the user's system**. Only the latter needs
+a decision, so only the latter raises `risk_level`, moves a tool into
+`attention`, or answers a `needs_attention` config status. `REDESIGN.md` §L1
+expects *many* per-tool method notes and watch items, so the older spelling of
+that clause — "anything that is not an upgrade" — would have put most of the
+fleet on the "needs you" list.
+
 A memory proposal may carry `self_test_failed: {limb, reason}`. **The self-test
 tags, it never removes** (§L7): a failing proposal is still written, and
 convergence reviews every tagged one to verify that dropping it is appropriate —

@@ -761,6 +761,13 @@ is appropriate.
   `self_test_tagged_suggestion_ids`, so convergence works from a list rather
   than re-reading prose for the tag.
 
+**Memory proposals never force a review.** `watch-item` and `method-note`
+propose changes to what we remember; `edit` and `structural` propose changes to
+the user's system. Only the latter raises `risk_level`, moves a tool into the
+`attention` bucket, or answers a `needs_attention` `config_status`. §L1 expects
+*many* method notes and watch items, so any other reading would put most of the
+fleet on the "needs you" list and undo the compaction this skill exists for.
+
 ### 1.8 `version_delta` semantics
 
 Assembly's answer to "how big is this bump", computed once from
