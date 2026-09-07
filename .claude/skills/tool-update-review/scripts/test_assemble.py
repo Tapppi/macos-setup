@@ -762,6 +762,23 @@ class ShapeDriftTests(unittest.TestCase):
 		self.assertEqual(fine["spec_violations"], [])
 		self.assertEqual(len(fine["items"]), 1)
 
+	def test_both_finding_builders_survive_the_same_drift(self):
+		"""`build_health_tool` and `build_drift_tool` take the same `_tool_base`
+		path as the version builder, so a shape that would break one breaks all
+		three. Assert the pair explicitly rather than trusting the shared path."""
+		for candidate in (
+				{"id": "brew-health:other:x", "name": "x", "source": "brew-health",
+					"category": "other", "severity": "notable", "detail": "d",
+					"remediation": None, "expected": False},
+				{"id": "skill-drift:v/s", "name": "s (v)", "source": "skill-drift",
+					"drift_state": "upstream_ahead", "severity": "notable", "detail": "d",
+					"vendor": "v", "skill": "s", "remediation": None, "expected": False}):
+			with self.subTest(candidate["source"]):
+				tool = build_one(candidate, dict(DRIFTED, id=candidate["id"]))
+				self.assertEqual(len(tool["items"]), 1)
+				self.assertIsInstance(tool["config_status"], dict)
+				self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]))
+
 	def test_a_drifted_tool_can_never_be_pre_accepted(self):
 		"""A tool the validator could not read is the last thing that should be
 		auto-approved."""
@@ -939,6 +956,27 @@ class ReportInvariantTests(unittest.TestCase):
 				self.assertNotIn("notable", tool["security"])
 				self.assertNotIn("cve_severities", tool["security"])
 
+	def test_security_bucket_counts_fit_inside_tools_with_security(self):
+		"""Both security buckets are subsets of the tools that carry security
+		content, so their sum can never exceed it."""
+		sec = self.report["summary"]["security"]
+		self.assertLessEqual(sec["auto_count"] + sec["mixed_count"], sec["tools_with_security"])
+		self.assertEqual(sec["auto_count"], self.report["summary"]["by_bucket"]["security_auto"])
+		self.assertEqual(sec["mixed_count"], self.report["summary"]["by_bucket"]["security_mixed"])
+
+	def test_finding_sources_are_excluded_from_by_delta_and_from_security(self):
+		"""A brew-health finding is an environment issue and a skill-drift
+		finding is a vendoring issue — neither is an update, so neither inflates
+		the delta boxes or the security totals. Each is counted in its own."""
+		self.assertEqual(self.report["summary"]["health_count"], 1)
+		self.assertEqual(self.report["summary"]["skill_drift_count"], 1)
+		self.assertEqual(sum(self.report["summary"]["by_delta"].values()),
+			self.report["summary"]["total_outdated"])
+		for tool in self.report["tools"]:
+			if tool["source"] in assemble.NON_VERSION_SOURCES:
+				self.assertFalse(tool["security"]["has_security"], tool["id"])
+				self.assertEqual(tool["security"]["cve_ids"], [], tool["id"])
+
 	def test_the_report_states_whether_the_corpus_validated(self):
 		self.assertIn("validation", self.report)
 		self.assertIsInstance(self.report["validation"]["clean"], bool)
@@ -1070,6 +1108,34 @@ class HighlightScoringTests(unittest.TestCase):
 			highlights = assemble.build_highlights(tools)
 		self.assertEqual(highlights, [])
 		self.assertIn("restates security item", err.getvalue())
+
+	def test_why_sources_lists_every_branch_that_can_produce_one(self):
+		"""`_WHY_SOURCES` is the published vocabulary of `highlights[].why_source`
+		(references/schemas.md §1.11). A branch that can fire and is not listed
+		ships a value no consumer was told about."""
+		listed = set(assemble._WHY_SOURCES)
+		import inspect
+		body = inspect.getsource(assemble._highlight_why_parts) \
+			+ inspect.getsource(assemble._item_source)
+		produced = set(re.findall(r'"(item_local_\w+|item_\w+|config_status|research_error|major_bump|none)"', body))
+		produced |= {f"item_local_{k}" for k in ("security", "other")}
+		produced |= {f"item_{k}" for k in ("security", "other")}
+		self.assertEqual(produced - listed, set(), "a branch produces an unlisted why_source")
+		self.assertEqual(listed - produced, set(), "a listed why_source no branch can produce")
+
+	def test_a_repr_is_never_rendered_as_a_highlight_line(self):
+		"""A title a checker nested one level too deep used to raise
+		AttributeError out of build_highlights() and abort the report for all
+		78 tools. Coercing it with str() is not the fix either — that renders
+		the repr on the card."""
+		tool = self._tool([_item("a", severity="warning",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]),
+			title={"text": "nested one level too deep"})])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			why, source, ref = assemble._highlight_why_parts(tool)
+		self.assertNotIn("nested one level too deep", why)
+		self.assertNotIn("{", why)
+		self.assertIn("not a string", err.getvalue())
 
 	def test_the_cap_is_eight(self):
 		tools = []
