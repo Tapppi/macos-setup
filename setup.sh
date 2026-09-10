@@ -98,11 +98,20 @@ elif [[ "${1}" = "install" ]]; then
 	install
 elif [[ "${1}" = "dotfiles" ]]; then
 	. tasks/install.sh
-	install_dotfiles
-	# bootstrap.sh has just overwritten the tracked agent config files, dropping
-	# the keys herdr writes into them. Put them back, exactly as a full install
-	# does — otherwise syncing dotfiles alone silently disables the integration.
-	install_herdr_integrations
+	# Gated on the sync succeeding: bootstrap.sh has just overwritten the tracked
+	# agent config files, dropping the keys herdr writes into them, and putting
+	# them back is what keeps a dotfiles-only sync from silently disabling the
+	# integration. But re-asserting onto a half-synced tree is worse than not
+	# re-asserting at all, so a failed sync stops here and says why.
+	dotfiles_status=0
+	install_dotfiles || dotfiles_status=$?
+	if [[ "${dotfiles_status}" -eq 0 ]]; then
+		install_herdr_integrations
+	else
+		p1 "Skipping herdr integrations — dotfiles sync failed (exit ${dotfiles_status})."
+		p3 "Fix the sync, then re-run './setup.sh dotfiles'."
+		exit "${dotfiles_status}"
+	fi
 elif [[ "${1}" = "herdr" ]]; then
 	. tasks/install.sh
 	install_herdr_integrations

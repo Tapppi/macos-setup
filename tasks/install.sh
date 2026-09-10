@@ -4,14 +4,27 @@ set -uo pipefail
 # Define Function =install=
 
 install() {
+	local dotfiles_ok=0
+
 	install_macos_sw
 	link_terraform_to_tofu
-	install_dotfiles
+	install_dotfiles || dotfiles_ok=$?
 	install_mise_runtimes
 	# After mise runtimes: podman-compose is installed via the mise-managed uv
 	install_podman_intel
 	install_powershell_modules
 	install_agent_skills_venv
+
+	# These re-assert tool-owned config into files bootstrap.sh just overwrote
+	# (see "Tool-owned config is re-asserted, not vendored"). That ordering only
+	# holds if the sync actually completed — re-asserting onto a half-synced tree
+	# produces a state that looks configured and is not. Skip and say so instead.
+	if [[ "${dotfiles_ok}" -ne 0 ]]; then
+		p1 "Skipping Claude Code, Cursor and herdr setup — dotfiles sync failed."
+		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations."
+		return "${dotfiles_ok}"
+	fi
+
 	install_claude_code
 	install_cursor_agent
 	install_herdr_integrations
@@ -614,16 +627,38 @@ install_herdr_integrations() {
 }
 
 # Install dotfiles with =dotfiles/bootstrap.sh=
+# Define Function =install_dotfiles= — sync dotfiles to ~, then install nnn plugins.
+#
+# bootstrap.sh's exit status is checked rather than discarded. It runs several
+# rsyncs, and a failing one (a mirror whose source directory has been deleted
+# exits 23) otherwise leaves no trace: the sync half-completes, the function
+# returns 0, and everything after it proceeds as if ~ were fully synced.
+#
+# A sync failure does not abort the install — a partial sync is usually still
+# better than none, and `install()` has later steps worth running. But it is
+# reported loudly and returned, so callers can gate on it. `install()` uses that
+# to skip the tool integrations that re-assert config *into* files bootstrap
+# just wrote, since re-asserting onto a half-synced tree is what produces the
+# confusing half-broken state.
 install_dotfiles() {
 	p1 "Installing dotfiles..."
 
-    mkdir -p ~/.config/bash/
+	mkdir -p ~/.config/bash/
 	cp ./{.extra,.path} ~/.config/bash/
 
-	./dotfiles/bootstrap.sh -f
+	local bootstrap_status=0
+	./dotfiles/bootstrap.sh -f || bootstrap_status=$?
+
+	if [[ "${bootstrap_status}" -ne 0 ]]; then
+		p2 "WARNING: dotfiles/bootstrap.sh exited ${bootstrap_status} — the sync is incomplete."
+		p3 "rsync exit 23 usually means a mirrored source directory no longer exists."
+		p3 "Re-run './setup.sh dotfiles' after fixing, or ~ will stay partially synced."
+	fi
 
 	p2 "Installing nnn plugins..."
 	# Install official nnn plugins
 	sh -c "$(curl -fsSL https://raw.githubusercontent.com/jarun/nnn/master/plugins/getplugs)"
 	p3 "nnn plugins installed!"
+
+	return "${bootstrap_status}"
 }

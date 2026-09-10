@@ -4,10 +4,7 @@
 # A "workspace" directory (e.g. ~/project/acme/) carries a gitignored
 # `.tapppi-project.{json,yml,yaml}` manifest. This task scans ${HOME}/project
 # for such manifests and, per workspace:
-#   1. symlinks each named skill into the corresponding repo's `.claude/skills/`.
-#      Skills are per-repo because Claude Code only discovers skills up to a
-#      repo's git root, so a workspace-level link would not be seen inside a repo.
-#   2. enables each named plugin for the repo via `claude plugin install
+#   1. enables each named plugin for the repo via `claude plugin install
 #      --scope local`, which records it in that repo's gitignored
 #      `.claude/settings.local.json` (enabledPlugins). This covers both
 #      third-party marketplace plugins (e.g. `frontend-design@claude-plugins-
@@ -18,12 +15,21 @@
 #      Any local marketplace under SKILLS_ROOT (one with a
 #      `.claude-plugin/marketplace.json`) is auto-registered so its plugins
 #      resolve by name.
-#   3. provisions a shared per-workspace environment: renders a `mise.local.toml`
+#   2. provisions a shared per-workspace environment: renders a `mise.local.toml`
 #      in the workspace dir whose [env] loads a local 0600 dotenv file via mise's
 #      `_.file`. mise walks up the directory tree across git boundaries, so every
 #      repo under the workspace inherits the env.
-#   4. for a `jira` block, prints the one-time commands to write that dotenv file
+#   3. for a `jira` block, prints the one-time commands to write that dotenv file
 #      from 1Password and run `jira init` (it does not run them).
+#
+# This task no longer links raw skills into repos. Skills now live in the repo
+# that uses them, committed: a real bundle at `.agents/skills/<bundle>/` plus a
+# committed *relative* symlink at `.claude/skills/<bundle>`. That reaches every
+# harness (Claude Code reads only `.claude/skills`; Cursor, Codex, OpenCode and
+# Pi read `.agents/skills`) and, being committed and relative, resolves per
+# worktree instead of pinning every worktree to one machine-global copy — which
+# is what the old absolute symlinks did. A `skills` block in a manifest is now
+# warned about and ignored.
 #
 # Why a dotenv file and not `op read` in mise: mise evaluates [env] on every
 # cd/prompt, so a blocking `op read` would freeze the shell. mise just reads a
@@ -33,10 +39,6 @@
 #
 # Manifest schema (in a workspace dir, e.g. ~/project/acme/.tapppi-project.json):
 #   {
-#     "skills": {                         # repo path (rel. to workspace) -> skills
-#       "service-a": ["jira", "gke-basics"],
-#       "service-b": ["jira"]
-#     },
 #     "plugins": {                        # repo path (rel. to workspace) -> plugin@marketplace
 #       "service-a": ["frontend-design@claude-plugins-official", "browser@tapppi-skills"]
 #     },
@@ -82,46 +84,6 @@ projects_resolve_path() {
 	path="${path/#\~/${HOME}}"
 	[[ "${path}" = /* ]] || path="${base}/${path}"
 	printf '%s\n' "${path}"
-}
-
-# Define Function =projects_resolve_skill= — print the vendored dir for a skill
-# name: a directory named <name> containing a SKILL.md anywhere under SKILLS_ROOT.
-projects_resolve_skill() {
-	local name="${1}"
-	local -a matches=()
-	local d
-	while IFS= read -r d; do
-		[[ -f "${d}/SKILL.md" ]] && matches+=("${d}")
-	done < <(find "${SKILLS_ROOT}" -type d -name "${name}" 2>/dev/null)
-
-	if [[ "${#matches[@]}" -eq 0 ]]; then
-		projects_warn "skill '${name}' not found under ${SKILLS_ROOT} (with a SKILL.md)"
-		return 1
-	elif [[ "${#matches[@]}" -gt 1 ]]; then
-		projects_warn "skill '${name}' is ambiguous: ${matches[*]}"
-		return 1
-	fi
-	printf '%s\n' "${matches[0]}"
-}
-
-# Define Function =projects_link_skill= — idempotently symlink one skill into a repo
-projects_link_skill() {
-	local repo="${1}" name="${2}" target="${3}"
-	local link_dir="${repo}/.claude/skills"
-	local link="${link_dir}/${name}"
-
-	mkdir -p "${link_dir}"
-	if [[ -L "${link}" ]]; then
-		if [[ "$(readlink "${link}")" == "${target}" ]]; then
-			p3 "ok ${name}"
-			return 0
-		fi
-		rm "${link}"
-	elif [[ -e "${link}" ]]; then
-		projects_warn "skip '${name}': ${link} exists and is not a symlink"
-		return 1
-	fi
-	ln -s "${target}" "${link}" && p2 "linked ${name} -> ${target}"
 }
 
 # Define Function =projects_ensure_marketplaces= — idempotently register every
@@ -290,25 +252,13 @@ projects_apply() {
 
 	p1 "Workspace ${workspace}"
 
-	# Per-repo skill symlinks. `skills` maps a repo path (relative to the
-	# workspace, or absolute) to its list of skill names.
-	local repo_key repo name target linked
+	# A manifest may still carry a `skills` block from the retired symlink
+	# route. Warn rather than ignore it: silently dropping a block someone
+	# wrote is worse than telling them it no longer does anything.
+	local repo_key repo
 	while IFS= read -r repo_key; do
 		[[ -z "${repo_key}" ]] && continue
-		repo="$(projects_resolve_path "${workspace}" "${repo_key}")"
-		if [[ ! -d "${repo}" ]]; then
-			projects_warn "repo '${repo_key}' not found at ${repo}"
-			continue
-		fi
-		p2 "Repo ${repo}"
-		linked=0
-		while IFS= read -r name; do
-			[[ -z "${name}" ]] && continue
-			if target="$(projects_resolve_skill "${name}")"; then
-				projects_link_skill "${repo}" "${name}" "${target}" && linked=$((linked + 1))
-			fi
-		done < <(printf '%s' "${json}" | jq -r --arg r "${repo_key}" '.skills[$r] // [] | .[]')
-		[[ "${linked}" -gt 0 ]] && projects_git_exclude "${repo}" "/.claude/skills/"
+		projects_warn "manifest key 'skills.${repo_key}' is obsolete and ignored — commit skills to the repo instead (see CLAUDE.md)"
 	done < <(printf '%s' "${json}" | jq -r '.skills // {} | keys[]')
 
 	# Per-repo plugin enablement. `plugins` maps a repo path to a list of

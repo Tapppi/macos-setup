@@ -36,8 +36,8 @@ bash hooks/install.sh
   only clears the cask quarantine; all config is dotfiles-managed. `cursor-agent` reads much of the
   Claude Code setup natively (repo `CLAUDE.md`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`,
   `~/.claude/commands/`, plus `enabledPlugins`, hooks and `permissions` from `.claude/settings*.json`),
-  so `tasks/projects.sh` needs no Cursor-specific handling — the skills it links into each repo's
-  `.claude/skills/` are picked up as-is. It does **not** read `~/.claude/CLAUDE.md` (ported to
+  so `tasks/projects.sh` needs no Cursor-specific handling — a repo's committed `.claude/skills/`
+  and `.agents/skills/` are both picked up as-is. It does **not** read `~/.claude/CLAUDE.md` (ported to
   `dotfiles/home/.cursor/rules/*.mdc`) or Claude's `Bash(...)` permission entries (Cursor's shell tool
   is `Shell(...)`, so they load but never match). **Quarantine must be re-cleared after every
   `brew upgrade --cask cursor-cli`** — a fresh cask download re-quarantines the bundled
@@ -46,7 +46,9 @@ bash hooks/install.sh
   split (`cli-config.json` is XDG-resolved, everything else is hardcoded to `~/.cursor/`).
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup. Does not apply macOS system defaults (use `./setup.sh macos` separately).
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
-- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) symlinks each repo's named skills (resolved from `~/.config/agent-skills/`) into that repo's `.claude/skills/` — per-repo because Claude Code only discovers skills up to a repo's git root, so a workspace-level link is invisible inside a repo; (2) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own skills wrapped as plugins (e.g. `gke-basics@tapppi-skills`, see `dotfiles/config/agent-skills/.claude-plugin/marketplace.json`) get the same per-project scoping as raw skills, since Claude Code has no `enabledSkills` toggle for unpackaged skills; any local marketplace found under `~/.config/agent-skills/` is auto-registered so its plugins resolve by name; (3) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (4) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Used to scope skills/tooling to specific projects rather than globally. Idempotent; never auto-run.
+- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own bundles published through a marketplace (e.g. `gke-basics@tapppi-skills`, see `dotfiles/config/agent-skills/.claude-plugin/marketplace.json`) get per-project scoping; any local marketplace found under `~/.config/agent-skills/` is auto-registered so its plugins resolve by name; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Idempotent; never auto-run.
+
+  It no longer links raw skills into repos — see *Where skills live* below. A leftover `skills` block in a manifest warns and is ignored.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
   `home/` rsynced to `~/` (non-XDG files: `.claude/`, `.cursor/`, etc.) and
@@ -65,9 +67,9 @@ These modify system configuration, install software, and require `sudo`.
 `./setup.sh projects` (and *only* that subcommand — never `install`, `macos`,
 `init`, or bare `setup.sh`) when an accepted suggestion edits a file that
 `tasks/projects.sh` manages (workspace `.tapppi-project.json` manifests,
-rendered `mise.local.toml`, per-repo skill symlinks). That task is idempotent,
-requires no `sudo`, and touches no system-wide state — it only re-links
-skills and re-renders workspace-local env config. This exception is scoped
+rendered `mise.local.toml`). That task is idempotent, requires no `sudo`, and
+touches no system-wide state — it only re-enables plugins and re-renders
+workspace-local env config. This exception is scoped
 to that one skill and that one subcommand; it does not loosen the rule for
 any other automation.
 
@@ -76,6 +78,44 @@ any other automation.
 `dotfiles/` submodule (`home/` or `config/` directories) and then copy the changed file to its
 destination (e.g., `cp dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.
+
+### Where Skills Live
+
+A skill belongs to the repo that uses it, committed, in this shape:
+
+```text
+<repo>/.agents/skills/<bundle>/          # canonical, a real directory
+        .claude-plugin/plugin.json       # one manifest; Claude Code AND Codex read it
+        skills/<name>/SKILL.md           # required layout
+        [agents/ hooks/ .mcp.json]       # optional, additive
+<repo>/.claude/skills/<bundle> -> ../../.agents/skills/<bundle>   # relative, committed
+```
+
+Both paths are needed because no single one is universal: Claude Code reads
+only `.claude/skills`, Codex reads only `.agents/skills`, and Cursor and
+OpenCode read both. Claude Code loads a directory containing `.claude-plugin/`
+as a zero-install `<bundle>@skills-dir` plugin — no marketplace, no
+`enabledPlugins` entry, discovered in place, so edits on a branch are live.
+
+**The symlink must be relative, and it must be committed.** That is the whole
+reason worktrees work without provisioning: git carries the symlink, and a
+relative target resolves inside whichever worktree reads it. The retired
+`projects.sh` route wrote *absolute* symlinks into `~/.config/agent-skills/`,
+which pinned every worktree to one machine-global copy — the bug this shape
+exists to avoid.
+
+A plain skill (`.agents/skills/<name>/SKILL.md`, no `.claude-plugin/`) is also
+fine. The only difference is namespacing: a bundle's skills appear as
+`<bundle>:<skill>`, a plain skill is unnamespaced. Prefer a bundle for
+anything shared, versioned, or carrying hooks/agents/MCP.
+
+A bundle's `SKILL.md` must sit at `skills/<name>/SKILL.md`. One at the bundle
+root loads in Claude Code but is invisible to Codex — a silent, one-harness
+failure.
+
+Third-party marketplace plugins (`frontend-design@claude-plugins-official`,
+`superpowers`, `duckdb-skills`) cannot be made zero-setup; their install stays
+machine-local via `tasks/projects.sh`.
 
 ### Git Identity and Attribution
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no agent signatures).
