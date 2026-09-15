@@ -385,10 +385,8 @@ config_vlc() {
 
 # Configure Login Items
 #
-# Hammerspoon is deliberately the nix-built bundle under /Applications/Nix Apps,
-# not a cask under /Applications. tapppi/systems owns both the application and
-# its config now; the two bundles share a bundle id, so leaving a cask copy
-# installed would let LaunchServices decide which one receives an opened link.
+# Hammerspoon is the nix-built bundle under /Applications/Nix Apps, because
+# tapppi/systems owns the application and its config.
 
 _loginitems='/Applications/1Password.app
 /Applications/Alfred 5.app
