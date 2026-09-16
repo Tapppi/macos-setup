@@ -569,6 +569,17 @@ object (`resolution: "applied"`, the accepting turn appended) — the same
 §Turn-Based Threads (Session Side) below already documents, just applied to
 this specific kind of followup.
 
+**A research-method failure noticed mid-apply** is the identical mechanism
+with `kind: "method-note"` and `method_topic`/`method_note` in its place —
+the session, applying something, discovers that the ordinary way this tool
+gets researched is wrong (the release body it was read from turns out to
+omit what actually shipped, say). Accepting it runs `add-method-note`
+instead of `add-watch-item`; everything else — the `pending_followups`
+entry, `origin: "agent_initiated"`, the card, the turn handling — is the
+same. This is path 2 of §Method Notes (Writing) below, and it is the only
+way a method note reaches the store from an apply pass that research did
+not already propose one in.
+
 ## Watch Items (Writing)
 
 `watch-items.json` (see `references/research.md` §Watch Items (Reading) for
