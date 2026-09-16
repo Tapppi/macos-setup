@@ -46,7 +46,7 @@ Table of contents:
   - Don't Author "I Checked, Found Nothing"
   - The Noise Floor
   - Current → Target Is the Only Frame
-  - Suggestions Are Always `kind: "edit"`
+  - Suggestion Kinds — and When a Change Is Structural
   - Config Status
   - Standing Notes: Three Stores
   - Research-Method Notes vs Watch Items
@@ -903,16 +903,91 @@ this entire run cleared that bar**, which is the expected frequency: a run
 where several items claim the carve-out is a run where the bar is being read
 too loosely.
 
-### Suggestions Are Always `kind: "edit"`
+### Suggestion Kinds — and When a Change Is Structural
 
-Suggestions authored here are always `kind: "edit"` (a concrete
-Brewfile/dotfiles/config change): target file, rationale, motivating link,
-and a short `diff_preview`. Only suggest what the changelog actually
-motivates. No edit suggestion is fine — most tools just get headliners. Do
+Five kinds exist (`items.SUGGESTION_KINDS`); you author at most four:
+
+- **`edit`** — the default and the common case: a concrete
+  Brewfile/dotfiles/config change. Target file(s), rationale, motivating
+  link, and a short `diff_preview`. Only suggest what the changelog
+  actually motivates; no edit suggestion is fine — most tools need none.
+- **`structural`** — an edit whose subject outlives its diff: adding,
+  removing, replacing or moving a manifest entry, adding or removing a
+  tap, changing how something is installed, or adding/changing a
+  `tasks/*.sh` task. When your change is one of the nine ops below,
+  author it as `structural`, never as a free-form `edit`.
+- **`watch-item` / `method-note`** — memory proposals (§Watch Items
+  (Proposing), §Writing a Research-Method Note): they change what the
+  next run remembers, not the user's system.
+- **`upgrade`** — never yours. Do
 **not** author the plain "upgrade this tool" suggestion — that's a
 `kind: "upgrade"` suggestion synthesized mechanically in step 4
 (`references/assembly.md` §Baseline Suggestion Synthesis) for every tool,
 not something to duplicate here.
+
+**When to reach for `structural`.** The test is the subject, not the
+file: does the change mean "this entity is managed differently now" — a
+deprecated cask migrated to its replacement, a formula moved to another
+Brewfile section, a tap trusted or dropped, an install handed from brew
+to mise, a new `setup.sh` subcommand? Then it is `structural`, and it
+carries a typed `structural` block beside the usual
+`title`/`target_files`/`rationale`/`motivating_link`/`diff_preview`:
+
+```jsonc
+{
+	"id": "cask:codex:quarantine-task",   // unique within the report
+	"kind": "structural",
+	"title": "Add a `setup.sh quarantine` dispatch for the self-updating casks",
+	"target_files": [{"path": "setup.sh", "description": "new dispatch arm"}],
+	"rationale": "why, citing the motivating change",
+	"motivating_link": null,
+	"diff_preview": "a rendering of the op for the human — never its source of truth",
+	"structural": {
+		"op": "task_add",                   // one of the nine ops below
+		"subjects": [{"type": "cask", "name": "codex"},
+		             {"type": "cask", "name": "cursor-cli"}],
+		"manifest": null,                   // "Brewfile" or null — intel.Brewfile is
+		                                    //   out of this tool entirely (I-17)
+		"from": null,                       // Ref or null, per op
+		"to": {"type": "task", "name": "setup.sh:quarantine"},
+		"anchor": {"file": "setup.sh", "after": "elif [[ \"${1}\" = \"herdr\" ]]"}
+	}
+}
+```
+
+A `Ref` is `{type, name}` with `type` one of `formula`, `cask`, `tap`,
+`mas`, `task`, `runtime`, `section`. The nine ops
+(`references/item-schema.md` §4 is the authority; the validator checks
+each op's precondition against the live manifest and reports
+`E-STRUCT-PRECOND` or `W-STRUCT-UNCHECKED`, never silently passes one):
+
+| `op` | it says | required |
+|---|---|---|
+| `manifest_add` | add an entry to the Brewfile | `manifest`, `to`, `anchor.section` |
+| `manifest_remove` | remove an entry | `manifest`, `from` |
+| `manifest_replace` | replace an entry with another | `manifest`, `from`, `to` |
+| `manifest_move` | move an entry to another section | `manifest`, `from`, `anchor.section` |
+| `tap_add` / `tap_remove` | trust or drop a tap | `manifest`, `to`/`from` (type `tap`) |
+| `install_method_change` | hand a tool between install mechanisms | `from`, `to` with distinct types |
+| `task_add` / `task_change` | add or change a `setup.sh`/`tasks/*.sh` task | `to` (type `task`), `anchor.file` |
+
+**`subjects[]` is the load-bearing field** — the entities the change is
+*about*, separate from the files it edits. The grounding case: four
+groups independently produced cask-quarantine suggestions; three edit
+`CLAUDE.md`/`AGENTS.md` and the fourth adds a `setup.sh quarantine`
+dispatch whose body covers two of the four casks the others document as
+needing it. A `target_files` intersection cannot see that — zero file
+overlap; the collision is semantic, same subjects in different files. The
+validator builds a run-wide `subject_index` over every structural
+suggestion's `subjects` so exactly that gap surfaces as data — but only
+from suggestions that declare their subjects, which is why a structural
+change written as a free-form `edit` is a coverage gap the pipeline
+cannot see.
+
+Both `edit` and `structural` are **action** suggestions: either one puts
+the tool on the needs-a-decision list (`items.needs_a_decision`), unlike
+the two memory kinds, and either one satisfies I-15's demand that a
+`needs_attention` config verdict comes with something to act on.
 
 ### Config Status
 
