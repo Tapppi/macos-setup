@@ -590,16 +590,35 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_a_routine_reaching_item_keeps_pre_acceptance(self):
-		"""The S14 shape, pinned deliberately: the reaches limb of the bar is
-		security-path only, so a non-security tool with a reaching item at
-		low risk still starts accepted. Unrestricted, the limb would quietly
-		un-compress the routine population — the 919-words-per-decision
-		failure this redesign exists to kill."""
+		"""The S14 shape, pinned deliberately: the reaches limb fires only on
+		an item that itself carries security content, so a non-security tool
+		with a reaching item at low risk still starts accepted. Re-widened,
+		the limb would quietly un-compress the routine population — the
+		919-words-per-decision failure this redesign exists to kill."""
 		tool = build_one(_cand("brew:r", "r", "brew", "1.0.0", "1.0.1"),
 			{"id": "brew:r", "links": [], "items": [
 				_item("a", tags=["fix"], severity="notable",
 					local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))]})
 		self.assertEqual(tool["review_bucket"], "routine")
+		self.assertEqual(tool["risk_level"], "low")
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_a_reaching_feature_on_a_security_tool_keeps_pre_acceptance(self):
+		"""The brew:openssh shape, end to end: a security_mixed tool at low
+		risk whose reaching item is a FEATURE starts accepted — the reaches
+		limb reads the item's own security content, never the tool's. The
+		measured case the limb exists for (cask:wireshark-app) reaches
+		through its security item, and the measurement that justified
+		widening past `elevated` was taken on security items only."""
+		tool = build_one(_cand("brew:ssh", "ssh", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:ssh", "links": [], "items": [
+				_item("uaf", tags=["security", "fix"], severity="notable",
+					security=_sec(rating="unknown", basis="unrated"),
+					local=_local("does_not_reach", "benefit")),
+				_item("zflag", tags=["feature"], severity="notable",
+					local=_local("reaches", "benefit",
+						evidence=[{"path": "Brewfile"}]))]})
+		self.assertEqual(tool["review_bucket"], "security_mixed")
 		self.assertEqual(tool["risk_level"], "low")
 		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 

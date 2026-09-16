@@ -1835,19 +1835,49 @@ class PreAcceptBarTests(unittest.TestCase):
 		self.assertEqual(model.pre_accept_bars(view), ["watch-hit"])
 		self.assertEqual(view["initial_review_bucket"], "security_mixed")
 
-	def test_the_reaches_limb_is_security_path_only(self):
-		"""A reaching item on a NON-security tool moves no bucket and raises
-		no bar: the widening past `elevated` was measured on the security
-		population (17 security_auto instances, 3 selected, no false
-		positives) and never on the routine one — and a predicate that
-		quietly un-compresses the routine population is a regression against
-		what this redesign is for."""
+	def test_the_reaches_limb_fires_only_on_a_security_item(self):
+		"""A reaching item that carries no security content moves no bucket
+		and raises no bar, whatever tool it sits on: the measurement that
+		justified widening past `elevated` (17 security_auto instances, 3
+		selected, no false positives) was taken on security items only —
+		cask:wireshark-app's reaching item IS the security item — and a
+		predicate that quietly un-compresses the population is a regression
+		against what this redesign is for."""
 		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
 			_item(tags=["fix"], severity="notable",
 				local={"direction": "reaches", "effect": "risk", "statement": "s",
 					"evidence": [{"path": "Brewfile"}], "citations": []})]})
 		self.assertEqual(model.pre_accept_bars(view), [])
 		self.assertEqual(view["initial_review_bucket"], "routine")
+
+	def test_a_reaching_non_security_item_on_a_security_tool_does_not_bar(self):
+		"""The brew:openssh shape, at the clause-2 site: a security-only tool
+		whose reaching item is a plain `fix` stays `security_auto` and keeps
+		pre-acceptance — the limb reads the ITEM's security content, never
+		the tool's. Re-widening it to the tool is exactly how openssh's
+		reaching feature item held the tool undecided for a change that is a
+		reason to take the update."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			self._sec_item(local={"direction": "does_not_reach", "effect": "benefit",
+				"statement": "s", "evidence": [], "citations": []}),
+			_item(anchor={"kind": "issue", "value": "org/repo#2"},
+				tags=["fix"], severity="notable",
+				local={"direction": "reaches", "effect": "benefit", "statement": "s",
+					"evidence": [{"path": "Brewfile"}], "citations": []})]})
+		self.assertEqual(model.pre_accept_bars(view), [])
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
+	def test_the_golden_corpus_bars_are_the_narrowed_ones(self):
+		"""Pinned on the published fixture views, so the narrowing shows up in
+		the corpus and not only in synthetic shapes: brew:openssh's reaching
+		FEATURE item raises no bar; brew:elevated's reaching SECURITY item
+		does."""
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		bars = {v["id"]: model.pre_accept_bars(v) for v in document["tools"]}
+		self.assertEqual(bars["brew:openssh"], [])
+		self.assertEqual(bars["brew:elevated"], ["elevated-risk", "reaches-item"])
+		self.assertEqual(bars["brew:watched"], ["watch-hit"])
 
 	def test_a_clean_security_only_tool_still_reaches_security_auto(self):
 		"""The bucket the bar must not swallow: no reaching item, no watch

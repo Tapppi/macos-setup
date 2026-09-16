@@ -1509,9 +1509,8 @@ def _derive_axes(view, candidate, findings):
 	view["impact"] = impact
 	view["risk_level"] = risk_level
 	# Assigned BEFORE the bucket: clause 2's bar (`model.pre_accept_bars`)
-	# reads `risk_level` and `bucket_inputs.has_security` off the view, so
-	# both must exist when the clause runs. Same values either way — this is
-	# ordering, not meaning.
+	# reads `risk_level` off the view, so it must exist when the clause runs.
+	# Same values either way — this is ordering, not meaning.
 	view["bucket_inputs"] = {
 		"has_security": has_security,
 		"security_only": security_only,

@@ -17,7 +17,7 @@
 			"watch-hit"
 		],
 		"elevated-risk": "risk_level == \"elevated\" — bars everywhere (D2 core)",
-		"reaches-item": "any item with local.direction == \"reaches\", counted only where bucket_inputs.has_security — the population the widening was measured on; unrestricted it would quietly un-compress the routine population (919 words per decision is the number this redesign exists to kill)",
+		"reaches-item": "an item that ITSELF carries security content (the security tag, or a security block) with local.direction == \"reaches\" — the measured case: cask:wireshark-app's reaching item IS the security item. Never any reaching item, and never any reaching item on a security tool: the measurement was taken on security items only, and a re-widened predicate quietly un-compresses the routine population (919 words per decision is the number this redesign exists to kill)",
 		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3)"
 	},
 	"cases": [
@@ -592,7 +592,7 @@
 			}
 		},
 		{
-			"name": "16 the S14 shape: a reaching item on a NON-security tool keeps pre-acceptance — the reaches limb is security-path only, the population it was measured on",
+			"name": "16 the S14 shape: a reaching item with no security content keeps pre-acceptance — the reaches limb fires only on an item that is itself security, the population it was measured on",
 			"view": {
 				"quarantine": [],
 				"validator_error": null,
@@ -627,6 +627,121 @@
 			"auto_runnable": true,
 			"expect": {
 				"bucket": "routine",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "17 the brew:openssh shape: a reaching feature item on a security tool keeps pre-acceptance — the limb reads the ITEM's security content, never the tool's",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#release:1.0.1%2Fmux",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "does_not_reach",
+							"effect": "benefit"
+						},
+						"security": {
+							"rating": "unknown",
+							"rating_basis": "unrated",
+							"exploited_in_wild": false
+						}
+					},
+					{
+						"id": "brew:x#release:1.0.1%2Fz-flag",
+						"tags": [
+							"feature"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "18 a reaching fix item on a security-only tool stays security_auto — clause 2's bar reads the item's own security content",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-32004",
+						"tags": [
+							"security"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "does_not_reach",
+							"effect": "benefit"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false
+						}
+					},
+					{
+						"id": "brew:x#issue:org%2Frepo%233",
+						"tags": [
+							"fix"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
 				"pre_accept": true,
 				"content_losing": [],
 				"bars": []

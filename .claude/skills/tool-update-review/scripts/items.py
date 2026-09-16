@@ -701,8 +701,7 @@ def pre_accept_bars(tool) -> list:
 	"""→ the ordered reasons this tool may not start accepted, or [].
 
 	Reads a validation view and an assembled Tool identically (`risk_level`,
-	`bucket_inputs.has_security`, `items`), like `content_losing` and for the
-	same reason. The guard site is `compute_initial_bucket`'s security_auto
+	`items`), like `content_losing` and for the same reason. The guard site is `compute_initial_bucket`'s security_auto
 	clause: a barred security-only tool falls through to `security_mixed`,
 	whose card renders expanded with an "affects this setup" badge — guarding
 	only in `apply_pre_accept` would leave the tool inside a collapsed strip
@@ -714,18 +713,24 @@ def pre_accept_bars(tool) -> list:
 	  On its own it is an unstable proxy: `brew:duckdb` came out `elevated`
 	  in one recorded run and `low` in the other for the identical upgrade,
 	  because the axis moves with the checker's wording. Hence the next limb.
-	- ``reaches-item`` — D2, widened: an item whose `local.direction` is
-	  `"reaches"`, counted only where the tool has security content.
+	- ``reaches-item`` — D2, widened past `elevated` and then narrowed to the
+	  measured case: an item that ITSELF carries security content (the
+	  `security` tag, or a `security` block — I-4's orphan case errs toward
+	  security here as everywhere) with `local.direction == "reaches"`.
 	  `elevated` alone misses `cask:wireshark-app` (28 advisories, a `sharkd`
-	  flaw reachable from the shell PATH, `config_status: unknown`); the
-	  direction is already computed — it is what `security_display_item_ids`
-	  exports — and across the 17 recorded `security_auto` instances it
-	  selects all 3 tools a human would want, with no false positives. It is
-	  restricted to the security path because that is the population it was
-	  measured on — and because this redesign exists to kill a report that
-	  cost 919 words per decision, with 373 of 584 items unable to change any
-	  decision: a predicate that quietly un-compresses the routine population
-	  is a regression against the thing being built.
+	  flaw reachable from the shell PATH, `config_status: unknown`) — and
+	  there the item that reaches IS the security item; the direction is
+	  already computed (it is what `security_display_item_ids` exports), and
+	  across the 17 recorded `security_auto` instances the limb selects all 3
+	  tools a human would want, with no false positives. Do NOT re-widen it —
+	  not to any reaching item, and not to any reaching item on a security
+	  tool: the measurement that justified going past `elevated` was taken on
+	  security items only, a reaching *feature* item then holds tools like
+	  `brew:openssh` undecided for a change that is a reason to take the
+	  update, and a predicate that quietly un-compresses the routine
+	  population is a regression against a redesign that exists because the
+	  old report cost 919 words per decision, with 373 of 584 items unable to
+	  change any decision.
 	- ``watch-hit`` — E3: a watch item exists to be told about, and one that
 	  fires into an auto-accepted card is inert — which is the measured
 	  end-state the redesign exists to fix. Bars everywhere, bounded by the
@@ -737,10 +742,12 @@ def pre_accept_bars(tool) -> list:
 		reasons.append("elevated-risk")
 	raw = tool.get("items")
 	items = [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
-	inputs = tool.get("bucket_inputs")
-	has_security = bool(inputs.get("has_security")) if isinstance(inputs, dict) else False
-	if has_security and any(isinstance(i.get("local"), dict)
-			and i["local"].get("direction") == "reaches" for i in items):
+	if any(
+			isinstance(i.get("local"), dict)
+			and i["local"].get("direction") == "reaches"
+			and ((isinstance(i.get("tags"), list) and "security" in i["tags"])
+				or isinstance(i.get("security"), dict))
+			for i in items):
 		reasons.append("reaches-item")
 	if has_watch_hit(items):
 		reasons.append("watch-hit")
