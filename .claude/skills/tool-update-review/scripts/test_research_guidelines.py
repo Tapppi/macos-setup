@@ -712,22 +712,40 @@ class OutwardFacingTests(GuidelineTestCase):
 
 # ── the claims stay true of the artifact they name ─────────────────────────
 class DocumentedScopeTests(GuidelineTestCase):
-	"""A doc that overstates where a rule holds is worse than one that does not
-	mention it: a reader checks the wrong file and concludes the code is
-	broken. §1.7c describes a property of `validation.json` today, not of
-	`report.json` — `assemble.py` has not been carried across."""
+	"""schemas.md §1.7c claims the memory-bucket rule holds in BOTH layers.
+	The old guard here pinned the opposite — a caveat naming the assembler as
+	divergent — as raw file text, which inverted the moment the divergence was
+	fixed: deleting the false caveat turned the suite red, so the false caveat
+	stayed. The lesson, recorded so it is not re-learned: **self-destructing
+	documentation must assert on live code, never on file text.** This class
+	now asserts the agreement itself, on the functions."""
 
-	def test_the_memory_bucket_claim_names_the_file_it_holds_for(self):
-		text = section_of(SCHEMAS, "### 1.7c The self-test tag",
-			"### 1.8 `version_delta` semantics")
-		self.assertSays("scripts/validate_items.py` implements it", text)
-		self.assertSays("scripts/assemble.py` does not yet", text)
+	def test_the_two_layers_agree_on_what_needs_a_decision(self):
+		"""`assemble.is_action_suggestion` and `items.needs_a_decision` are the
+		same predicate at two altitudes. They must answer identically for every
+		recognized kind AND for drifted ones — an unrecognized kind fails safe
+		(demands a decision) in both layers, or one of them is an auto-accept
+		route."""
+		import sys
+		sys.path.insert(0, os.path.join(HERE))
+		import assemble
+		import items as model
+		kinds = list(model.SUGGESTION_KINDS) + ["edits", "watch-items", "", None]
+		for kind in kinds:
+			sug = {"id": "brew:x:s", "kind": kind} if kind is not None else {"id": "brew:x:s"}
+			expected = model.needs_a_decision(assemble.suggestion_kind(sug))
+			self.assertEqual(assemble.is_action_suggestion(sug), expected,
+				f"kind {kind!r}: the two layers disagree on whether it forces a decision")
 
-	def test_the_claim_and_the_assembler_disagree_exactly_where_the_doc_says(self):
-		"""Pinned so the caveat is removed when — and only when — the
-		assembler stops needing it."""
-		assembler = read("scripts", "assemble.py")
-		self.assertIn('suggestion_kind(s) != "upgrade"', assembler)
+	def test_the_assembler_keeps_no_private_kind_set(self):
+		"""The tuple is the model's; a re-typed copy is where the next
+		divergence starts."""
+		import sys
+		sys.path.insert(0, os.path.join(HERE))
+		import assemble
+		import items as model
+		self.assertEqual(assemble._MEMORY_SUGGESTION_KINDS,
+			frozenset(model.MEMORY_SUGGESTION_KINDS))
 
 	def test_the_unresolvable_citations_have_an_address(self):
 		"""`REDESIGN.md`, `HANDOFF.md` and "criterion N" are cited across the

@@ -602,19 +602,12 @@ def suggestion_kind(sug: dict) -> str:
 # open** — a typo'd `"edits"` carrying a real config edit falls through and
 # scores nothing. An unrecognized kind must count as an action.
 #
-# **The bucket does not follow this rule yet, and that divergence is real.**
-# `validate_items.compute_initial_bucket` still routes on
-# `any(suggestion_kind(s) != "upgrade")`, which counts a memory proposal as
-# decision-forcing — so a tool whose only extra suggestion is a watch item
-# buckets `attention` while this predicate says it proposes nothing. WP2 owns
-# that function and is landing `items.needs_a_decision()` there; this set folds
-# into it at that point. Until then the two answers differ, and the difference
-# is a bucket that is stricter than the rule, not looser.
-#
-# `method-note` is listed although it is not yet a legal kind here: nothing
-# emits one, so it costs nothing today, and it means this half is already right
-# when the kind arrives rather than depending on someone remembering this line.
-_MEMORY_SUGGESTION_KINDS = frozenset({"watch-item", "method-note"})
+# The set is the model's, not a private copy: the bucket clause
+# (`validate_items.compute_initial_bucket`) asks `items.needs_a_decision`,
+# which reads the same tuple, so the two layers cannot come to disagree —
+# `test_research_guidelines.DocumentedScopeTests` asserts that agreement on
+# the live functions across every kind, recognized or drifted.
+_MEMORY_SUGGESTION_KINDS = frozenset(model.MEMORY_SUGGESTION_KINDS)
 
 
 def is_action_suggestion(sug) -> bool:

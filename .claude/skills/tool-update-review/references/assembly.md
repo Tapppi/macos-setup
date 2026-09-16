@@ -670,7 +670,7 @@ because both are authored, non-baseline actions.
 answers "does this one suggestion start accepted". They are computed back to
 back, in that order, because the second reads the first.
 
-### `compute_review_bucket()` — strict precedence, first match wins
+### `initial_review_bucket` — strict precedence, first match wins
 Computed by the validator as `initial_review_bucket`, carried onto the Tool
 object as `review_bucket`, and carried alongside it as `bucket_inputs` —
 `{has_security, security_only, impact, version_delta, runnable}` — so a reader,
@@ -689,7 +689,8 @@ Order of evaluation:
    runnable baseline;
 3. `security_mixed` — `has_security`;
 4. `attention` — elevated `risk_level`, or stale `config_status`, or any
-   non-`upgrade` suggestion, or nothing runnable;
+   `edit`/`structural` suggestion (`items.needs_a_decision` — a memory
+   proposal never forces it), or nothing runnable;
 5. `routine`.
 
 No delta or `research_error` test appears in the `attention` clause on purpose:

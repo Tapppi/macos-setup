@@ -1150,8 +1150,9 @@ def compute_risk_level(view) -> str:
 
 
 def compute_initial_bucket(view, has_security, security_only, impact, risk_level, runnable) -> str:
-	"""Strict precedence, first match wins — the same order and the same
-	clauses as `assemble.compute_review_bucket`, read off `items[]`.
+	"""Strict precedence, first match wins. This is the one implementation:
+	assembly carries the result onto the Tool as `review_bucket` and never
+	recomputes it.
 
 	**This is a baseline for convergence to review, not a decision**
 	(`REDESIGN.md` §C3). It is labelled `initial_review_bucket` in the output

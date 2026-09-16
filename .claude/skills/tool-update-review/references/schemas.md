@@ -887,16 +887,12 @@ propose changes to the user's system. Only the latter should raise
 notes and watch items, so any other reading puts most of the fleet on the
 "needs you" list and undoes the compaction this skill exists for.
 
-**Where that holds today, exactly.** `scripts/validate_items.py` implements it:
-`compute_initial_bucket` and `W-ATTENTION-NOSUG` both ask
-`items.needs_a_decision`, so `initial_review_bucket` and `bucket_inputs` in
-`validation.json` behave as described. **`scripts/assemble.py` does not yet.**
-Its `compute_review_bucket` still reads "any suggestion that is not an
-upgrade", and its `compute_impact` still enumerates `("edit", "watch-item")`,
-so the `review_bucket` that reaches `report.json` and the rendered page still
-moves to `attention` for a tool carrying a method note. Until the assembler is
-carried across, believe this section about `validation.json` and not about the
-report object. Tracked as WP1b's rewrite of the assembler onto `items[]`.
+Both layers implement it from one place: `compute_initial_bucket` and
+`W-ATTENTION-NOSUG` ask `items.needs_a_decision`, and `assemble.py`'s
+`is_action_suggestion` reads `items.MEMORY_SUGGESTION_KINDS`, so
+`validation.json`, `report.json` and the rendered page give one answer.
+`test_research_guidelines.DocumentedScopeTests` asserts that agreement on the
+live functions, across every kind, recognized or drifted.
 
 ### 1.8 `version_delta` semantics
 
@@ -1143,7 +1139,7 @@ precedence, first match wins.
 |---|---|---|
 | `security_auto` | Security content only, no impact here, delta not `major`/`unknown`, and a runnable baseline | The auto-approved list in the Overview's security section; its baseline is pre-accepted (§1.6) |
 | `security_mixed` | Has security content **plus** something else — other changes, a possible impact, an unknown, an elevated risk | The side-by-side card: security items and other items shown together so the user decides fast |
-| `attention` | No security content, but something needs a human: elevated `risk_level`, stale `config_status`, a proposed `edit`/`watch-item`, or nothing runnable | The "needs you" list |
+| `attention` | No security content, but something needs a human: elevated `risk_level`, stale `config_status`, a proposed `edit`/`structural`, or nothing runnable — a memory proposal (`watch-item`/`method-note`) never forces it | The "needs you" list |
 | `routine` | No security content, low risk, only the baseline upgrade to decide | The long tail, collapsed by default |
 
 Order of evaluation: the two non-version sources first — `brew-health`
