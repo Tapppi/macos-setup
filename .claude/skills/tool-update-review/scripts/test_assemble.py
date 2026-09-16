@@ -1641,7 +1641,8 @@ class PinnedVersionTests(unittest.TestCase):
 		# A verify step compared against a null target_version can never pass
 		# — worse than no check, because it would permanently report a
 		# correctly-landed upgrade as failed. Refuse to run or pin at all.
-		tool = build(_cand("mise:ghost", "ghost", "mise", "1.0.0", None), {"headliners": []})
+		tool = build_one(_cand("mise:ghost", "ghost", "mise", "1.0.0", None),
+			{"id": "mise:ghost", "links": [], "items": []})
 		baseline = assemble.baseline_upgrade(tool)
 		self.assertIsNone(baseline["command"])
 		self.assertFalse(baseline["auto_runnable"])
@@ -1669,7 +1670,8 @@ class PinnedVersionTests(unittest.TestCase):
 		# Every kind:"upgrade" baseline records the reviewed version on the
 		# suggestion itself — apply must never have to reach back into a
 		# different part of report.json to know what it is pinning to.
-		tool = build(_cand("mise:node", "node", "mise", "24.5.0", "24.6.0"), {"headliners": []})
+		tool = build_one(_cand("mise:node", "node", "mise", "24.5.0", "24.6.0"),
+			{"id": "mise:node", "links": [], "items": []})
 		baseline = assemble.baseline_upgrade(tool)
 		self.assertEqual(baseline["target_version"], "24.6.0")
 		self.assertEqual(baseline["command"], "mise upgrade node@24.6.0")
@@ -1678,7 +1680,8 @@ class PinnedVersionTests(unittest.TestCase):
 	def test_baseline_suggestion_records_unpinned_for_brew_and_cask(self):
 		for source, name in (("brew", "podman"), ("cask", "wireshark-app")):
 			with self.subTest(source):
-				tool = build(_cand(f"{source}:{name}", name, source, "1.0.0", "2.0.0"), {"headliners": []})
+				tool = build_one(_cand(f"{source}:{name}", name, source, "1.0.0", "2.0.0"),
+					{"id": f"{source}:{name}", "links": [], "items": []})
 				baseline = assemble.baseline_upgrade(tool)
 				self.assertEqual(baseline["target_version"], "2.0.0")
 				self.assertFalse(baseline["version_pinned"])
@@ -1688,7 +1691,8 @@ class PinnedVersionTests(unittest.TestCase):
 		# macos/standalone never get a runnable command, but the reviewed
 		# version is still recorded — the manual polling step in
 		# references/apply.md compares against it.
-		tool = build(_cand("macos:Safari", "Safari", "macos", "15.6", "15.7"), {"headliners": []})
+		tool = build_one(_cand("macos:Safari", "Safari", "macos", "15.6", "15.7"),
+			{"id": "macos:Safari", "links": [], "items": []})
 		baseline = assemble.baseline_upgrade(tool)
 		self.assertEqual(baseline["target_version"], "15.7")
 		self.assertFalse(baseline["version_pinned"])
