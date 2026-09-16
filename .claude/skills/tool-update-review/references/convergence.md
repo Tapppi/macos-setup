@@ -199,7 +199,12 @@ via the `ledger`: every proposal in exactly one disposition; every existing
 watch item for a tool in the run gets an `existing` row with
 `fired_this_run` (the applier recomputes it against the grounded hits) and
 `used_correctly` — a hit claimed with no item behind it, or a plain match
-with no hit labelled, is a `flag`.
+with no hit labelled, is a `flag`. `converge-tables.json.store_state` says
+whether each store was actually snapshotted into the session: **absent and
+present-but-empty are different facts** — the same distinction watch-hit
+grounding draws between "never checked" and "checked, no match" — and an
+absent store ships a `W-STORE-UNCHECKED` report note rather than passing
+as an empty one.
 
 **C7 — cross-tool collisions** (`delete`, `annotate`, `reword`, `trim`,
 `flag`). Per `file_collisions` cluster: are these one change or several —
@@ -314,3 +319,6 @@ never ships while the gate stands. Report-side rendering is
   their shapes are final; the merge is the renderer's half of criterion 12.
 - A tool whose `validator_error` is set keeps its recorded conservative
   axes; edits to its items cannot move it anywhere, in either direction.
+  Its item-derived id exports (`security_display_item_ids`,
+  `watch_hit_item_ids`, `flags`, the bars) ARE re-derived after edits, so
+  `corpus.post.json` never hands the renderer an id a delete removed.
