@@ -69,6 +69,14 @@
 			"current_version": "1.0.0",
 			"latest_version": "1.0.1",
 			"pinned": false
+		},
+		{
+			"id": "brew:elevated",
+			"name": "elevated",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
 		}
 	],
 	"mise": [],

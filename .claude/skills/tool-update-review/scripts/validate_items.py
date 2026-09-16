@@ -1250,7 +1250,19 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	if view["source"] in NON_VERSION_SOURCES:
 		return "routine" if assemble.finding_expected(view) else "attention"
 	if (has_security and security_only and impact == "none"
-			and view["version_delta"] not in ("major", "unknown") and runnable):
+			and view["version_delta"] not in ("major", "unknown") and runnable
+			# D2 (widened) + E3: elevated risk, a reaching change, or a watch
+			# hit is a reason a human should look, and this is the one bucket
+			# whose name means "no decision needed" — a barred tool falls
+			# through to `security_mixed`, which renders an expanded card with
+			# an "affects this setup" badge and correct counters. Guarding
+			# HERE rather than in apply_pre_accept keeps the bucket and the
+			# checkbox telling one story; a pre_accept-only guard leaves the
+			# tool inside a collapsed strip headed "accepted" while
+			# individually undecided, and anything downstream of finalize_tool
+			# desyncs the Overview tiles. `model.pre_accept_bars` documents
+			# each limb's measured justification.
+			and not model.pre_accept_bars(view)):
 		return "security_auto"
 	if has_security:
 		return "security_mixed"
@@ -1473,8 +1485,10 @@ def _derive_axes(view, candidate, findings):
 		else bool(assemble.upgrade_command_and_runnable(source, name)[1]))
 	view["impact"] = impact
 	view["risk_level"] = risk_level
-	view["initial_review_bucket"] = compute_initial_bucket(view, has_security,
-		security_only, impact, risk_level, runnable)
+	# Assigned BEFORE the bucket: clause 2's bar (`model.pre_accept_bars`)
+	# reads `risk_level` and `bucket_inputs.has_security` off the view, so
+	# both must exist when the clause runs. Same values either way — this is
+	# ordering, not meaning.
 	view["bucket_inputs"] = {
 		"has_security": has_security,
 		"security_only": security_only,
@@ -1482,6 +1496,8 @@ def _derive_axes(view, candidate, findings):
 		"version_delta": view["version_delta"],
 		"runnable": runnable,
 	}
+	view["initial_review_bucket"] = compute_initial_bucket(view, has_security,
+		security_only, impact, risk_level, runnable)
 	view["security_display_item_ids"] = [
 		i["id"] for i in model.security_display_items(view["items"])]
 	# Criterion 17 makes convergence responsible for every tagged proposal, so

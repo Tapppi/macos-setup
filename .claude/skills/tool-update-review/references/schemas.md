@@ -1153,18 +1153,23 @@ precedence, first match wins.
 
 | Bucket | Means | Renders as |
 |---|---|---|
-| `security_auto` | Security content only, no impact here, delta not `major`/`unknown`, and a runnable baseline | The auto-approved list in the Overview's security section; its baseline is pre-accepted (§1.6) |
+| `security_auto` | Security content only, no impact here, delta not `major`/`unknown`, a runnable baseline, and no pre-acceptance bar — not elevated, no reaching security item, no watch hit (`items.pre_accept_bars`) | The auto-approved list in the Overview's security section; its baseline is pre-accepted (§1.6) |
 | `security_mixed` | Has security content **plus** something else — other changes, a possible impact, an unknown, an elevated risk | The side-by-side card: security items and other items shown together so the user decides fast |
 | `attention` | No security content, but something needs a human: elevated `risk_level`, stale `config_status`, a proposed `edit`/`structural`, or nothing runnable — a memory proposal (`watch-item`/`method-note`) never forces it | The "needs you" list |
 | `routine` | No security content, low risk, only the baseline upgrade to decide | The long tail, collapsed by default |
 
-Order of evaluation: the two non-version sources first — `brew-health`
+Order of evaluation: **content-losing input first** — a non-empty
+`quarantine[]`, `W-SHAPE-COERCED`, `E-RESEARCH-UNKNOWNKEY` or a
+`validator_error` forces `attention` before any other clause runs (D1,
+`items.content_losing`) — then the two non-version sources — `brew-health`
 (`routine` when `health_expected`, else `attention`) and `skill-drift`
-(`routine` when `drift_expected`, else `attention`) — then `security_auto`,
-then `security_mixed`, then `attention`, then `routine`. Because
+(`routine` when `drift_expected`, else `attention`) — then `security_auto`
+(barred tools fall through to `security_mixed` — see the row above), then
+`security_mixed`, then `attention`, then `routine`. Because
 `risk_level` is computed before the bucket, the `attention` test doesn't
 re-check the major/unknown delta or `research_error` conditions —
-`risk_level` already returned `"elevated"` for both.
+`risk_level` already returned `"elevated"` for both. The full clause order
+is pinned in `contract/bucketing.json`.
 
 **`review_bucket` is orthogonal to `source`.** The page groups brew-health
 cards by `source == "brew-health"` and counts them with

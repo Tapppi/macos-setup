@@ -26,6 +26,7 @@ Five groups:
 """
 import json
 import os
+import re
 import sys
 import unittest
 
@@ -454,6 +455,63 @@ class DegradationFixtureTests(unittest.TestCase):
 		covered = {r for case in self.FIXTURE["cases"] for r in case["expect"]}
 		self.assertEqual(covered, set(model.DEGRADATION_REASONS),
 			"a reason no fixture case produces is a claim, not a check")
+
+
+class BucketingFixtureTests(unittest.TestCase):
+	"""`contract/bucketing.json` pins the clause order and the pre-accept
+	predicate as a truth table. Each case is driven through the live
+	`validate_items.compute_initial_bucket()` and `assemble.apply_pre_accept()`
+	so the fixture cannot go stale against either layer."""
+
+	FIXTURE = model.load_fixture("bucketing.json")
+
+	def test_the_bar_order_is_the_published_one(self):
+		self.assertEqual(tuple(self.FIXTURE["pre_accept_bars"]["order"]),
+			model.PRE_ACCEPT_BARS)
+
+	def test_clause_order_matches_the_functions_return_count(self):
+		"""The fixture cannot pin a clause nobody wrote — and a sixth clause
+		added without a fixture row is exactly the drift this file exists to
+		catch."""
+		import inspect
+		source = inspect.getsource(validate_items.compute_initial_bucket)
+		body = source.split('"""')[-1]  # strip the docstring
+		returns = len(re.findall(r"^\s*return ", body, re.M))
+		self.assertEqual(len(self.FIXTURE["clause_order"]), returns)
+
+	def test_every_truth_table_row_holds_in_both_layers(self):
+		for case in self.FIXTURE["cases"]:
+			with self.subTest(case["name"]):
+				view = json.loads(json.dumps(case["view"]))
+				axes = case["axes"]
+				view["risk_level"] = axes["risk_level"]
+				view["impact"] = axes["impact"]
+				view["bucket_inputs"] = {
+					"has_security": axes["has_security"],
+					"security_only": axes["security_only"],
+					"impact": axes["impact"],
+					"version_delta": view["version_delta"],
+					"runnable": axes["runnable"],
+				}
+				expect = case["expect"]
+				self.assertEqual(model.content_losing(view),
+					expect["content_losing"], case["name"])
+				self.assertEqual(model.pre_accept_bars(view),
+					expect["bars"], case["name"])
+				bucket = validate_items.compute_initial_bucket(
+					view, axes["has_security"], axes["security_only"],
+					axes["impact"], axes["risk_level"], axes["runnable"])
+				self.assertEqual(bucket, expect["bucket"], case["name"])
+				# The assemble half: a minimal Tool with a synthesized-shaped
+				# baseline (or, for the non-baseline row, a suggestion whose id
+				# does not claim the baseline slot).
+				tool = dict(view, id="brew:x", review_bucket=bucket)
+				sug_id = "brew:x:upgrade" if case.get("baseline", True) else "brew:x:sug-1"
+				sug = {"id": sug_id, "kind": "upgrade",
+					"auto_runnable": case["auto_runnable"]}
+				tool["suggestions"] = [sug]
+				assemble.apply_pre_accept(tool)
+				self.assertEqual(sug["pre_accept"], expect["pre_accept"], case["name"])
 
 
 if __name__ == "__main__":

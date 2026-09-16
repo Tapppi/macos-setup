@@ -644,14 +644,17 @@ clause the first rule swallows the second, the tool is not elevated, and
 `pre_accept` — which reads `risk_level` — auto-approves an unread security
 release.
 
-**How far the clause reaches is decided by the bucket precedence, not by it.**
-`security_auto` returns from clause 2 and `risk_level` is not consulted until
-clause 4, while `pre_accept` is `risk_level == "low"` **or**
-`review_bucket == "security_auto"`. So elevated risk is not a bar on
-pre-acceptance for any tool that reaches `security_auto`, and this clause stops
-pre-acceptance for exactly the tools that miss it — which is the shape that
-motivated it, a vendor-silent-security tool carrying non-security content. One
-whose readable items are all security-only is still pre-accepted, by design.
+**The clause now reaches everywhere (D2).** `pre_accept` requires
+`risk_level == "low"` outright — the old `or review_bucket ==
+"security_auto"` disjunct is gone — and the bucket's security_auto clause
+asks the same bar, so an elevated tool can neither pre-accept nor land in
+the pre-accepting bucket: it falls through to `security_mixed`, visible and
+undecided. The old precedence let clause 2 return before `risk_level` was
+read, so a security-only tool whose one elevating signal was a reaching
+`warning` item was pre-accepted "by design" — a design D2 reverses, because
+`elevated` also proved an unstable proxy (`brew:duckdb` graded `elevated`
+and `low` across two recorded runs of the identical upgrade), which is why
+the bar also reads the reaching item directly.
 
 The last three conditions extend the "an unknown delta size is never low-risk"
 doctrine to unknown *content*: a tool whose checker failed has no items and no
@@ -680,13 +683,22 @@ and convergence once it exists, can see *why* without re-deriving it.
 (`REDESIGN.md` §C3). The name differs between the two files for exactly that
 reason.
 
-Order of evaluation:
+Order of evaluation (pinned as data in `contract/bucketing.json`, which
+`test_items.py` drives through the live function):
 
+0. **content-losing input → `attention`** (D1, `items.content_losing`):
+   non-empty `quarantine[]`, `W-SHAPE-COERCED`, `E-RESEARCH-UNKNOWNKEY` or a
+   `validator_error`. Above even the source clause, so a degraded `expected`
+   finding still forces review;
 1. the two non-version sources — `brew-health` and `skill-drift`: `routine`
    when the finding is expected, else `attention`;
 2. `security_auto` — `has_security` **and** `security_only` **and**
    `impact == "none"` **and** `version_delta` not `major`/`unknown` **and** a
-   runnable baseline;
+   runnable baseline **and** no pre-acceptance bar (D2/E3,
+   `items.pre_accept_bars`: elevated risk, a reaching item on a security
+   tool, or a watch hit — a barred tool falls through to `security_mixed`,
+   where the card renders expanded, rather than sitting in the one bucket
+   whose name means "no decision needed");
 3. `security_mixed` — `has_security`;
 4. `attention` — elevated `risk_level`, or stale `config_status`, or any
    `edit`/`structural` suggestion (`items.needs_a_decision` — a memory
@@ -718,7 +730,10 @@ def apply_pre_accept(tool):
 		sug["pre_accept"] = bool(
 			sug is baseline
 			and sug.get("auto_runnable")
-			and (tool["risk_level"] == "low" or tool["review_bucket"] == "security_auto"))
+			and tool["review_bucket"] != "attention"   # the needs-you list never starts accepted
+			and tool["risk_level"] == "low"            # D2 — the security_auto disjunct is gone
+			and not model.content_losing(tool)         # D1 — belt and braces
+			and not model.pre_accept_bars(tool))       # D2/E3 — the bucket clause's own bar
 ```
 
 The flag is written onto **every** suggestion, so no consumer has to
@@ -756,25 +771,18 @@ Precisely what can be pre-accepted:
   variant is one clause — `and not sug.get("needs_sudo")` — in
   `apply_pre_accept()`.
 
-**How `security_auto` interacts with `risk_level`.** `pre_accept` is a
-*union* of the existing `risk_level == "low"` path and
-`review_bucket == "security_auto"`, evaluated at one place on one field.
-There is no second mechanism, no second decision surface in the page, and the
-`/feedback` payload is unchanged.
-
-The union can differ from `risk_level == "low"` in exactly **one** situation,
-and it is provable from the definitions: `security_auto` requires
-`impact == "none"`, which already excludes `pinned`, `needs_attention`, any
-`edit`/`structural` suggestion, any item at `incompatible` and any item whose
-`local.effect == "risk"` at `notable`+; and it requires `version_delta` not in
-`("major", "unknown")`, which excludes the delta condition. The only remaining
-way for such a tool to be `elevated` is **a `security`-tagged item with a
-`local` block at `warning` severity** — "this security fix matters to you", which is a reason
-to take the update, not to hold it. Measured: exactly 2 of the 8
-(`brew:libpq`, `cask:wireshark-app`). Overall effect on that run: roughly two
-thirds of the baselines start accepted — 48 of the 74 synthesized ones. The
-three brew-health findings have no baseline at all, so they are outside that
-denominator, not rejections of it.
+**How `security_auto` interacts with `risk_level` (D2).** There is no union
+any more: `pre_accept` requires `risk_level == "low"` and asks
+`items.pre_accept_bars` — the same predicate the bucket's security_auto
+clause asks — so the bucket and the checkbox cannot tell two stories. The
+one situation the old union created — a security-only tool whose one
+elevating signal was a reaching `warning`-severity security item, read as "a
+reason to take the update" and pre-accepted (measured: `brew:libpq`,
+`cask:wireshark-app`) — is exactly the shape the bar now holds for review:
+`brew:libpq` arriving pre-accepted with 10 CVEs is the defect the whole
+redesign is named after. The bar's three limbs and their measured
+justifications are documented on `items.pre_accept_bars` and pinned as a
+truth table in `contract/bucketing.json`.
 
 ## `needs_sudo` Heuristic
 Applied per-suggestion at synthesis time (below), by source:

@@ -1598,10 +1598,13 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 		inputs = view["bucket_inputs"]
 		self.assertTrue(inputs["has_security"])
 		# chore/info is allowed for security_only, and nothing disqualifies —
-		# so the recorded inputs alone explain security_auto.
+		# but unread security content elevates the tool's risk, and D2 bars an
+		# elevated tool from the pre-accepting bucket: it falls through to
+		# security_mixed, visible and undecided.
 		self.assertTrue(inputs["security_only"])
 		self.assertEqual(inputs["impact"], "none")
-		self.assertEqual(view["initial_review_bucket"], "security_auto")
+		self.assertEqual(view["risk_level"], "elevated")
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
 
 	def test_nothing_security_shaped_stays_out_of_a_security_bucket(self):
 		view = self._view(vendor_silent_categories=["features"],
@@ -1700,6 +1703,83 @@ class DegradationChannelTests(unittest.TestCase):
 			self.assertIn("W-SUG-DUP-ID", view["degradation"]["markers"])
 			self.assertEqual(view["degradation"]["content_losing"], [])
 			self.assertEqual(view["initial_review_bucket"], "routine")
+
+
+# ── D2/E3: the pre-acceptance bar at the bucket ─────────────────────────────
+class PreAcceptBarTests(unittest.TestCase):
+	"""The security_auto clause asks `model.pre_accept_bars`: a barred
+	security-only tool falls through to `security_mixed`, where the card
+	renders expanded — never to `attention` (bucket churn) and never left in
+	`security_auto` with a cleared checkbox (a collapsed strip headed
+	"accepted" around an undecided tool)."""
+
+	def _sec_item(self, **kw):
+		base = dict(tags=["security"], severity="notable",
+			security={"cve_id": None, "advisory_id": None, "rating": "medium",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		base.update(kw)
+		return _item(**base)
+
+	def test_the_measured_d2_route_is_barred_into_security_mixed(self):
+		"""brew:elevated's shape: one security+fix item at warning with a
+		reaching local block. Measured before the change: security_auto,
+		elevated, pre-accepted, zero spec violations — conforming input, so
+		nothing but the bucket rule itself could catch it."""
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
+			self._sec_item(tags=["security", "fix"], severity="warning",
+				security={"cve_id": None, "advisory_id": None, "rating": "high",
+					"rating_basis": "nvd", "exploited_in_wild": False},
+				local={"direction": "reaches", "effect": "benefit", "statement": "s",
+					"evidence": [{"path": "Brewfile"}], "citations": []})]})
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["risk_level"], "elevated")
+		self.assertTrue(view["bucket_inputs"]["security_only"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+
+	def test_a_reaching_item_at_low_risk_is_barred_from_security_auto(self):
+		"""The cask:wireshark-app shape — the case `elevated` alone misses,
+		because that axis moved with the checker's wording between two
+		recorded runs of the identical upgrade."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			self._sec_item(local={"direction": "reaches", "effect": "benefit",
+				"statement": "s", "evidence": [{"path": "Brewfile"}],
+				"citations": []})]})
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(model.pre_accept_bars(view), ["reaches-item"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+
+	def test_a_watch_hit_is_barred_from_security_auto(self):
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			self._sec_item(watch_hit={"topic": "a stored topic"},
+				local={"direction": "unclear", "effect": "none", "statement": "s",
+					"evidence": [], "citations": []})]},
+			watch_topics=frozenset({"a stored topic"}))
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(model.pre_accept_bars(view), ["watch-hit"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+
+	def test_the_reaches_limb_is_security_path_only(self):
+		"""A reaching item on a NON-security tool moves no bucket and raises
+		no bar: the widening past `elevated` was measured on the security
+		population (17 security_auto instances, 3 selected, no false
+		positives) and never on the routine one — and a predicate that
+		quietly un-compresses the routine population is a regression against
+		what this redesign is for."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(tags=["fix"], severity="notable",
+				local={"direction": "reaches", "effect": "risk", "statement": "s",
+					"evidence": [{"path": "Brewfile"}], "citations": []})]})
+		self.assertEqual(model.pre_accept_bars(view), [])
+		self.assertEqual(view["initial_review_bucket"], "routine")
+
+	def test_a_clean_security_only_tool_still_reaches_security_auto(self):
+		"""The bucket the bar must not swallow: no reaching item, no watch
+		hit, low risk — the compaction case security_auto exists for."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			self._sec_item(local={"direction": "does_not_reach", "effect": "benefit",
+				"statement": "s", "evidence": [], "citations": []})]})
+		self.assertEqual(model.pre_accept_bars(view), [])
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
 
 
 # ── I-20: watch-item hits ───────────────────────────────────────────────────

@@ -1,0 +1,636 @@
+{
+	"about": "The bucket and the pre-accept predicate, as a truth table. Published for the same reason the comparator is: the field contract was pinned once and two tracks still drifted on the thing the fields feed. clause_order is the strict precedence; cases drive validate_items.compute_initial_bucket() and assemble.apply_pre_accept() directly, and test_items.py asserts clause_order's length equals the number of return statements in the function, so a clause added without a fixture row is caught.",
+	"d2_routing": "clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles.",
+	"clause_order": [
+		"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
+		"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
+		"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+		"3. has_security -> security_mixed",
+		"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
+		"5. -> routine"
+	],
+	"pre_accept": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)",
+	"pre_accept_bars": {
+		"order": [
+			"elevated-risk",
+			"reaches-item",
+			"watch-hit"
+		],
+		"elevated-risk": "risk_level == \"elevated\" — bars everywhere (D2 core)",
+		"reaches-item": "any item with local.direction == \"reaches\", counted only where bucket_inputs.has_security — the population the widening was measured on; unrestricted it would quietly un-compress the routine population (919 words per decision is the number this redesign exists to kill)",
+		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3)"
+	},
+	"cases": [
+		{
+			"name": "1 clean, runnable, nothing lost",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "2 clean but nothing runnable",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": false
+			},
+			"auto_runnable": false,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "3 config needs_attention at low risk — a tool on the needs-you list never starts accepted",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "needs_attention"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "4 marker findings move nothing — an evidence-path typo is not a gate (D1b)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"E-EVID-404",
+					"E-EVID-MALFORMED",
+					"W-TITLE-LONG"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "5 quarantined content — the measured brew:quarantined route (was security_auto/low/pre-accepted)",
+			"view": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": "a bare string"
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [
+					"W-MEMBER-QUARANTINED"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"quarantined-content"
+				],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "6 shape-coerced — the measured brew:coerced route (was routine/low/pre-accepted)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"W-SHAPE-COERCED"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"shape-coerced"
+				],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "7 quarantine plus an unrecognized research key — both reasons, emission order",
+			"view": {
+				"quarantine": [
+					{
+						"field": "headliners",
+						"item_id": null,
+						"value": []
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [
+					"E-RESEARCH-UNKNOWNKEY"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"quarantined-content",
+					"unrecognized-research-key"
+				],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "8 a validator stage failed partway",
+			"view": {
+				"quarantine": [],
+				"validator_error": "research section: TypeError",
+				"spec_violations": [
+					"E-VALIDATOR-CRASH"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"validator-error"
+				],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "9 the measured D2 route: elevated security-only, runnable — was security_auto/elevated/pre-accepted with zero findings",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-32001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "warning",
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit"
+						},
+						"security": {
+							"rating": "high",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"elevated-risk",
+					"reaches-item"
+				]
+			}
+		},
+		{
+			"name": "10 non-security elevated with nothing runnable",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "major",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "elevated",
+				"runnable": false
+			},
+			"auto_runnable": false,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "11 content-losing beats everything else stacked on top",
+			"view": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": 7
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [
+					"W-MEMBER-QUARANTINED"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "needs_attention"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"quarantined-content"
+				],
+				"bars": [
+					"elevated-risk"
+				]
+			}
+		},
+		{
+			"name": "12 a non-baseline suggestion never pre-accepts — `sug is baseline` fails",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": []
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"baseline": false,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": []
+			}
+		},
+		{
+			"name": "13 the cask:wireshark-app shape: security tool, low risk, a reaching item — the case `elevated` alone misses",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-32002",
+						"tags": [
+							"security"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit"
+						},
+						"security": {
+							"rating": "high",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"reaches-item"
+				]
+			}
+		},
+		{
+			"name": "14 a grounded watch hit on a security-only tool bars the bucket and the checkbox (E3)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-32003",
+						"tags": [
+							"security"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "unclear",
+							"effect": "none"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false
+						},
+						"watch_hit": {
+							"topic": "a stored topic"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"watch-hit"
+				]
+			}
+		},
+		{
+			"name": "15 a watch hit on a routine tool clears the checkbox but moves no bucket (E3 bars everywhere; the guard site only routes security_auto)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#issue:org%2Frepo%231",
+						"tags": [
+							"fix"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "unclear",
+							"effect": "none"
+						},
+						"watch_hit": {
+							"topic": "a stored topic"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"watch-hit"
+				]
+			}
+		},
+		{
+			"name": "16 the S14 shape: a reaching item on a NON-security tool keeps pre-acceptance — the reaches limb is security-path only, the population it was measured on",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#issue:org%2Frepo%232",
+						"tags": [
+							"fix"
+						],
+						"severity": "notable",
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": []
+			}
+		}
+	]
+}

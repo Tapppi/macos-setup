@@ -521,14 +521,14 @@ class SemanticClassificationTests(unittest.TestCase):
 		reads `risk_level`, so without the risk limb it arrives already
 		accepted in the section it was just made visible in.
 
-		How far the risk limb reaches is set by the bucket precedence, not by
-		it: `security_auto` returns from clause 2 and `risk_level` is not read
-		until clause 4, and `pre_accept` is `risk_level == "low"` OR
-		`review_bucket == "security_auto"`. So elevated risk is no bar for a
-		tool that reaches `security_auto`; this fixture misses clause 2 because
-		its `feature` item makes `security_only` false, which is the shape that
-		motivated the fix. `test_security_only_silence_still_reaches_auto`
-		pins the other side."""
+		Since D2, the risk limb reaches everywhere: `pre_accept` requires
+		`risk_level == "low"` outright, and the bucket's security_auto clause
+		asks the same bar, so an elevated tool can neither pre-accept nor
+		land in the pre-accepting bucket. This fixture misses clause 2 anyway
+		because its `feature` item makes `security_only` false — the shape
+		that motivated the has_security widening.
+		`test_security_only_silence_is_barred_from_the_pre_accepting_bucket`
+		pins the security-only side."""
 		_, candidate, research, _ = _fixture("S13")
 		tool = build_one(candidate, research)
 		self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed"))
@@ -536,22 +536,21 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertTrue(tool["bucket_inputs"]["has_security"])
 		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
 
-	def test_security_only_silence_still_reaches_auto(self):
-		"""The other side of the clause, pinned so nobody reads the risk limb as
-		a blanket bar. A vendor-silent-security tool whose READABLE items are
-		all security-only still reaches `security_auto` and is still
-		pre-accepted, `risk_level: elevated` notwithstanding — `security_auto`
-		returns from clause 2, `risk_level` is not consulted until clause 4, and
-		`pre_accept` accepts on either. That is the designed path (the content
-		we could read is security-only, so taking the update is the safe
-		action), and it is a judgement about precedence rather than a
-		consequence of the risk clause."""
+	def test_security_only_silence_is_barred_from_the_pre_accepting_bucket(self):
+		"""The corrected precedence (D2). This shape used to pin the opposite:
+		a vendor-silent-security tool whose readable items are all
+		security-only reached `security_auto` and was pre-accepted,
+		`risk_level: elevated` notwithstanding — clause 2 returned before risk
+		was read, and `pre_accept` accepted on the bucket alone. The bar now
+		holds it out of the one bucket whose name means "no decision needed":
+		it falls through to `security_mixed`, renders expanded, and the
+		elevated risk clears `pre_accept`."""
 		tool = build_one(_cand("brew:vs", "vs", "brew", "1.0.0", "1.0.1"),
 			{"id": "brew:vs", "links": [], "vendor_silent_categories": ["security"],
 				"items": [_item("a", tags=["chore"], severity="info")]})
 		self.assertEqual(tool["risk_level"], "elevated")
-		self.assertEqual(tool["review_bucket"], "security_auto")
-		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+		self.assertEqual(tool["review_bucket"], "security_mixed")
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_a_content_losing_tool_is_never_pre_accepted(self):
 		"""The quarantine route, end to end: one bare string in items[] used to
@@ -575,6 +574,34 @@ class SemanticClassificationTests(unittest.TestCase):
 			{"id": "brew:c", "links": [], "items": [_item("a")]})
 		self.assertEqual(tool["degradation"],
 			{"content_losing": [], "markers": [], "quarantined": 0})
+
+	def test_a_watch_hit_clears_pre_accept_even_on_a_routine_tool(self):
+		"""E3, end to end: the bar applies at pre-accept everywhere — a watch
+		item the user asked to be told about must never fire into an
+		auto-accepted card — while the bucket only moves for security_auto
+		candidates (the guard site)."""
+		tool = build_one(_cand("brew:w", "w", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:w", "links": [], "items": [
+				_item("a", severity="notable",
+					local=_local("unclear", "none"),
+					watch_hit={"topic": "a stored topic"})]})
+		self.assertEqual(tool["review_bucket"], "routine")
+		self.assertEqual(tool["risk_level"], "low")
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_a_routine_reaching_item_keeps_pre_acceptance(self):
+		"""The S14 shape, pinned deliberately: the reaches limb of the bar is
+		security-path only, so a non-security tool with a reaching item at
+		low risk still starts accepted. Unrestricted, the limb would quietly
+		un-compress the routine population — the 919-words-per-decision
+		failure this redesign exists to kill."""
+		tool = build_one(_cand("brew:r", "r", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:r", "links": [], "items": [
+				_item("a", tags=["fix"], severity="notable",
+					local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))]})
+		self.assertEqual(tool["review_bucket"], "routine")
+		self.assertEqual(tool["risk_level"], "low")
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_health_suggestions_never_pre_accept(self):
 		# brew link tree-sitter IS auto_runnable — it is excluded because a

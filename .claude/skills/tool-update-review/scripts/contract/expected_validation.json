@@ -2008,6 +2008,100 @@
 			}
 		},
 		{
+			"id": "brew:elevated",
+			"source": "brew",
+			"name": "elevated",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "elevated 1.0.1",
+					"url": "https://example.invalid/elevated/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-32001"
+					},
+					"title": "Fixes a credential leak through the local socket, which this setup exposes",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a credential leak reachable through the local control socket",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The Brewfile installs this formula and the socket is enabled by default, so the fix lands on a surface this machine exposes.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									6
+								]
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": "CVE-2026-32001",
+						"advisory_id": null,
+						"rating": "high",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"id": "brew:elevated#cve:CVE-2026-32001",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures elevated.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "warning",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:elevated#cve:CVE-2026-32001"
+			],
+			"self_test_tagged_suggestion_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
 			"id": "brew-health:path_note:gnubin",
 			"source": "brew-health",
 			"name": "GNU utils ahead of Apple's on PATH",

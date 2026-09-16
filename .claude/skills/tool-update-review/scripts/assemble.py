@@ -710,22 +710,32 @@ def apply_pre_accept(tool: dict) -> None:
 	un-pre-accept nearly every cask (the heuristic defaults casks to true), and
 	it isn't silent: the card renders visibly as ACCEPTED before submit and
 	apply routes through the askpass prompt the user answers interactively.
-	The security_auto clause is a union with the existing risk_level path, not
-	a second mechanism; it can only ever differ from `risk_level == "low"` for
-	a tool whose one elevating signal is a `security`-tagged item with a local
-	finding at warning severity — "this security fix matters to you", a reason
-	to take the update rather than hold it."""
+	The old `or review_bucket == "security_auto"` disjunct is gone (D2): it
+	meant any tool reaching `security_auto` was pre-accepted regardless of
+	elevated risk, and the bucket clause returned before risk was read. A
+	tool at elevated risk is never pre-accepted now, whatever bucket it is
+	in, and the shared bar (`model.pre_accept_bars`) is asked here as the
+	second call site of the same function the bucket's security_auto clause
+	asks — so the bucket and the checkbox cannot tell two stories."""
 	baseline = baseline_upgrade(tool)
 	for sug in tool.get("suggestions", []):
 		sug["pre_accept"] = bool(
 			sug is baseline
 			and sug.get("auto_runnable")
-			and (tool["risk_level"] == "low" or tool["review_bucket"] == "security_auto")
+			# A tool on the "needs you" list never starts accepted.
+			and tool["review_bucket"] != "attention"
+			and tool["risk_level"] == "low"
 			# D1 — belt and braces: `compute_risk_level` already elevates every
 			# content-losing tool, but this is a second CALL SITE of one shared
 			# function, not a second implementation, so an edit to
 			# compute_risk_level cannot silently re-open the auto-approval hole.
-			and not model.content_losing(tool))
+			and not model.content_losing(tool)
+			# D2 (widened) + E3 — the same shared predicate as the bucket's
+			# security_auto clause: elevated risk, a reaching change on a
+			# security tool, or a watch hit. The elevated limb is redundant
+			# with the risk_level conjunct above by the same belt-and-braces
+			# doctrine.
+			and not model.pre_accept_bars(tool))
 
 
 def finalize_tool(tool: dict, view: dict) -> None:
