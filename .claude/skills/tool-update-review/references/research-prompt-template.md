@@ -56,13 +56,16 @@ Audit trail to check for config_status (`references/research.md` §Config Status
 
 Standing notes previous runs left about these tools — method notes (read them
 BEFORE you look anything up; they change where you look) and watch items
-(topics to notice in the changelog you are reading anyway). A watch item's
-`topic` below is the exact string to put in `watch_hit.topic` when this
-run's changes answer it — copied verbatim, never rewritten. Empty means these
-tools have none (`references/research.md` §Watch Items (Reading)):
+(topics to notice in the changelog you are reading anyway), plus any GLOBAL
+method notes, which are not about one tool and apply to every tool below. A
+watch item's `topic` below is the exact string to put in `watch_hit.topic`
+when this run's changes answer it — copied verbatim, never rewritten. Empty
+means these tools have none (`references/research.md` §Watch Items (Reading)):
 {{STANDING_NOTES}}
 <!-- one block per tool that has any: kind (method-note | watch-item), topic,
-     note. Looked up by tool id from the two stores; never hand-written. -->
+     note — looked up by tool id from the two stores; plus one `global` block
+     for method-notes.json's reserved `global` key, which is keyed by no tool
+     and so is missed by any tool-id-only lookup. Never hand-written. -->
 
 Prior findings, as HYPOTHESES to verify — never as facts to restate. Each was
 believed by a previous review of this machine; confirm or refute it against
@@ -193,7 +196,7 @@ fine as your actual response.
 | `{{MACHINE_JSON}}` | The `machine` object from `collect.sh`'s output |
 | `{{REPO_CONTEXT_JSON}}` | The contents of `{session_dir}/repo_context.json` (`scripts/repo_context.sh`'s output) |
 | `{{HYPOTHESES}}` | Prior findings for this batch's tools, drawn mechanically by tool id — one block per tool that has any, in the form §Writing Hypotheses requires |
-| `{{STANDING_NOTES}}` | This batch's tools' entries from `watch-items.json` and `method-notes.json`, looked up by tool id — empty when they have none. Filling it also copies the same `watch-items.json` verbatim to `{session_dir}/watch-items.json` (one `cp`, no transformation — SKILL.md step 3), so the validator grounds `watch_hit` claims against exactly what the checkers were given |
+| `{{STANDING_NOTES}}` | Three things, not two: this batch's tools' entries from `watch-items.json` and from `method-notes.json`, both looked up by tool id, **plus `method-notes.json`'s `global` array in full** — the global method-note store is keyed by a reserved colon-free key rather than by a tool id, so a tool-id-only lookup drops it entirely, and it belongs in every batch's notes. Empty when there are none. Filling it also copies **both** stores verbatim to `{session_dir}/` (one `cp` each, no transformation — SKILL.md step 3), so the validator grounds `watch_hit` claims, and convergence reviews method-note proposals, against exactly what the checkers were given |
 | `{{TOUCHPOINTS}}` | The word-boundary grep hits from tiering (`references/research.md` §Word-Boundary Grep Rule), one block per tool — **generated from the grep, never typed by hand** |
 
 ## Writing Hypotheses

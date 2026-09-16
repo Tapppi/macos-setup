@@ -152,17 +152,33 @@ Build each subagent's prompt by filling in
 `references/research-prompt-template.md` — a fixed skeleton so the
 boilerplate doesn't get retyped by hand and drift between runs.
 
-At the moment you fill `{{STANDING_NOTES}}`, snapshot the watch-item store
-into the session — one `cp`, no transformation:
+At the moment you fill `{{STANDING_NOTES}}`, snapshot **both** memory stores
+into the session — one `cp` each, no transformation:
 
 ```sh
-cp "${XDG_STATE_HOME:-$HOME/.local/state}/tool-update-review/watch-items.json" \
-	{session_dir}/watch-items.json   # skip only if the store does not exist yet
+state="${XDG_STATE_HOME:-$HOME/.local/state}/tool-update-review"
+for store in watch-items.json method-notes.json; do
+	if [ -f "$state/$store" ]; then
+		cp "$state/$store" {session_dir}/"$store"
+	fi
+done   # a store that does not exist yet is simply not copied
 ```
 
-The validator grounds every `watch_hit` against this snapshot, so it must
-be exactly what the checkers were given; without it every real hit
-degrades to `W-WATCH-UNCHECKED`.
+Both snapshots are read back downstream, and each has a consumer that is
+silently useless without it:
+
+- `watch-items.json` — the validator grounds every `watch_hit` against this
+  copy, so it must be exactly what the checkers were given; without it every
+  real hit degrades to `W-WATCH-UNCHECKED`.
+- `method-notes.json` — convergence's C6 reviews method-note proposals
+  against the notes already stored (`references/convergence.md` §5).
+  `apply_converge.py` reads `{session_dir}/method-notes.json`, so without the
+  copy its store-dependent checks run against nothing at all, which is not the
+  same as running against an empty store.
+
+Copy what the checkers were actually given, never a re-read of the live store
+at some later moment: a snapshot taken after a store changed grounds claims
+against evidence nobody saw.
 
 Group tools into tiers instead of one-subagent-per-tool: **individual-focus**
 (one subagent per tool with a real repo touchpoint — bespoke `tasks/*.sh`

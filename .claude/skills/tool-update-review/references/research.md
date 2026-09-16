@@ -1224,6 +1224,18 @@ ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json
 ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json
 ```
 
+**Three stores, two files, and the third one is not keyed by tool id.**
+`method-notes.json` also holds the **global** method notes — the rare ones that
+hold across many tools — under the reserved key `global`, which cannot collide
+with a tool id because a tool id always contains a colon (`{source}:{name}`).
+The dispatching step therefore reads three things, not two: each tool's
+`watch-items.json` entries, each tool's `method-notes.json` entries, and
+`method-notes.json`'s `global` array, which goes into **every** tool's
+`{{STANDING_NOTES}}` regardless of which tools are in the batch. A lookup that
+only walks tool ids silently drops the whole global store, which is the one
+failure this paragraph exists to prevent. Global notes are written only by
+promotion during convergence (`references/schemas.md` §1.7b Scope).
+
 If your prompt carries no entries for a tool, that tool has none — an empty
 `{{STANDING_NOTES}}` is a fact, not an omission to go and correct by reading
 the files yourself.
