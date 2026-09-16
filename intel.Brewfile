@@ -186,7 +186,7 @@ cask "spotify"
 
 # Office tooling and workspaces
 cask "google-drive"
-# LibreOffice — soffice CLI used by anthropics/skills (pdf, pptx, docx, xlsx)
+# LibreOffice — soffice CLI used by the document-skills plugin (docx, pdf, pptx, xlsx)
 cask "libreoffice"
 mas "Keynote", id: 361285480
 mas "Numbers", id: 361304891
@@ -433,7 +433,7 @@ brew "mpv"
 
 # Do pretty much anything to images - https://www.imagemagick.org/
 brew "imagemagick"
-# PDF rendering CLI used by pdf2image (anthropics/skills/pdf)
+# PDF rendering CLI used by pdf2image (the pdf skill of Anthropic's document-skills plugin)
 brew "poppler"
 # Download YouTube videos from the command line
 brew "yt-dlp"

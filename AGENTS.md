@@ -62,6 +62,9 @@ Never fix a missing key by copying it into `dotfiles/home/`: that tracks a path
 and payload the tool owns and rewrites between versions, going stale silently on
 the next upgrade. Re-run the writing command instead (`./setup.sh herdr`).
 
+`~/.claude/skills/` and `~/.claude/hooks/` are written by the tools that own
+them, not by dotfiles, and bootstrap leaves both alone.
+
 ### Committing to the dotfiles submodule
 
 The submodule has its own git history. Both repos use `master` branch. The parent repo tracks the
@@ -93,7 +96,7 @@ bash hooks/install.sh
 ./setup.sh dotfiles # Bootstrap dotfiles only
 ./setup.sh config   # Apply app configuration
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
-./setup.sh projects # Per-project tooling + skills from .tapppi-project manifests
+./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
 reload              # Reloads all shell configurations
 
 # Homebrew
@@ -218,6 +221,17 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
   automatically. These scripts modify system configuration,
   install software, and require `sudo`. The user must always run them manually.
 
+### Edit Dotfiles in the Submodule, Not in `~/`
+
+**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.cursor/` or
+`~/.config/`. Edit the source in the `dotfiles/` submodule (`home/` or
+`config/`) and copy the changed file to its destination (`cp
+dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
+deployment targets — the dotfiles repo is the source of truth.
+
+The exception is config a tool writes into a tracked path — see *Tool-owned
+config is re-asserted, not vendored* above.
+
 ### Files to Never Commit
 
 - `.credentials` (use `.credentials.dist` as template)
@@ -225,43 +239,16 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
 - Anything containing API keys, tokens, or passwords
 - Backup tarballs
 
-## Where Skills Live
+## Where skills live
 
-A skill belongs to the repo that uses it, committed, in this shape:
+A skill belongs to the repo that uses it, committed at
+`<repo>/.agents/skills/<bundle>/` with a committed *relative* symlink at
+`<repo>/.claude/skills/<bundle>`. Both paths are needed: Claude Code reads only
+`.claude/skills`, Codex only `.agents/skills`, Cursor and OpenCode both.
 
-```text
-<repo>/.agents/skills/<bundle>/          # canonical, a real directory
-        .claude-plugin/plugin.json       # one manifest; Claude Code AND Codex read it
-        skills/<name>/SKILL.md           # required layout
-        [agents/ hooks/ .mcp.json]       # optional, additive
-<repo>/.claude/skills/<bundle> -> ../../.agents/skills/<bundle>   # relative, committed
-```
-
-Both paths are needed because no single one is universal: Claude Code reads
-only `.claude/skills`, Codex reads only `.agents/skills`, and Cursor and
-OpenCode read both. Claude Code loads a directory containing `.claude-plugin/`
-as a zero-install `<bundle>@skills-dir` plugin — no marketplace, no
-`enabledPlugins` entry, discovered in place, so edits on a branch are live.
-
-**The symlink must be relative, and it must be committed.** That is the whole
-reason worktrees work without provisioning: git carries the symlink, and a
-relative target resolves inside whichever worktree reads it. The retired
-`projects.sh` route wrote *absolute* symlinks into `~/.config/agent-skills/`,
-which pinned every worktree to one machine-global copy — the bug this shape
-exists to avoid.
-
-A plain skill (`.agents/skills/<name>/SKILL.md`, no `.claude-plugin/`) is also
-fine. The only difference is namespacing: a bundle's skills appear as
-`<bundle>:<skill>`, a plain skill is unnamespaced. Prefer a bundle for
-anything shared, versioned, or carrying hooks/agents/MCP.
-
-A bundle's `SKILL.md` must sit at `skills/<name>/SKILL.md`. One at the bundle
-root loads in Claude Code but is invisible to Codex — a silent, one-harness
-failure.
-
-Third-party marketplace plugins (`frontend-design@claude-plugins-official`,
-`superpowers`, `duckdb-skills`) cannot be made zero-setup; their install stays
-machine-local via `tasks/projects.sh`.
+**[docs/skills.md](docs/skills.md)** has the rest — the three routes capability
+arrives by, the bundle layout, why the symlink is relative, and the workspace
+trust requirement.
 
 ## Cursor CLI (`cursor-agent`)
 

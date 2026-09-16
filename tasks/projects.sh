@@ -9,12 +9,13 @@
 #      `.claude/settings.local.json` (enabledPlugins). This covers both
 #      third-party marketplace plugins (e.g. `frontend-design@claude-plugins-
 #      official`) and our own skills that have been wrapped as plugins (e.g.
-#      `browser@tapppi-skills`, see agent-skills/tapppi/.claude-plugin/) —
+#      `browser@tapppi-skills`, published by
+#      dotfiles/config/agent-skills/.claude-plugin/marketplace.json) —
 #      unlike raw skills, Claude Code has no `enabledSkills` toggle, so a
 #      skill only gets this per-project scoping if it's packaged as a plugin.
-#      Any local marketplace under SKILLS_ROOT (one with a
-#      `.claude-plugin/marketplace.json`) is auto-registered so its plugins
-#      resolve by name.
+#      The `tapppi-skills` marketplace at SKILLS_ROOT is registered so its
+#      plugins resolve by name — only that one, not the marketplaces the
+#      vendored upstream trees carry (see projects_ensure_marketplaces).
 #   2. provisions a shared per-workspace environment: renders a `mise.local.toml`
 #      in the workspace dir whose [env] loads a local 0600 dotenv file via mise's
 #      `_.file`. mise walks up the directory tree across git boundaries, so every
@@ -22,14 +23,9 @@
 #   3. for a `jira` block, prints the one-time commands to write that dotenv file
 #      from 1Password and run `jira init` (it does not run them).
 #
-# This task no longer links raw skills into repos. Skills now live in the repo
-# that uses them, committed: a real bundle at `.agents/skills/<bundle>/` plus a
-# committed *relative* symlink at `.claude/skills/<bundle>`. That reaches every
-# harness (Claude Code reads only `.claude/skills`; Cursor, Codex, OpenCode and
-# Pi read `.agents/skills`) and, being committed and relative, resolves per
-# worktree instead of pinning every worktree to one machine-global copy — which
-# is what the old absolute symlinks did. A `skills` block in a manifest is now
-# warned about and ignored.
+# This task does not link skills into repos. A skill lives in the repo that uses
+# it, committed as a bundle at `.agents/skills/<bundle>/` with a committed
+# relative symlink at `.claude/skills/<bundle>` — see docs/skills.md.
 #
 # Why a dotenv file and not `op read` in mise: mise evaluates [env] on every
 # cd/prompt, so a blocking `op read` would freeze the shell. mise just reads a
@@ -86,26 +82,37 @@ projects_resolve_path() {
 	printf '%s\n' "${path}"
 }
 
-# Define Function =projects_ensure_marketplaces= — idempotently register every
-# local marketplace found under SKILLS_ROOT (a dir with a
-# `.claude-plugin/marketplace.json`, e.g. agent-skills/ itself, or a vendor
-# subdir within it) so `claude plugin install <plugin>@<marketplace>` can
-# resolve it. No-op if `claude` is not on PATH (plugin scoping is best-effort,
-# not a hard requirement).
+# Define Function =projects_ensure_marketplaces= — idempotently register the
+# `tapppi-skills` marketplace (SKILLS_ROOT/.claude-plugin/marketplace.json) so
+# `claude plugin install <plugin>@tapppi-skills` can resolve it. No-op if
+# `claude` is not on PATH (plugin scoping is best-effort, not a hard
+# requirement).
+#
+# Only the root marketplace, deliberately. Registering every
+# `.claude-plugin/marketplace.json` found under SKILLS_ROOT would also catch any
+# a vendored upstream tree carries, and those declare their publisher's own
+# marketplace name — `anthropic-agent-skills`, for one. Registering such a
+# directory under that name collides with the tracked ~/.claude/settings.json, whose
+# extraKnownMarketplaces binds the same name to GitHub `anthropics/skills` so
+# that `document-skills@anthropic-agent-skills` is fetched from Anthropic
+# rather than vendored (their licence forbids redistribution — see
+# dotfiles/config/agent-skills/anthropics/CUSTOMISATION.md). A `find` hit
+# rebinds the name to the local tree, which no longer carries that plugin, so
+# the install resolves against the wrong source or fails. Everything meant to
+# be installable from this machine is listed in the root manifest, so nothing
+# is lost by leaving any vendored manifest alone.
 projects_ensure_marketplaces() {
 	command -v claude >/dev/null 2>&1 || return 0
 
-	local manifest vendor_dir
-	while IFS= read -r manifest; do
-		[[ -z "${manifest}" ]] && continue
-		vendor_dir="$(dirname "$(dirname "${manifest}")")"
-		if claude plugin marketplace add "${vendor_dir}" >/dev/null 2>&1; then
-			p3 "marketplace ok: ${vendor_dir}"
-		else
-			projects_warn "could not register marketplace at ${vendor_dir}"
-		fi
-	done < <(find "${SKILLS_ROOT}" -mindepth 2 -maxdepth 4 \
-		-path '*/.claude-plugin/marketplace.json' 2>/dev/null)
+	if [[ ! -f "${SKILLS_ROOT}/.claude-plugin/marketplace.json" ]]; then
+		projects_warn "no marketplace manifest at ${SKILLS_ROOT}/.claude-plugin/ — run './setup.sh dotfiles' first"
+		return 0
+	fi
+	if claude plugin marketplace add "${SKILLS_ROOT}" >/dev/null 2>&1; then
+		p3 "marketplace ok: ${SKILLS_ROOT}"
+	else
+		projects_warn "could not register marketplace at ${SKILLS_ROOT}"
+	fi
 }
 
 # Define Function =projects_enable_plugin= — idempotently enable one
@@ -252,20 +259,11 @@ projects_apply() {
 
 	p1 "Workspace ${workspace}"
 
-	# A manifest may still carry a `skills` block from the retired symlink
-	# route. Warn rather than ignore it: silently dropping a block someone
-	# wrote is worse than telling them it no longer does anything.
-	local repo_key repo
-	while IFS= read -r repo_key; do
-		[[ -z "${repo_key}" ]] && continue
-		projects_warn "manifest key 'skills.${repo_key}' is obsolete and ignored — commit skills to the repo instead (see CLAUDE.md)"
-	done < <(printf '%s' "${json}" | jq -r '.skills // {} | keys[]')
-
 	# Per-repo plugin enablement. `plugins` maps a repo path to a list of
 	# `plugin@marketplace` names, enabled at local scope (see
 	# projects_enable_plugin). Requires `claude` on PATH; skipped otherwise.
 	if command -v claude >/dev/null 2>&1; then
-		local plugin_name enabled
+		local repo_key repo plugin_name enabled
 		while IFS= read -r repo_key; do
 			[[ -z "${repo_key}" ]] && continue
 			repo="$(projects_resolve_path "${workspace}" "${repo_key}")"
@@ -293,6 +291,7 @@ projects() {
 		projects_warn "project root ${PROJECT_ROOT} does not exist; nothing to do"
 		return 0
 	fi
+	local cmd
 	for cmd in jq yq find; do
 		command -v "${cmd}" >/dev/null 2>&1 || {
 			projects_warn "required tool '${cmd}' not found on PATH"
