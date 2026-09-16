@@ -374,6 +374,12 @@ def _check_after(edit, op, kind, element, field, index, tool_id):
 		if not isinstance(changed, list) or not changed \
 				or not all(isinstance(f, str) for f in changed):
 			return "`changed_fields` is REQUIRED on a merge"
+		duplicates = sorted({f for f in changed if changed.count(f) > 1})
+		if duplicates:
+			# Left in, the duplicate scope keys made E-EDIT-DUP name the
+			# edit as its own conflict — an unactionable message for a
+			# malformed list.
+			return "`changed_fields` lists {} more than once".format(duplicates)
 		return None
 	if op == "add":
 		if not isinstance(after, dict):
@@ -541,18 +547,30 @@ def _declared_scope(edit, canonical_kind):
 def _order_and_close(edits_by_id, rejected):
 	"""→ (application order, extra rejections). Rejection is transitively
 	closed over `requires`; a cycle rejects its members; `supersedes` drops
-	the superseded edit (recorded as superseded, not applied)."""
+	the superseded edit (recorded as superseded, not applied).
+
+	A superseded edit stays suppressed even when its superseder is later
+	rejected — the agent retracted it, and applying a retracted edit is
+	worse than losing the replacement; the suppression is visible in
+	`superseded` and the rejection in `rejected`, and during the loop any
+	reject bounces the submission anyway."""
 	extra = []
 	superseded = set()
+	dead = set(rejected)
 	for edit_id, edit in edits_by_id.items():
 		for other in edit.get("supersedes") or []:
 			if other in edits_by_id:
 				superseded.add(other)
 			else:
+				# The edit is REJECTED, not merely noted — leaving it out of
+				# `dead` let its dependents apply without it, which is how a
+				# merge's absorbed sibling got deleted while the merge that
+				# was to carry its content never ran (silent content loss,
+				# the exact failure shape (a) exists to prevent).
 				extra.append((edit_id, "E-EDIT-DEP",
 					"supersedes unknown edit {!r}".format(other)))
+				dead.add(edit_id)
 	changed = True
-	dead = set(rejected)
 	while changed:
 		changed = False
 		for edit_id, edit in edits_by_id.items():
@@ -1034,8 +1052,21 @@ def verify_c6(entry, corpus_pre, tables, findings, ledger):
 	for sug_id in sorted(set(disposed) - proposal_ids):
 		findings.append(_finding("E-CHECK-ARITH",
 			"C6 {}: disposed but proposed by nothing in this run".format(sug_id)))
+	# Absent vs present-but-empty, kept apart the way watch-hit grounding
+	# keeps "never checked" (None) apart from "checked, no match" (empty
+	# set). An absent store makes the checks below — and C6's own
+	# duplicate-against-store step — vacuous, and a vacuous check that says
+	# nothing is how three grounding channels on this project shipped with
+	# nothing writing their input.
+	stores = corpus_pre.get("stores") or {}
+	for store_name in ("watch_items", "method_notes"):
+		if not isinstance(stores.get(store_name), dict):
+			findings.append(_finding("W-STORE-UNCHECKED",
+				"the {} store was never snapshotted into this session — C6's "
+				"store-dependent checks ran against nothing, not against an "
+				"empty store".format(store_name.replace("_", "-"))))
 	# the existing store, per tool in the run
-	snapshot = (corpus_pre.get("stores") or {}).get("watch_items")
+	snapshot = stores.get("watch_items")
 	snapshot = snapshot if isinstance(snapshot, dict) else {}
 	run_tools = {v.get("id") for v in corpus_pre.get("tools") or []}
 	hits = {}
@@ -1540,11 +1571,16 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 			# A tool whose validator stage failed carries _guard's
 			# conservative defaults, not a completed derivation — recomputing
 			# would "repair" axes the validator could not stand behind. Its
-			# post axes stay the recorded pre axes (attention/elevated — the
+			# post AXES stay the recorded pre axes (attention/elevated — the
 			# conservative direction), so it can never be edited INTO an auto
 			# bucket, and the internal self-check has no baseline to hold.
-			for axis in contract.MOVED_AXES:
-				post_view[axis] = copy.deepcopy(pre_view.get(axis))
+			# The item-derived id exports are a different matter: phase 3 has
+			# already applied edits here, and carrying the pre lists forward
+			# would hand the renderer `security_display_item_ids` naming
+			# items a delete removed. Those are pure functions of the items,
+			# so they ARE re-derived — against the recorded axes.
+			contract.derive_item_exports(post_view,
+				watch_topics_cache(corpus_pre, topics_cache, tool_id))
 			continue
 		topics = watch_topics_cache(corpus_pre, topics_cache, tool_id)
 		pre_check = contract.derive_tool_state(copy.deepcopy(pre_view), topics)
@@ -1677,6 +1713,12 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 				"tool_id": (edit.get("target") or {}).get("tool_id"),
 				"detail": (edit.get("reason") or {}).get("headline", "")})
 
+	# Verifiers append into one list; severity is the FINDING'S, not the
+	# list's. Partition here so a note-severity finding (W-STORE-UNCHECKED)
+	# can never bounce a submission by mere membership.
+	notes.extend(f for f in critical if not f.get("critical"))
+	critical = [f for f in critical if f.get("critical")]
+
 	return {"state": "converged", "critical": critical, "notes": notes,
 		"rejected": rejected, "applied": list(order),
 		"superseded": sorted(superseded), "corpus_post": corpus_post,
@@ -1735,7 +1777,12 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 	option — the one place in the design a bucket is written rather than
 	derived, written by the applier, recorded as forced."""
 	corpus_post = result["corpus_post"]
-	if not result["applied"]:
+	if not result["applied"] and result["critical"]:
+		# Nothing survived AND something is wrong — §3.4d row 2. The guard
+		# is on the findings, not on `applied` being empty: a run that
+		# legitimately proposes no edits has converged, and reporting it
+		# degraded with an empty code list would discredit the degradation
+		# channel the first time a user met it.
 		submission = [f for f in result["critical"]]
 		return _degrade_unapplied(corpus_pre, converge, attempt, submission,
 			attempt_log)
@@ -1856,16 +1903,27 @@ def _write_json(path, document):
 		fh.write("\n")
 
 
+class BrokenAttemptsFile(Exception):
+	"""converge-attempts.json exists but cannot be read as the counter. It
+	is the loop's own guarantee — silently resetting it to zero would hand
+	a corrupted file five fresh attempts."""
+
+
 def _load_attempts(session_dir):
 	path = os.path.join(session_dir, "converge-attempts.json")
 	if not os.path.exists(path):
 		return {"attempts": []}
 	try:
 		log = _read_json(path)
-	except Exception:
-		return {"attempts": []}
-	return log if isinstance(log, dict) and isinstance(log.get("attempts"), list) \
-		else {"attempts": []}
+	except Exception as exc:
+		raise BrokenAttemptsFile("{} could not be read ({}: {}) — the attempt "
+			"counter is the loop's enforcement; resolve the file by hand "
+			"rather than resetting it".format(path, type(exc).__name__, exc))
+	if not (isinstance(log, dict) and isinstance(log.get("attempts"), list)):
+		raise BrokenAttemptsFile("{} is not an object with an attempts[] list "
+			"— the attempt counter is the loop's enforcement; resolve the "
+			"file by hand rather than resetting it".format(path))
+	return log
 
 
 def _attempt_log_entries(log):
@@ -1960,7 +2018,11 @@ def main(argv=None) -> int:
 				draft_path, type(exc).__name__, exc))]}, indent=1))
 		return 1
 
-	log = _load_attempts(session_dir)
+	try:
+		log = _load_attempts(session_dir)
+	except BrokenAttemptsFile as exc:
+		print("Error: {}".format(exc), file=sys.stderr)
+		return 4
 	attempt = len(log["attempts"]) + 1
 
 	if args.check:
@@ -1982,7 +2044,7 @@ def main(argv=None) -> int:
 				len(log["attempts"])), file=sys.stderr)
 		return 4
 	notes = []
-	if converge.get("attempt") != attempt and isinstance(converge, dict):
+	if isinstance(converge, dict) and converge.get("attempt") != attempt:
 		notes.append(_finding("W-SUBMIT-ATTEMPT",
 			"submission declares attempt {!r}; the durable counter says {} — "
 			"the counter governs".format(converge.get("attempt"), attempt)))

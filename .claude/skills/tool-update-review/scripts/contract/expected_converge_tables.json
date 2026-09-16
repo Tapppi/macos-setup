@@ -1,5 +1,9 @@
 {
 	"run_id": "session",
+	"store_state": {
+		"watch_items": "present",
+		"method_notes": "absent"
+	},
 	"file_collisions": [],
 	"subject_index": {
 		"cask:codex": [

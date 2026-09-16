@@ -404,6 +404,11 @@
 				"edit_id": "cv-009",
 				"tool_id": "brew:elevated",
 				"detail": "security_only holds: the single item IS the CVE fix; elevated risk already bars pre-acceptance."
+			},
+			{
+				"code": "W-STORE-UNCHECKED",
+				"critical": false,
+				"detail": "the method-notes store was never snapshotted into this session — C6's store-dependent checks ran against nothing, not against an empty store"
 			}
 		],
 		"convergence_status": {

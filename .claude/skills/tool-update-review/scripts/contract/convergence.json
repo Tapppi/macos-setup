@@ -391,6 +391,11 @@
 			"phase": 5,
 			"meaning": "a bucket_claim disagrees with the computed truth in a non-gated direction"
 		},
+		"W-STORE-UNCHECKED": {
+			"severity": "note",
+			"phase": 5,
+			"meaning": "a memory store was never snapshotted into the session — C6's store-dependent checks ran against nothing, which is not the same as against an empty store"
+		},
 		"W-SUBMIT-ATTEMPT": {
 			"severity": "note",
 			"phase": 1,

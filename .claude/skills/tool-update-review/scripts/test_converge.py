@@ -658,6 +658,65 @@ class PrecheckTests(unittest.TestCase):
 		rejected_ids = {r["edit_id"] for r in result["rejected"]}
 		self.assertEqual(rejected_ids, {"cv-001", "cv-002", "cv-003"})
 
+	def test_stale_supersedes_rejects_the_edit_and_its_dependents(self):
+		"""Review finding 2 — the exact silent-content-loss shape (a) exists
+		to prevent: a merge with a stale `supersedes` id must be rejected AND
+		take its required delete down with it, or the sibling is deleted
+		while the merge that was to absorb its content never runs."""
+		item1 = make_item("brew:t", 11, body="Body one to quote at length.",
+			local=plain_local())
+		item2 = make_item("brew:t", 12, body="Body two to quote at length.",
+			local=plain_local())
+		pre = build_pre([make_view("brew:t", [item1, item2])])
+		after = copy.deepcopy(item1)
+		after["body"] = "Merged body carrying item two's fact."
+		merge = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": item1["id"], "field": None},
+			"quote": "Body one to quote", "after": after,
+			"changed_fields": ["body"], "supersedes": ["cv-ghost"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		delete = {"edit_id": "cv-002", "check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": item2["id"], "field": None},
+			"quote": "Body two to quote", "requires": ["cv-001"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		for terminal in (False, True):
+			result = run(pre, make_submission(pre, [merge, delete]),
+				terminal=terminal, attempt=5 if terminal else 1)
+			self.assertEqual(result["applied"], [])
+			self.assertEqual(
+				sorted(r["edit_id"] for r in result["rejected"]
+					if r.get("edit_id")),
+				["cv-001", "cv-002"])
+			post_ids = [i["id"] for i in
+				result["corpus_post"]["tools"][0]["items"]]
+			self.assertIn(item2["id"], post_ids)  # the sibling SURVIVES
+
+	def test_merge_duplicate_changed_fields_is_coded_not_self_conflict(self):
+		"""Review finding 4 — a duplicated path must come back as its own
+		E-EDIT-OP, not as the edit named as its own E-EDIT-DUP conflict."""
+		item = make_item("brew:t", 13, body="A body long enough to quote.",
+			local=plain_local())
+		pre = build_pre([make_view("brew:t", [item])])
+		after = copy.deepcopy(item)
+		after["body"] = "New body."
+		merge = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": item["id"], "field": None},
+			"quote": "long enough to quote", "after": after,
+			"changed_fields": ["body", "body"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [merge]))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+		self.assertNotIn("E-EDIT-DUP", codes_of(result))
+		detail = next(f["detail"] for f in result["critical"]
+			if f["code"] == "E-EDIT-OP")
+		self.assertIn("more than once", detail)
+
 	def test_duplicate_writers_and_supersedes(self):
 		a = self.retag_edit()
 		b = self.retag_edit(edit_id="cv-002", after=["packaging"])
@@ -983,6 +1042,71 @@ class GateAndAttributionTests(unittest.TestCase):
 			if v["id"] == "brew:watched")
 		self.assertEqual(post["initial_review_bucket"], "attention")
 
+	def test_validator_error_exports_are_rederived_after_edits(self):
+		"""Review finding 3 — the axes stay recorded, but the id-list
+		exports are pure functions of the items and must not hand the
+		renderer an id a delete removed."""
+		security = {"cve_id": "CVE-2026-33333", "advisory_id": None,
+			"rating": "high", "rating_basis": "nvd",
+			"exploited_in_wild": False}
+		reaching = make_item("brew:v", 1, tags=("security", "fix"),
+			security=security,
+			local=plain_local(direction="reaches", effect="benefit",
+				statement="Reaches this setup for the quote."))
+		reaching["local"]["evidence"] = [{"path": "Brewfile"}]
+		other = make_item("brew:v", 2, local=plain_local())
+		view = make_view("brew:v", [reaching, other])
+		view["validator_error"] = "stage crashed"
+		pre = build_pre([view])
+		self.assertIn(reaching["id"], view["security_display_item_ids"])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {"tool_id": "brew:v", "kind": "item",
+				"id": reaching["id"], "field": None},
+			"quote": "Reaches this setup for the quote.",
+			"bucket_claim": lateral(view["initial_review_bucket"]),
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertEqual(codes_of(result), [])
+		post = result["corpus_post"]["tools"][0]
+		self.assertEqual(post["security_display_item_ids"], [])
+		self.assertNotIn("reaches-item", post["pre_accept_bars"])
+		# the conservative axes are still the recorded ones
+		self.assertEqual(post["initial_review_bucket"],
+			view["initial_review_bucket"])
+		self.assertEqual(post["risk_level"], view["risk_level"])
+
+	def test_absent_store_is_a_note_but_empty_store_is_not(self):
+		"""Coordinator item 6 — absent and present-but-empty are different
+		facts, the same distinction watch-hit grounding draws between
+		"never checked" and "checked, no match"."""
+		pre = build_pre([make_view("brew:t", [make_item("brew:t", 9)])])
+		result = run(pre, make_submission(pre, []))
+		stores_flagged = sorted(f["detail"].split(" store", 1)[0]
+			for f in result["notes"] if f["code"] == "W-STORE-UNCHECKED")
+		self.assertEqual(stores_flagged,
+			["the method-notes", "the watch-items"])
+		self.assertEqual(result["state"], "converged")  # a note never bounces
+		present = build_pre([make_view("brew:t", [make_item("brew:t", 9)])],
+			watch_store={})
+		present["stores"]["method_notes"] = {}
+		result = run(present, make_submission(present, []))
+		self.assertEqual([f for f in result["notes"]
+			if f["code"] == "W-STORE-UNCHECKED"], [])
+		self.assertEqual(C.build_tables(pre)["store_state"],
+			{"watch_items": "absent", "method_notes": "absent"})
+		self.assertEqual(C.build_tables(present)["store_state"],
+			{"watch_items": "present", "method_notes": "present"})
+
+	def test_fixture_session_flags_only_the_missing_method_store(self):
+		"""The pinned session snapshots watch-items.json and nothing writes
+		method-notes.json — the effect must say so, once."""
+		result = run(FIXTURE_PRE, fixture_submission())
+		flagged = [f["detail"] for f in result["notes"]
+			if f["code"] == "W-STORE-UNCHECKED"]
+		self.assertEqual(len(flagged), 1)
+		self.assertIn("method-notes", flagged[0])
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 class CheckVerifierTests(unittest.TestCase):
@@ -1225,6 +1349,19 @@ class TerminalDegradationTests(unittest.TestCase):
 		self.assertTrue(status["explanation"]["headline"])
 		self.assertTrue(status["standing_rejects"])
 
+	def test_clean_zero_edit_submission_converges_at_terminal(self):
+		"""A run that legitimately proposes no edits has converged — routing
+		it to degraded_unapplied with an empty code list would discredit the
+		degradation channel (review finding 5)."""
+		pre = fixture_pre()
+		result = run(pre, make_submission(pre, []), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "converged")
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["state"], "converged")
+		self.assertEqual(status["explanation"]["headline"],
+			"Converged at attempt 5.")
+		self.assertEqual(status["standing_rejects"], [])
+
 	def test_terminal_excludes_implicated_edits_and_ships_the_rest(self):
 		"""At attempt 5 a scope-violating merge is excluded — reported, not
 		silently skipped — and the sound edits still apply."""
@@ -1360,6 +1497,31 @@ class LoopCliTests(unittest.TestCase):
 		effect = self._read("converge-effect.json")
 		self.assertIn("W-SUBMIT-ATTEMPT",
 			{f["code"] for f in effect["findings"]})
+
+	def test_non_object_draft_is_coded_on_both_subcommands(self):
+		"""Review finding 1 — a draft that is valid JSON but not an object
+		must reach E-SUBMIT-SHAPE on --submit exactly as on --check, with
+		the attempt recorded and no traceback."""
+		path = os.path.join(self.tmp, "array.json")
+		self._write(path, ["not", "an", "object"])
+		self.assertEqual(self._main("--check", path), 1)
+		self.assertEqual(self._main("--submit", path), 1)
+		log = self._read("converge-attempts.json")
+		self.assertEqual(len(log["attempts"]), 1)
+		self.assertIn("E-SUBMIT-SHAPE", log["attempts"][0]["codes"])
+		self.assertFalse(os.path.exists(
+			os.path.join(self.session, "corpus.post.json")))
+
+	def test_broken_attempts_file_refuses_instead_of_resetting(self):
+		"""The counter is the loop's enforcement — a corrupted file must
+		not hand the run five fresh attempts."""
+		attempts_path = os.path.join(self.session, "converge-attempts.json")
+		with open(attempts_path, "w", encoding="utf-8") as fh:
+			fh.write("{corrupt")
+		submission = make_submission(self.pre, [])
+		self.assertEqual(self._main("--submit", self._draft(submission)), 4)
+		with open(attempts_path, encoding="utf-8") as fh:
+			self.assertEqual(fh.read(), "{corrupt")  # untouched, not reset
 
 	def test_unreadable_draft_is_a_coded_rejection(self):
 		path = os.path.join(self.tmp, "broken.json")

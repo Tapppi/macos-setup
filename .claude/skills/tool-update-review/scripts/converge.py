@@ -250,6 +250,7 @@ CODES = {
 	"E-EFFECT-NARRATIVE": ("critical", 5, "corpus_effect.narrative missing, or it fails the -20% enumeration rule"),
 	# notes — never bounce
 	"W-EDIT-CLAIM": ("note", 5, "a bucket_claim disagrees with the computed truth in a non-gated direction"),
+	"W-STORE-UNCHECKED": ("note", 5, "a memory store was never snapshotted into the session — C6's store-dependent checks ran against nothing, which is not the same as against an empty store"),
 	"W-SUBMIT-ATTEMPT": ("note", 1, "the declared attempt number disagrees with the durable counter; the counter governs"),
 	"W-EDIT-SCHEMA": ("note", 5, "a touched element carries a new warning-severity finding"),
 }
@@ -396,10 +397,28 @@ def derive_tool_state(view, watch_topics) -> dict:
 	}
 	view["initial_review_bucket"] = validate_items.compute_initial_bucket(
 		view, has_security, security_only, impact, risk_level, runnable)
+	return derive_item_exports(view, watch_topics)
+
+
+def derive_item_exports(view, watch_topics) -> dict:
+	"""The pure item-derived exports — `flags`, the security-display and
+	watch-hit id lists, the pre-acceptance bars and the eligibility —
+	recomputed from `view["items"]` against the axes currently on the view.
+
+	Split out of `derive_tool_state` for the one tool class whose AXES must
+	stay as recorded: a `validator_error` view (see `apply_converge` phase
+	5b). Its bucket/risk are _guard's conservative defaults and are not
+	re-derived — but its id-list exports are pure functions of the items,
+	and after a delete they would otherwise name elements that no longer
+	exist in the artefact the renderer reads. Mutates and returns `view`."""
+	items_list = [i for i in (view.get("items") or []) if isinstance(i, dict)]
+	view["flags"] = model.recompute_flags(items_list)
 	view["security_display_item_ids"] = [
-		i["id"] for i in model.security_display_items(view["items"])]
-	view["watch_hit_item_ids"] = [i["id"] for i in view["items"]
-		if model.grounded_watch_hit(i, watch_topics)]
+		i["id"] for i in model.security_display_items(items_list)
+		if isinstance(i.get("id"), str)]
+	view["watch_hit_item_ids"] = [i["id"] for i in items_list
+		if model.grounded_watch_hit(i, watch_topics)
+		and isinstance(i.get("id"), str)]
 	view["pre_accept_bars"] = model.pre_accept_bars(view)
 	view["initial_pre_accept"] = initial_pre_accept(view)
 	return view
@@ -660,8 +679,20 @@ def build_tables(corpus_pre) -> dict:
 		if view.get("initial_pre_accept"):
 			pre_accepted += 1
 
+	# Absent and present-but-empty are DIFFERENT facts, kept apart the way
+	# the watch-hit grounding keeps None ("never checked") apart from an
+	# empty topic set ("checked, no match"). C6's duplicate-against-store
+	# step and the applier's existing-row verification both need to know
+	# which one they are running under; `verify_c6` turns "absent" into a
+	# W-STORE-UNCHECKED report note.
+	stores = corpus_pre.get("stores") or {}
+	store_state = {
+		name: ("present" if isinstance(stores.get(name), dict) else "absent")
+		for name in ("watch_items", "method_notes")}
+
 	return {
 		"run_id": corpus_pre.get("run_id"),
+		"store_state": store_state,
 		"file_collisions": file_collisions,
 		"subject_index": subject_index,
 		"subject_coverage_gaps": subject_coverage_gaps,
