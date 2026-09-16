@@ -16,10 +16,15 @@
 		],
 		"items": [
 			{
-				"anchor": {"kind": "issue", "value": "getsops/sops#2245"},
+				"anchor": {
+					"kind": "issue",
+					"value": "getsops/sops#2245"
+				},
 				"title": "3.13.3 fixes a wrong MAC computed when decrypting YAML sequences that contain a comment",
 				"body": "3.13.2 — the installed version — mis-computes the MAC, so any file encrypted by 3.13.1 or earlier with a comment on a list item fails to decrypt with \"MAC mismatch\". Upstream notes it also breaks integrations built on sops.",
-				"tags": ["fix"],
+				"tags": [
+					"fix"
+				],
 				"severity": "warning",
 				"change": {
 					"version": "3.13.3",
@@ -31,13 +36,35 @@
 					"effect": "benefit",
 					"statement": "The defective binary is what runs here, so the upgrade is the fix rather than a change to step over. But nothing in these repos hands sops a file to decrypt: the sopsdiffer textconv driver is bound to no path, there is no .sops.yaml, no SOPS_* env var and no alias.",
 					"evidence": [
-						{"path": "Brewfile", "lines": [6]},
-						{"path": "dotfiles/config/git/config", "lines": [[1, 2]], "note": "diff \"sopsdiffer\" textconv"},
+						{
+							"path": "Brewfile",
+							"lines": [
+								6
+							]
+						},
+						{
+							"path": "dotfiles/config/git/config",
+							"lines": [
+								[
+									1,
+									2
+								]
+							],
+							"note": "diff \"sopsdiffer\" textconv"
+						},
 						"dotfiles/config/git/config:5"
 					],
 					"citations": [
-						{"kind": "command", "text": "sops --version → 3.13.2", "url": null},
-						{"kind": "command", "text": "git check-attr diff -- Brewfile → \"diff: unspecified\"", "url": null},
+						{
+							"kind": "command",
+							"text": "sops --version → 3.13.2",
+							"url": null
+						},
+						{
+							"kind": "command",
+							"text": "git check-attr diff -- Brewfile → \"diff: unspecified\"",
+							"url": null
+						},
 						{
 							"kind": "upstream_source",
 							"text": "getsops/sops compare v3.13.2...v3.13.3 — 13 non-dependency commits",
@@ -47,9 +74,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "issue", "value": "getsops/sops#2253"},
+				"anchor": {
+					"kind": "issue",
+					"value": "getsops/sops#2253"
+				},
 				"title": "`sops completion` no longer emits a leading blank line before the shebang",
-				"tags": ["fix"],
+				"tags": [
+					"fix"
+				],
 				"severity": "info",
 				"change": {
 					"version": "3.13.3",
@@ -58,9 +90,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "issue", "value": "getsops/sops#2239"},
+				"anchor": {
+					"kind": "issue",
+					"value": "getsops/sops#2239"
+				},
 				"title": "`ini` is now listed among the supported input/output types in the CLI help text",
-				"tags": ["chore"],
+				"tags": [
+					"chore"
+				],
 				"severity": "info",
 				"change": {
 					"version": "3.13.3",
@@ -73,10 +110,22 @@
 			"state": "up_to_date",
 			"detail": "The 3.13.2 → 3.13.3 delta is #2245, #2253 and #2239. None touches the sopsdiffer wiring or the Brewfile line, so the prior handling still holds.",
 			"evidence": [
-				{"path": "dotfiles/config/git/config", "lines": [[1, 2]]}
+				{
+					"path": "dotfiles/config/git/config",
+					"lines": [
+						[
+							1,
+							2
+						]
+					]
+				}
 			],
 			"citations": [
-				{"kind": "prior_review", "text": "changelog.md 2026-07-06: \"brew: sops 3.13.1 → 3.13.2\"", "url": null}
+				{
+					"kind": "prior_review",
+					"text": "changelog.md 2026-07-06: \"brew: sops 3.13.1 → 3.13.2\"",
+					"url": null
+				}
 			]
 		},
 		"suggestions": []
@@ -98,9 +147,15 @@
 		],
 		"items": [
 			{
-				"anchor": {"kind": "release", "value": "10.5p1/ssh-mux-realloc-uaf"},
+				"anchor": {
+					"kind": "release",
+					"value": "10.5p1/ssh-mux-realloc-uaf"
+				},
 				"title": "ssh(1) use-after-free in the multiplexing client when a mux socket is torn down mid-request",
-				"tags": ["security", "fix"],
+				"tags": [
+					"security",
+					"fix"
+				],
 				"severity": "notable",
 				"change": {
 					"version": "10.5p1",
@@ -112,7 +167,10 @@
 					"effect": "benefit",
 					"statement": "No ControlMaster is configured anywhere in these repos and no -R forwarding is set up, so the multiplexing path is never entered here.",
 					"evidence": [
-						{"path": "dotfiles/config/1password/agent.toml", "note": "the only ssh config this repo ships"}
+						{
+							"path": "dotfiles/config/1password/agent.toml",
+							"note": "the only ssh config this repo ships"
+						}
 					],
 					"citations": []
 				},
@@ -125,9 +183,15 @@
 				}
 			},
 			{
-				"anchor": {"kind": "release", "value": "10.5p1/restrict-covers-tunnel"},
+				"anchor": {
+					"kind": "release",
+					"value": "10.5p1/restrict-covers-tunnel"
+				},
 				"title": "sshd(8) `restrict` in authorized_keys now also disables tunnel forwarding",
-				"tags": ["security", "fix"],
+				"tags": [
+					"security",
+					"fix"
+				],
 				"severity": "info",
 				"change": {
 					"version": "10.5p1",
@@ -140,7 +204,11 @@
 					"statement": "launchd runs Apple's sshd on this machine, not Homebrew's, so a change to Homebrew's sshd(8) does not reach the running service.",
 					"evidence": [],
 					"citations": [
-						{"kind": "command", "text": "launchctl print system/com.openssh.sshd → Apple's /usr/sbin/sshd", "url": null}
+						{
+							"kind": "command",
+							"text": "launchctl print system/com.openssh.sshd → Apple's /usr/sbin/sshd",
+							"url": null
+						}
 					]
 				},
 				"security": {
@@ -152,9 +220,14 @@
 				}
 			},
 			{
-				"anchor": {"kind": "release", "value": "10.5p1/ssh-Z-key-order"},
+				"anchor": {
+					"kind": "release",
+					"value": "10.5p1/ssh-Z-key-order"
+				},
 				"title": "ssh(1) gains -Z, printing the order in which agent keys are offered",
-				"tags": ["feature"],
+				"tags": [
+					"feature"
+				],
 				"severity": "notable",
 				"change": {
 					"version": "10.5p1",
@@ -166,15 +239,29 @@
 					"effect": "benefit",
 					"statement": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first. -Z makes that inspectable rather than inferred.",
 					"evidence": [
-						{"path": "dotfiles/config/1password/agent.toml", "lines": [[1, 8]], "note": "three vaults"}
+						{
+							"path": "dotfiles/config/1password/agent.toml",
+							"lines": [
+								[
+									1,
+									8
+								]
+							],
+							"note": "three vaults"
+						}
 					],
 					"citations": []
 				}
 			},
 			{
-				"anchor": {"kind": "release", "value": "10.5p1/libcrypto-ecc-required"},
+				"anchor": {
+					"kind": "release",
+					"value": "10.5p1/libcrypto-ecc-required"
+				},
 				"title": "The configure step now requires ECC and NISTP521 support in libcrypto",
-				"tags": ["packaging"],
+				"tags": [
+					"packaging"
+				],
 				"severity": "info",
 				"change": {
 					"version": "10.5p1",
@@ -194,7 +281,9 @@
 			"state": "up_to_date",
 			"detail": "No ssh client or server configuration is tracked in these repos beyond the 1Password agent's vault list.",
 			"evidence": [
-				{"path": "dotfiles/config/1password/agent.toml"}
+				{
+					"path": "dotfiles/config/1password/agent.toml"
+				}
 			],
 			"citations": []
 		},
@@ -217,10 +306,15 @@
 		],
 		"items": [
 			{
-				"anchor": {"kind": "issue", "value": "openai/codex#4110"},
+				"anchor": {
+					"kind": "issue",
+					"value": "openai/codex#4110"
+				},
 				"title": "`codex exec --full-auto` is removed; the flag now errors instead of running",
 				"body": "The replacement is `--sandbox danger-full-access`, which is spelled differently and is not a rename the launcher can absorb silently.",
-				"tags": ["breaking"],
+				"tags": [
+					"breaking"
+				],
 				"severity": "warning",
 				"change": {
 					"version": "0.47.0",
@@ -232,15 +326,26 @@
 					"effect": "risk",
 					"statement": "The Brewfile installs this cask, so the removed flag lands on the machine at the next upgrade whether or not anything invokes it today.",
 					"evidence": [
-						{"path": "Brewfile", "lines": [10]}
+						{
+							"path": "Brewfile",
+							"lines": [
+								10
+							]
+						}
 					],
 					"citations": []
 				}
 			},
 			{
-				"anchor": {"kind": "cve", "value": "CVE-2026-18408"},
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-18408"
+				},
 				"title": "A cask upgrade re-quarantines the bundled native binding, so every invocation dies",
-				"tags": ["security", "packaging"],
+				"tags": [
+					"security",
+					"packaging"
+				],
 				"severity": "notable",
 				"change": {
 					"version": "0.47.0",
@@ -252,7 +357,16 @@
 					"effect": "risk",
 					"statement": "The quarantine flag has to be re-cleared after every cask upgrade here; nothing in setup.sh does it, so the next upgrade breaks the binary until someone clears it by hand.",
 					"evidence": [
-						{"path": "setup.sh", "lines": [[7, 12]], "note": "the dispatch that would carry a quarantine task"}
+						{
+							"path": "setup.sh",
+							"lines": [
+								[
+									7,
+									12
+								]
+							],
+							"note": "the dispatch that would carry a quarantine task"
+						}
 					],
 					"citations": []
 				},
@@ -262,6 +376,9 @@
 					"rating": "medium",
 					"rating_basis": "nvd",
 					"exploited_in_wild": false
+				},
+				"watch_hit": {
+					"topic": "cask quarantine after upgrade"
 				}
 			}
 		],
@@ -269,7 +386,9 @@
 			"state": "needs_attention",
 			"detail": "Nothing re-clears the cask quarantine after an upgrade.",
 			"evidence": [
-				{"path": "setup.sh"}
+				{
+					"path": "setup.sh"
+				}
 			],
 			"citations": []
 		},
@@ -281,16 +400,31 @@
 				"structural": {
 					"op": "task_add",
 					"subjects": [
-						{"type": "cask", "name": "codex"},
-						{"type": "cask", "name": "cursor-cli"}
+						{
+							"type": "cask",
+							"name": "codex"
+						},
+						{
+							"type": "cask",
+							"name": "cursor-cli"
+						}
 					],
 					"manifest": null,
 					"from": null,
-					"to": {"type": "task", "name": "setup.sh:quarantine"},
-					"anchor": {"file": "setup.sh", "after": "elif [[ \"${1}\" = \"herdr\" ]]"}
+					"to": {
+						"type": "task",
+						"name": "setup.sh:quarantine"
+					},
+					"anchor": {
+						"file": "setup.sh",
+						"after": "elif [[ \"${1}\" = \"herdr\" ]]"
+					}
 				},
 				"target_files": [
-					{"path": "setup.sh", "description": "add the quarantine dispatch branch"}
+					{
+						"path": "setup.sh",
+						"description": "add the quarantine dispatch branch"
+					}
 				],
 				"rationale": "Four casks need the quarantine flag cleared after an upgrade and none of them has a home for it today.",
 				"needs_sudo": false

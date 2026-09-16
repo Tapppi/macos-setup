@@ -295,7 +295,15 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 
 			// Present iff `security` is among the tags (I-4). Per-CVE grading
 			// lives here — this is what `security.cve_severities[]` used to be.
-			"security": null
+			"security": null,
+
+			// Set iff this item answers a stored watch item for this tool.
+			// `topic` is the VERBATIM topic of the stored watch item, copied
+			// from {{STANDING_NOTES}}; the validator grounds it against the
+			// session's watch-items.json snapshot (I-20). The READ side of
+			// the watch-item loop — the write side is a `kind: "watch-item"`
+			// suggestion (§1.7). Absent on most items.
+			"watch_hit": null
 		}
 	],
 

@@ -1,64 +1,352 @@
 {
 	"about": "The comparator, pinned separately from the ordering. Two parallel implementer tracks once worked against a pinned field contract and still drifted on ordering, which had to be reconciled afterwards (HANDOFF.md §8) — so the comparison itself is published, not just the field names. `pairs` name items from ordering.json by id.",
 	"pairs": [
-		{"left": "t#c", "right": "t#g", "expect": -1, "why": "content group beats everything below it"},
-		{"left": "t#g", "right": "t#c", "expect": 1, "why": "and it is antisymmetric"},
-		{"left": "t#d", "right": "t#j", "expect": -1, "why": "warning outranks notable inside one group"},
-		{"left": "t#j", "right": "t#c", "expect": -1, "why": "notable outranks info inside one group"},
-		{"left": "t#g", "right": "t#f", "expect": -1, "why": "at equal direction, risk outranks none"},
-		{"left": "t#f", "right": "t#e", "expect": -1, "why": "unclear outranks does_not_reach"},
-		{"left": "t#e", "right": "t#b", "expect": -1, "why": "fixes precedes features"},
-		{"left": "t#b", "right": "t#l", "expect": -1, "why": "equal on every tier, so the id decides"},
-		{"left": "t#a", "right": "t#h", "expect": -1, "why": "an unknown tag does not change the group, so the id decides"},
-		{"left": "t#a", "right": "t#i", "expect": -1, "why": "an unrecognized severity sorts after info, never as one of the four"},
-		{"left": "t#a", "right": "t#a", "expect": 0, "why": "reflexive"}
+		{
+			"left": "t#c",
+			"right": "t#g",
+			"expect": -1,
+			"why": "content group beats everything below it"
+		},
+		{
+			"left": "t#g",
+			"right": "t#c",
+			"expect": 1,
+			"why": "and it is antisymmetric"
+		},
+		{
+			"left": "t#d",
+			"right": "t#j",
+			"expect": -1,
+			"why": "warning outranks notable inside one group"
+		},
+		{
+			"left": "t#j",
+			"right": "t#c",
+			"expect": -1,
+			"why": "notable outranks info inside one group"
+		},
+		{
+			"left": "t#g",
+			"right": "t#f",
+			"expect": -1,
+			"why": "at equal direction, risk outranks none"
+		},
+		{
+			"left": "t#f",
+			"right": "t#e",
+			"expect": -1,
+			"why": "unclear outranks does_not_reach"
+		},
+		{
+			"left": "t#e",
+			"right": "t#b",
+			"expect": -1,
+			"why": "fixes precedes features"
+		},
+		{
+			"left": "t#b",
+			"right": "t#l",
+			"expect": -1,
+			"why": "equal on every tier, so the id decides"
+		},
+		{
+			"left": "t#a",
+			"right": "t#h",
+			"expect": -1,
+			"why": "an unknown tag does not change the group, so the id decides"
+		},
+		{
+			"left": "t#a",
+			"right": "t#i",
+			"expect": -1,
+			"why": "an unrecognized severity sorts after info, never as one of the four"
+		},
+		{
+			"left": "t#a",
+			"right": "t#a",
+			"expect": 0,
+			"why": "reflexive"
+		},
+		{
+			"left": "t#m",
+			"right": "t#n",
+			"expect": -1,
+			"why": "watch_hit is not a tier; the id decides"
+		}
 	],
 	"worst_severity": [
-		{"severities": ["info", "warning", "notable"], "expect": "warning"},
-		{"severities": ["info", "info"], "expect": "info"},
-		{"severities": [], "expect": null},
-		{"severities": ["bogus"], "expect": null, "why": "an out-of-spec severity is a reported defect, not a new top of the scale"},
-		{"severities": ["bogus", "notable"], "expect": "notable"},
-		{"severities": ["incompatible", "warning"], "expect": "incompatible"}
+		{
+			"severities": [
+				"info",
+				"warning",
+				"notable"
+			],
+			"expect": "warning"
+		},
+		{
+			"severities": [
+				"info",
+				"info"
+			],
+			"expect": "info"
+		},
+		{
+			"severities": [],
+			"expect": null
+		},
+		{
+			"severities": [
+				"bogus"
+			],
+			"expect": null,
+			"why": "an out-of-spec severity is a reported defect, not a new top of the scale"
+		},
+		{
+			"severities": [
+				"bogus",
+				"notable"
+			],
+			"expect": "notable"
+		},
+		{
+			"severities": [
+				"incompatible",
+				"warning"
+			],
+			"expect": "incompatible"
+		}
 	],
 	"cve_ranks": {
 		"about": "Two tables, not interchangeable. `worse` resolves conflicting grades for one id, where `unknown` means \"no rating recorded\" and must lose to a real `low`. `order` sorts the security display, where `unknown` means \"ungraded but real\" and must NOT sort below a rated `low` — an absent grade is not evidence of harmlessness. Conflating them is how a Linux-only CVSS 8.8 would read as urgent on a macOS card.",
-		"worse_descending": ["critical", "high", "medium", "low", "unknown"],
-		"order_descending": ["critical", "high", "medium", "unknown", "low"]
+		"worse_descending": [
+			"critical",
+			"high",
+			"medium",
+			"low",
+			"unknown"
+		],
+		"order_descending": [
+			"critical",
+			"high",
+			"medium",
+			"unknown",
+			"low"
+		]
 	},
 	"security_display": {
 		"about": "The replacement for notable[]'s clause 3: a bar, not a count, and it reads direction — which the old clause could not, because direction lived only on the entry it produced. openssh's three padded slots are the measured case, and all three fail the bar.",
 		"cases": [
-			{"item": {"id": "s#1", "tags": ["security"], "severity": "notable", "security": {"rating": "unknown", "exploited_in_wild": false}, "local": {"direction": "does_not_reach"}}, "expect": false},
-			{"item": {"id": "s#2", "tags": ["security"], "severity": "notable", "security": {"rating": "critical", "exploited_in_wild": false}, "local": {"direction": "does_not_reach"}}, "expect": true},
-			{"item": {"id": "s#3", "tags": ["security"], "severity": "info", "security": {"rating": "low", "exploited_in_wild": true}, "local": {"direction": "does_not_reach"}}, "expect": true},
-			{"item": {"id": "s#4", "tags": ["security"], "severity": "info", "security": {"rating": "low", "exploited_in_wild": false}, "local": {"direction": "reaches"}}, "expect": true},
-			{"item": {"id": "s#5", "tags": ["security"], "severity": "warning", "security": {"rating": "unknown", "exploited_in_wild": false}}, "expect": true},
-			{"item": {"id": "s#6", "tags": ["fix"], "severity": "incompatible", "local": {"direction": "reaches"}}, "expect": false, "why": "not tagged security, so not a security display item however bad it is"}
+			{
+				"item": {
+					"id": "s#1",
+					"tags": [
+						"security"
+					],
+					"severity": "notable",
+					"security": {
+						"rating": "unknown",
+						"exploited_in_wild": false
+					},
+					"local": {
+						"direction": "does_not_reach"
+					}
+				},
+				"expect": false
+			},
+			{
+				"item": {
+					"id": "s#2",
+					"tags": [
+						"security"
+					],
+					"severity": "notable",
+					"security": {
+						"rating": "critical",
+						"exploited_in_wild": false
+					},
+					"local": {
+						"direction": "does_not_reach"
+					}
+				},
+				"expect": true
+			},
+			{
+				"item": {
+					"id": "s#3",
+					"tags": [
+						"security"
+					],
+					"severity": "info",
+					"security": {
+						"rating": "low",
+						"exploited_in_wild": true
+					},
+					"local": {
+						"direction": "does_not_reach"
+					}
+				},
+				"expect": true
+			},
+			{
+				"item": {
+					"id": "s#4",
+					"tags": [
+						"security"
+					],
+					"severity": "info",
+					"security": {
+						"rating": "low",
+						"exploited_in_wild": false
+					},
+					"local": {
+						"direction": "reaches"
+					}
+				},
+				"expect": true
+			},
+			{
+				"item": {
+					"id": "s#5",
+					"tags": [
+						"security"
+					],
+					"severity": "warning",
+					"security": {
+						"rating": "unknown",
+						"exploited_in_wild": false
+					}
+				},
+				"expect": true
+			},
+			{
+				"item": {
+					"id": "s#6",
+					"tags": [
+						"fix"
+					],
+					"severity": "incompatible",
+					"local": {
+						"direction": "reaches"
+					}
+				},
+				"expect": false,
+				"why": "not tagged security, so not a security display item however bad it is"
+			}
 		]
 	},
 	"ids": {
 		"about": "Ids are derived by the validator from the checker's declared anchor, never written by the checker. 1 of 373 headliners was written the same way twice across two runs, so an id cannot come from prose.",
 		"cases": [
-			{"tool_id": "brew:sops", "anchor": {"kind": "issue", "value": "getsops/sops#2245"}, "expect_id": "brew:sops#issue:getsops%2Fsops%232245", "expect_stability": "anchored"},
-			{"tool_id": "brew:libpq", "anchor": {"kind": "cve", "value": "CVE-2026-18408"}, "expect_id": "brew:libpq#cve:CVE-2026-18408", "expect_stability": "anchored"},
-			{"tool_id": "brew:openssh", "anchor": {"kind": "release", "value": "10.5p1/ssh-Z-key-order"}, "expect_id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order", "expect_stability": "slug"},
-			{"tool_id": "cask:codex", "anchor": {"kind": "none", "slug": "quarantine after upgrade"}, "expect_id": "cask:codex#slug:quarantine%20after%20upgrade", "expect_stability": "slug"},
-			{"tool_id": "brew:x", "anchor": {"kind": "commit", "value": "openai/codex@f2ff0b2a"}, "expect_id": "brew:x#commit:openai%2Fcodex%40f2ff0b2a", "expect_stability": "anchored"}
+			{
+				"tool_id": "brew:sops",
+				"anchor": {
+					"kind": "issue",
+					"value": "getsops/sops#2245"
+				},
+				"expect_id": "brew:sops#issue:getsops%2Fsops%232245",
+				"expect_stability": "anchored"
+			},
+			{
+				"tool_id": "brew:libpq",
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-18408"
+				},
+				"expect_id": "brew:libpq#cve:CVE-2026-18408",
+				"expect_stability": "anchored"
+			},
+			{
+				"tool_id": "brew:openssh",
+				"anchor": {
+					"kind": "release",
+					"value": "10.5p1/ssh-Z-key-order"
+				},
+				"expect_id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+				"expect_stability": "slug"
+			},
+			{
+				"tool_id": "cask:codex",
+				"anchor": {
+					"kind": "none",
+					"slug": "quarantine after upgrade"
+				},
+				"expect_id": "cask:codex#slug:quarantine%20after%20upgrade",
+				"expect_stability": "slug"
+			},
+			{
+				"tool_id": "brew:x",
+				"anchor": {
+					"kind": "commit",
+					"value": "openai/codex@f2ff0b2a"
+				},
+				"expect_id": "brew:x#commit:openai%2Fcodex%40f2ff0b2a",
+				"expect_stability": "anchored"
+			}
 		]
 	},
 	"evidence_shorthand": {
 		"about": "Evidence is paths only. A bare string normalizes iff it is a path with an optional line locator; anything else raises E-EVID-MALFORMED and is kept verbatim. The `:L1,L2` form is in the grammar because the recorded run already produced it and today's regex silently fails to strip it.",
 		"cases": [
-			{"input": "Brewfile", "expect": {"path": "Brewfile"}},
-			{"input": "Brewfile:358", "expect": {"path": "Brewfile", "lines": [358]}},
-			{"input": "Brewfile:83-87", "expect": {"path": "Brewfile", "lines": [[83, 87]]}},
-			{"input": "dotfiles/home/.claude/settings.json:162,183", "expect": {"path": "dotfiles/home/.claude/settings.json", "lines": [162, 183]}},
-			{"input": "~/.local/state/tool-update-review/changelog.md", "expect": {"path": "~/.local/state/tool-update-review/changelog.md"}},
-			{"input": "tasks/install.sh:56-104 (install_podman_intel)", "expect": null, "why": "the trailing parenthetical IS the conflation; it belongs in `note`"},
-			{"input": "CMake 4.4 release notes — \"the minimum is now 3.5\"", "expect": null},
-			{"input": "getsops/sops compare v3.13.2...v3.13.3 — 13 non-dependency commits", "expect": null},
-			{"input": "", "expect": null}
+			{
+				"input": "Brewfile",
+				"expect": {
+					"path": "Brewfile"
+				}
+			},
+			{
+				"input": "Brewfile:358",
+				"expect": {
+					"path": "Brewfile",
+					"lines": [
+						358
+					]
+				}
+			},
+			{
+				"input": "Brewfile:83-87",
+				"expect": {
+					"path": "Brewfile",
+					"lines": [
+						[
+							83,
+							87
+						]
+					]
+				}
+			},
+			{
+				"input": "dotfiles/home/.claude/settings.json:162,183",
+				"expect": {
+					"path": "dotfiles/home/.claude/settings.json",
+					"lines": [
+						162,
+						183
+					]
+				}
+			},
+			{
+				"input": "~/.local/state/tool-update-review/changelog.md",
+				"expect": {
+					"path": "~/.local/state/tool-update-review/changelog.md"
+				}
+			},
+			{
+				"input": "tasks/install.sh:56-104 (install_podman_intel)",
+				"expect": null,
+				"why": "the trailing parenthetical IS the conflation; it belongs in `note`"
+			},
+			{
+				"input": "CMake 4.4 release notes — \"the minimum is now 3.5\"",
+				"expect": null
+			},
+			{
+				"input": "getsops/sops compare v3.13.2...v3.13.3 — 13 non-dependency commits",
+				"expect": null
+			},
+			{
+				"input": "",
+				"expect": null
+			}
 		]
 	}
 }

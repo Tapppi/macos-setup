@@ -1130,19 +1130,40 @@ class HighlightScoringTests(unittest.TestCase):
 		self.assertIn("breaking_change", assemble.score_tool(release)[1])
 		self.assertGreater(assemble.score_tool(local)[0], assemble.score_tool(release)[0])
 
-	def test_no_watch_item_hit_signal_survives(self):
-		"""§I4 retires the literal-string channel outright: a paraphrase could
-		silently cost 70 points, and the replacement is a structured field on
-		the checker's output that does not exist yet. The signal is gone, not
-		reimplemented against prose."""
-		tool = self._tool([_item("a", title="Watch item hit: the quarantine flag moved",
+	def test_the_watch_hit_signal_is_structured_and_never_a_regex(self):
+		"""§I4 retired the literal-string channel: a paraphrase could silently
+		cost 70 points. The restored signal reads the structured `watch_hit`
+		field the validator grounds (I-20) — the literal phrase in prose
+		scores nothing whatever it says, and `_WATCH_HIT_RE` is never coming
+		back."""
+		prose = self._tool([_item("a", title="Watch item hit: the quarantine flag moved",
 			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))])
-		self.assertNotIn("watch_item_hit", assemble.score_tool(tool)[1])
+		self.assertNotIn("watch_item_hit", assemble.score_tool(prose)[1])
 		self.assertNotIn("watch_item_hit", assemble._WHY_SOURCES)
 		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assemble.py"),
 				encoding="utf-8") as fh:
 			source = fh.read()
 		self.assertNotIn("_WATCH_HIT_RE", source)
+
+	def test_a_watch_hit_scores_seventy_in_its_documented_rank(self):
+		"""70 is the documented prior weight, emitted second — between
+		`incompatible_finding` (100) and `config_stale` (60) — so the page's
+		chips never reshuffle between runs. Re-weighing it is WP4's question,
+		not this pass's."""
+		hit = self._tool([_item("a", severity="notable",
+			local=_local("unclear", "none"),
+			watch_hit={"topic": "a stored topic"})])
+		score, reasons = assemble.score_tool(hit)
+		self.assertEqual(reasons, ["watch_item_hit"])
+		self.assertEqual(score, 70)
+		stacked = self._tool([_item("a", severity="incompatible",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]),
+			watch_hit={"topic": "a stored topic"})],
+			config_status={"state": "needs_attention", "detail": "stale",
+				"evidence": [], "citations": []})
+		_, stacked_reasons = assemble.score_tool(stacked)
+		self.assertEqual(stacked_reasons[:3],
+			["incompatible_finding", "watch_item_hit", "config_stale"])
 
 	def test_a_structural_suggestion_scores_like_an_edit(self):
 		tool = self._tool([_item("a")], suggestions=[{"id": "brew:h:s", "kind": "structural",

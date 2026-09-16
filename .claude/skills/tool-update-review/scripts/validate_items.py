@@ -22,7 +22,7 @@ Six stages:
 	V2   spec validation      — required fields, types, closed vocabularies
 	V3   shape normalization  — the normalizations §5.3 licenses, and no others
 	V3b  id assignment and uniqueness, from the checker's declared anchor
-	V4   the nineteen invariants
+	V4   the twenty invariants
 	V5   impact
 	V6   initial bucketing
 
@@ -537,7 +537,7 @@ def _require_string(value, findings, tool_id, item_id, field, allow_empty=False)
 
 
 def validate_item(item, tool_id, item_id, link_count, findings: Findings,
-		resolver: RootResolver):
+		resolver: RootResolver, watch_topics=None):
 	"""V2 spec validation, V3 normalization and V4's per-item invariants, on
 	one item. → (normalized item, quarantined members). The input is never
 	mutated, and no field is ever removed from the output.
@@ -783,6 +783,57 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 				"a rating of \"{}\" with basis \"unrated\" — a grade with no issuer is a "
 				"guess".format(rating),
 				tool_id=tool_id, item_id=item_id, field="security.rating_basis")
+
+	# ── watch_hit (I-20) ───────────────────────────────────────────────
+	# Checker-authored, validator-grounded. `watch_topics` is the stored
+	# topic set for THIS tool from the session's watch-item snapshot; None
+	# means no snapshot was supplied and the check degrades to a warning.
+	# Extra keys inside `watch_hit` are tolerated and kept, exactly as they
+	# are inside `change`, `local` and `security`.
+	raw_hit = item.get("watch_hit")
+	if raw_hit is not None:
+		if not isinstance(raw_hit, dict):
+			# Reported, and kept verbatim on the item (V2's rule).
+			findings.add("E-FIELD-TYPE", "watch_hit is {}, not an object".format(
+				type(raw_hit).__name__),
+				tool_id=tool_id, item_id=item_id, field="watch_hit", value=raw_hit)
+		else:
+			topic = raw_hit.get("topic")
+			if topic is None:
+				findings.add("E-FIELD-MISSING",
+					"watch_hit.topic is required — the VERBATIM topic of the stored watch "
+					"item this change answers",
+					tool_id=tool_id, item_id=item_id, field="watch_hit.topic")
+			elif not isinstance(topic, str):
+				findings.add("E-FIELD-TYPE", "watch_hit.topic is {}, not a string".format(
+					type(topic).__name__),
+					tool_id=tool_id, item_id=item_id, field="watch_hit.topic", value=topic)
+			elif not topic.strip():
+				findings.add("E-FIELD-MISSING", "watch_hit.topic is empty",
+					tool_id=tool_id, item_id=item_id, field="watch_hit.topic")
+			elif watch_topics is None:
+				findings.add("W-WATCH-UNCHECKED",
+					"no watch-item snapshot in this session, so the hit could not be "
+					"checked against the store — it is kept",
+					tool_id=tool_id, item_id=item_id, field="watch_hit.topic", value=topic)
+			elif topic.strip() not in watch_topics:
+				findings.add("E-WATCH-HIT-UNGROUNDED",
+					"names no stored watch item for this tool — the topic is copied "
+					"verbatim from the standing notes, never paraphrased",
+					tool_id=tool_id, item_id=item_id, field="watch_hit.topic", value=topic)
+			# These two fire independently of the topic checks — a hit that is
+			# ungrounded AND has no local block reports both, in the manner of
+			# 01-nonconforming's two-findings-in-one cases.
+			if not isinstance(item.get("local"), dict):
+				findings.add("E-WATCH-HIT-NOLOCAL",
+					"a watch-item hit is a statement about this setup, so it carries a "
+					"`local` block",
+					tool_id=tool_id, item_id=item_id, field="watch_hit")
+			if item.get("severity") == "info":
+				findings.add("W-WATCH-HIT-UNRAISED",
+					"a hit on a watched topic earns at least `notable` — reported, never "
+					"bumped: re-rating is convergence's",
+					tool_id=tool_id, item_id=item_id, field="severity", value="info")
 
 	return out, quarantine
 
@@ -1200,7 +1251,7 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 
 # ── one tool ────────────────────────────────────────────────────────────────
 def validate_tool(candidate, research, findings: Findings, resolver: RootResolver,
-		manifest: Manifest):
+		manifest: Manifest, watch_topics=None):
 	"""V2–V6 for one candidate. Returns the tool's validation view."""
 	tool_id = candidate["id"]
 	source = candidate.get("source")
@@ -1253,7 +1304,8 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	else:
 		view["research_error"] = research.get("research_error")
 		_guard(view, findings, "research section",
-			lambda: _read_research(view, research, findings, tool_id, resolver, manifest))
+			lambda: _read_research(view, research, findings, tool_id, resolver, manifest,
+				watch_topics))
 
 	# version delta, then the derived axes, in dependency order.
 	_guard(view, findings, "derived axes",
@@ -1289,7 +1341,8 @@ def _guard(view, findings: Findings, stage, work):
 			"incomplete".format(stage, type(exc).__name__, exc), tool_id=view["id"])
 
 
-def _read_research(view, research, findings, tool_id, resolver, manifest):
+def _read_research(view, research, findings, tool_id, resolver, manifest,
+		watch_topics=None):
 	"""V1-input → V2/V3/V3b/V4 for one tool's research object."""
 	links = as_list(research.get("links"), findings, tool_id, "links")
 	view["links"] = links
@@ -1317,7 +1370,7 @@ def _read_research(view, research, findings, tool_id, resolver, manifest):
 		seen.add(item_id)
 		try:
 			item, item_quarantine = validate_item(raw, tool_id, item_id, len(links),
-				findings, resolver)
+				findings, resolver, watch_topics)
 		except Exception as exc:  # noqa: BLE001
 			# One item's unanticipated shape costs that item's *checks*, never
 			# the item: it is kept exactly as written, with its assigned id, so
@@ -1610,12 +1663,57 @@ def _check_flags(research, view, findings, tool_id):
 					tool_id=tool_id, field=where, value=container[flag])
 
 
+# ── the watch-item snapshot (I-20) ──────────────────────────────────────────
+def _load_watch_snapshot(path, findings: Findings):
+	"""The per-session copy of the machine-global watch-item store — the
+	orchestrating session writes it at step 2, at the moment it fills
+	{{STANDING_NOTES}}, so grounding checks a hit against the evidence the
+	claim was made from rather than against a store that may have moved since.
+
+	Absent is legal and costs nothing but the check: every hit then raises
+	W-WATCH-UNCHECKED and is kept. Unreadable or wrong-typed is the same case
+	plus one E-RESEARCH-UNREADABLE naming the file. No run ever aborts on it —
+	W-STRUCT-UNCHECKED is the sibling: a check that cannot run degrades to a
+	warning, never to silence."""
+	if not os.path.exists(path):
+		return None
+	try:
+		with open(path, "r", encoding="utf-8") as fh:
+			snapshot = json.load(fh)
+	except Exception as exc:  # same width as v1_load, same reasons
+		findings.add("E-RESEARCH-UNREADABLE",
+			"{}: {}".format(type(exc).__name__, exc), field="watch-items.json")
+		return None
+	if not isinstance(snapshot, dict):
+		findings.add("E-RESEARCH-UNREADABLE",
+			"watch-items.json is {}, not an object keyed by tool id".format(
+				type(snapshot).__name__), field="watch-items.json")
+		return None
+	return snapshot
+
+
+def _watch_topics_for(snapshot, tool_id):
+	"""The stored topic set for one tool, or None when there is no snapshot.
+
+	Exact string match after .strip() — no normalization, no case folding, no
+	fuzzy match: a checker copies the string, it does not rewrite it. And per
+	tool: a topic stored for another tool does not ground a hit here."""
+	if snapshot is None:
+		return None
+	entries = snapshot.get(tool_id)
+	return frozenset(
+		e["topic"].strip() for e in (entries if isinstance(entries, list) else ())
+		if isinstance(e, dict) and isinstance(e.get("topic"), str) and e["topic"].strip())
+
+
 # ── the run ─────────────────────────────────────────────────────────────────
 def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_roots=None):
 	"""→ the validation document. Never raises for input shape."""
 	findings = Findings()
 	resolver = RootResolver(roots, unconfigured_roots=unconfigured_roots)
 	manifest = Manifest(manifest_root or (roots[0] if roots else "."))
+	watch_snapshot = _load_watch_snapshot(
+		os.path.join(session_dir, "watch-items.json"), findings)
 
 	collect_path = os.path.join(session_dir, "collect.json")
 	try:
@@ -1656,7 +1754,8 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 		# degraded tool arrives here as a complete view carrying whatever
 		# conformed — not as a blank replacement for it.
 		views.append(validate_tool(candidate, research_by_id.get(tool_id), findings,
-			resolver, manifest))
+			resolver, manifest,
+			watch_topics=_watch_topics_for(watch_snapshot, tool_id)))
 
 	unmatched = []
 	for tool_id in sorted(research_by_id):

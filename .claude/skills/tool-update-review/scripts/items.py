@@ -563,6 +563,29 @@ def security_display_items(items) -> list:
 		key=security_display_sort_key)
 
 
+# ── watch-item hits (I-20) ──────────────────────────────────────────────────
+# `watch_hit` is the READ side of the watch-item loop: "a watch item that
+# already exists fired on this release". It is checker-authored and
+# validator-grounded against the session's watch-item snapshot — the
+# structured successor to the retired `Watch item hit:` literal, which died
+# of being an unvalidated string (`REDESIGN.md` §O). The WRITE side —
+# "please store a new watch item" — is `memory_proposals.watch_topic` /
+# `watch_note` on a suggestion, and conflating the two is what produced the
+# literal channel in the first place.
+def has_watch_hit(items) -> bool:
+	"""Does any item claim to answer a stored watch item?
+
+	The one predicate for every consumer of the claim — the 70-point
+	`watch_item_hit` highlight and the page's badge ask this rather than
+	re-deriving it, because the retired channel died precisely of consumers
+	matching it differently. A dict is a claim even when malformed: a
+	malformed one is reported (E-FIELD-MISSING / E-FIELD-TYPE on
+	`watch_hit.topic`) and the claim still counts, which is the fail-closed
+	direction."""
+	return any(isinstance(i.get("watch_hit"), dict)
+		for i in items or () if isinstance(i, dict))
+
+
 # ── which flags a checker may emit (`item-schema.md` §5.1) ──────────────────
 #   A checker may emit a flag iff (a) it is a pure function of that checker's
 #   own items, AND (b) it is not an input to an auto-approving decision.
@@ -652,7 +675,7 @@ FINDING_CODES = {
 	"W-MEMBER-QUARANTINED": ("warning", None, "a wrong-typed array member was quarantined, not dropped"),
 	# §L2 — the title/body split
 	"W-TITLE-LONG": ("warning", None, "title is longer than the glanceable bar; detail belongs in body"),
-	# V4 — the eighteen invariants
+	# V4 — the twenty invariants
 	"E-ITEM-EMPTY": ("error", "I-1", "an item has neither `change` nor `local`"),
 	"E-SEV-INCOMPAT-UNGROUNDED": ("error", "I-2", "`incompatible` without reaches+risk"),
 	"E-SEV-WARNING-UNGROUNDED": ("error", "I-3", "`warning` without a `local` block"),
@@ -680,6 +703,16 @@ FINDING_CODES = {
 	# keys its review off it. A tag naming no reason is a drop with extra
 	# steps, which is the one thing criterion 17 exists to prevent.
 	"E-SELFTEST-NOREASON": ("error", "I-19", "a `self_test_failed` tag with no reason"),
+	# I-20 — a watch-item hit names a stored watch item for this tool and says
+	# what it means here. The checker authors `watch_hit`; the validator
+	# grounds it against the session's watch-item snapshot. An unvalidated
+	# channel is how the `Watch item hit:` literal died — worth 70 highlight
+	# points and silently dead the moment it was paraphrased — so every
+	# failure mode of the structured field reports.
+	"E-WATCH-HIT-UNGROUNDED": ("error", "I-20", "`watch_hit.topic` names no stored watch item for this tool"),
+	"E-WATCH-HIT-NOLOCAL": ("error", "I-20", "a watch-item hit with no `local` block"),
+	"W-WATCH-UNCHECKED": ("warning", "I-20", "a watch-item hit could not be checked against the stored watch items"),
+	"W-WATCH-HIT-UNRAISED": ("warning", "I-20", "a watch-item hit left at `info`; a watched topic earns at least `notable`"),
 	# criterion 2 — no per-tool checker emits a bucket or an auto-approval
 	"E-FLAG-FORBIDDEN": ("error", None, "a checker emitted a validator-only flag"),
 	# criterion 4 — degradation is per tool and loud. The next unknown shape
@@ -736,6 +769,8 @@ ITEM_FIELDS = (
 	("security.rating", "enum", "yes if security present", "|".join(CVE_RATINGS)),
 	("security.rating_basis", "enum", "yes if security present", "|".join(RATING_BASES)),
 	("security.exploited_in_wild", "bool", "yes if security present", "vendor/CISA says so"),
+	("watch_hit", "object|null", "no", "set iff this item answers a stored watch item for this tool"),
+	("watch_hit.topic", "string", "yes if watch_hit present", "VERBATIM copy of the stored watch item's `topic`"),
 )
 
 

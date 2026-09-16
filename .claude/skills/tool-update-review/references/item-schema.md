@@ -8,7 +8,7 @@ evaporate into a prompt and cannot drift from what actually runs:
 | Thing | Where |
 |---|---|
 | The model — vocabularies, groups, ids, **the ordering and the comparator** | `scripts/items.py` |
-| The six stages, the nineteen invariants, the finding codes | `scripts/validate_items.py` |
+| The six stages, the twenty invariants, the finding codes | `scripts/validate_items.py` |
 | The published fixtures a sibling package imports and asserts against | `scripts/contract/` (see its `README.md`) |
 | The tests | `scripts/test_items.py`, `scripts/test_validate_items.py` |
 | The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` and `HANDOFF.md` — **not in this repo.** Every `§A`/`§C3`/`§L1`/`criterion N` citation in the skill resolves there |
@@ -193,6 +193,51 @@ and openssh filled all three of its slots with items whose own summaries say the
 fix does not reach this machine.
 
 ---
+
+### 2.5 `watch_hit` — a stored watch item fired
+
+```jsonc
+"watch_hit": {
+	"topic": "shell-integration / session recording"
+}
+```
+
+Set **iff** this item answers a stored watch item for this tool. `topic` is
+the **verbatim** `topic` string of the stored watch item, copied
+character-for-character from what the checker was handed in
+`{{STANDING_NOTES}}` — not a paraphrase, not a restatement, not the checker's
+own summary. The validator grounds it against the session's watch-item
+snapshot (I-20): exact match after `.strip()`, per tool — a topic stored for
+another tool does not ground a hit here. Extra keys inside `watch_hit` are
+tolerated and kept, exactly as inside `change`, `local` and `security`.
+
+This is the **read** side of the watch-item loop — "a watch item that already
+exists fired on this release". The **write** side — "please store a new watch
+item" — is a suggestion of `kind: "watch-item"` carrying
+`watch_topic`/`watch_note`, and conflating the two is what produced the retired
+`Watch item hit:` literal channel. A checker that writes `watch_topic` when it
+means "this fired" has signalled nothing and proposed a duplicate store entry;
+one that writes `watch_hit` when it means "please remember this" references a
+topic that does not exist and raises `E-WATCH-HIT-UNGROUNDED`. Both directions
+are now detectable, which is the purpose of making the channel structured.
+
+One `watch_hit` per item. A change that answers two stored watch items is
+written as one item naming the more specific topic, with the second named in
+`body`. The field is deliberately not an array: an array would need per-member
+quarantine semantics for a case that has never been observed, and an object
+can be widened later without breaking a reader.
+
+A hit carries a `local` block, because a hit is a statement about this setup
+(`E-WATCH-HIT-NOLOCAL`), and earns at least `notable` (`W-WATCH-HIT-UNRAISED`
+— reported, never bumped: re-rating is convergence's).
+
+What `watch_hit` does **not** do, stated because every one of these would
+re-open a promotion route: it is not read by `recompute_flags`,
+`allowed_for_security_only`, `compute_impact`, `compute_security_only` or
+`compute_risk_level`; it is not a tier of `item_sort_key` or
+`security_display_sort_key` — two items identical on every tier sort by id,
+and prominence is delivered by the 70-point `watch_item_hit` highlight and the
+item badge, never by reordering a card's body.
 
 ## 3. The evidence split
 
@@ -385,7 +430,7 @@ report-wide CVE **union** (per-tool counts summed to 77; the union is 76).
 | **V2** spec | required fields, types, closed vocabularies. **The item survives with every offending field exactly as written** — a wrong-typed `change`/`local`/`security` is reported, not nulled, because the finding's `value` is bounded for readability and nulling would make the truncated copy the only one |
 | **V3** normalize | only the normalizations above: `null` → `[]`, non-list → `[]` with a warning, evidence shorthand → object form, wrong-typed members quarantined |
 | **V3b** identify | ids assigned from the anchor, in authored order, then disambiguated |
-| **V4** invariants | the eighteen below. Every one **reports and changes nothing** |
+| **V4** invariants | the twenty below. Every one **reports and changes nothing** |
 | **V5** impact | `none` \| `possible` \| `unknown` |
 | **V6** bucket | `initial_review_bucket` plus `bucket_inputs` |
 
@@ -413,7 +458,7 @@ Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
 runs. The workflow surfaces it; it never aborts.
 
-### The nineteen invariants
+### The twenty invariants
 
 | id | invariant | code |
 |---|---|---|
@@ -436,11 +481,12 @@ runs. The workflow surfaces it; it never aborts.
 | I-17 | no `intel.Brewfile` in a manifest or a `target_files` path | `E-INTEL-BREWFILE` |
 | I-18 | suggestion ids unique across the whole report | `W-SUG-DUP-ID` |
 | I-19 | a memory proposal carries its payload, and a `self_test_failed` tag carries its reason | `E-FIELD-MISSING` / `E-SELFTEST-NOREASON` |
+| I-20 | a watch-item hit names a stored watch item for this tool and says what it means here | `E-WATCH-HIT-UNGROUNDED` / `E-WATCH-HIT-NOLOCAL` / `W-WATCH-UNCHECKED` / `W-WATCH-HIT-UNRAISED` |
 
 I-14 is the mechanical replacement for the prose rule "if you can point at the
 touchpoint, you owe a relevancy item" — same claim, now checkable. It warns and
 never sets or clears the direction for you. Keep that discipline for all
-nineteen.
+twenty.
 
 I-15 and the bucket clause read one tuple, `model.ACTION_SUGGESTION_KINDS`:
 **memory proposals do not force `attention`; action proposals do.**
@@ -456,6 +502,14 @@ review off that tag, and an unvalidated channel is exactly how `Watch item
 hit:` broke: a literal string worth 70 highlight points that nobody checked,
 which stopped firing the moment it was paraphrased. See `references/schemas.md`
 §1.7b/§1.7c for the two memory kinds and the tag.
+
+I-20 grounds the structured successor to that literal. `watch_hit` (§2.5) is
+checker-authored; the validator checks its `topic` against
+`{session_dir}/watch-items.json` — a verbatim copy of the machine-global
+watch-item store, written by the orchestrating session when it fills
+`{{STANDING_NOTES}}`, so the claim is checked against the evidence it was made
+from. The snapshot being absent degrades every hit to `W-WATCH-UNCHECKED` and
+keeps it; a run never aborts on it.
 
 The complete code table, with each code's severity and the invariant it serves,
 is `items.FINDING_CODES`, published in `contract/contract.json`.
@@ -560,6 +614,7 @@ thing holding it back is the thing that went missing. That is the `brew:libpq`
 defect by another route. So `validator_error` makes `impact` read `unknown` and
 `risk_level` read `elevated`, and no auto-accepting bucket accepts either.
 | no entry at all for a candidate | tool | `research_error` set |
+| the watch-item snapshot is absent, unreadable or wrong-typed | run's hits | every `watch_hit` degrades to `W-WATCH-UNCHECKED` and is kept; an unreadable or wrong-typed snapshot adds one `E-RESEARCH-UNREADABLE` naming the file |
 
 Three loudness channels, all required: `validation.json` (the machine-readable
 primary), `assemble.warn` (the human tail), and `tool.spec_violations[]` so a

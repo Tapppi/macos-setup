@@ -1,0 +1,166 @@
+[
+	{
+		"id": "brew:watched",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "watched 1.0.1",
+				"url": "https://example.invalid/watched/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#101"
+				},
+				"title": "Watched change number 1",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 1 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {
+					"topic": "credential format written back to the Keychain"
+				},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 1 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#102"
+				},
+				"title": "Watched change number 2",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 2 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {
+					"topic": "a topic nobody ever stored"
+				},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 2 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#103"
+				},
+				"title": "Watched change number 3",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 3 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {
+					"topic": "cask quarantine after upgrade"
+				},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 3 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#104"
+				},
+				"title": "Watched change number 4",
+				"tags": [
+					"fix"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 4 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {
+					"topic": "credential format written back to the Keychain"
+				}
+			},
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#105"
+				},
+				"title": "Watched change number 5",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 5 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 5 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#106"
+				},
+				"title": "Watched change number 6",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 6 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": "a bare string",
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 6 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures watched.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	}
+]

@@ -1247,14 +1247,10 @@ def build_tool_guarded(candidate: dict, research_by_id: dict, views_by_id: dict)
 # "security_auto" contributes nothing: it is by definition the bucket that
 # needs no decision.
 #
-# The `watch_item_hit` signal is GONE, and its absence is deliberate. It was
-# detected by regex-matching the literal phrase "Watch item hit:" in relevancy
-# prose, which `REDESIGN.md` §I4 retires outright: the per-tool checker is
-# given the watch items and labels a hit **in a structured field**, so a
-# paraphrase can no longer cost 70 points silently. That field does not exist
-# in the item schema yet — it belongs with the checker contract — so the signal
-# is removed rather than reimplemented against prose that no longer has a
-# guaranteed shape.
+# `watch_item_hit` is back, structured: the checker sets `watch_hit` on the
+# item and the validator grounds it against the session's watch-item snapshot
+# (I-20), so a paraphrase can no longer silently cost 70 points — and the
+# regex over prose is never coming back.
 _HIGHLIGHT_THRESHOLD = 40
 _HIGHLIGHT_CAP = 8
 _WHY_MAX = 220
@@ -1299,6 +1295,9 @@ def score_tool(tool: dict) -> tuple:
 			scored.append((points, code))
 
 	add(100, "incompatible_finding", any(i.get("severity") == "incompatible" for i in local))
+	add(70, "watch_item_hit", model.has_watch_hit(items))
+	# 70 is the documented prior weight; re-weighing it is WP4's deferred
+	# surface question (`REDESIGN.md` §Q2), not this pass's.
 	add(60, "config_stale", config_needs_attention(tool))
 	add(45, "warning_finding", any(i.get("severity") == "warning" for i in local))
 	# The old `breaking_change` read "an incompatible-severity headliner", i.e.

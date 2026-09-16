@@ -8,27 +8,156 @@
 		"5. id ascending — the tiebreak that makes the order total (t#b before t#l)",
 		"an unrecognized tag groups under notes and nowhere else (t#h)",
 		"an unrecognized severity sorts after info within its group, never as one of the four (t#i)",
-		"a multi-tag item takes the highest-precedence group its tags name (t#j)"
+		"a multi-tag item takes the highest-precedence group its tags name (t#j)",
+		"watch_hit is not a sort tier — two items identical on every tier sort by id whether or not one answers a watch item (t#m before t#n by id alone). Prominence is the highlight and the badge, never the order."
 	],
 	"items": [
-		{"id": "t#e", "tags": ["fix"], "severity": "notable", "local": {"direction": "does_not_reach", "effect": "benefit"}},
-		{"id": "t#i", "tags": ["chore"], "severity": "bogus"},
-		{"id": "t#l", "tags": ["perf"], "severity": "notable"},
-		{"id": "t#c", "tags": ["security"], "severity": "info", "local": {"direction": "reaches", "effect": "risk"}},
-		{"id": "t#a", "tags": ["chore"], "severity": "info"},
-		{"id": "t#g", "tags": ["fix"], "severity": "notable", "local": {"direction": "unclear", "effect": "risk"}},
-		{"id": "t#k", "tags": ["packaging"], "severity": "notable"},
-		{"id": "t#j", "tags": ["fix", "security"], "severity": "notable", "local": {"direction": "reaches", "effect": "risk"}},
-		{"id": "t#b", "tags": ["feature"], "severity": "notable"},
-		{"id": "t#h", "tags": ["bogus"], "severity": "info"},
-		{"id": "t#f", "tags": ["fix"], "severity": "notable", "local": {"direction": "unclear", "effect": "none"}},
-		{"id": "t#d", "tags": ["security"], "severity": "warning"}
+		{
+			"id": "t#e",
+			"tags": [
+				"fix"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "does_not_reach",
+				"effect": "benefit"
+			}
+		},
+		{
+			"id": "t#i",
+			"tags": [
+				"chore"
+			],
+			"severity": "bogus"
+		},
+		{
+			"id": "t#l",
+			"tags": [
+				"perf"
+			],
+			"severity": "notable"
+		},
+		{
+			"id": "t#c",
+			"tags": [
+				"security"
+			],
+			"severity": "info",
+			"local": {
+				"direction": "reaches",
+				"effect": "risk"
+			}
+		},
+		{
+			"id": "t#a",
+			"tags": [
+				"chore"
+			],
+			"severity": "info"
+		},
+		{
+			"id": "t#g",
+			"tags": [
+				"fix"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "unclear",
+				"effect": "risk"
+			}
+		},
+		{
+			"id": "t#k",
+			"tags": [
+				"packaging"
+			],
+			"severity": "notable"
+		},
+		{
+			"id": "t#j",
+			"tags": [
+				"fix",
+				"security"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "reaches",
+				"effect": "risk"
+			}
+		},
+		{
+			"id": "t#b",
+			"tags": [
+				"feature"
+			],
+			"severity": "notable"
+		},
+		{
+			"id": "t#h",
+			"tags": [
+				"bogus"
+			],
+			"severity": "info"
+		},
+		{
+			"id": "t#f",
+			"tags": [
+				"fix"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "unclear",
+				"effect": "none"
+			}
+		},
+		{
+			"id": "t#d",
+			"tags": [
+				"security"
+			],
+			"severity": "warning"
+		},
+		{
+			"id": "t#m",
+			"tags": [
+				"fix"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "unclear",
+				"effect": "none"
+			},
+			"watch_hit": {
+				"topic": "a stored topic"
+			}
+		},
+		{
+			"id": "t#n",
+			"tags": [
+				"fix"
+			],
+			"severity": "notable",
+			"local": {
+				"direction": "unclear",
+				"effect": "none"
+			}
+		}
 	],
 	"expected_order": [
-		"t#d", "t#j", "t#c",
-		"t#g", "t#f", "t#e",
-		"t#b", "t#l",
-		"t#k", "t#a", "t#h", "t#i"
+		"t#d",
+		"t#j",
+		"t#c",
+		"t#g",
+		"t#f",
+		"t#m",
+		"t#n",
+		"t#e",
+		"t#b",
+		"t#l",
+		"t#k",
+		"t#a",
+		"t#h",
+		"t#i"
 	],
 	"expected_primary_group": {
 		"t#a": "notes",
@@ -42,6 +171,8 @@
 		"t#i": "notes",
 		"t#j": "security",
 		"t#k": "notes",
-		"t#l": "features"
+		"t#l": "features",
+		"t#m": "fixes",
+		"t#n": "fixes"
 	}
 }

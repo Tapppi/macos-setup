@@ -904,6 +904,7 @@ emission order, so the page's chips never reshuffle between runs.
 | Points | Reason code | Fires when |
 |---:|---|---|
 | 100 | `incompatible_finding` | any item **with a `local` block** at `incompatible` |
+| 70 | `watch_item_hit` | any item carrying a `watch_hit` — a stored watch item fired (I-20) |
 | 60 | `config_stale` | `config_status.state == "needs_attention"` |
 | 45 | `warning_finding` | any item **with a `local` block** at `warning` |
 | 40 | `breaking_change` | any `breaking`-tagged item at `warning`/`incompatible` |
@@ -928,14 +929,16 @@ or about the release", inferred from which array the item was written into.
 `breaking_change` now reads the `breaking` tag directly rather than inferring a
 release-level break from an `incompatible` headliner.
 
-**`watch_item_hit` is gone, and its absence is deliberate.** It scored 70 for a
-regex match on the literal phrase `Watch item hit:` in relevancy prose —
-a magic string `REDESIGN.md` §I4 retires outright, because a subagent that
-paraphrased it made the user's own standing concern silently worth nothing. The
-replacement is a **structured field** on the checker's output, which does not
-exist in the item schema yet; the signal is removed rather than reimplemented
-against prose that no longer has a guaranteed shape. Restoring it means adding
-the field, not the regex.
+**`watch_item_hit` is back, and it is structured.** The old signal scored 70
+for a regex match on the literal phrase `Watch item hit:` in relevancy prose —
+a magic string `REDESIGN.md` §I4 retired outright, because a subagent that
+paraphrased it made the user's own standing concern silently worth nothing.
+The restored signal reads the `watch_hit` field on the item
+(`references/item-schema.md` §2.5), which the validator grounds against the
+session's watch-item snapshot (I-20) — so a paraphrase now raises
+`E-WATCH-HIT-UNGROUNDED` instead of silently costing 70 points. Restoring it
+meant adding the field, never the regex, and 70 is the documented prior
+weight: re-weighing it is WP4's deferred question.
 
 `manual_action` reads the baseline through `baseline_upgrade()`, which is why
 a cross-tool id collision that renames a baseline costs a tool this one

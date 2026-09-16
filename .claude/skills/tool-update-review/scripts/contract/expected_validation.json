@@ -435,6 +435,60 @@
 			"field": "suggestions[].id",
 			"value": "",
 			"message": "also used by cask:codex — a collision almost always means an id pattern was copied rather than derived"
+		},
+		{
+			"code": "E-WATCH-HIT-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23102",
+			"field": "watch_hit.topic",
+			"value": "a topic nobody ever stored",
+			"message": "names no stored watch item for this tool — the topic is copied verbatim from the standing notes, never paraphrased"
+		},
+		{
+			"code": "E-WATCH-HIT-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23103",
+			"field": "watch_hit.topic",
+			"value": "cask quarantine after upgrade",
+			"message": "names no stored watch item for this tool — the topic is copied verbatim from the standing notes, never paraphrased"
+		},
+		{
+			"code": "E-WATCH-HIT-NOLOCAL",
+			"severity": "error",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23104",
+			"field": "watch_hit",
+			"value": "",
+			"message": "a watch-item hit is a statement about this setup, so it carries a `local` block"
+		},
+		{
+			"code": "W-WATCH-HIT-UNRAISED",
+			"severity": "warning",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23104",
+			"field": "severity",
+			"value": "info",
+			"message": "a hit on a watched topic earns at least `notable` — reported, never bumped: re-rating is convergence's"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23105",
+			"field": "watch_hit.topic",
+			"value": "",
+			"message": "watch_hit.topic is required — the VERBATIM topic of the stored watch item this change answers"
+		},
+		{
+			"code": "E-FIELD-TYPE",
+			"severity": "error",
+			"tool_id": "brew:watched",
+			"item_id": "brew:watched#issue:watched%2Fwatched%23106",
+			"field": "watch_hit",
+			"value": "a bare string",
+			"message": "watch_hit is str, not an object"
 		}
 	],
 	"counts": {
@@ -448,8 +502,8 @@
 			"E-ENUM-INVALID": 3,
 			"E-EVID-404": 1,
 			"E-EVID-MALFORMED": 2,
-			"E-FIELD-MISSING": 6,
-			"E-FIELD-TYPE": 2,
+			"E-FIELD-MISSING": 7,
+			"E-FIELD-TYPE": 3,
 			"E-FLAG-DISAGREE": 3,
 			"E-FLAG-FORBIDDEN": 1,
 			"E-INTEL-BREWFILE": 2,
@@ -467,22 +521,26 @@
 			"E-STRUCT-PRECOND": 2,
 			"E-TAG-NONE": 1,
 			"E-TAG-UNKNOWN": 1,
+			"E-WATCH-HIT-NOLOCAL": 1,
+			"E-WATCH-HIT-UNGROUNDED": 2,
 			"W-ATTENTION-NOSUG": 1,
 			"W-ENTRY-UNMATCHED": 1,
 			"W-EVID-ROOT": 1,
 			"W-MEMBER-QUARANTINED": 1,
 			"W-STRUCT-UNCHECKED": 1,
 			"W-SUG-DUP-ID": 1,
-			"W-TITLE-LONG": 1
+			"W-TITLE-LONG": 1,
+			"W-WATCH-HIT-UNRAISED": 1
 		},
 		"by_tool": {
 			"brew:attention": 1,
 			"brew:ghost": 1,
-			"brew:nonconforming": 45
+			"brew:nonconforming": 45,
+			"brew:watched": 6
 		},
 		"by_severity": {
-			"error": 41,
-			"warning": 7
+			"error": 46,
+			"warning": 8
 		}
 	},
 	"orphans": [],
@@ -921,6 +979,9 @@
 						"rating": "medium",
 						"rating_basis": "nvd",
 						"exploited_in_wild": false
+					},
+					"watch_hit": {
+						"topic": "cask quarantine after upgrade"
 					},
 					"id": "cask:codex#cve:CVE-2026-18408",
 					"id_stability": "anchored"
@@ -1494,6 +1555,216 @@
 				"W-STRUCT-UNCHECKED",
 				"W-SUG-DUP-ID",
 				"W-TITLE-LONG"
+			]
+		},
+		{
+			"id": "brew:watched",
+			"source": "brew",
+			"name": "watched",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "watched 1.0.1",
+					"url": "https://example.invalid/watched/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#101"
+					},
+					"title": "Watched change number 1",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 1 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "credential format written back to the Keychain"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 1 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23101",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#102"
+					},
+					"title": "Watched change number 2",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 2 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "a topic nobody ever stored"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 2 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23102",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#103"
+					},
+					"title": "Watched change number 3",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 3 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "cask quarantine after upgrade"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 3 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23103",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#105"
+					},
+					"title": "Watched change number 5",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 5 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 5 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23105",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#106"
+					},
+					"title": "Watched change number 6",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 6 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": "a bare string",
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 6 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23106",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#104"
+					},
+					"title": "Watched change number 4",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 4 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "credential format written back to the Keychain"
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23104",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures watched.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 5
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "routine",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"spec_violations": [
+				"E-FIELD-MISSING",
+				"E-FIELD-TYPE",
+				"E-WATCH-HIT-NOLOCAL",
+				"E-WATCH-HIT-UNGROUNDED",
+				"W-WATCH-HIT-UNRAISED"
 			]
 		},
 		{

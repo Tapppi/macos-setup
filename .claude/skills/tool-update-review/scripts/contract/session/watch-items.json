@@ -1,0 +1,16 @@
+{
+	"cask:codex": [
+		{
+			"topic": "cask quarantine after upgrade",
+			"note": "The bundled native binding is re-quarantined by every cask upgrade and nothing in setup.sh re-clears it; call out any change to how the archive is signed or stapled.",
+			"added_at": "2026-07-06"
+		}
+	],
+	"brew:watched": [
+		{
+			"topic": "credential format written back to the Keychain",
+			"note": "The 2026-06 investigation found the vendor rewrites the Keychain record on first run; flag any release touching it.",
+			"added_at": "2026-07-06"
+		}
+	]
+}

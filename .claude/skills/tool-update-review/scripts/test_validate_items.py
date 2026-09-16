@@ -68,19 +68,30 @@ def _item(**kw):
 
 
 def validate_one(research=None, candidate=None, roots=None, unconfigured=None,
-		manifest_root=None):
+		manifest_root=None, watch_topics=None):
 	"""→ (view, findings). One tool, straight through V2–V6, with the fixture's
 	own roots so nothing depends on what sits beside the repo."""
 	findings = V.Findings()
 	resolver = V.RootResolver(roots if roots is not None else FIXTURE_ROOTS,
 		unconfigured_roots=FIXTURE_UNCONFIGURED if unconfigured is None else unconfigured)
 	manifest = V.Manifest(manifest_root or MANIFEST_ROOT)
-	view = V.validate_tool(candidate or _candidate(), research, findings, resolver, manifest)
+	view = V.validate_tool(candidate or _candidate(), research, findings, resolver, manifest,
+		watch_topics=watch_topics)
 	return view, findings
 
 
 def codes(research=None, **kw):
 	return sorted({f["code"] for f in validate_one(research, **kw)[1].entries})
+
+
+def session_without_snapshot():
+	"""A copy of the published fixture session with watch-items.json removed —
+	the W-WATCH-UNCHECKED route. A copy, because the fixture is read-only."""
+	td = tempfile.mkdtemp()
+	session = os.path.join(td, "session")
+	shutil.copytree(FIXTURE_SESSION, session)
+	os.remove(os.path.join(session, "watch-items.json"))
+	return td, session
 
 
 def session_with(research_files, collect=None):
@@ -1597,6 +1608,144 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 			items=[_item(tags=["feature"], severity="notable")])
 		self.assertFalse(view["bucket_inputs"]["has_security"])
 		self.assertNotIn(view["initial_review_bucket"], ("security_auto", "security_mixed"))
+
+
+# ── I-20: watch-item hits ───────────────────────────────────────────────────
+def _hit_item(watch_hit, severity="notable", local=True, **kw):
+	item = _item(severity=severity, watch_hit=watch_hit, **kw)
+	if local:
+		item["local"] = {"direction": "unclear", "effect": "none",
+			"statement": "How this lands here.", "evidence": [], "citations": []}
+	return item
+
+
+class WatchHitTests(unittest.TestCase):
+	"""`watch_hit` is checker-authored and validator-grounded — the structured
+	successor to the retired `Watch item hit:` literal, which died of being an
+	unvalidated string. Every failure mode reports; nothing is dropped and no
+	severity is changed."""
+
+	TOPICS = frozenset({"a stored topic"})
+
+	def _codes(self, item, watch_topics=TOPICS):
+		research = {"id": "brew:x", "links": [], "items": [item]}
+		return codes(research, watch_topics=watch_topics)
+
+	def test_a_grounded_hit_raises_nothing_and_keeps_the_field(self):
+		item = _hit_item({"topic": "a stored topic"})
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [item]},
+			watch_topics=self.TOPICS)
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["items"][0]["watch_hit"], {"topic": "a stored topic"})
+
+	def test_extra_keys_inside_watch_hit_are_tolerated_and_kept(self):
+		"""Same rule as `change`/`local`/`security`: the top-level unknown-key
+		check does not recurse."""
+		item = _hit_item({"topic": "a stored topic", "note": "checker context"})
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [item]},
+			watch_topics=self.TOPICS)
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["items"][0]["watch_hit"]["note"], "checker context")
+
+	def test_an_unstored_topic_is_ungrounded_and_kept(self):
+		item = _hit_item({"topic": "a topic nobody ever stored"})
+		found = self._codes(item)
+		self.assertIn("E-WATCH-HIT-UNGROUNDED", found)
+		self.assertNotIn("W-WATCH-UNCHECKED", found)
+
+	def test_the_match_is_exact_after_strip_never_fuzzy(self):
+		"""A checker copies the string, it does not rewrite it."""
+		self.assertNotIn("E-WATCH-HIT-UNGROUNDED",
+			self._codes(_hit_item({"topic": "  a stored topic  "})))
+		self.assertIn("E-WATCH-HIT-UNGROUNDED",
+			self._codes(_hit_item({"topic": "A Stored Topic"})))
+
+	def test_grounding_is_per_tool_not_per_string(self):
+		"""A topic stored for another tool does not ground a hit here — the
+		empty set for this tool is not the same as no snapshot."""
+		found = self._codes(_hit_item({"topic": "a stored topic"}),
+			watch_topics=frozenset())
+		self.assertIn("E-WATCH-HIT-UNGROUNDED", found)
+		self.assertNotIn("W-WATCH-UNCHECKED", found)
+
+	def test_no_snapshot_degrades_to_unchecked_and_the_hit_is_kept(self):
+		item = _hit_item({"topic": "a topic nobody ever stored"})
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [item]})
+		found = {f["code"] for f in findings.entries}
+		self.assertIn("W-WATCH-UNCHECKED", found)
+		self.assertNotIn("E-WATCH-HIT-UNGROUNDED", found)
+		self.assertEqual(view["items"][0]["watch_hit"],
+			{"topic": "a topic nobody ever stored"})
+
+	def test_a_snapshotless_session_reports_unchecked_for_every_hit(self):
+		"""The session-level half of the same rule, on a copy of the published
+		corpus with watch-items.json removed."""
+		td, session = session_without_snapshot()
+		self.addCleanup(shutil.rmtree, td, True)
+		document = V.validate_session(session, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		by_code = document["counts"]["by_code"]
+		self.assertIn("W-WATCH-UNCHECKED", by_code)
+		self.assertNotIn("E-WATCH-HIT-UNGROUNDED", by_code)
+
+	def test_an_unreadable_or_wrong_typed_snapshot_is_reported_never_fatal(self):
+		td, session = session_without_snapshot()
+		self.addCleanup(shutil.rmtree, td, True)
+		for blob in ('{"truncated', '["not", "an", "object"]'):
+			with self.subTest(blob):
+				with open(os.path.join(session, "watch-items.json"), "w",
+						encoding="utf-8") as fh:
+					fh.write(blob)
+				document = V.validate_session(session, FIXTURE_ROOTS,
+					manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+				unreadable = [f for f in document["findings"]
+					if f["code"] == "E-RESEARCH-UNREADABLE"
+					and f["field"] == "watch-items.json"]
+				self.assertEqual(len(unreadable), 1)
+				self.assertIn("W-WATCH-UNCHECKED", document["counts"]["by_code"])
+
+	def test_a_hit_with_no_local_block_reports_both_findings(self):
+		"""E-WATCH-HIT-NOLOCAL fires independently of the topic checks."""
+		found = self._codes(_hit_item({"topic": "a topic nobody ever stored"},
+			local=False))
+		self.assertIn("E-WATCH-HIT-UNGROUNDED", found)
+		self.assertIn("E-WATCH-HIT-NOLOCAL", found)
+
+	def test_a_hit_at_info_is_reported_and_never_bumped(self):
+		"""Same doctrine as W-TITLE-LONG: bumping a severity is re-rating,
+		which is convergence's."""
+		item = _hit_item({"topic": "a stored topic"}, severity="info")
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [item]},
+			watch_topics=self.TOPICS)
+		found = {f["code"] for f in findings.entries}
+		self.assertIn("W-WATCH-HIT-UNRAISED", found)
+		self.assertEqual(view["items"][0]["severity"], "info")
+
+	def test_malformed_watch_hit_shapes_report_and_keep(self):
+		cases = (
+			({}, "E-FIELD-MISSING", "watch_hit.topic"),
+			({"topic": None}, "E-FIELD-MISSING", "watch_hit.topic"),
+			({"topic": 7}, "E-FIELD-TYPE", "watch_hit.topic"),
+			({"topic": "   "}, "E-FIELD-MISSING", "watch_hit.topic"),
+			("a bare string", "E-FIELD-TYPE", "watch_hit"),
+		)
+		for hit, code, field in cases:
+			with self.subTest(repr(hit)):
+				view, findings = validate_one(
+					{"id": "brew:x", "links": [], "items": [_hit_item(hit)]},
+					watch_topics=self.TOPICS)
+				matches = [f for f in findings.entries
+					if f["code"] == code and f["field"] == field]
+				self.assertEqual(len(matches), 1)
+				# Kept verbatim, whatever the shape.
+				self.assertEqual(view["items"][0]["watch_hit"], hit)
+
+	def test_a_non_dict_hit_raises_no_secondary_findings(self):
+		"""A bare-string watch_hit is one E-FIELD-TYPE, not a cascade — the
+		local/severity checks apply to a *claim*, which a non-object is not."""
+		found = self._codes(_hit_item("a bare string", severity="info", local=False))
+		self.assertNotIn("E-WATCH-HIT-NOLOCAL", found)
+		self.assertNotIn("W-WATCH-HIT-UNRAISED", found)
 
 
 if __name__ == "__main__":

@@ -286,6 +286,18 @@
 			"type": "bool",
 			"required": "yes if security present",
 			"note": "vendor/CISA says so"
+		},
+		{
+			"name": "watch_hit",
+			"type": "object|null",
+			"required": "no",
+			"note": "set iff this item answers a stored watch item for this tool"
+		},
+		{
+			"name": "watch_hit.topic",
+			"type": "string",
+			"required": "yes if watch_hit present",
+			"note": "VERBATIM copy of the stored watch item's `topic`"
 		}
 	],
 	"limits": {
@@ -552,6 +564,16 @@
 			"invariant": null,
 			"summary": "a validator stage failed on this tool; it is kept with what conformed"
 		},
+		"E-WATCH-HIT-NOLOCAL": {
+			"severity": "error",
+			"invariant": "I-20",
+			"summary": "a watch-item hit with no `local` block"
+		},
+		"E-WATCH-HIT-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-20",
+			"summary": "`watch_hit.topic` names no stored watch item for this tool"
+		},
 		"W-ATTENTION-NOSUG": {
 			"severity": "warning",
 			"invariant": "I-15",
@@ -596,6 +618,16 @@
 			"severity": "warning",
 			"invariant": null,
 			"summary": "title is longer than the glanceable bar; detail belongs in body"
+		},
+		"W-WATCH-HIT-UNRAISED": {
+			"severity": "warning",
+			"invariant": "I-20",
+			"summary": "a watch-item hit left at `info`; a watched topic earns at least `notable`"
+		},
+		"W-WATCH-UNCHECKED": {
+			"severity": "warning",
+			"invariant": "I-20",
+			"summary": "a watch-item hit could not be checked against the stored watch items"
 		}
 	},
 	"anchor_grammars": {
