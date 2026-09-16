@@ -1015,9 +1015,12 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 		# Recomputed from the view by the one shared function, so the block
 		# and the fields beside it cannot disagree.
 		"degradation": model.compute_degradation(view),
-		# Grounded watch hits only (I-20) — what the highlight and the page's
-		# badge read. The raw claim is on the items and bars pre-acceptance;
-		# prominence needs verification.
+		# Grounded watch hits only (I-20) — what the 70-point highlight
+		# reads, and what the item badge must read once it exists (not yet
+		# built: the template renders no watch-hit marker today — wiring a
+		# future badge to the raw claim instead would re-open the
+		# unvalidated channel). The raw claim is on the items and bars
+		# pre-acceptance; prominence needs verification.
 		"watch_hit_item_ids": list(view.get("watch_hit_item_ids") or []),
 		"links": list(view.get("links") or []),
 		"config_status": view.get("config_status") or {"state": "unknown", "detail": "", "evidence": []},

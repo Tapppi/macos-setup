@@ -236,11 +236,14 @@ re-open a promotion route: it is not read by `recompute_flags`,
 `allowed_for_security_only`, `compute_impact`, `compute_security_only` or
 `compute_risk_level`; it is not a tier of `item_sort_key` or
 `security_display_sort_key` — two items identical on every tier sort by id,
-and prominence is delivered by the 70-point `watch_item_hit` highlight and the
-item badge — both reading the view's `watch_hit_item_ids` export, i.e.
-**grounded hits only**: an ungrounded, malformed or unchecked hit bars
-pre-acceptance (fail-closed) but earns no prominence — never by reordering a
-card's body.
+and prominence is delivered by the 70-point `watch_item_hit` highlight,
+which reads the view's `watch_hit_item_ids` export, i.e. **grounded hits
+only** — an ungrounded, malformed or unchecked hit bars pre-acceptance
+(fail-closed) but earns no prominence — never by reordering a card's body.
+An item badge for a hit is **not yet built**: the template renders no
+watch-hit marker today. When it is built it must read the same
+`watch_hit_item_ids` export, never the raw `watch_hit` claim — wiring it to
+the claim would re-open the unvalidated channel this field exists to close.
 
 ## 3. The evidence split
 
