@@ -2086,6 +2086,27 @@ class WatchHitTests(unittest.TestCase):
 		self.assertEqual(findings.entries, [])
 		self.assertEqual(view["items"][0]["watch_hit"], {"topic": "a stored topic"})
 
+	def test_a_research_stage_crash_does_not_zero_the_grounded_export(self):
+		"""`watch_hit_item_ids` is a pure function of `view["items"]`, so it
+		is computed in `_derive_axes` beside `security_display_item_ids` —
+		deliberately. When it lived in `_read_research`, a crash after the
+		items were populated (order_items, config_status) left the sibling
+		intact — recomputed downstream from the surviving items — while this
+		list stayed [], and a genuinely grounded hit silently lost its
+		70-point highlight with every other item-derived export unharmed."""
+		item = _hit_item({"topic": "a stored topic"})
+		with mock.patch.object(model, "order_items",
+				side_effect=RuntimeError("boom")):
+			view, findings = validate_one(
+				{"id": "brew:x", "links": [], "items": [item]},
+				watch_topics=self.TOPICS)
+		# The stage failure is on the record…
+		self.assertTrue(view["validator_error"])
+		self.assertIn("E-VALIDATOR-CRASH", {f["code"] for f in findings.entries})
+		# …and the grounded hit still earns its prominence.
+		self.assertEqual(view["watch_hit_item_ids"],
+			["brew:x#issue:org%2Frepo%231"])
+
 	def test_extra_keys_inside_watch_hit_are_tolerated_and_kept(self):
 		"""Same rule as `change`/`local`/`security`: the top-level unknown-key
 		check does not recurse."""

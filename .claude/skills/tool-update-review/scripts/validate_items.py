@@ -1338,7 +1338,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 
 	# version delta, then the derived axes, in dependency order.
 	_guard(view, findings, "derived axes",
-		lambda: _derive_axes(view, candidate, findings))
+		lambda: _derive_axes(view, candidate, findings, watch_topics))
 	return view
 
 
@@ -1436,13 +1436,6 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 		normalized.append(item)
 		quarantine.extend(item_quarantine)
 	view["items"] = model.order_items(normalized)
-	# The GROUNDED hits, exported like security_display_item_ids: the 70-point
-	# highlight and the page's badge read this list, never the raw claim —
-	# scoring an unverified topic would let a paraphrase displace a genuine
-	# highlight, the unvalidated-channel failure the field exists to kill.
-	# The claim itself (has_watch_hit) still bars pre-acceptance unverified.
-	view["watch_hit_item_ids"] = [i["id"] for i in view["items"]
-		if model.grounded_watch_hit(i, watch_topics)]
 	view["config_status"] = _validate_config_status(view, research, findings, tool_id,
 		resolver)
 	suggestions, subject_refs, sug_quarantine = _validate_suggestions(
@@ -1455,7 +1448,7 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 	_check_flags(research, view, findings, tool_id)
 
 
-def _derive_axes(view, candidate, findings):
+def _derive_axes(view, candidate, findings, watch_topics=None):
 	"""V5 and V6. Reads only what is on the view, and `research_produced_content`
 	refuses to read a view that a failed stage left incomplete — so a tool whose
 	research stage failed lands on `unknown`/`elevated`/`attention`, exactly
@@ -1530,6 +1523,20 @@ def _derive_axes(view, candidate, findings):
 		security_only, impact, risk_level, runnable)
 	view["security_display_item_ids"] = [
 		i["id"] for i in model.security_display_items(view["items"])]
+	# The GROUNDED hits, exported beside security_display_item_ids and
+	# computed in the same stage deliberately: both are pure functions of
+	# view["items"], and when this one lived in _read_research a crash after
+	# the items were populated (order_items, config_status) zeroed it while
+	# its sibling — computed here, from the surviving items — was fine, so a
+	# genuinely grounded hit silently lost its 70-point highlight. That
+	# highlight reads this list, and the item badge (not yet built — the
+	# template renders no watch-hit marker today) must read it too when it
+	# exists: never the raw `watch_hit` claim, whose scoring would let a
+	# paraphrase displace a genuine highlight — the unvalidated-channel
+	# failure the field exists to kill. The claim itself (has_watch_hit)
+	# still bars pre-acceptance unverified.
+	view["watch_hit_item_ids"] = [i["id"] for i in view["items"]
+		if model.grounded_watch_hit(i, watch_topics)]
 	# Criterion 17 makes convergence responsible for every tagged proposal, so
 	# the tagged set is exported rather than left to be re-derived from prose.
 	view["self_test_tagged_suggestion_ids"] = _self_test_tagged_ids(
