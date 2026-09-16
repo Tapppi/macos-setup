@@ -9,8 +9,8 @@
 #      `.claude/settings.local.json` (enabledPlugins). This covers both
 #      third-party marketplace plugins (e.g. `frontend-design@claude-plugins-
 #      official`) and our own skills that have been wrapped as plugins (e.g.
-#      `browser@tapppi-skills`, published by
-#      dotfiles/config/agent-skills/.claude-plugin/marketplace.json) —
+#      `browser@tapppi-skills`, published by the Tapppi/skills repo's
+#      .claude-plugin/marketplace.json, checked out at SKILLS_ROOT) —
 #      unlike raw skills, Claude Code has no `enabledSkills` toggle, so a
 #      skill only gets this per-project scoping if it's packaged as a plugin.
 #      The `tapppi-skills` marketplace at SKILLS_ROOT is registered so its
@@ -56,7 +56,7 @@
 # p1/p2/p3 are provided by setup.sh when sourced via ./setup.sh projects.
 
 PROJECT_ROOT="${HOME}/project"
-SKILLS_ROOT="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-skills"
+SKILLS_ROOT="${HOME}/project/github/tapppi/skills"
 
 # Define Function =projects_warn=
 projects_warn() {
@@ -96,7 +96,7 @@ projects_resolve_path() {
 # extraKnownMarketplaces binds the same name to GitHub `anthropics/skills` so
 # that `document-skills@anthropic-agent-skills` is fetched from Anthropic
 # rather than vendored (their licence forbids redistribution — see
-# dotfiles/config/agent-skills/anthropics/CUSTOMISATION.md). A `find` hit
+# the Tapppi/skills repo's anthropics/CUSTOMISATION.md). A `find` hit
 # rebinds the name to the local tree, which no longer carries that plugin, so
 # the install resolves against the wrong source or fails. Everything meant to
 # be installable from this machine is listed in the root manifest, so nothing
@@ -105,7 +105,7 @@ projects_ensure_marketplaces() {
 	command -v claude >/dev/null 2>&1 || return 0
 
 	if [[ ! -f "${SKILLS_ROOT}/.claude-plugin/marketplace.json" ]]; then
-		projects_warn "no marketplace manifest at ${SKILLS_ROOT}/.claude-plugin/ — run './setup.sh dotfiles' first"
+		projects_warn "no marketplace manifest at ${SKILLS_ROOT}/.claude-plugin/ — clone Tapppi/skills there first"
 		return 0
 	fi
 	if claude plugin marketplace add "${SKILLS_ROOT}" >/dev/null 2>&1; then

@@ -475,6 +475,14 @@ install_agent_skills_venv() {
 		defusedxml lxml \
 		openpyxl pandas
 
+	# The browser bundle's deterministic mode (tapppi/skills, browser:browser)
+	# drives Playwright from Python scripts run with this interpreter; the MCP
+	# servers in that bundle bring their own browser, this one needs its own.
+	# `playwright install` is idempotent: it downloads only what is missing.
+	p3 "Installing Python Playwright and its Chromium for the browser bundle..."
+	uv pip install --python "${venv_python}" --quiet playwright
+	"${venv_dir}/bin/playwright" install chromium
+
 	p2 "Agent-skills venv ready at ${venv_dir}"
 }
 
@@ -563,6 +571,20 @@ install_claude_code() {
 	claude plugin marketplace add anthropics/skills
 	claude plugin marketplace update anthropic-agent-skills
 	claude plugin install document-skills@anthropic-agent-skills
+
+	# The tapppi-skills marketplace is the Tapppi/skills checkout itself — the
+	# tracked settings name it as a directory source. The repo is private, so
+	# the clone goes over SSH through the 1Password agent; a checkout that
+	# already exists is left exactly as it is, whatever branch it is on.
+	local skills_root="${HOME}/project/github/tapppi/skills"
+	if [[ ! -d "${skills_root}/.git" ]]; then
+		p3 "Cloning Tapppi/skills to ${skills_root}..."
+		mkdir -p "$(dirname "${skills_root}")"
+		git clone git@github.com:Tapppi/skills.git "${skills_root}" ||
+			p1 "Clone of Tapppi/skills failed; tapppi-skills plugins will not resolve until it exists."
+	fi
+	claude plugin marketplace add "${skills_root}"
+	claude plugin install skill-creator@tapppi-skills
 
 	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
@@ -671,7 +693,7 @@ install_dotfiles() {
 
 	if [[ "${bootstrap_status}" -ne 0 ]]; then
 		p2 "WARNING: dotfiles/bootstrap.sh exited ${bootstrap_status} — the sync is incomplete."
-		p3 "rsync exit 23 usually means a mirrored source directory no longer exists."
+		p3 "The code is rsync's own (23 is a partial transfer); bootstrap.sh names the sync that failed."
 		p3 "Re-run './setup.sh dotfiles' after fixing, or ~ will stay partially synced."
 	fi
 
