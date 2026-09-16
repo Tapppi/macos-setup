@@ -30,41 +30,61 @@ reviewer should hold any run to — are the invariants in §Summary Counts and
 Output.
 
 ## Overview
-
 ```sh
 python3 scripts/assemble.py {session_dir} \
 	[--macos-setup-root PATH] [--dotfiles-root PATH] \
 	[--systems-root ~/project/github/tapppi/systems]
 ```
 
-merges `collect.sh`'s saved output (`collect.json`, step 1 — see
-`references/collection.md`) with every `research/*.json` file written in step
-3 (see `references/research.md`) into the single report object
-(`references/schemas.md` §Report Object), and writes
-`{session_dir}/report.json`. This is purely mechanical/structural work — it
-normalizes research's free-form arrays into schema shapes, enforces
-suggestion-id uniqueness, validates evidence paths, applies a real
-`needs_sudo` heuristic, computes every derived triage field
-(`version_delta`/`version_scheme`/`version_delta_note`, `security`,
-`risk_level`, `review_bucket`, per-suggestion `pre_accept`), ranks
-`highlights[]`, and computes the `summary` counts and rollups — none of it is
-a subjective per-tool judgment left to research, so every run applies the
-same rule the same way.
+runs the deterministic validator over `{session_dir}/research/*.json`, merges
+its per-tool views with `collect.sh`'s saved output (`collect.json`, step 1 —
+see `references/collection.md`) and writes four files:
 
-**One entry point, one dependency order.** `finalize_tool(tool)` is the last
-statement of *every* build path (`build_tool`, `build_health_tool` and
-`build_drift_tool`), so a health finding, a vendored-skill drift finding and
-a version-outdated tool can never disagree about what a field means. It
-computes, strictly in this order:
+| File | What |
+|---|---|
+| `report.json` | the report (`references/schemas.md` §Report Object) |
+| `validation.json` | the validator's full document — the **pre-convergence artifact** |
+| `assemble.warn` | the spec-conformance channel for the run and nothing else, one finding per line, code-prefixed. **A clean run leaves it empty.** |
+| `assemble.log` | everything that is not a conformance finding: what assembly did, renamed, or could not do. Also echoed to stderr. |
+
+**The item corpus is not read here.**
+`validate_items.validate_session()` (`references/item-schema.md`) owns loading,
+spec validation, normalization, id assignment, the eighteen invariants,
+`impact`, `risk_level` and the initial bucket. Assembly consumes the views it
+returns. That boundary is the point rather than a tidiness preference: two
+implementations of "does this release touch this setup" is exactly the drift
+`REDESIGN.md` §C3 exists to remove, and one of them would have been a regex
+away from the `brew:libpq` defect.
+
+What assembly still owns, because none of it is a judgement about an item:
+
+- the **version delta** (§Version Delta) — the page renders it;
+- the synthesized baseline `kind: "upgrade"` suggestion, per source
+  (§Baseline Suggestion Synthesis);
+- the `needs_sudo` heuristic;
+- **suggestion-id uniqueness** across the whole report — the validator
+  *reports* a collision (`W-SUG-DUP-ID`) and changes nothing; renaming is a
+  rendering necessity;
+- per-suggestion **`pre_accept`**, which needs the baseline the validator has
+  never seen;
+- `highlights[]` and the report-level `summary`;
+- the tool-level **CVE rollup**, recomputed from `items[]`.
+
+**One entry point, one dependency order.** `finalize_tool(tool, view)` is the
+last statement of *every* build path (`build_tool`, `build_health_tool` and
+`build_drift_tool`), so a health finding, a vendored-skill drift finding and a
+version-outdated tool can never disagree about what a field means. It computes,
+strictly in this order:
 
 ```text
 version_delta ─→ security ─→ risk_level ─→ review_bucket ─→ pre_accept
 ```
 
-Anything else produces stale reads: `review_bucket` needs `risk_level`, which
-needs `version_delta`; `pre_accept` needs both `risk_level` and
-`review_bucket`. Two ordering constraints relative to `main()` matter just as
-much:
+The middle three now come straight off the view — `impact`, `risk_level` and
+the bucket are stage V5/V6 output — so the order matters for one reason only:
+`pre_accept` reads both `risk_level` and `review_bucket`.
+
+Two ordering constraints relative to `main()` still matter:
 
 1. **`finalize_tool()` runs before the suggestion-id uniqueness pass.**
    `baseline_upgrade()` identifies the baseline by position + `kind` + a
@@ -78,149 +98,114 @@ much:
    an earlier tool's research suggestion squats on this tool's baseline id
    renames the baseline, so `score_tool()` can no longer see it and the tool
    loses its 10-point `manual_action` signal. `review_bucket`/`pre_accept`
-   were already computed, and the rename pass warns naming both ids.
+   were already computed, and the rename pass logs a note naming both ids.
 
 Every derived field above has a test: `python3 scripts/test_assemble.py` runs
-the version matrix (§Version Delta), the end-to-end semantic fixtures
-(§Security Extraction, §Review Buckets and Pre-Accept — one per source
-behaviour worth pinning, including a `skill-drift` pair covering the
-decision-required and expected cases), the two regexes, the
-shape-drift cases (§Loading and Merging), and the report-level invariants
-(§Summary Counts and Output) — stdlib `unittest` only, no network, on the same
-bare `python3` `assemble.py` itself targets. Run it after changing any of
-them.
+the version matrix (§Version Delta), the end-to-end semantic fixtures over the
+item model, the CVE scan and claim cases, the shape-drift and degradation
+cases, the report-level invariants (§Summary Counts and Output) and the
+assembly ↔ page contract — stdlib `unittest` only, no network, on the same
+bare `python3` `assemble.py` itself targets. Run it after changing any of them.
 
-`--systems-root` defaults to `~/project/github/tapppi/systems` and rarely
-needs overriding — pass it explicitly only if the harness mounts that repo
-somewhere else. It exists because `references/research.md` and
-`references/research-prompt-template.md` both tell every research subagent to
-scan and cite that repo for relevancy, so evidence validation (below) needs
-it as a checkable root too, alongside `--macos-setup-root`/`--dotfiles-root`.
+`--systems-root` defaults to `~/project/github/tapppi/systems` and rarely needs
+overriding — pass it explicitly only if the harness mounts that repo somewhere
+else. It exists because every research subagent is told to scan and cite that
+repo for relevancy, so **evidence resolution** (the validator's, now) needs it
+as a root alongside `--macos-setup-root`/`--dotfiles-root`.
 
-This replaces the ad hoc hand-assembly used before this script existed, which
-silently skipped two documented rules: it blanket-set `needs_sudo: false` on
-every synthesized upgrade suggestion (the schema says default `true` when
-unsure) and never checked that cited evidence paths actually exist. Both are
-now enforced in code instead of being re-derived — and re-skipped — by hand
-each run.
-
-After writing `report.json`, run:
-
-```sh
-python3 scripts/render.py /tmp/tool-update-review-{report_id}/report.json
-```
-
-which injects it into `assets/report-template.html` and writes `index.html`
-(plus a copy of `server.py`, for session-dir self-containedness — the live
-server keeps running off the skill's own copy). **Immediately after**, update
-`research-status.json` to `phase: "ready"` — see
-`references/server-and-session.md` §Pre-Report Status for that write and the
-loading page's polling contract; assembly's own job ends at `report.json` and
-`index.html`.
-
-`collect.sh` uses `brew outdated --greedy` so `auto_updates: true`/
-`version :latest` casks (self-updating desktop apps) aren't silently skipped
-by the version-outdated candidate list assembly reads — that rationale is
-about what `collect.sh` emits, not assembly itself; see
-`references/collection.md` §Version Sources.
+**Every measured figure below comes from one recorded session** and is
+illustrative, not normative. Research content is what every classifier reads,
+so a fresh run moves each distribution: a report whose buckets no longer split
+the way this doc records is not by itself evidence that a classifier broke. The
+claims that *are* normative are the invariants in §Summary Counts and Output.
 
 ## Loading and Merging
+`validate_session()` reads `collect.json` and every `research/*.json`, and
+returns one **view** per candidate. Assembly indexes the views by tool id and
+builds a Tool object from `view + candidate`. Every array on the Tool object
+that carries item-model content — `items`, `quarantine`, `links`,
+`config_status`, `vendor_silent_categories`, `suggestions` — is the view's,
+already spec-checked, normalized, id-assigned and in canonical order.
 
-`load_research()` reads every file in `{session_dir}/research/`, in sorted
-filename order. Every research file is a JSON array regardless of tier
-(individual-focus or batched — see `references/research.md` §Tiering); a file
-that isn't a JSON array is skipped with a warning rather than aborting the
-run. Each array element must carry its own `"id"` field (matching a
-`collect.sh` candidate's `{source}:{name}`) — an entry with no `id` is
-skipped with a warning. If two research files both write an entry for the
-same `id`, the later file (by sorted filename) silently overwrites the
-earlier one, with a warning to stderr — this shouldn't happen given how
-tiering partitions tools, but assembly doesn't treat it as fatal.
+Assembly reads the **raw** research object for exactly two fields the item
+model does not cover (`references/item-schema.md` §6): `release_inventory[]`,
+which is bookkeeping about the release cadence rather than a claim about any
+change, and `cask_sudo_hint`, a per-source packaging hint the `needs_sudo`
+heuristic reads. That is the whole of assembly's remaining contact with
+free-form research output, and `as_item_list()` guards it the same way it
+always did.
 
-Candidates are assembled from `collect.json` in this order: `brew`, `mise`,
-`standalone`, `macos`, then `brew_health.findings` and
-`skill_drift.findings` appended last — so the two non-version sources
-sort/render as their own groups after the version-outdated tools. Both are
-read defensively (`obj.get("findings", [])` only when `obj` is a dict, `[]`
-otherwise), because a `collect.json` from an older run has neither key and a
-partial run can have one of them as `null`; a missing source costs its
-cards, never the report. A tool with no matching research entry (subagent
-failure/timeout)
-still gets a Tool object built, just with `research_error` set and no
-headliners/suggestions beyond what the collect candidate itself carries.
+**Degradation is per unit and loud, at four boundaries.** A malformed file
+costs that file; a malformed entry costs that entry; a malformed item costs
+that item's *checks* and never the item itself; a candidate assembly cannot
+build costs one card. Nothing costs the run. The validator owns the first
+three (`references/item-schema.md` §8); `build_tool_guarded()` owns the fourth,
+checking the identity keys first — `build_tool()` reads
+`candidate["source"]`/`["id"]`/`["name"]` directly and a KeyError there names
+only the key, never the candidate it came from — and then running the build
+inside a boundary that catches the next unanticipated shape.
 
-`repo_context.json` (from step 1's `repo_context.sh`, see
-`references/collection.md` §Repo Freshness) is read and merged into the
-report verbatim under `repo_context`. If it's missing at assemble time,
-`assemble.py` warns and falls back to an empty/`up_to_date` placeholder for
-both `macos_setup` and `dotfiles` rather than failing the whole run.
+**A tool the validator could not read is never promoted.** `validator_error`
+forces `impact: "unknown"` and `risk_level: "elevated"`, and no auto-accepting
+bucket accepts either. A stage that failed halfway leaves a view missing
+exactly the content it had not reached yet — the breaking item, the structural
+suggestion — so a bucket computed from what survived would pre-accept a tool
+*because* the thing holding it back is the thing that went missing.
+
+`spec_violations[]` and `quarantine[]` ride along on every Tool object, so a
+consumer sees a degraded tool without opening `validation.json`.
 
 ### Shape Normalization at the Research Boundary
+Owned by the validator, not by assembly (`references/item-schema.md` §7, stage
+V3). The rule it applies is narrower than the one it replaced, and the
+narrowing is the point: **only the normalizations the schema licenses by name**
+— `null` → `[]`, a non-list → `[]` with a finding, an evidence shorthand string
+→ its object form, a wrong-typed array member **quarantined on the tool rather
+than dropped**.
 
-Research output is agent-written free-form JSON, so every array the schema
-declares eventually comes back in the wrong shape. `as_item_list()`
-normalizes all seven of them — `headliners`, `links`, `relevancy`, `context`,
-`release_inventory`, `suggestions`, `vendor_silent_categories` (whose members
-are strings, not objects) — at the one boundary where a research object
-becomes a Tool object, in **both** `build_tool` and `build_health_tool`.
-Nothing downstream re-checks a shape.
+Everything else is reported and left exactly as written. A malformed evidence
+string is not moved to `citations[]`; an unrecognized tag is not dropped; an
+over-long title is not truncated; two items deriving one id are not merged.
+Each of those would be a regex deciding what a field means, which is the
+banned behaviour (criterion 1).
 
-The doctrine is the same one `normalize_config_status()` and
-`as_evidence_list()` already apply, generalized: `dict.get(key, default)`
-only substitutes the default when the key is *absent*, so a present-but-null
-`"relevancy": null` reaches `for item in …` as `None`, and a drifted
-`"headliners": "no notable changes"` (or `["a change"]`, or `{"text": …}`)
-reaches `item.get(…)` as a string. Both used to abort the run — and **one
-report is assembled from ~22 research files covering ~77 tools**, so a single
-drifted file destroyed the whole report *after* the expensive part of the
-session was already spent. The rule now:
-
-- a non-list value → `[]`, with a warning naming the tool, the field and the
-  actual type;
-- a list with wrong-typed members → the good members kept, each bad one
-  dropped with its own warning;
-- `null` → `[]`, silently (an omitted array and a null array mean the same
-  thing).
-
-**Degrade to one warned-about tool, never abort, never silently swallow.** A
-tool whose `headliners` were dropped still gets a card, a baseline
-suggestion, and a full triage classification — it just classifies as
-"research told us nothing", which is what `risk_level` and `impact` already
-have vocabulary for (§Risk Level). This tolerance is a robustness contract,
-not a licence: a drifted research file is still a research bug and still
-prints a warning, and `references/research.md` §Schema Strictness is where a
-subagent is told not to produce one.
+Assembly keeps one normalizer, `as_item_list()`, for the two raw research
+fields the item model does not cover (§Loading and Merging). Same doctrine:
+`dict.get(key, default)` only substitutes when the key is *absent*, so a
+present-but-null `"release_inventory": null` reaches `for entry in …` as
+`None`; coerce, note, never abort.
 
 ### The Later Boundaries: One Bad Unit Never Costs the Report
+One report is assembled from ~22 research files over ~78 candidates, after the
+expensive part of the session is already spent. Anything that can only be wrong
+about *one* unit must cost that unit and leave the rest rendering.
 
-Normalizing the arrays is not enough on its own, because a shape can also be
-wrong at a place `as_item_list()` never sees. Five later steps therefore each
-carry a per-unit boundary of their own, all following the same rule — contain
-it, name what was dropped on stderr, keep going:
+| Boundary | Owner | A failure costs |
+|---|---|---|
+| one research file | validator (V1) | that file |
+| one entry in a file | validator (V1) | that entry — recorded in `validation.json.orphans` |
+| one item inside an entry | validator | that item's **checks**, never the item: it is kept verbatim with its assigned id |
+| one validation stage | validator | that stage's checks; whatever conformed before it stays, and the tool's derived axes read `unknown` |
+| one candidate | `build_tool_guarded()` | one card |
+| one tool's highlight | `build_highlights()` | that tool's slot |
 
-| Boundary | Unit it protects | What used to abort the run |
-| --- | --- | --- |
-| `load_research()` | one research file, then one entry in it | a file `json.load` cannot decode (not an `OSError` and not a `ValueError`); a bare string where an object belongs |
-| `read_candidate_list()` | one `collect.json` version section, then one candidate | `"mise": null` reaching `list + None`; a candidate that is not an object |
-| `build_tool_guarded()` | one candidate's Tool object | `candidate["source"]`/`["id"]`/`["name"]`, whose `KeyError` names the key but never the candidate |
-| `validate_evidence()` per tool | one tool's citations | a structured citation (`{"path": …}`) reaching a regex that wants a string |
-| `build_highlights()` per tool | one tool's highlight slot | a severity that is not hashable; prose nested one level too deep reaching `.split()` |
+The last two are assembly's. `build_tool_guarded()` checks the identity keys
+first, because `build_tool()` reads `candidate["source"]`/`["id"]`/`["name"]`
+directly and a KeyError there names only the key, never the candidate. Then the
+build runs inside a boundary that catches the next unanticipated shape and logs
+which card was lost.
 
-Two reads deserve naming because they are the ones an `==` comparison does
-*not* survive. A **rank lookup** (`_SEVERITY_RANK.get(value)`) raises
-`TypeError: unhashable type` on `"severity": ["warning"]`, so every one goes
-through `severity_rank()`; and a **suggestion id** is a dict key in the
-uniqueness pass, so a non-string one is discarded (with a warning) and
-re-minted rather than carried into `sid in seen_ids`.
+`build_highlights()` contains both of its loops per tool for the same reason:
+highlights are a *derived* section, so one tool whose shape it cannot read must
+cost that tool its slot and nothing else. Losing the whole report — and with it
+the 77 cards that are fine — over a ranking is the trade this pass exists to
+refuse.
 
-`repo_context.json` is the one *optional* input and degrades to a placeholder
-on any read failure. `collect.json` is the one input that does not degrade at
-all — it **is** the candidate set — so an unreadable or non-object
-`collect.json` exits 1 naming the file and the shape, which a traceback out of
-`collect.get(…)` three lines later does not.
+Fuzz-tested rather than asserted: `scratch/spof/repro/fuzz.py` holds
+`assemble.main()` at **0 of 346** hostile shapes aborting, and the validator's
+session-level twin at **0 of 282**.
 
 ## Suggestion-ID Uniqueness
-
 Suggestion ids must be unique **globally across the whole report**, not just
 within one tool's `suggestions[]` — a collision almost always means a
 research subagent copied an id pattern rather than deriving it from its own
@@ -244,39 +229,34 @@ This pass runs *between* `finalize_tool()` and `build_highlights()`, which is
 the ordering the Overview above spells out.
 
 ## Evidence Validation
+**Assembly no longer validates evidence.** The whole machinery —
+`evidence_exists()`, `strip_evidence_suffixes()`, `_COMMIT_LIKE`,
+`_TRAILING_PAREN`, `_TRAILING_LINE_REF` — is gone, along with the conflation
+that made it necessary.
 
-Every `relevancy[]` and `context[]` item's `evidence`, plus
-`config_status.evidence`, gets checked: a string that looks like a
-`path`, `path:line`, or `path:line-line` (a range, e.g. `Brewfile:83-87`) —
-optionally followed by a human-readable ` (description)` parenthetical
-(e.g. `tasks/install.sh:56-104 (install_podman_intel)`) — has both the
-parenthetical and the line locator stripped, in that order, down to the real
-path, then resolved against the macos-setup, dotfiles, and **systems**
-(`--systems-root`, above) repo roots (absolute paths checked directly). A
-research subagent sometimes prefixes a citation with its own repo's
-directory name (e.g. `systems/flake.nix:1`, mirroring `dotfiles/config/...`
-for the dotfiles submodule) — the `dotfiles/` case already happened to
-resolve under `--macos-setup-root` purely because the submodule is
-physically nested inside that checkout, but `systems/` has no such nesting
-under any root, so evidence checking also retries with a leading
-`{root's own directory name}/` segment stripped before giving up on that
-root. A string that looks like a commit citation (`commit …` or a bare 7–40
-char hex prefix) is left alone — nothing to check. Anything else that
-doesn't resolve under any of the three roots (with or without that prefix
-retry) is **warned about, never dropped** — a bad citation is a
-research-quality problem worth surfacing to whoever's watching the run, not
-a reason to silently strip content the human reviewer would otherwise have
-seen.
+Under the item model, `local.evidence[]` holds **paths only, as objects**
+(`{path, lines, note}`) and prose citation has its own field
+(`local.citations[]`, `change.citation`). The validator resolves the paths
+against the configured repo roots and reports three outcomes — resolves,
+`W-EVID-ROOT` (resolves only under a known-but-unconfigured sibling repo),
+`E-EVID-404` (resolves nowhere) — and **never fetches a URL or path-checks a
+citation**, because a citation is not checkable, so it is not checked, so it
+cannot warn.
 
-Evidence is normalized to a list first: the schema (`references/schemas.md`)
-requires evidence to always be an array; a research subagent that returns a
-bare string instead would make a naive `for ev in evidence` iterate
-individual characters. Assembly coerces a bare string into a one-element
-list and warns, rather than corrupting the rest of the validation output with
-single-letter "evidence" entries.
+That split is why the channel is worth reading now. On the recorded run, 272 of
+275 `assemble.warn` lines were `evidence not found`, of which exactly **one**
+was a genuinely wrong path. 140 of the warned strings had a leading path token
+that resolves once the prose is split off it; the rest were prose that should
+never have been path-checked at all.
+
+`config_status` gets the same split, and it was the worst offender: 133 of
+those 272 warnings, against 286 evidence strings.
+
+Detail, including the accepted shorthand forms and why a malformed entry is
+**reported and kept** rather than moved to `citations[]`:
+`references/item-schema.md` §3.
 
 ## Version Delta
-
 `compute_version_delta(current, latest, source, tool_id=None) -> (delta,
 scheme, note)` is the only function callers use; the three values land on the
 Tool object as `version_delta`, `version_scheme` and `version_delta_note`
@@ -295,7 +275,6 @@ interpret returns `unknown`, and every ambiguous positional call rounds *up*
 in significance, never down.
 
 ### The algorithm, in order
-
 1. **Non-version sources short-circuit.** `source in ("brew-health",
    "skill-drift", "macos")` → `("unknown", "none", "no version delta for
    this source")`. brew-health and skill-drift have no versions at all
@@ -352,7 +331,6 @@ deliberately *not* used for semver index ≥ 3: ImageMagick's `7.1.2-27 →
 7.1.2-29` is a real upstream patch level, so that is `"patch"`.
 
 ### Worked examples — this table is the test matrix
-
 Every row below is a real `current → latest` pair from a live run and is
 executed as a parametrized case by `scripts/test_assemble.py` (§1, `VERSION_
 MATRIX`). The point of writing them down is that the next person changing the
@@ -406,54 +384,43 @@ reads `data-delta` for its "Major delta first" sort rather than re-parsing
 versions client-side.
 
 ## Security Extraction
-
-`compute_security(tool)` produces the `security` object on every Tool
-(`references/schemas.md` §1.9 for the key-by-key contract). This section is
-the *why* behind each boundary — every one of them is a real regression from
-a live run, not a hypothetical.
+The tool-level `security` object (`references/schemas.md` §1.9). Every field is
+derived; there is no research-supplied half any more.
 
 ### Field scope, in and out
+A CVE id reaches `cve_ids` two ways.
 
-CVE ids are scanned from exactly:
+**Structurally** — `item.security.cve_id`, or a `cve`-kind `item.anchor`. This
+is the field the item model built for the purpose, and it is why
+`security.cve_severities[]` could be deleted: per-CVE grading lives on the item
+that carries the CVE, so there is no second list to reconcile against the
+first.
 
-- `headliners[].text`
-- `relevancy[].summary`, `.detail`, `.motivating_change`
-- `context[].title`, `.detail`
-- `security.notable[].cve_id`, `.summary`
+**By scanning** — `item.title`, `item.body`, `item.change.citation` and
+`item.local.statement`. All four are prose about *this* current→latest range by
+construction. The scan survives the schema change because understating is the
+failure mode with a cost: an id a checker names in a body but forgets to put in
+`security.cve_id` is still an advisory the user is being asked about, and
+`cve_count` is defined as the size of this list.
 
-and the **claim** scan (`cve_claimed_count`) from the same set **minus
-`context[]` and minus `security.notable[]`**.
+Deliberately excluded:
 
-| Newly scanned | Why it is in scope |
+| Excluded | Why |
 |---|---|
-| `security.notable[].cve_id` | A literal id field, taken as-is rather than regexed. Research selected the entry from this current→latest range by construction — the exact property `links[].embedded_content` lacks, which is why that one stays out. It is also what makes the mismatch warning in §Validating Research's `notable` effectively unreachable: any well-formed id there is in `cve_ids` because this scan put it there. |
-| `security.notable[].summary` | One short line research wrote about this range; same in-range guarantee, regex-scanned like the other prose fields. This is the fix for the 24 security-bearing tools in the live run whose ids appear nowhere a narrower scan would look. |
+| `item.local.citations[].text` | `prior_review` is a citation kind; it legitimately names an advisory from outside this range |
+| `links[].embedded_content`, `links[].url` | an unbounded changelog excerpt can cover releases the user is not being asked about |
+| `suggestions[]` | derived text restating items — doubles the false-positive surface, changes no result |
+| `config_status.detail` | backward-looking audit prose, where an id is usually a *prior* run's finding |
 
-The **claim** scan is deliberately *not* extended: a notable summary reading
-"one of 28 advisories" must not be read as a vendor claim of 28 — the same
-trap the `context[]` exclusion exists for.
+The **claim** scan (`cve_claimed_count`) is narrower still: `local.statement`
+is out of it, because "the 5 CVEs above do not reach us" is our analysis, not
+the vendor claiming five fixes.
 
-| Excluded field | Why |
-|---|---|
-| `links[].embedded_content` | An unbounded changelog excerpt that can cover releases outside the current→latest range — it would inflate `cve_count` with CVEs the user isn't being asked about. |
-| `links[].url` | A CVE index page isn't a claim about *this* range. |
-| `suggestions[].title`/`.rationale` | Derived text restating headliners: doubles the false-positive surface and changes no result. |
-| `config_status.detail` | Backward-looking audit-trail prose ("reviewed at 5.0.0, commit a1b2c3d") — an id there is usually a *prior* run's finding. |
-| `context[]`, for the **claim** scan only | stunnel's real context note reads "Both 5.80 CVEs need a running service", which the claim pattern must not read as a claim of 80. |
-| `security.cve_severities[]` | A rating table, not prose about this range. An id that appears only there is a rating for something this range does not contain, so it is dropped with a warning rather than counted. |
-
-Validated on the live corpus: narrow-scope (headliners + relevancy)
-extraction found 58 distinct ids; adding `context` found 59 — the extra one
-(`CVE-2026-53789`, rsync) is a genuine in-range CVE discussed in a context
-note. Adding suggestions/links/config_status found nothing further. Hence
-context in, everything else out.
-
-The exclusions are safe because **`has_security` never depends on ids**: a
-missed id understates `cve_count`, it can't flip a security release into a
+The exclusions are safe because `has_security` never depends on ids — a missed
+id understates `cve_count`, it cannot flip a security release into a
 non-security one.
 
 ### The two regexes and their bounds
-
 ```python
 _CVE_RE = re.compile(r"\bCVE-(?:19|20)\d{2}-\d{4,}\b", re.IGNORECASE)
 
@@ -481,365 +448,265 @@ regex cases, including the two real-world false positives the bounds exist to
 reject, are in `scripts/test_assemble.py` §3.
 
 ### Dedupe, and why the report-wide count is a union
+Per-tool `cve_count` is the size of that tool's id list. `summary.security.
+cve_count` is the size of the **union** across tools, not the sum: one advisory
+routinely lands on two tools — openssh and ssh-copy-id ship from the same
+source tarball, a bundled-OpenSSL CVE hits several casks — and counting it
+twice would inflate the one number the security section leads with. On the
+recorded corpus the per-tool counts sum to 77 while the union is 76.
 
-Per tool, ids go into a `set()` and are sorted by `(year, sequence)` as
-integers, so `CVE-2026-9595` precedes `CVE-2026-12143` — the page renders the
-list verbatim, and a lexical sort gets that pair wrong.
-
-Report-wide, `summary.security.cve_count` is the size of the **union** across
-all tools, not the sum of per-tool counts. One advisory can easily land on two
-tools here: `brew:openssh` and `brew:ssh-copy-id` ship from the same source
-tarball, and a bundled-OpenSSL CVE can hit several casks. Counting it twice
-would inflate the one number the security section leads with. In the recorded
-run no id happened to repeat, so the union equals the sum — which is the point:
-the union makes that a measured fact rather than an assumption about a corpus
-that changes every month.
+The report-wide `severity_counts` is rebuilt from each tool's item ratings
+rather than summed from the per-tool rollups, for the same reason. Two tools
+rating one id differently is real once ratings come from different pages: the
+**worse** wins, and the resolution is written to `assemble.log` rather than
+being made silently.
 
 ### Severity Rollup and the Sum Invariant
+`severity_counts` is `{critical, high, medium, low, unknown}`, all five keys
+always present, over `cve_ids`.
 
-`security.severity_counts` is assembly's rollup, but the per-id ratings are
-**research's** input (`security.cve_severities`, see
-`references/research.md` §CVE Severity Capture). Assembly has no network and
-no advisory database; it can only count what it was given, and the one thing
-it must never do is invent a class to fill a meter.
+**`sum(counts.values()) == cve_count` holds by construction**, because the
+rollup iterates `cve_ids` and every id lands in exactly one bucket — an id
+nothing rated becomes `unknown` instead of a broken sum. Iterating the rating
+map instead would silently break it, which is why `test_assemble.py` asserts
+the sum anyway, on every tool and on the report.
 
-```python
-def rollup_severity_counts(cve_ids, severity_by_id):
-	counts = dict.fromkeys(_CVE_SEVERITIES, 0)
-	for cve_id in cve_ids:                 # iterate the IDS, not the map
-		counts[severity_by_id.get(cve_id, "unknown")] += 1
-	return counts
-```
+Three rules survive verbatim from the deleted `resolve_cve_severities()`:
 
-**`sum(severity_counts.values()) == cve_count` holds by construction, not by
-assertion** — the loop iterates `cve_ids`, and every id lands in exactly one
-bucket. That is the whole reason to build it this way: an id research forgot
-to rate becomes `unknown` instead of a broken sum, and an id research rated but
-assembly never extracted is dropped with a warning instead of inflating the
-total. `test_assemble.py` §6 asserts the sum anyway, because a future edit that
-iterates the map instead would break it silently.
+- a rating word outside the vocabulary reads as `unknown`, never a guess;
+- **a rating with no basis is not a rating.** `rating_basis ∈ vendor | nvd |
+  cvss | unrated`, and `unrated` is *not* a basis — it is the word for "nobody
+  graded this", so a graded rating carrying it is counted as `unknown`. I-6
+  reports the same thing as `E-SEC-RATING-UNBASED`;
+- when two items grade one id differently, the **worse** wins and the
+  resolution is logged.
 
-Three rules on the input side, all warn-and-continue:
+The CVE vocabulary is not the item severity vocabulary. Item severity is "how
+much does this matter to this machine"; CVE severity is "what did the issuer
+rate the flaw". Conflating them is how teamviewer's Linux-only CVSS 8.8 would
+read as urgent on a macOS card.
 
-- **An id not in `cve_ids` is dropped.** A rating for something this range does
-  not contain is not a rating for this card.
-- **A grade with no `basis`, or a word outside the vocabulary, becomes
-  `unknown`.** A rating with no recorded source is not a rating — the same
-  doctrine as `cve_count` never carrying a claim.
-- **Two ratings for one id keep the worse.** Real once ratings come from a
-  vendor page and NVD; understating a severity is the failure mode with a cost.
+**Two rank tables, and they are not interchangeable.** `items.CVE_WORSE_RANK`
+resolves a conflict, where `unknown` means "no rating recorded" and must lose
+to a real `low`. `items.CVE_ORDER_RANK` orders the display, where `unknown`
+means "ungraded but real" and must not sort below a rated `low` — an absent
+grade is not evidence of harmlessness. Both are published in
+`contract/contract.json` so a consumer cannot pick the wrong one, and
+`test_assemble.py` asserts the page's copy agrees tier for tier.
 
-`cve_severities` is **emitted as the resolved, graded subset** — one entry per
-id assembly actually counted, sorted like `cve_ids`. That keeps `report.json`
-self-describing (a reviewer can rebuild `severity_counts` from it with `jq`)
-and lets `summarize_security()` rebuild the report-wide map without a private
-key. An id absent from it is `unknown`, which is why the emitted list is
-usually far shorter than `cve_ids`.
-
-Report-wide, `summary.security.severity_counts` counts over the **union** of
-ids, for exactly the reason `cve_count` does — never sum the per-tool counts,
-since one advisory can land on two tools. It therefore sums to
-`summary.security.cve_count`. Two tools rating one id differently is the same
-event as two sources rating it differently inside one tool, so it resolves the
-same way — **the worse wins, and it warns**, naming both ratings. It used to
-resolve in silence, which meant a header reading "1 critical" could come from
-one tool's page contradicting another's with nothing said about it.
-
-**`unknown` will dominate, and that is the designed steady state.** On the
-live run's text only 22 of 99 ids carry a rating anyone published in a page
-research had already read, and 24 of the 41 security-bearing tools have no
-extracted ids at all. A page must render the honest compact form by default.
+`unknown` dominating is the expected state, not a degraded one: a checker
+grades only what the page it already read states. An all-`unknown`
+`severity_counts` is a correct report.
 
 ### Validating Research's `notable`
+*(Retired. `security.notable[]` no longer exists.)*
 
-`security.notable[]` is research-supplied and assembly-validated. Every rule
-is warn-and-continue; none of them aborts a run, because one report is
-assembled from ~22 model-written files.
+The security column now renders the items named by
+`security.display_item_ids`, and the selection is a **bar, not a cap**: an item
+qualifies when its rating is `critical`, or it is exploited in the wild, or
+`local.direction == "reaches"`, or its severity is `warning`/`incompatible`
+(`items.is_security_display_item`). Order is the contract's
+`security_display_sort_key` — total, so a consumer that follows the list
+reproduces the report exactly.
 
-| Research supplied | Assembly does |
+Everything the old validation pass existed to do went away with the second
+array it was reconciling:
+
+| Old rule | Why it is gone |
 |---|---|
-| a non-list, or a non-dict member | `as_item_list()` drops it with its existing warning |
-| a `summary` that is not a string (`{"text": …}`, `42`) | drop the entry, warn. Stringifying it renders the repr, and the page's `typeof === 'string'` guard passes it by then — this side is the only place the drift is visible |
-| an entry with no `summary` | drop it, warn — a notable with no line is nothing to render |
-| `severity` absent or outside the vocabulary | coerce to `"unknown"`, warn |
-| `severity` disagreeing with this id's `cve_severities` entry | **the map wins**, warn — one source of truth, and `severity_counts` must agree with what the card shows |
-| `severity` other than `unknown` on a `cve_id` **absent from** `cve_severities` | keep the grade, warn. The same disagreement as the row above, reached by omission: the card would read `critical` while `severity_counts` buckets that id as `unknown`, since the rollup is built from `cve_severities` alone. The grade is kept because it is the only one research found, and *not* promoted into the map because a `notable[]` rating carries no `basis` — inventing one is the unsourced rating §CVE Severity Capture forbids. The warning names the fix: put the grade in `cve_severities`, with a basis |
-| a `cve_id` that is not a resolvable id in `cve_ids` | null the id, keep the item, warn. Normally unreachable: `notable[].cve_id` is inside the id scan, so a well-formed id is in `cve_ids` by construction — this catches a malformed one and stops the page chipping an id the report cannot resolve |
-| a non-bool `affects_me` | coerce, warn |
-| `affects_me: true` with no `security`-category relevancy item on the tool | keep it, warn. The two are the same claim — but assembly **never** sets or clears the flag, because a third of one live run's security relevancy items are negative-direction findings whose whole point is that the fix does *not* reach this machine (openssh's sshd, microsoft-teams, fd, mise:python's expat, rsync). Auto-deriving would invert every one of them |
-| more than 3 entries | sort by the `notable` key (`affects_me` first, then worst severity, then `(year, sequence)`, then id-less last) and keep the first 3, warn with the count dropped. **Ordering strictly precedes the cap**, so research writing its strongest item last costs nothing |
-| any `notable` on a `brew-health` tool | drop silently — `has_security` is forced `false` there, and a notable would make the security section's count disagree with its cards |
-| a `notable` with `research_error` or no headliners | force `[]`, warn. Same doctrine as "No research ⇒ never `security_only`" |
+| null a `cve_id` that does not resolve in `cve_ids` | the id *is* the item's, and `cve_ids` is derived from the items |
+| `severity` disagreeing with `cve_severities` | one list, one grade — `cve_severities[]` is deleted |
+| a grade present here and absent from the map | same |
+| coerce a non-bool `affects_me` | replaced by `local.direction`, which the validator checks against a closed vocabulary |
+| `affects_me: true` with nothing backing it | I-14 makes it checkable: `direction == "reaches"` requires non-empty `evidence[]` |
+| order, then evict the weakest past a cap of 3 | there is no cap. A cap is a count, and counts invite padding |
+| resolve `source_ref` to the item this restates | there is no second entry to point back — the id *is* the item |
 
-**The `notable` key orders and evicts with one comparison, which is why
-`affects_me` comes first.** Whatever the key ranks last is what a four-entry
-list loses. `affects_me: true` means a concrete touchpoint on *this* setup, so
-an item carrying one is never evicted by a higher-rated item that misses this
-machine — and R5 already cleared every entry on its own merits before the key
-sees it, so promoting one cannot smuggle in a weak item. With severity first,
-three `low` CVEs nobody here can reach evicted `brew:iproute2mac`'s reproduced
-command injection, which is precisely the item R5's third clause was written
-to surface.
+**The cap is the one worth dwelling on.** It ordered *and* evicted with one
+comparison, so `affects_me` had to outrank severity or three unreachable `low`
+CVEs would evict a reproduced command injection that lands on a wrapper this
+machine runs (`brew:iproute2mac`). Under a bar there is nothing to evict: what
+clears it is shown, what does not still renders in the collapsed detail, and
+the old clause-3 padding disappears — openssh filled all three of its slots
+with items whose own summaries say the fix does not reach this machine, and
+under the bar it selects none.
 
-The severity tier uses `_NOTABLE_SEVERITY_RANK`, **not** `_CVE_SEVERITY_RANK`:
-one vocabulary, two ranks, disagreeing on `unknown` on purpose. In the rollup
-`unknown` means "no rating recorded" and must never beat a recorded one, so it
-ranks lowest; on a `notable[]` entry it means "research selected this and
-nobody published a grade", which is not evidence of a small flaw, so it ranks
-above `low`. The `severity` vocabulary itself is unchanged
-(`references/schemas.md` §1.9) — this is a ranking fix, not a schema change.
-
-Assembly also computes `source_ref` on each entry — the `"rel:{i}"`/`"hl:{i}"`
-identity of the content item it restates, resolved by CVE or advisory id
-first and only then by comparing *untruncated* summaries. That is the handle
-§Highlights matches on. Among relevancy items the id matches, it takes the
-**max-severity** one, because `_highlight_why_parts()` picks a highlight's
-`why` the same way and §Highlights compares the two refs — matching the first
-naming item instead misses the dedupe whenever two relevancy items name one
-CVE. An `advisory_id` is free-form vendor text, so a short one can substring-
-match prose that never mentioned it; that is a known, unguarded cost of one
-missed dedupe, not something a length-and-digit predicate fixes (`2026-11`
-against "Release 2026-11 ships the new resolver" defeats it, and word
-boundaries do not save it either).
-
-### Emitting `notable` at all: `[]` versus an absent key
-
-`compute_security()` emits the `notable` key only when assembly has an answer
-to give, because the page reads its **presence** as information
-(`references/schemas.md` §1.9, `references/rendering-report.md` §Group (b)):
-`[]` means "the selection ran and nothing qualified" and draws the
-single-column card, while an absent key means "the question was never put"
-and falls back to deriving the column from the tool's own security content.
-
-The key is emitted when research supplied a readable `security` block, when
-research supplied nothing at all (`research_error` / no headliners, where the
-table above forces `[]`), or on a `brew-health` tool, where `[]` is likewise
-assembly's own decision. It is omitted for a research file that carried real
-content and no `security` block — a file that predates the field, on whose
-behalf assembly must not claim "nothing here is notable" — and for a block
-too drifted to read at its root (a bare string, a list, `null`), which
-`normalize_research_security()` warns about for exactly this reason.
-
-This is not a hypothetical distinction. The recorded run's 22 research files
-carry no `security` block at all, so emitting `[]` unconditionally collapsed
-77 of its 78 cards to a single column and deleted the security column from
-every one of them. `test_assemble.py` §7 pins both halves.
-
-Note what is **not** here: nothing removes a security item for being noisy.
-`compute_security()` derives `has_security` from the security category and the
-ids, and that feeds `review_bucket` and then `pre_accept` — so a presentation
-rule that removed the last security item would silently move a tool to
-`routine` and auto-accept it. The noise floor is bounded to keep that
-impossible; the boundary lives in `noise_suppressible()` and is asserted in
-`test_assemble.py` §6 (`references/research.md` §The Noise Floor).
+Measured on the recorded corpus re-expressed in the item model: 32 capped
+entries become **21** selected ones, and no item is lost from the page.
 
 ### `cve_count` vs. a vendor that says "fixes 33 CVEs"
+`cve_count` is **always** `len(cve_ids)` — an id-backed count, never a claim,
+so the page can attach every counted CVE to something concrete.
+`cve_claimed_count` carries the vendor's own largest stated count separately.
 
-`security.cve_count` is **always** `len(cve_ids)` — an id-backed count, never
-a claim, so the page can attach every counted CVE to something. The claim is
-captured separately in `cve_claimed_count`, and:
+**Max wins, never sum.** Firefox's two releases in one range claim 50 and 47;
+Chrome's launch item claims 370 while a second item describes the 68-fix
+subset of it. Summing double-counts the subset; the max is a defensible floor.
 
-- **max wins, never sum.** Firefox's two releases claim 50 and 47; Chrome's
-  launch headliner claims 370 while a second headliner describes the 68
-  further fixes the five stable updates *since* that launch added — a subset
-  of the same range. Summing double-counts it (Chrome → 438, wrong); the max
-  is a defensible floor — "the vendor's own largest stated count for this range".
-- it is emitted **regardless of whether ids were found** — rsync in that run
-  has 7 ids against a claimed 33, and "7 of 33 listed" is more honest than
-  either number alone. It is secondary text on the page, never the headline
-  count.
+The claim pattern's two bounds are both real false positives it exists to
+reject: `(?<![\d.])` stops stunnel's context sentence "Both 5.80 CVEs need a
+running service" yielding a claim of 80, and `\d{1,3}` stops "1234 CVEs"
+pairing with a three-digit tail.
 
-`summary.security.tools_with_unlisted_cves` counts tools where
-`cve_claimed_count > cve_count` — 6 of the 77 in that run (rsync 7/33, libpq
-4/28, wireshark-app 0/28, chrome 4/370, …) — so the header can read
-"59 CVEs · 6 tools report more without ids" instead of silently
-understating. Claims are never summed into `summary.security.cve_count`.
-Note that this is scan-scope-sensitive in a way that is easy to get wrong
-when re-deriving it by eye: a vendor's "fixes N CVEs" sentence that happens
-to live in `context[].detail` yields **no** claim, because `context[]` is
-outside the claim scan — the tool's `cve_claimed_count` is `null` and it does
-not count here, however plainly the sentence reads.
+The claim scan reads `item.title`, `item.body` and `item.change.citation` —
+the vendor's own words — and deliberately **not** `item.local.statement`,
+which is our analysis: "the 5 CVEs above do not reach us" is not a vendor
+claiming five fixes.
+
+`tools_with_unlisted_cves` counts tools whose claim exceeds their id count, so
+the header can read "59 CVEs · 6 tools report more without ids" instead of
+silently understating.
 
 ### `security_only` — "substantive content is security/patch only"
+Computed by the validator (`compute_security_only`) and read off its view.
 
-Requires `has_security`, requires that research actually produced content,
-requires no non-`security` entry in `vendor_silent_categories`, and then
-allows only an explicit `(category, severity)` pair across
-`headliners + relevancy`: `security` at any severity, `fixes` at
-`info`/`notable`, `notes` at `info`. Each disqualification earns its place:
+Requires `has_security` *and* that the checker actually produced items, then
+allows only these combinations across `items[]`: tags ⊆ {`security`, `fix`,
+`chore`, `packaging`}, with `security` at **any** severity and the rest only at
+`info`/`notable`. Everything else disqualifies — `feature`, `breaking`,
+`deprecation`, `perf` at any severity; an unrecognized tag (an unknown tag is
+not evidence of harmlessness); a non-string tag member; and a non-`security`
+entry in `vendor_silent_categories`.
 
-- **`features` at any severity disqualifies.** A new feature is not a
-  security patch; the tool belongs in the side-by-side "mixed" list where the
-  user decides. This is the single biggest filter — in that run 39 of the 74
-  version-outdated tools had security content and only 10 were security-only
-  (8 of which went on to clear the remaining `security_auto` guards, §Review
-  Buckets and Pre-Accept).
-- **`notes` above `info` disqualifies.** Not pedantry: codex's *breaking*
-  change ("`codex exec --full-auto` was removed") is filed as
-  `category: "notes", severity: "notable"`. Category alone would have waved
-  it through.
-- **`fixes` at `warning`/`incompatible` disqualifies** — a bugfix urgent
-  enough to be a warning is a behavior change worth reading.
-- **`security` at any severity is allowed**, including `warning`: a
-  high-severity *security* item is a reason to take the update, not to hold
-  it. libpq (`security/warning`, "fixes 28 CVEs, twelve rated CVSS 8.8") is
-  the canonical case.
-- **`context[]` never disqualifies** — present-tense repo-scope notes carry
-  no severity by design.
-- **A malformed item disqualifies**, because only an explicit allowed pair
-  returns true; a missing or unrecognized value falls through to false.
-- **No research ⇒ `False`, always.** `research_error`, or a research object
-  with empty `headliners`, both fail `research_produced_content()`. "We know
-  nothing" must never be reported as "nothing but security fixes."
+This is the old `(category, severity)` pair test restated over tags. It
+preserves every documented disqualification and fixes one: codex's breaking
+"`codex exec --full-auto` was removed" was filed `notes`/`notable` and
+disqualified on the accident of its severity, where tagged `breaking` it
+disqualifies on what it *is*.
+
+It also widens one case deliberately — a `chore`/`packaging` item at `notable`
+passes where `notes`/`notable` used to disqualify. `chore` means "a real, cited
+change with no consequence for any reader", so the filing accident no longer
+carries the decision. Measured on the recorded corpus re-expressed in the item
+model, three tools move `security_mixed → security_auto` on this rule
+(`brew:iproute2mac`, `brew:rsync`, `cask:tor-browser`) and all three are
+genuinely security-only releases.
+
+**A security item at `warning` is allowed**, at any severity: a high-severity
+*security* item is a reason to take the update, not to hold it.
 
 ### `impact` — the user's "confirmed no impact on me"
+Computed by the validator (`compute_impact`) and read off its view.
 
-`relevancy[]` is precisely "this change affects *this* setup" — its
-`motivating_change` is required and must name a real changelog item
-(`references/schemas.md` §1.2) — so `impact` is grounded there, with three
-corrections the real data forced:
+```
+brew-health / skill-drift  → "none" if the finding is expected, else "possible"
+no items, or research/validator error → "unknown"
+pinned, or config needs attention,
+  or an edit/structural suggestion,
+  or an item at "incompatible",
+  or an item with local.effect == "risk" at notable+,
+  or a "breaking"-tagged item at warning+     → "possible"
+otherwise                                     → "none"
+```
 
-- **`"unknown"` comes first and is unconditional.** Research failed or
-  produced no headliners → no basis for a verdict. `"unknown"` can never
-  reach `security_auto`, so it never renders as auto-approved.
-- **A `security`-category relevancy is not by itself impact.** duckdb's reads
-  "Parquet hardening lands on the tool this machine's agent instructions
-  point at arbitrary data files"; libpq's reads "CVE-2026-18408 turns any
-  dump this machine restores into a shell-execution vector". Both are
-  *reasons to upgrade*, not risks of upgrading. The naive rule — any
-  relevancy item means impact — costs exactly the tools whose relevancy *is*
-  the security fix: on the recorded run it takes `security_auto` from 8 down
-  to 5, dropping `brew:duckdb`, `brew:libpq` and `cask:wireshark-app`, the
-  only three of the eight with a relevancy item at all. When the rule was
-  written it was worse than that — the comment in `compute_impact()` records
-  a whole live run in which it emptied the section outright — and it gets
-  worse again the more diligently research files a relevancy item per
-  advisory. Excluding security-category relevancy from the "possible" test is
-  what keeps the section populated.
-- **A non-security relevancy at `notable`+ *is* impact.** tmux ("the running
-  tmux server keeps executing 3.7b until restarted — a session is attached
-  right now"), watch, yq and fzf all correctly become `possible`. An `info`
-  finding is a touchpoint note, not an effect, so it doesn't flip it on its
-  own.
+Three heuristics present in the pre-item implementation are **gone**, and their
+removal is the point (`REDESIGN.md` criterion 1):
 
-Plus: an `incompatible` relevancy is impact regardless of category;
-non-security headliners at `warning`+ count even with no relevancy item at
-all (`mise:rust`: three `fixes/warning` headliners, no relevancy →
-`possible`); and `pinned`, `needs_attention`, and any `edit`/`watch-item`
-suggestion are impact *by construction*, each one being a pending change to
-this setup. Both non-version sources short-circuit: brew-health is `"none"`
-when `health_expected`, else `"possible"`; skill-drift is `"none"` when
-`drift_expected`, else `"possible"`. Each is *about this machine* by
-definition, so the only question left is whether it is the expected kind.
-The two flags stay separate on the Tool object because they mean different
-things to a reader, but every derived axis asks the same question of them,
-so impact, `risk_level` and `review_bucket` all ask it through one
-`finding_expected()` helper instead of each carrying its own copy.
+- **`category != "security"` as a proxy for "not a risk"** → replaced by
+  `local.effect == "risk"`. The documented reason for the proxy — "a security
+  relevancy is a reason to *upgrade*, not a risk of upgrading" — is now said
+  directly by the checker in a field built for it. The proxy was also wrong in
+  one direction: a security change *can* be a risk here.
+- **the separate headliner clause**, which existed only because a headliner had
+  no local finding. Its real case (`mise:rust`) is now `breaking`-tagged items
+  at warning+, which the last clause covers.
+- **`"watch-item"` in the suggestion clause** (`REDESIGN.md` §D row 4). A watch
+  item proposes a change to what we remember, not to the user's system.
 
-Measured across that run's 77 tools: `none` 33, `possible` 41, `unknown` 3 —
-a little over half `possible`, and `unknown` only on the three casks whose
-research produced no headliners at all.
+Two "never" rules hold the whole thing up:
+
+- **No items ⇒ never `security_only`, and `impact` is `"unknown"`.** A checker
+  that failed, timed out or returned an empty shell told us nothing; "we know
+  nothing" must never be reported as "nothing but security fixes". A validator
+  stage that failed halfway counts the same way — what survived is not the
+  corpus. `"unknown"` can never reach `security_auto`, so it never renders as
+  auto-approved.
+- **A `security`-tagged item is not by itself impact.** Counting it as impact
+  made `security_auto` permanently empty across a whole live run.
 
 ## Risk Level
+Computed by the validator (`compute_risk_level`) and read off its view — one
+implementation, so the report never carries two answers.
 
-`risk_level` (`"low"` | `"elevated"`, see `references/schemas.md` §1.4) is
-computed entirely from signals already present in the assembled Tool object —
-never a subjective per-tool call from research, so every run applies the same
-rule the same way. A tool is `"elevated"` if **any** of:
-- `pinned` is true,
-- any `relevancy[]` item has severity `warning` or `incompatible`,
-- any suggestion on the tool has `kind` `"edit"` (default when `kind` is
-  omitted),
-- `version_delta` is `"major"` or `"unknown"` (§Version Delta above),
-- `research_error` is set, or
-- the tool has no `headliners[]` **and** an empty `vendor_silent_categories`.
+`"elevated"` if any of: `pinned`; any item carrying a `local` block at
+`warning`/`incompatible`; any `edit`- or `structural`-kind suggestion;
+`version_delta` is `major`/`unknown`; `research_error` or `validator_error` is
+set; `vendor_silent_categories` contains `"security"`; or the tool has no items
+**and** an empty `vendor_silent_categories`. Otherwise `"low"`.
 
-Otherwise `"low"`. Both non-version sources short-circuit all of this on
-their own "nothing to decide" flag: a `brew-health` finding is `"low"` when
-`health_expected` and `"elevated"` otherwise (§Brew-Health Assembly), and a
-`skill-drift` finding is `"low"` when `drift_expected` and `"elevated"`
-otherwise (§Skill-Drift Assembly).
+The `"security"`-silence clause and the no-items clause read the same field and
+mean opposite things, so they are worth keeping apart in your head. A non-empty
+`vendor_silent_categories` normally means "this vendor publishes nothing, ever"
+— claudebar, every run — and *suppresses* the no-items elevation, because
+demanding attention for it each time is noise. `["security"]` means the
+opposite: there is security content and we could not read it. Without its own
+clause the first rule swallows the second, the tool is not elevated, and
+`pre_accept` — which reads `risk_level` — auto-approves an unread security
+release.
 
-The last three bullets are the doctrine "an unknown delta size is never
-treated as low-risk", extended in two directions:
+**How far the clause reaches is decided by the bucket precedence, not by it.**
+`security_auto` returns from clause 2 and `risk_level` is not consulted until
+clause 4, while `pre_accept` is `risk_level == "low"` **or**
+`review_bucket == "security_auto"`. So elevated risk is not a bar on
+pre-acceptance for any tool that reaches `security_auto`, and this clause stops
+pre-acceptance for exactly the tools that miss it — which is the shape that
+motivated it, a vendor-silent-security tool carrying non-security content. One
+whose readable items are all security-only is still pre-accepted, by design.
 
-- **The delta condition reads `version_delta` rather than comparing leading
-  integers itself.** One shared classifier means the report never carries two
-  different answers to how big a bump is — and an `unknown` delta (an opaque
-  build-number scheme) elevates for exactly the same reason an unparseable
-  pair always did.
-- **Unknown *content* is now treated like unknown delta size.** A tool whose
-  research subagent failed has empty headliners, empty relevancy and no edit
-  suggestions, so without these two conditions it scores `"low"` and gets
-  pre-accepted — the skill would silently auto-approve exactly the updates it
-  understands least. Documented silence is deliberately *not* the same thing:
-  `vendor_silent_categories` non-empty with no `research_error` (cask
-  `claudebar` publishes no notes at all, every run, forever) stays `"low"`,
-  because demanding attention for it each run is noise the user can't act on.
-  A research *failure* is transient and fixable by a rerun, so it elevates.
+The last three conditions extend the "an unknown delta size is never low-risk"
+doctrine to unknown *content*: a tool whose checker failed has no items and no
+edit suggestions, and would otherwise score `"low"` and get pre-accepted — the
+skill would silently auto-approve exactly the updates it understands least.
+Documented silence is different and stays `"low"`: a vendor that publishes
+nothing, ever, is noise the user cannot act on.
 
-`risk_level` feeds the pre-accept union in §Review Buckets and Pre-Accept
-below, which is where the "which suggestion actually starts accepted"
-question is answered. See `references/rendering-report.md` §Suggestion Card
-for how that state renders.
+The "an item with a `local` block at warning+" clause is the old "a relevancy
+item above info" clause over the same population — an item with a `local` block
+*is* a relevancy item, said as what it always meant. `structural` joins `edit`
+because both are authored, non-baseline actions.
 
 ## Review Buckets and Pre-Accept
-
 `review_bucket` answers "how much of a human does this need"; `pre_accept`
 answers "does this one suggestion start accepted". They are computed back to
 back, in that order, because the second reads the first.
 
 ### `compute_review_bucket()` — strict precedence, first match wins
+Computed by the validator as `initial_review_bucket`, carried onto the Tool
+object as `review_bucket`, and carried alongside it as `bucket_inputs` —
+`{has_security, security_only, impact, version_delta, runnable}` — so a reader,
+and convergence once it exists, can see *why* without re-deriving it.
 
-```python
-def compute_review_bucket(tool):
-	sec = tool["security"]
-	if tool["source"] in NON_VERSION_SOURCES:
-		return "routine" if finding_expected(tool) else "attention"
-	baseline = baseline_upgrade(tool)
-	runnable = bool(baseline and baseline.get("auto_runnable"))
-	if (sec["has_security"] and sec["security_only"] and sec["impact"] == "none"
-			and tool["version_delta"] not in ("major", "unknown") and runnable):
-		return "security_auto"
-	if sec["has_security"]:
-		return "security_mixed"
-	if (tool["risk_level"] == "elevated"
-			or config_needs_attention(tool)
-			or any(suggestion_kind(s) != "upgrade" for s in tool.get("suggestions", []))
-			or not runnable):
-		return "attention"
-	return "routine"
-```
+**It is a baseline for convergence to review, not a decision**
+(`REDESIGN.md` §C3). The name differs between the two files for exactly that
+reason.
 
-The bucket vocabulary and what each one renders as: `references/schemas.md`
-§1.10.
+Order of evaluation:
 
-There is deliberately **no** major/unknown-delta or `research_error` test in
-the `attention` branch. `risk_level` is computed first (the dependency order
-in §Overview) and already returns `"elevated"` for both, so repeating them
-would be dead code that reads like a safety net — and a reader would then
-have to check whether the two copies agree.
+1. the two non-version sources — `brew-health` and `skill-drift`: `routine`
+   when the finding is expected, else `attention`;
+2. `security_auto` — `has_security` **and** `security_only` **and**
+   `impact == "none"` **and** `version_delta` not `major`/`unknown` **and** a
+   runnable baseline;
+3. `security_mixed` — `has_security`;
+4. `attention` — elevated `risk_level`, or stale `config_status`, or any
+   non-`upgrade` suggestion, or nothing runnable;
+5. `routine`.
 
-Two consequences worth stating:
+No delta or `research_error` test appears in the `attention` clause on purpose:
+`risk_level` is computed first and already returns `"elevated"` for both, so
+repeating them would be dead code that reads like a safety net.
 
-- **A `macos` or `standalone` tool can never be `security_auto`**, because
-  its baseline carries `auto_runnable: false` and the `runnable` guard is
-  unconditional. A security-only macOS update lands in `security_mixed`; one
-  with no security content lands in `attention`. There is nothing to
-  auto-approve when the skill cannot run the command.
-- **A vendor that published nothing is `routine`, not `attention`** —
-  provided research *ran* and said so (`vendor_silent_categories` non-empty,
-  no `research_error`). Its `impact` stays `"unknown"`, so the page can show
-  a small "vendor published nothing" chip without demanding a decision.
-
-Measured over the recorded run: `security_auto` 8, `security_mixed` 31,
-`attention` 13, `routine` 25 — sum 77, i.e. every tool including the three
-brew-health findings. The `security_auto` set was `azcopy`, `duckdb`, `helm`,
-`kubernetes-cli`, `libpq`, `opentofu`, `tor-browser`, `wireshark-app`: a
-believable "just take these" list.
+**`has_security` is wider than the tag.** It is true when any item is tagged
+`security`, **or** `vendor_silent_categories` contains `"security"`, **or** any
+item carries a `security` block at all. The second and third limbs are safety,
+not tidiness, and the effective value is computed **once**
+(`validate_items._derive_axes`) and used by `security_only`, the bucket and
+`bucket_inputs` alike — a value that is "security" for bucketing and "not
+security" for the security-only test is its own auto-accept route. The full
+argument, including why `items.recompute_flags` stays tag-only, is in
+`references/schemas.md` §1.9.
 
 ### `pre_accept` — one mechanism, not two
-
 ```python
 def baseline_upgrade(tool):
 	"""suggestions[0], if it is kind "upgrade" with an id ending ":upgrade"."""
@@ -897,11 +764,11 @@ There is no second mechanism, no second decision surface in the page, and the
 The union can differ from `risk_level == "low"` in exactly **one** situation,
 and it is provable from the definitions: `security_auto` requires
 `impact == "none"`, which already excludes `pinned`, `needs_attention`, any
-`edit`/`watch-item` suggestion, any `incompatible` relevancy and any
-non-security relevancy at `notable`+; and it requires `version_delta` not in
+`edit`/`structural` suggestion, any item at `incompatible` and any item whose
+`local.effect == "risk"` at `notable`+; and it requires `version_delta` not in
 `("major", "unknown")`, which excludes the delta condition. The only remaining
-way for such a tool to be `elevated` is **a `security`-category relevancy at
-`warning` severity** — "this security fix matters to you", which is a reason
+way for such a tool to be `elevated` is **a `security`-tagged item with a
+`local` block at `warning` severity** — "this security fix matters to you", which is a reason
 to take the update, not to hold it. Measured: exactly 2 of the 8
 (`brew:libpq`, `cask:wireshark-app`). Overall effect on that run: roughly two
 thirds of the baselines start accepted — 48 of the 74 synthesized ones. The
@@ -909,7 +776,6 @@ three brew-health findings have no baseline at all, so they are outside that
 denominator, not rejections of it.
 
 ## `needs_sudo` Heuristic
-
 Applied per-suggestion at synthesis time (below), by source:
 - `brew`, `mise`, `standalone` → always `false` — these never invoke a
   privileged installer themselves.
@@ -931,7 +797,6 @@ See `references/apply.md` §Executing Upgrade Suggestions for what `true`
 actually triggers at apply time (the askpass mechanism).
 
 ## `auto_runnable` / Command Per Source
-
 The baseline suggestion's `command` and `auto_runnable` default are also
 source-driven, and so — WP5/I2 — is whether `command` pins the exact
 version that was reviewed (`target_version`, §1.6) or apply has to check
@@ -983,7 +848,6 @@ manualness is a documented rule should say so in the table rather than
 inherit it (`manual_reason: "Vendored-skill sync is always manual."`).
 
 ## Baseline Suggestion Synthesis
-
 **Every tool gets a synthesized baseline `kind: "upgrade"` suggestion**, id
 `{source}:{name}:upgrade`, inserted as the first element of its
 `suggestions[]` array. This is mechanical assembly-step work, never left to
@@ -992,7 +856,7 @@ outdated tool to completion; without it, a plain patch bump with no config
 impact would get zero suggestions and silently never get upgraded.
 Research-authored `edit` suggestions are always additional to this baseline,
 never a replacement for it. The baseline's `rationale` is the fixed string
-"Picks up the changes described in headliners[] above."; its
+"Picks up the changes described in items[] above."; its
 `motivating_link` is the tool's first `links[]` entry if one exists, else
 `null`; its `target_version` is `tool["latest_version"]` — the version that
 was reviewed, which `references/apply.md` must install or refuse (WP5/I2,
@@ -1021,7 +885,6 @@ pre-accept impossible for either source *by construction* rather than by a
 flag someone could set the other way.
 
 ## Highlights
-
 "The biggest decision drivers / inputs needed / major patches", as a ranked
 top-8 array on the report (`references/schemas.md` §1.11 for the object
 shape). Scoring is deterministic and stdlib-only — `assemble.py` is a plain
@@ -1034,24 +897,22 @@ ordering requirement; everything else in this section is pure function of the
 finished Tool objects.
 
 ### Scoring
-
 `score_tool(tool)` returns `(score, reasons)` — reason codes in this fixed
 emission order, so the page's chips never reshuffle between runs.
 
 | Points | Reason code | Fires when |
 |---:|---|---|
-| 100 | `incompatible_finding` | any `relevancy[].severity == "incompatible"` |
-| 70 | `watch_item_hit` | `/watch[\s\-]?item hit/i` matches any relevancy item's `summary` + `detail` |
+| 100 | `incompatible_finding` | any item **with a `local` block** at `incompatible` |
 | 60 | `config_stale` | `config_status.state == "needs_attention"` |
-| 45 | `warning_finding` | any `relevancy[].severity == "warning"` |
-| 40 | `breaking_change` | any `headliners[].severity == "incompatible"` |
-| 35 | `proposed_edit` | any suggestion with `kind == "edit"` |
+| 45 | `warning_finding` | any item **with a `local` block** at `warning` |
+| 40 | `breaking_change` | any `breaking`-tagged item at `warning`/`incompatible` |
+| 35 | `proposed_edit` | any suggestion with `kind` in `edit`/`structural` |
 | 30 | `pinned` | `tool.pinned` |
 | 30 | `security_mixed` | `review_bucket == "security_mixed"` |
 | 25 | `major_bump` | `version_delta == "major"` |
 | 25 | `watch_item_proposed` | any suggestion with `kind == "watch-item"` |
-| 20 | `changelog_warning` | any `headliners[].severity == "warning"` |
-| 20 | `research_failed` | `research_error` is set |
+| 20 | `changelog_warning` | any item **without** a `local` block at `warning` |
+| 20 | `research_failed` | `research_error` or `validator_error` is set |
 | 15 | `unknown_scheme` | `version_delta == "unknown"` |
 | 10 | `cves` | `security.cve_count >= 1` |
 | 10 | `manual_action` | a baseline exists and its `auto_runnable` is false |
@@ -1059,28 +920,35 @@ emission order, so the page's chips never reshuffle between runs.
 `review_bucket == "security_auto"` contributes **nothing** — it is by
 definition the bucket that needs no decision.
 
-`watch_item_hit` is detected **textually**, against the literal phrase
-`Watch item hit:` that `references/research.md` §Watch Items (Reading) makes
-mandatory. Nothing in the schema marks a hit structurally, so the phrase *is*
-the signal: a subagent that paraphrases it makes the hit invisible to
-assembly, and the user's own standing concern silently loses 70 points.
+**The old relevancy/headliner pairs became one question: does this item carry a
+`local` block?** `incompatible_finding` vs `breaking_change` and
+`warning_finding` vs `changelog_warning` were always "is this about my machine
+or about the release", inferred from which array the item was written into.
+`breaking_change` now reads the `breaking` tag directly rather than inferring a
+release-level break from an `incompatible` headliner.
+
+**`watch_item_hit` is gone, and its absence is deliberate.** It scored 70 for a
+regex match on the literal phrase `Watch item hit:` in relevancy prose —
+a magic string `REDESIGN.md` §I4 retires outright, because a subagent that
+paraphrased it made the user's own standing concern silently worth nothing. The
+replacement is a **structured field** on the checker's output, which does not
+exist in the item schema yet; the signal is removed rather than reimplemented
+against prose that no longer has a guaranteed shape. Restoring it means adding
+the field, not the regex.
 
 `manual_action` reads the baseline through `baseline_upgrade()`, which is why
 a cross-tool id collision that renames a baseline costs a tool this one
-10-point signal (§Overview, ordering constraint 2). Bounded and warned about.
+10-point signal (§Overview, ordering constraint 2). Bounded and logged.
 
-**CVE severity is now available and `score_tool()` deliberately does not use
-it.** Weighting `critical` ids would push highlights *toward* the security
-content this design exists to stop them restating, and §Threshold is already
-explicit that a bare CVE count must not qualify a tool on its own. Measured
-before deciding: on the recorded run the flat 10-point `cves` signal fires on
-3 of the 8 highlights and changes the membership of none of them (lowest
-highlight 180 against a threshold of 40), so it is inert — and inert is the
-right amount of security in this ranking. Do not re-litigate it without a
-measurement that says otherwise.
+**CVE severity is available and `score_tool()` deliberately does not use it.**
+Weighting `critical` ids would push highlights *toward* the security content
+this design exists to stop them restating, and §Threshold is already explicit
+that a bare CVE count must not qualify a tool on its own. Measured before
+deciding: on the recorded run the flat 10-point `cves` signal fires on 3 of the
+8 highlights and changes the membership of none of them. Do not re-litigate it
+without a measurement that says otherwise.
 
 ### Threshold, cap, ordering
-
 - **Threshold: score ≥ 40.** A bare `major` (25) or a bare CVE count (10)
   does not qualify on its own — this is what keeps Chrome/Firefox/gcloud's
   rolling majors out of highlights while leaving them counted in
@@ -1091,51 +959,51 @@ measurement that says otherwise.
   needed", and `brew-health:missing_dependency:dtc` ranked 4th at 175 points
   in the live run. Raising the cap is safe; lowering the threshold is not.
 - **Sort key:** `(-score, -max_severity_rank, -cve_count, tool_id)`, where
-  `max_severity_rank` is taken over `headliners + relevancy` with
-  `{info: 0, notable: 1, warning: 2, incompatible: 3}` (absent → −1). The
+  `max_severity_rank` is taken over `items[]` with `items.SEVERITY_RANK`
+  (`{info: 0, notable: 1, warning: 2, incompatible: 3}`, absent → −1). The
   trailing `tool_id` makes ties fully deterministic.
 
 ### The highlight object
-
 - `title` — `f"{name} {current_version} → {latest_version}"`, or the
   finding's `name` for a brew-health or skill-drift tool, which has no
   versions at all. `_highlight_title()` needs an arm per non-version source;
   without one the card renders the literal `name None → None`.
 - `why` — the first match in this fixed order, whitespace-collapsed and
   truncated to 220 chars on a word boundary with `…`:
-  1. the highest-severity `relevancy` item's `summary` (ties resolve to array
-     order);
+  1. the highest-severity item **carrying a `local` block**, by its `title`
+     (ties resolve to canonical order — `items[]` arrives already sorted);
   2. `config_status.detail`, when `state == "needs_attention"`;
   3. `"Research produced no changelog for this update."`, when
      `research_error`;
-  4. the first **non-security** headliner's `text`, when the bucket is
+  4. the first **non-security** item's `title`, when the bucket is
      `security_auto`/`security_mixed`;
-  4b. the first `security`-category headliner's `text`, only when the tool has
-     no non-security headliner to say instead;
+  4b. the first `security`-tagged item's `title`, only when the tool has no
+     non-security item to say instead;
   5. `f"Major version bump {current} → {latest}."`, when
      `version_delta == "major"`;
-  6. the first headliner's `text`;
-  7. `""` — nothing to say, only reachable for a health finding with no
-     headliner, which can't happen since assembly synthesizes one.
+  6. the first item's `title`;
+  7. `""` — nothing to say, only reachable for a tool with no items at all.
 
   Step 4 used to *be* 4b, and that guaranteed the duplication the whole
   security redesign is about: it returned the same line the mixed card's
   security column renders in full. Step 1 stays first even when the winning
-  relevancy is security-category — for `cask:windows-app` ("The installed
-  11.3.7 predates both security releases in this range, including the
-  CVE-2026-61352 RDP client RCE") that line *is* the decision, and demoting it
-  would leave a worse one. The duplication that step 1 can still produce is
-  handled by the drop-and-backfill below, not by picking a weaker line.
+  item is security-tagged — for `cask:windows-app` ("The installed 11.3.7
+  predates both security releases in this range, including the CVE-2026-61352
+  RDP client RCE") that line *is* the decision, and demoting it would leave a
+  worse one. The duplication step 1 can still produce is handled by the
+  drop-and-backfill below, not by picking a weaker line.
 - `why_source` — which of the branches above produced the line
-  (`relevancy_security` | `relevancy_other` | `config_status` |
-  `research_error` | `headliner_security` | `headliner_other` | `major_bump` |
-  `none`). Provenance for a reviewer and for the dedupe; a page may ignore it.
-- `why_ref` — the `"rel:{i}"`/`"hl:{i}"` identity of the content item `why`
-  came from, or `null` for the branches that synthesize their own text.
-- `severity` — max severity across `headliners + relevancy`, in relevancy's
-  vocabulary so the page reuses one palette. With no items:
-  `needs_attention` → `"warning"`; `research_error` or a `major`/`unknown`
-  delta → `"notable"`; else `"info"`.
+  (`item_local_security` | `item_local_other` | `config_status` |
+  `research_error` | `item_security` | `item_other` | `major_bump` | `none`).
+  The `local_` half means the line came from an item with a `local` block —
+  the old `relevancy_*` vs `headliner_*` split, said as what it always meant.
+  Provenance for a reviewer and for the dedupe; a page may ignore it.
+- `why_ref` — the **item id** `why` came from, or `null` for the branches that
+  synthesize their own text.
+- `severity` — max severity across `items[]`, in the item severity vocabulary
+  so the page reuses one palette. With no items: `needs_attention` →
+  `"warning"`; `research_error` or a `major`/`unknown` delta → `"notable"`;
+  else `"info"`.
 - `suggestion_ids` — **every** suggestion id on the tool, in array order
   (baseline first when present). The page looks each id up in `tools[]` to
   decide whether to offer a jump or a decision control, and renders the raw
@@ -1144,50 +1012,51 @@ measurement that says otherwise.
 
 **De-duplication against the security cards, with backfill.** After ranking,
 `build_highlights()` walks the sorted candidates and skips any whose `why_ref`
-matches a `source_ref` in that tool's `security.notable[]`, continuing down the
-list until the cap is filled. **The highlight yields, never the security
-card** — on the tools where this fires the duplicated line is usually the most
-important sentence on the card, and the section is supposed to carry eight
-*distinct* decision drivers rather than eight rows of which two repeat
-something 200px below. Each drop prints a `note:` naming the tool and the ref.
+appears in that tool's `security.display_item_ids`, continuing down the list
+until the cap is filled. **The highlight yields, never the security card** — on
+the tools where this fires the duplicated line is usually the most important
+sentence on the card, and the section is supposed to carry eight *distinct*
+decision drivers rather than eight rows of which two repeat something 200px
+below. Each drop writes a `note:` to `assemble.log` naming the tool and the id.
 
-The match is on the emitted identities on both sides, never on text. `why` has
-already been through `_truncate_why()`'s 220-char cut, and the live run
-carries a 222-char relevancy summary (`brew:mise`) — a string comparison would
-have failed there silently, which is the failure mode this design exists to
-avoid.
+The match is on the **item id** on both sides, never on text. `why` has already
+been through `_truncate_why()`'s 220-char cut, and the live run carries a
+222-char item title (`brew:mise`) — a string comparison would have failed there
+silently, which is the failure mode this design exists to avoid.
 
-Measured on the recorded run with the security block projected onto it: four
-candidates were dropped (`cask:windows-app`, `brew:gh`, `cask:teamviewer`,
-`brew:libpq`), two of them inside the visible top 8, and the section still
-returned 8 distinct tools — `cask:claude-code@latest` and `cask:libreoffice`
-backfilled the freed slots.
-
-Measured top 8 for the recorded run: `cask:google-chrome` (250),
-`cask:windows-app` (200), `cask:claude-code@latest` (195),
-`brew-health:missing_dependency:dtc` (175), `brew:mise` (170),
-`brew:ffmpeg` (155), `cask:podman-desktop` (145), `brew:rsync` (130). Roughly
-half the corpus — 36 of 77 tools — cleared the threshold, so it is the **cap**
-that keeps the list short, not the threshold; the threshold's job is only to
-keep a bare `major` or a bare CVE count from ever qualifying.
+Measured on the recorded corpus re-expressed in the item model, the top 8 moves
+by exactly one row against the pre-item baseline, and for a traceable reason:
+`cask:windows-app` (155) was previously *dropped* by this dedupe because its
+`why` restated a `notable[]` entry the old cap had promoted regardless of
+direction. Under the bar nothing is selected for that tool, no dedupe fires, it
+takes its slot, and `cask:codex` (135) falls off the bottom. Both tools still
+render in full; only the ranking moved.
 
 ## Brew-Health Assembly
-
 A `brew_health.findings[]` entry (emitted by `collect.sh`, see
 `references/collection.md` §Brew-Health Collection for the finding shape and
 noise filter) becomes a Tool object with `source: "brew-health"`, an extra
 `health_category` (the finding's `category`) and `health_expected` (the
 finding's `expected` flag) pair, and no version-delta fields.
 
-**Headliners**: research's `headliners[]` if a brew-health subagent (or the
-orchestrator directly — see `references/research.md`) enriched this finding;
-otherwise assembly synthesizes exactly one headliner from the finding's own
-`detail`, so the problem still shows in a content group even with no
-enrichment. The synthesized headliner's `category` (which of
-Security/Fixes/Features/Notes it renders under) is derived from
-`health_category` by a fixed mapping:
+**Items**: research's `items[]` if a brew-health subagent (or the orchestrator
+directly — see `references/research.md`) enriched this finding; otherwise
+assembly synthesizes exactly one item from the finding's own `detail`, so the
+problem still shows in a content group even with no enrichment.
 
-| `health_category` | Content group |
+The synthesized item carries **`change: null` and a `local` block**, which is
+more honest than the old synthetic headliner: a health finding is not an
+upstream change at all, it is a statement about *this* install. `direction` is
+`reaches` for the same reason, and `effect` is `risk` unless the finding is
+`expected`. It carries no `evidence[]`, and nothing reports that — the item is
+synthesized after validation, so I-14 never sees it, and inventing an evidence
+path for a `brew doctor` line would be inventing a citation.
+
+The item's **tag** (and so which of Security/Fixes/Features/Notes it renders
+under, via `items.GROUP_OF_TAG`) is derived from `health_category` by a fixed
+mapping. The tags below reproduce the previous category mapping exactly:
+
+| `health_category` | Tag → content group |
 |---|---|
 | `untrusted_tap` | Security |
 | `missing_keg`, `unlinked_keg`, `missing_dependency` | Fixes |
@@ -1220,7 +1089,7 @@ short-circuits, because there is no version pair and no changelog:
 | `version_scheme` | `"none"` | Explicitly "there was nothing to parse", so the UI doesn't caption it as an unrecognized scheme. |
 | `version_delta_note` | `"no version delta for this source"` | |
 | counted in `summary.by_delta` | **No** | Health findings are environment issues, not updates. Excluding them preserves `sum(by_delta) == total_outdated`, and stops non-updates inflating the "unknown" box. |
-| `security.has_security` | `false`, always | The security section is about *patches* the user can take. An untrusted tap is a trust decision, not a shipped fix; counting it in `tools_with_security` would make the section's count disagree with the cards it lists. The tap's security character still shows — the category map above files `untrusted_tap` under Security, so the card renders with a security headliner, and the finding's own `severity` drives highlight scoring. |
+| `security.has_security` | `false`, always | The security section is about *patches* the user can take. An untrusted tap is a trust decision, not a shipped fix; counting it in `tools_with_security` would make the section's count disagree with the cards it lists. The tap's security character still shows — the category map above files `untrusted_tap` under Security, so the card renders with a `security`-tagged item, and the finding's own `severity` drives highlight scoring. |
 | `security.cve_ids` / `cve_count` / `cve_claimed_count` | `[]` / `0` / `null` | Extraction is skipped for this source. |
 | `security.security_only` | `false`, always | Follows from `has_security: false`. |
 | `security.impact` | `"none"` if `health_expected` else `"possible"` | A health finding is *about this machine* by definition; an expected one (the intentional GNU-utils PATH note) is explicitly no-action. |
@@ -1249,7 +1118,6 @@ category label, source badge, and `health_count` badge actually render, and
 applied.
 
 ## Skill-Drift Assembly
-
 A `skill_drift.findings[]` entry (emitted by `collect.sh` via
 `collect_skill_drift.py` — see `references/collection.md` §Skill-Drift
 Collection for the finding shape and the three-way tree-hash comparison
@@ -1263,15 +1131,15 @@ every build path — `research_obj = research_obj or {}` happens *first*, so a
 research file that returned a bare `null` for this finding can't
 `AttributeError` on the next key read.
 
-**Headliners**: research's `headliners[]` if the skill-drift group enriched
-this finding (`references/research.md` §Skill-Drift Enrichment); otherwise
-assembly synthesizes exactly one from the finding's own `detail`, carrying
-the finding's `severity`, so the drift still shows in a content group with
-no enrichment at all. Its `category` comes from a fixed
-`drift_state` → content-group map, the same shape brew-health's
-`health_category` map has:
+**Items**: research's `items[]` if the skill-drift group enriched this finding
+(`references/research.md` §Skill-Drift Enrichment); otherwise assembly
+synthesizes exactly one from the finding's own `detail`, carrying the finding's
+`severity`, so the drift still shows in a content group with no enrichment at
+all. Same shape as brew-health's synthesized item — `change: null`, a `local`
+block, `direction: "reaches"` — and its tag comes from a fixed `drift_state` →
+tag map, the same shape the `health_category` map has:
 
-| `drift_state` | Content group |
+| `drift_state` | Tag → content group |
 |---|---|
 | `upstream_ahead`, `diverged` | Fixes |
 | `local_only`, `probe_error` | Notes |
@@ -1279,7 +1147,7 @@ no enrichment at all. Its `category` comes from a fixed
 
 (Nothing maps to Security. A skill lagging its upstream is a maintenance
 fact, not a shipped patch — see the `has_security` row below. An
-unrecognized state falls back to Notes rather than dropping the headliner,
+unrecognized state falls back to `chore`/Notes rather than dropping the item,
 for the same reason the label map has a fallback: a state we don't know
 about is still a thing the user should see.)
 
@@ -1321,8 +1189,8 @@ changelog:
 | `security.has_security` | `false`, always | The security section is about patches the user can take. A stale vendored skill is a maintenance fact; counting it would make the section's count disagree with the cards it lists. |
 | `security.cve_ids` / `cve_count` / `cve_claimed_count` | `[]` / `0` / `null` | Extraction is skipped for this source. |
 | `security.security_only` | `false`, always | Follows from `has_security: false`. |
-| `security.severity_counts` / `cve_severities` | every band `0` / `[]` | Both roll up over `cve_ids`, which is empty here. The keys still ship, so the page's severity code needs no per-source special case (§Severity Rollup and the Sum Invariant). |
-| `security.notable` | `[]`, always | Research's own `security.notable` for a drift finding is dropped silently, for the same reason `has_security` is forced: a notable entry *is* security content, and one surviving on a card whose security strip never renders would be a lie. |
+| `security.severity_counts` | every band `0` | Rolls up over `cve_ids`, which is empty here. The keys still ship, so the page's severity code needs no per-source special case (§Severity Rollup and the Sum Invariant). |
+| `security.display_item_ids` | `[]`, always | Forced for the same reason `has_security` is: an inline security item on a card whose security strip never renders would be a lie. |
 | `security.impact` | `"none"` if `drift_expected` else `"possible"` | Drift is *about this machine* by definition; the expected kinds (`local_only`, `probe_error`) are explicitly no-action. |
 | `risk_level` | `"low"` if `drift_expected` else `"elevated"` | `upstream_ahead` and `diverged` both mean a decision is owed; a deliberate local patch does not. |
 | `review_bucket` | `"routine"` if `drift_expected` else `"attention"` | Same split, on the review-effort axis. |
@@ -1357,21 +1225,21 @@ drift-state label, source badge and Overview band render, and
 subagent adds to one of these findings.
 
 ## `config_status` Normalization
+Normalized by the validator, not by assembly. A checker can legitimately return
+`config_status: null` — nothing to compute for a macOS-source tool — rather
+than omitting the key, and `dict.get(key, default)` only substitutes when the
+key is *absent*, so a present-but-null value used to reach a later
+`.get("state")` as `None` and crash the run.
 
-A research subagent can legitimately return `config_status: null` on its Tool
-object (e.g. nothing to compute for a macOS-source tool) rather than omitting
-the key entirely — and `config_status.detail` can independently come back
-`null` too. Assembly normalizes both a null `config_status` and a null
-`detail` to the schema default (`{"state": "unknown", "detail": "",
-"evidence": []}`) *before* anything downstream calls `.get()` on it, in both
-`build_tool` and `build_health_tool` — a naive `research_obj.get(key,
-default)` only substitutes the default when the key is absent, not when it's
-present-but-`null`, and every read after that (including the
-`needs_attention`-must-have-a-suggestion check right below) used to crash the
-whole assembly run with an `AttributeError` on exactly this case.
+The view always carries a dict with `state`, `detail` (never `null`),
+`evidence` (path objects) and `citations` (prose). A `config_status` that is
+present but not an object is reported as `W-SHAPE-COERCED` and read as
+`unknown`.
+
+The evidence/citation split matters most here: `config_status` produced 133 of
+the recorded run's 272 `evidence not found` warnings, against 286 strings.
 
 ## `needs_attention`-Must-Have-a-Suggestion Enforcement
-
 A `config_status.state` of `"needs_attention"` (computed by research — see
 `references/research.md` §Config Status for the full rule) is supposed to
 always pair with at least one suggestion addressing it; a banner telling the
@@ -1386,7 +1254,6 @@ naming the tool. This applies identically to brew-health Tool objects (via
 the same guard runs in both code paths.
 
 ## Summary Counts and Output
-
 `summary` in the final report object:
 - `total_outdated` — the tools whose `source` is **not** in
   `NON_VERSION_SOURCES`, counted the same way `by_delta` counts them
@@ -1394,8 +1261,13 @@ the same guard runs in both code paths.
   fourth finding source to the set is then the whole change; under the
   subtraction form, forgetting the new term was how `by_delta` silently
   stopped summing to it.
-- `incompatible_count` / `warning_count` — counts of `relevancy[]` items
-  across all tools at that severity.
+- `incompatible_count` / `warning_count` — counts of items **carrying a
+  `local` block** across all tools at that severity. The `local` filter is the
+  successor to counting `relevancy[]`: an item without one is a statement about
+  the release, not about this machine, and these two boxes say "how many
+  findings land on me". A brew-health or skill-drift finding now counts, where
+  it could not before — it had no relevancy entry to be counted through — and
+  counting it is the honest answer to the same question.
 - `suggestions_count` — total suggestions across all tools (after id
   uniqueness resolution).
 - `health_count` — see §Brew-Health Assembly above.
@@ -1457,28 +1329,27 @@ to end in `scripts/test_assemble.py` §5, against a session assembled through
 - `sum(t.security.severity_counts.values()) == t.security.cve_count` for every
   tool, and `sum(summary.security.severity_counts.values()) ==
   summary.security.cve_count`.
-- `len(t.security.notable) <= 3`; every non-null `notable[].cve_id` and every
-  `cve_severities[].cve_id` resolves in `t.security.cve_ids`.
-- `t.security.notable == []` whenever `t.source == "brew-health"` or
-  `t.research_error` is set.
+- every `t.security.display_item_ids` entry resolves to an item id in
+  `t.items`, and the list is empty whenever `t.source` is a non-version source
+  or the tool produced no items. **There is no cap** — the selection is a bar.
+- `t.items` equals `items.order_items(t.items)`: assembly never re-sorts, so
+  two copies of one corpus are byte-identical.
 - no `highlights[].why_ref` appears in its own tool's
-  `security.notable[].source_ref` set.
+  `security.display_item_ids`.
 
 `highlights[]` is a **top-level** key alongside `tools`, not part of
 `summary` — see §Highlights above.
 
-`report.json` is written with `schema_version: 1` (see
+`report.json` is written with `schema_version: 2` (see
 `references/schemas.md` §Report Object for the full top-level shape) and
-`report_id` taken from the session dir's basename. **The version stays `1`
-because every addition above is purely additive** — including the fields added
-for the severity rollup (`security.severity_counts`, `security.cve_severities`,
-`security.notable`, `summary.security.severity_counts`, and
-`highlights[].why_source`/`.why_ref`) — nothing was renamed or
-removed, `render.py` hard-fails on any other value, and every consumer
-(`write_status.py`, `server.py`'s `feedback.json` validation, the page) only
-ever reads keys it knows. The converse obligation is on the page: a report
-reopened from an older session dir will have none of these keys, so every
-consumer must tolerate them being absent. `generated_at` is
+`report_id` taken from the session dir's basename. **The version moved to `2`
+because this change is not additive**: `tools[].items[]` replaces
+`headliners[]`/`relevancy[]`/`context[]` and `security.notable[]`, and
+`security.cve_severities[]` is gone. A schema-1 consumer cannot read a schema-2
+report and must not try — the page would render a grid of empty cards,
+silently, and look entirely correct — so `render.py` hard-fails on any other
+value. An old session is re-read by checking out the pipeline that wrote it;
+there is no shim, by design (`REDESIGN.md` §I9). `generated_at` is
 `collect.json`'s own `generated_at` (see `references/collection.md`) when
 present; if `collect.sh` ran before it emitted that field, or the value is
 missing/empty for any other reason, assembly falls back to the current UTC

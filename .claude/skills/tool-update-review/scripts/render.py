@@ -39,9 +39,14 @@ def main():
 		sys.exit(1)
 
 	# ── Validate schema_version ───────────────────────────────────────────
-	if report.get("schema_version") != 1:
+	# 2 since `tools[].items[]` replaced headliners/relevancy/context and
+	# `security.notable[]`. The template reads the item model and nothing else,
+	# so a schema-1 report would render a page of empty cards rather than
+	# failing — refusing it here is what keeps that impossible. An old report
+	# is re-read by checking out the pipeline it was written with.
+	if report.get("schema_version") != 2:
 		print(
-			f"Error: schema_version must be 1, got {report.get('schema_version')!r}",
+			f"Error: schema_version must be 2, got {report.get('schema_version')!r}",
 			file=sys.stderr,
 		)
 		sys.exit(1)

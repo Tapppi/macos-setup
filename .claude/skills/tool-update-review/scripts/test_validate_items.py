@@ -1198,7 +1198,7 @@ class CliTests(unittest.TestCase):
 				document = json.load(fh)
 			self.assertTrue(document["clean"])
 			self.assertEqual(document["findings"], [])
-			with open(os.path.join(td, "validation.warn"), encoding="utf-8") as fh:
+			with open(os.path.join(td, "assemble.warn"), encoding="utf-8") as fh:
 				self.assertEqual(fh.read(), "")
 		finally:
 			shutil.rmtree(td, ignore_errors=True)
@@ -1213,7 +1213,7 @@ class CliTests(unittest.TestCase):
 			with open(os.path.join(td, "validation.json"), encoding="utf-8") as fh:
 				document = json.load(fh)
 			self.assertFalse(document["clean"])
-			with open(os.path.join(td, "validation.warn"), encoding="utf-8") as fh:
+			with open(os.path.join(td, "assemble.warn"), encoding="utf-8") as fh:
 				lines = fh.read().splitlines()
 			self.assertTrue(lines)
 			for line in lines:
@@ -1234,6 +1234,78 @@ class CliTests(unittest.TestCase):
 		self.assertEqual(len(lines), len(document["findings"]))
 		self.assertEqual([line.split(" ", 1)[0] for line in lines],
 			[f["code"] for f in document["findings"]])
+
+
+class EffectiveHasSecurityTests(unittest.TestCase):
+	"""`has_security` is wider than the tag, and the width is safety.
+
+	`recompute_flags` is tag-only — it is what `E-FLAG-DISAGREE` compares a
+	checker's claim against, so widening it would make a checker that correctly
+	reported `has_security: false` from its own items read as disagreeing. The
+	widening therefore happens at the point of use, ONCE, and the same value
+	feeds `security_only`, the bucket and `bucket_inputs`."""
+
+	def _view(self, **research):
+		research.setdefault("id", "brew:x")
+		research.setdefault("links", [])
+		return validate_one(research)[0]
+
+	def test_the_tag_alone_is_still_enough(self):
+		view = self._view(items=[_item(tags=["security"], severity="info",
+			security={"cve_id": None, "advisory_id": None, "rating": "unknown",
+				"rating_basis": "unrated", "exploited_in_wild": False})])
+		self.assertTrue(view["bucket_inputs"]["has_security"])
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
+	def test_a_vendor_silent_on_security_reaches_a_security_bucket(self):
+		"""The regression this closes. `vendor_silent_categories: ["security"]`
+		is research's explicit statement "this release has security content the
+		vendor refused to detail". Tag-only, the tool computes: not security (no
+		security tag), and NOT elevated either — `compute_risk_level`'s "no
+		items" clause is suppressed by the non-empty vendor_silent list. It
+		lands in `routine`, out of the security section entirely, from a field
+		whose whole purpose is "look at this"."""
+		view = self._view(vendor_silent_categories=["security"],
+			items=[_item(tags=["feature"], severity="notable")])
+		self.assertTrue(view["bucket_inputs"]["has_security"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+		# The tag-only flag is unchanged, and must be: it is the comparison
+		# basis for E-FLAG-DISAGREE.
+		self.assertFalse(view["flags"]["has_security"])
+
+	def test_a_security_block_on_an_untagged_item_counts(self):
+		"""I-4 reports the missing tag (E-SEC-BLOCK-ORPHAN) — and reporting it
+		while treating the tool as non-security is how a CVE-carrying tool
+		would reach a bucket that pre-accepts. A degraded run still renders and
+		still applies, so a finding is not a gate; erring toward "security" is."""
+		view, findings = validate_one({"id": "brew:x", "links": [],
+			"items": [_item(tags=["fix"], severity="info",
+				security={"cve_id": "CVE-2026-1111", "advisory_id": None,
+					"rating": "unknown", "rating_basis": "unrated",
+					"exploited_in_wild": False})]})
+		self.assertIn("E-SEC-BLOCK-ORPHAN", {f["code"] for f in findings.entries})
+		self.assertTrue(view["bucket_inputs"]["has_security"])
+		self.assertIn(view["initial_review_bucket"], ("security_auto", "security_mixed"))
+
+	def test_the_bucket_is_explained_by_its_own_recorded_inputs(self):
+		"""A value that is "security" for bucketing and "not security" for the
+		security-only test is its own auto-accept route, and a bucket its own
+		recorded inputs cannot explain is exactly the opacity §C3 removes."""
+		view = self._view(vendor_silent_categories=["security"],
+			items=[_item(tags=["chore"], severity="info")])
+		inputs = view["bucket_inputs"]
+		self.assertTrue(inputs["has_security"])
+		# chore/info is allowed for security_only, and nothing disqualifies —
+		# so the recorded inputs alone explain security_auto.
+		self.assertTrue(inputs["security_only"])
+		self.assertEqual(inputs["impact"], "none")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
+	def test_nothing_security_shaped_stays_out_of_a_security_bucket(self):
+		view = self._view(vendor_silent_categories=["features"],
+			items=[_item(tags=["feature"], severity="notable")])
+		self.assertFalse(view["bucket_inputs"]["has_security"])
+		self.assertNotIn(view["initial_review_bucket"], ("security_auto", "security_mixed"))
 
 
 if __name__ == "__main__":

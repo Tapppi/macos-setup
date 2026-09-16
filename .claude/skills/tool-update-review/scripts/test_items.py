@@ -292,17 +292,19 @@ class CveRankTableTests(unittest.TestCase):
 	"""Two tables, and they are not interchangeable. `unknown` means "no rating
 	recorded" when resolving a conflict (so it loses to a real `low`), and
 	"ungraded but real" when ordering the display (so it does not sort below
-	one). These assert against assemble.py's private copies so the producer and
-	the consumer of a security card cannot drift apart."""
+	one).
 
-	def test_the_worse_wins_table_matches_assembly(self):
-		self.assertEqual(model.CVE_WORSE_RANK, assemble._CVE_SEVERITY_RANK)
+	These used to be asserted tier-for-tier against `assemble.py`'s private
+	copies, because there were two implementations that could drift. There is
+	one now: assembly imports the model. What is left to guard is that nobody
+	reintroduces a copy — a private table would go green against this file
+	while the report and the page disagreed."""
 
-	def test_the_display_ordering_table_matches_assembly(self):
-		self.assertEqual(model.CVE_ORDER_RANK, assemble._NOTABLE_SEVERITY_RANK)
-
-	def test_the_item_severity_ranks_match_assembly(self):
-		self.assertEqual(model.SEVERITY_RANK, assemble._SEVERITY_RANK)
+	def test_assembly_keeps_no_private_rank_table(self):
+		for gone in ("_CVE_SEVERITY_RANK", "_NOTABLE_SEVERITY_RANK", "_SEVERITY_RANK",
+				"_CVE_SEVERITIES", "_SEVERITY_BASES"):
+			self.assertFalse(hasattr(assemble, gone),
+				f"assemble.{gone} is back — the model publishes it, import it")
 
 	def test_unknown_is_below_low_when_resolving_and_above_it_when_ordering(self):
 		self.assertLess(model.CVE_WORSE_RANK["unknown"], model.CVE_WORSE_RANK["low"])

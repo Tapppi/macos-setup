@@ -528,11 +528,17 @@ telling you the item's category or severity is wrong, not that the item should
 go. A cadence note filed `notes/notable` is a mis-rating — nothing that cannot
 change a decision is `notable`. A performance bullet filed `features/info` is
 a bullet to **trim**, because `features` is precisely the signal that says
-"this release is more than patches". The boundary is encoded as
-`noise_suppressible()` in `scripts/assemble.py`, and
-`scripts/test_assemble.py` §6 asserts the property it exists for: deleting
-every suppressible item on a tool moves no `review_bucket` and no
-`pre_accept`.
+"this release is more than patches".
+
+**The boundary is no longer encoded in code, and that is deliberate.**
+`noise_suppressible()` in `scripts/assemble.py` used to state it as a
+predicate; it is **deleted** (`REDESIGN.md` §G, `item-schema.md` §8.1), because
+under §C3 the deterministic layer does not delete anything, so the predicate
+had nothing left to guard — it had zero production call sites and existed only
+for the tests that asserted against it. The rule it encoded belongs to
+convergence, and the `chore` tag is the schema's replacement for it: a checker
+that judges an item real and inconsequential *says so*, the page collapses it,
+and convergence can still see it. Nothing is deleted on the way.
 
 Eight classes. N1–N4 are the ones the user named. Every one carries a
 **near-miss** — a real item from this run that looks like the class and must
@@ -821,15 +827,20 @@ contain the literal phrase `Watch item hit:` — write it as
 "summary": "⚠ Watch item hit: install-shell-integration now writes to ~/.zprofile as well"
 ```
 
-This is not a formatting preference. `assemble.py` detects watch-item hits
-**textually**, matching `/watch[\s\-]?item hit/i` against each relevancy
-item's `summary` + `detail`, and scores a hit at 70 points in `highlights[]`
-(`references/assembly.md` §Highlights) — enough to clear the threshold on its
-own. Nothing in the schema marks a hit structurally, so the phrase *is* the
-signal: paraphrase it ("this matches a watched topic", "flagged per the watch
-item") and the hit becomes invisible to assembly, the highlight silently never
-renders, and the one thing the user explicitly asked to be told about is the
-thing that gets buried.
+**The textual channel is retired** (`REDESIGN.md` §I4). `assemble.py` used to
+match `/watch[\s\-]?item hit/i` against each relevancy item's `summary` +
+`detail` and score a hit at 70 points in `highlights[]` — a magic string, so a
+paraphrase ("this matches a watched topic", "flagged per the watch item") made
+the hit invisible, the highlight silently never rendered, and the one thing the
+user explicitly asked to be told about was the thing that got buried. The
+regex and the 70-point signal are both **deleted**.
+
+The replacement is a **structured field** on the checker's output: the per-tool
+agent is given the watch items, matches them against the changes it is already
+reading, and labels the hit per the output spec. That field does not exist in
+the item schema yet — it belongs with the checker contract, not with assembly —
+so **there is currently no highlight signal for a watch-item hit at all**.
+Restoring it means adding the field, never the regex.
 
 ### Watch Items (Proposing)
 

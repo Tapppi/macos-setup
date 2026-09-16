@@ -9,7 +9,12 @@ Reads {session_dir}/collect.json and every {session_dir}/research/*.json, and
 writes {session_dir}/validation.json — the machine-readable primary, and the
 pre-convergence artifact convergence (C4) consumes. A human-readable tail of
 the same data, one finding per line and code-prefixed, goes to
-{session_dir}/validation.warn.
+{session_dir}/assemble.warn — the spec-conformance channel for the run and
+nothing else (references/item-schema.md §3.3).
+
+In a normal run `assemble.py` calls `validate_session()` directly and writes
+both files itself; this CLI exists so the validator can be run, and its output
+diffed, on its own.
 
 Six stages:
 
@@ -1104,6 +1109,19 @@ def compute_risk_level(view) -> str:
 		return "elevated"
 	if view.get("research_error") or view.get("validator_error"):
 		return "elevated"
+	if "security" in (view.get("vendor_silent_categories") or []):
+		# Documented silence is fine; documented silence ABOUT SECURITY is not.
+		# The clause below deliberately treats a non-empty
+		# `vendor_silent_categories` as "the vendor publishes nothing, ever" —
+		# claudebar, every run, forever — which is noise the user cannot act on.
+		# `["security"]` says something else entirely: there IS security content
+		# and we could not read it. Without this the two clauses combine into
+		# the worst answer available — not elevated because the list is
+		# non-empty, and so `pre_accept` on the baseline — and an unread
+		# security release is auto-approved. `has_security` moves such a tool
+		# into `security_mixed`, which makes it visible; this is what stops it
+		# being pre-accepted while it sits there.
+		return "elevated"
 	if not view["items"] and not (view.get("vendor_silent_categories") or []):
 		return "elevated"
 	return "low"
@@ -1288,17 +1306,49 @@ def _derive_axes(view, candidate, findings):
 		view["id"])[0]
 	flags = model.recompute_flags(view["items"])
 	view["flags"] = flags
+	# The EFFECTIVE has_security, and it is deliberately wider than the flag.
+	#
+	# `recompute_flags` is tag-only and stays tag-only: it is the value
+	# `E-FLAG-DISAGREE` compares a checker's claim against, and a checker that
+	# correctly reported `has_security: false` from its own items must not read
+	# as disagreeing with us. So the widening happens here, at the point of use.
+	#
+	# `vendor_silent_categories == ["security"]` is research's explicit
+	# statement "this release has security content the vendor refused to
+	# detail". Dropping it is not merely a lost label — `compute_risk_level`
+	# only elevates a tool with no items when `vendor_silent_categories` is
+	# ALSO empty, so a non-empty one actively suppresses that elevation. Tag-only
+	# here would therefore produce the worst combination available: not elevated
+	# (vendor_silent is non-empty) and not security (no security tag) → routine
+	# → pre-accepted. A field whose whole purpose is "look at this" would
+	# guarantee nobody does.
+	#
+	# Computed ONCE and used everywhere below — `security_only`'s gate, the
+	# bucket, and `bucket_inputs` — because a value that is "security" for
+	# bucketing and "not security" for the security-only test is its own
+	# auto-accept route, and a bucket its own recorded inputs cannot explain is
+	# exactly the opacity §C3 exists to remove.
+	# The third limb closes the same hole from the other side. I-4 already
+	# reports a `security` block on an item that forgot the tag
+	# (E-SEC-BLOCK-ORPHAN) — but reporting it while treating the tool as
+	# non-security is precisely how a CVE-carrying tool would reach a bucket
+	# that pre-accepts. A degraded run still renders and still applies, so a
+	# finding is not a gate; erring toward "security" is.
+	has_security = bool(flags["has_security"]
+		or "security" in (view.get("vendor_silent_categories") or [])
+		or any(isinstance(i.get("security"), dict) for i in view["items"]
+			if isinstance(i, dict)))
 	impact = compute_impact(view)
-	security_only = compute_security_only(view, flags["has_security"])
+	security_only = compute_security_only(view, has_security)
 	risk_level = compute_risk_level(view)
 	runnable = (False if source in NON_VERSION_SOURCES
 		else bool(assemble.upgrade_command_and_runnable(source, name)[1]))
 	view["impact"] = impact
 	view["risk_level"] = risk_level
-	view["initial_review_bucket"] = compute_initial_bucket(view, flags["has_security"],
+	view["initial_review_bucket"] = compute_initial_bucket(view, has_security,
 		security_only, impact, risk_level, runnable)
 	view["bucket_inputs"] = {
-		"has_security": flags["has_security"],
+		"has_security": has_security,
 		"security_only": security_only,
 		"impact": impact,
 		"version_delta": view["version_delta"],
@@ -1524,7 +1574,7 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 			.strftime("%Y-%m-%dT%H:%M:%SZ"),
 		"session_id": os.path.basename(os.path.normpath(session_dir)),
 		# A clean run produces zero findings. With a nonzero count the run is
-		# degraded and says so here, in validation.warn, and in the exit code.
+		# degraded and says so here, in assemble.warn, and in the exit code.
 		"clean": not entries,
 		"findings": entries,
 		"counts": {
@@ -1544,9 +1594,12 @@ def warn_lines(document) -> list:
 	"""The human-readable tail of the same data — one finding per line, prefixed
 	with its code, in the same order.
 
-	`item-schema.md` §3.3 asks for `assemble.warn` to become this channel. It is
-	written to `validation.warn` instead while assembly still owns its own file;
-	rehoming it belongs with the assembly rewrite, not with the validator."""
+	This is `assemble.warn` (`references/item-schema.md` §3.3): **the
+	spec-conformance channel for the run and nothing else**, and a clean run
+	produces zero lines. Both entry points write it from this one function —
+	`assemble.py` in the pipeline, this file's `main()` when the validator is
+	run on its own — so there is one channel with one name, not two files with
+	the same content."""
 	out = []
 	for entry in document["findings"]:
 		where = entry.get("item_id") or entry.get("tool_id") or "-"
@@ -1618,7 +1671,7 @@ def main(argv=None) -> int:
 	with open(out_path, "w", encoding="utf-8") as fh:
 		json.dump(document, fh, ensure_ascii=False, indent="\t")
 		fh.write("\n")
-	warn_path = os.path.join(session_dir, "validation.warn")
+	warn_path = os.path.join(session_dir, "assemble.warn")
 	lines = warn_lines(document)
 	with open(warn_path, "w", encoding="utf-8") as fh:
 		fh.write("\n".join(lines) + ("\n" if lines else ""))
