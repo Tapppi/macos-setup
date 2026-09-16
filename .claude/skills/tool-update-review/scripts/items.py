@@ -39,7 +39,11 @@ from urllib.parse import quote, urlsplit
 
 # Bumped when a consumer would have to change. Consumers pin against this, not
 # against a git revision.
-CONTRACT_VERSION = 1
+#
+# 2 — WP2 admitted memory proposals: the `method-note` suggestion kind, the
+#     `self_test_failed` tag (`REDESIGN.md` §L7), and the rule that a memory
+#     proposal never forces a tool onto the attention list.
+CONTRACT_VERSION = 2
 
 
 # ── vocabularies ────────────────────────────────────────────────────────────
@@ -90,7 +94,94 @@ STRUCTURAL_OPS = (
 
 REF_TYPES = ("formula", "cask", "tap", "mas", "task", "runtime", "section")
 
-SUGGESTION_KINDS = ("upgrade", "edit", "structural", "watch-item")
+SUGGESTION_KINDS = ("upgrade", "edit", "structural", "watch-item", "method-note")
+
+# **Memory proposals do not force `attention`; action proposals do.**
+# `method-note` and `watch-item` propose changes to what we remember. `edit`
+# and `structural` propose changes to the user's system. Only the latter needs
+# a decision, so only the latter belongs in a clause that means "a human has to
+# look at this".
+#
+# This is `REDESIGN.md` §D row 4's principle, which WP1 applied to *impact*
+# (see `compute_impact`) but never carried to the bucket clause. It was
+# harmless while watch items were rare; §L1 now expects **many** per-tool
+# method notes and watch items, so leaving it would put most of the fleet on
+# the "needs you" list and undo the compaction §A and criterion 10 exist for.
+#
+# `compute_initial_bucket` and `W-ATTENTION-NOSUG` both go through
+# `needs_a_decision` below, so a bucket and its explanation cannot drift apart.
+# `compute_impact` and `compute_risk_level` read `ACTION_SUGGESTION_KINDS`
+# directly, which is the closed set they have always tested.
+MEMORY_SUGGESTION_KINDS = ("watch-item", "method-note")
+ACTION_SUGGESTION_KINDS = ("edit", "structural")
+
+
+def needs_a_decision(kind) -> bool:
+	"""Does this suggestion mean a human has to look at the tool?
+
+	**Stated as a negation on purpose.** `kind not in MEMORY_SUGGESTION_KINDS`
+	rather than `kind in ACTION_SUGGESTION_KINDS`, so that a kind nobody
+	recognizes — a drifted `"edits"`, a kind from a future schema, a
+	wrong-typed value — fails **safe**, onto the attention list. Written the
+	other way, an unrecognized kind reads as a memory proposal and lets a tool
+	stay `routine`: `E-ENUM-INVALID` would be raised and would feed nothing.
+
+	The baseline `upgrade` suggestion is every tool's, so it decides nothing.
+	Anything unhashable is not a memory kind either — the membership test is
+	over a tuple, which any shape survives."""
+	return kind != "upgrade" and kind not in MEMORY_SUGGESTION_KINDS
+
+# What each memory kind must carry, and what each field is for. Both payloads
+# are written so they read sensibly copied verbatim into the store on accept,
+# because that is exactly what happens (`references/research.md`).
+#
+# `rationale` is required on both, and that is the one that answers the
+# measured failure. The last run's defect was never a missing topic — it was
+# rationales reciting the bar's own escape phrase, three of eight falsified by
+# a sibling field in the same object. The self-test writes its four answers
+# into `rationale`, §Standing Notes puts the generalisation claim there, and
+# convergence promotes on it: requiring it non-empty is the least that field
+# can be owed. Nothing here judges whether the answers are good — that is
+# convergence's, and always was — but an unvalidated load-bearing string is
+# how `Watch item hit:` died.
+MEMORY_PAYLOAD_FIELDS = {
+	"watch-item": {
+		"watch_topic": "the short phrase a future run matches against its changelog",
+		"watch_note": "the context that lets a future hit explain itself without "
+			"re-deriving everything",
+		"rationale": "your answers to the self-test, in your own words",
+	},
+	"method-note": {
+		"method_topic": "what the note is about, in a few words",
+		"method_note": "the instruction itself, written to read sensibly when copied "
+			"verbatim into the next run's context",
+		"rationale": "the failure the ordinary research path already produced here",
+	},
+}
+
+# `REDESIGN.md` §L7: the per-tool agent's self-test applies a **tag**, never a
+# removal. A proposal the agent never writes is one convergence cannot restore,
+# so a failing self-test still writes the proposal and names the limb it failed.
+# Convergence reviews every tagged proposal and decides whether dropping it is
+# right.
+#
+# One value per limb the agent can fail, so convergence can tell "config_status
+# already covers this" from "the bar's halves were never both answered" without
+# re-reading prose:
+SELF_TEST_LIMBS = (
+	# Q2 — the tool's own `config_status.detail` describes re-verifying THIS
+	# concern against THIS run's delta. Measured: 3 of 8 last run.
+	"scope",
+	# Q3 — the thing that could change is stated, set or pinned by a file in
+	# the setup repos, so a future delta against that file is already checked.
+	"changing-thing",
+	# Q4 — the claimed limb's two halves are not both answered in the bar's
+	# own terms (named party + named edit, or state-visibility + what breaks).
+	"limb",
+	# Method notes: the rationale predicts a failure rather than naming one
+	# that already happened to this tool.
+	"unwitnessed",
+)
 
 # `REDESIGN.md` §B1: the Intel Mac is out of this tool entirely. Not a source
 # of candidates, not a compatibility check, not a suggestion target, not on the
@@ -580,11 +671,15 @@ FINDING_CODES = {
 	"W-EVID-ROOT": ("warning", "I-12", "an evidence path resolves only under an unconfigured repo"),
 	"E-FLAG-DISAGREE": ("error", "I-13", "a checker-emitted flag disagrees with recomputation"),
 	"E-REACHES-UNEVIDENCED": ("error", "I-14", "`direction: reaches` with no evidence"),
-	"W-ATTENTION-NOSUG": ("warning", "I-15", "`config_needs_attention` with no non-upgrade suggestion"),
+	"W-ATTENTION-NOSUG": ("warning", "I-15", "`config_needs_attention` with no action suggestion"),
 	"E-STRUCT-PRECOND": ("error", "I-16", "a structural op's precondition does not hold"),
 	"E-INTEL-BREWFILE": ("error", "I-17", "intel.Brewfile is out of this tool entirely"),
 	"W-SUG-DUP-ID": ("warning", "I-18", "a suggestion id is not unique across the report"),
 	"W-STRUCT-UNCHECKED": ("warning", "I-16", "a structural precondition could not be checked"),
+	# I-19 — the self-test tag is load-bearing (REDESIGN.md L7): convergence
+	# keys its review off it. A tag naming no reason is a drop with extra
+	# steps, which is the one thing criterion 17 exists to prevent.
+	"E-SELFTEST-NOREASON": ("error", "I-19", "a `self_test_failed` tag with no reason"),
 	# criterion 2 — no per-tool checker emits a bucket or an auto-approval
 	"E-FLAG-FORBIDDEN": ("error", None, "a checker emitted a validator-only flag"),
 	# criterion 4 — degradation is per tool and loud. The next unknown shape
@@ -672,6 +767,33 @@ def contract() -> dict:
 			"structural_ops": list(STRUCTURAL_OPS),
 			"ref_types": list(REF_TYPES),
 			"suggestion_kinds": list(SUGGESTION_KINDS),
+			"self_test_limbs": list(SELF_TEST_LIMBS),
+		},
+		"memory_proposals": {
+			"kinds": list(MEMORY_SUGGESTION_KINDS),
+			"action_kinds": list(ACTION_SUGGESTION_KINDS),
+			"bucket_rule": "memory proposals do not force `attention`; action "
+				"proposals do. `watch-item` and `method-note` propose changes to what "
+				"we remember, `edit` and `structural` to the user's system — only the "
+				"latter needs a decision. Every axis that can pre-accept "
+				"(compute_impact, compute_risk_level, compute_initial_bucket, "
+				"W-ATTENTION-NOSUG) asks `needs_a_decision`, a NEGATION, so a kind "
+				"outside the vocabulary demands a decision rather than reading as a "
+				"memory proposal.",
+			"payload": {kind: dict(fields)
+				for kind, fields in sorted(MEMORY_PAYLOAD_FIELDS.items())},
+			"self_test_failed": {
+				"shape": {"limb": "|".join(SELF_TEST_LIMBS), "reason": "non-empty string"},
+				"absent_means": "the proposal passed its self-test",
+				"rule": "REDESIGN.md L7 — the self-test TAGS, never removes. A failing "
+					"proposal is still written; convergence reviews every tagged one and "
+					"verifies that dropping it is appropriate. A proposal the agent never "
+					"writes is one convergence cannot restore.",
+				"on_a_non_memory_kind": "E-FIELD-TYPE — the tag is present iff the kind "
+					"is a memory kind",
+				"with_no_reason": "E-SELFTEST-NOREASON",
+			},
+			"exported_for_convergence": "self_test_tagged_suggestion_ids, per tool",
 		},
 		"fields": [
 			{"name": n, "type": t, "required": r, "note": note}

@@ -14,6 +14,16 @@ two audiences and is split into two parts for them:
   `references/research-prompt-template.md`), so drift between runs doesn't
   creep in.
 
+**The checkable claims in this document have tests.**
+`scripts/test_research_guidelines.py` asserts them against this file, the
+prompt template and `schemas.md` — that the routing test precedes the bar, that
+the self-test tags rather than deletes, that no numeric volume target reaches a
+per-tool agent, that nothing sends a checker at the Intel manifest. Run it after
+editing any of them. The reason it exists is measured: the §Watch Items
+(Proposing) text was **byte-identical** across three runs that produced 11, 5
+and 8 proposals, so a rule here can be wrong, or quietly removed, without
+anything failing.
+
 Table of contents:
 - Part 1 — Orchestrator: Dispatch
   - Prompt Template
@@ -23,6 +33,9 @@ Table of contents:
   - `research-status.json` Group Updates
   - Failure Handling
 - Part 2 — Subagent Quality Bar
+  - What You May Touch
+  - Prior Findings Are Hypotheses
+  - Items Are Outward-Facing Changes
   - Headliners
   - Category vs. Severity — Independent Axes
   - CVE Severity Capture
@@ -35,14 +48,20 @@ Table of contents:
   - Current → Target Is the Only Frame
   - Suggestions Are Always `kind: "edit"`
   - Config Status
+  - Standing Notes: Three Stores
+  - Research-Method Notes vs Watch Items
+  - Writing a Research-Method Note
   - Watch Items (Reading)
   - Watch Items (Proposing)
+  - Before You Propose a Standing Note: the Self-Test
+  - There Is No Volume Target — and Here Is Why
   - Deduplicate Facts (Across Arrays, and Within One)
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
+  - Write `config_status` Before `suggestions[]`
   - Schema Strictness
   - Depth by Tool
-  - Heterogeneous Hosts
+  - One Host, One Manifest
   - Brew-Health Enrichment
   - Skill-Drift Enrichment
   - Pinned Tools
@@ -125,6 +144,14 @@ miscategorized into the individual tier for the wrong reason (or worse, a
 real touchpoint gets diluted by unrelated grep noise in its context). Re-run
 suspicious hits with `-w` before trusting them.
 
+**`dotfiles/config/agent-skills/**` is vendored third-party skill content.**
+Grep hits there are almost never a real touchpoint — they are somebody else's
+documentation and scripts, which happen to name the same tools the user
+installs. Ignore them unless the tool is genuinely configured there. This is a
+false-positive filter on the tiering decision specifically: a batch of casks
+looks like it has bespoke setup because a vendored skill's README mentions
+each one, and the tier moves for a reason that does not exist.
+
 Grep is a starting signal, not the last word — it only catches *literal*
 mentions. A script can use a tool conceptually without ever naming it (e.g.
 `tasks/init.sh` configures `~/.ssh/config` and the 1Password SSH agent but
@@ -175,6 +202,19 @@ done`/`failed`) — same one-transition-per-write discipline used for
 `status.json` (`references/server-and-session.md` §Pre-Report Status covers
 the write pattern and the server side of this file).
 
+**Record the tiering decision, not just the groups.** Each group carries the
+`tier` it was placed in, and the file's `scope` block records how many
+candidates were collected against how many were actually tiered into groups,
+plus any restriction the user asked for.
+
+Without this, a scoped run and a full run produce indistinguishable session
+dirs: 22 groups either way, no record of which tools got individual depth,
+which were batched, or which were never researched at all. The tiering
+heuristic is documented above; the *decision it produced on this run* was
+recorded nowhere, so nothing downstream could tell "this tool got a skim
+because it has no touchpoint" from "this tool was not in scope". Both look
+like a thin result.
+
 ### Failure Handling
 
 On subagent failure/timeout, set `research_error` and keep the tool listed
@@ -187,6 +227,102 @@ with versions only.
 **A research subagent reads this section in full, every run, before writing
 findings.** Everything below applies to every tier (individual, batched,
 brew-health, skill-drift) unless a rule says otherwise.
+
+### What You May Touch
+
+This is the discipline that governs every checker, not only the ones doing
+bespoke-setup work. It is short and it is absolute:
+
+- **Any test you run against the live machine must be non-destructive and
+  read-only**, unless §Bespoke `tasks/*.sh` Setup Testing explicitly sanctions
+  a throwaway scratch resource for what you are doing. Reading a config,
+  running `--version`, grepping a repo: yes. Anything that writes, installs,
+  upgrades, or changes state: no.
+- **Never run `setup.sh`, `tasks/*.sh` or `dotfiles/bootstrap.sh`.** These
+  modify system configuration, install software and require `sudo`. The repo's
+  own `CLAUDE.md` says the same thing; a research subagent has no exception to
+  it. If a question can only be answered by running one, the answer is that you
+  could not verify it — say so, and say what you would have run.
+- **Never write into the session directory except your own output file.**
+  Every other file there belongs to another group or to a deterministic step,
+  and one stray write costs a run that has already spent its expensive part.
+- **The setup repos are the user's live checkouts.** Read them; never edit
+  them, never `git` anything in them, never leave a file behind.
+
+The paths you may scan are given in your prompt. Staying inside them is not a
+courtesy: a research run happens on a machine mid-work, and the only reason it
+is safe to spawn twenty of you at once is that none of you writes anything.
+
+### Prior Findings Are Hypotheses
+
+Your context may include findings from previous runs — things a prior review
+believed about this tool. **Treat every one as a hypothesis to test, never as a
+fact to carry forward.**
+
+- **Evidence it yourself**, against *this* run's current → target range, from
+  the sources you would have used had nobody told you. Cite what you found, not
+  what you were told.
+- **If your own evidence does not support it, drop it. Say nothing.** A prior
+  finding you could not confirm is not a finding, and it is not a "possible"
+  one either.
+- **If your evidence supports it, write it as your own finding with your own
+  citation.** Do not write "a prior review found X and it still holds" — write
+  X, with the evidence you have.
+- **Nothing reaches your output on the strength of history alone.**
+
+A hypothesis is a place to look. It is never an answer, and it is never a
+reason to propose anything. Last run, **six of eight** watch-item proposals
+traced to a hint in the prompt that named a candidate; the only two the prompt
+did not name are the only two that survived review. Being handed a candidate is
+not evidence that a candidate exists.
+
+The same asymmetry applies to a hypothesis you *disprove*. "A prior review said
+v5.3 flips this default; it does not — the flag was reverted in 5.3.1, here is
+the commit" is a real finding and worth writing, in `context[]`. Silently not
+mentioning a disproved hypothesis leaves the next run to rediscover it.
+
+### Items Are Outward-Facing Changes
+
+*Item* here means anything you report about what changed in this tool —
+whichever array it lands in.
+
+**Project-internal maintenance never becomes an item.** Repo upkeep,
+convention changes, documentation updates, CI and release-tooling churn, test
+refactors, internal renames, lockfile bumps that change nothing anyone
+installs — none of it is a finding, at any tag or severity. Do not write it
+down and then rate it low; do not write it down at all.
+
+The test is one question:
+
+> **Did anything change for a person who uses this tool without reading its
+> repository?**
+
+If the only way to notice is to read the project's own commits, issue
+templates or CONTRIBUTING file, it is internal. A rewritten test suite, a
+switch of CI provider, a new linter in the pipeline, a docs site
+redesign — all internal, however large the diff.
+
+Three boundaries worth stating, because they are where this gets misapplied:
+
+  - **Internal work with an outward consequence is outward-facing.** "Switched
+    the release pipeline to reproducible builds, so the published binary's
+    checksum now changes" is a real item — the consequence is, even though the
+    work was internal. Cite the consequence, not the work.
+  - **`chore` is not the place to put internal maintenance.** The `chore` tag
+    is for a real, *outward-facing*, cited change that has no consequence for
+    any reader of this report. Internal maintenance is not a low-consequence
+    item; it is not an item.
+  - **This is not the noise floor.** The noise floor (below) decides what to
+    delete from items you have already written, and it has a hard boundary
+    because a deletion there can approve an update. This rule runs earlier and
+    asks something else: whether there was ever an item to write. Nothing in
+    the deterministic layer enforces it — a regex that dropped
+    "internal-looking" items would be exactly the behaviour this pipeline
+    forbids — so it holds here or it does not hold at all.
+
+Read this together with §Don't Author "I Checked, Found Nothing": an empty
+result for a tool whose whole range was internal maintenance is the correct
+result. Say nothing rather than reporting the maintenance to fill the space.
 
 ### Headliners
 
@@ -424,8 +560,8 @@ normal browsable page and should just link it.
 ### Relevancy Is the Point
 
 **Relevancy is the point of this skill.** Scan the user's setup repos —
-`~/project/github/tapppi/macos-setup` (Brewfile, intel.Brewfile, tasks/,
-dotfiles/ submodule with shell/git/tmux/Claude configs) and
+`~/project/github/tapppi/macos-setup` (Brewfile, tasks/, dotfiles/ submodule
+with shell/git/tmux/Claude configs) and
 `~/project/github/tapppi/systems` (NixOS flake) — plus machine facts, for
 places the tool is configured or its changed behavior lands. Severity:
 `incompatible` (won't work here — e.g. new major requires Apple Silicon on
@@ -776,7 +912,200 @@ level up without answering it. If the re-verification concludes the old fix
 still holds after all, that's `"up_to_date"`, not `"needs_attention"` with no
 suggestion.
 
+### Standing Notes: Three Stores
+
+Three things survive a run and reach the next one. They are three different
+stores because they answer three different questions, and the last run's eight
+watch-item proposals conflated all three into one — two of them were method
+notes filed as watch items, and both said so in their own first sentence.
+
+| Store | Scope | Answers | How many exist | Who writes it |
+|---|---|---|---|---|
+| **Global method notes** | across many tools | how research works *in general* here | **rare** | convergence, by promotion |
+| **Per-tool method notes** | one tool | how to research **this** tool correctly | **many** | **you** |
+| **Watch items** | one tool | what to tell the user if it happens | **many** | **you** |
+
+**You write two of the three.** A global note has to hold across many tools,
+and you can see between one and nine — you are not in a position to know. So
+you never propose one: you write the per-tool note and say in its `rationale`
+that you think it generalises and why. Convergence reads every tool's output at
+once and is the only party that can check the claim, so promotion is its call.
+That is also *why* global notes are rare: the entry condition is cross-tool
+evidence, and only one reader ever has it. It is not a quota anybody enforces.
+
+Read the "how many" column as a description of the store, not as an allowance
+for you. Tools have weird conventions and unusual places to publish, so per-tool
+notes and watch items are both expected to be numerous across the fleet.
+§There Is No Volume Target says why none of these three has a number attached,
+and why you must not invent one.
+
+**Route at the point of writing.** Two questions, in this order.
+
+  1. **Is this about how to research, or about what to report?**
+
+     A method note changes the next *researcher's* behaviour. A watch item
+     changes the next *report*. "Never trust this project's release notes, read
+     the commit range" is the first. "Tell me if they ever change the
+     credential format" is the second.
+
+  2. **If it is a method note: which tool do you write it against?**
+
+     The one whose research it fixes. If it fixes several in your batch, write
+     it against each — a note is read by tool id, so a note filed against one
+     tool does not reach the others.
+
+     If you believe it holds beyond your batch, **still write it as a per-tool
+     note**, and say so in the `rationale`: "this is probably true of every
+     project that publishes releases through <mechanism>". That sentence is
+     what convergence promotes on. Do not write a global note yourself and do
+     not write a per-tool note in general terms to approximate one — "GitHub
+     release bodies are sometimes thin" is not a note anybody can act on. Name
+     the tool, name the failure, and say where you think it generalises.
+
+Question 1 has a sharper form when the answer feels like "both", and it is the
+one that decides every real case:
+
+### Research-Method Notes vs Watch Items
+
+Two different standing notes, two different stores, one question apart.
+
+```
+A research-method note answers: how do I research this tool correctly?
+A watch item answers:           what should I tell the user if it happens?
+```
+
+Before you write either, run the **routing test**:
+
+> **Could a future release's published text plausibly contain words that match
+> this topic?**
+
+  - **No** → it is a research-method note. Write it as one. Stop here.
+  - **Yes** → it may be a watch item. Continue to §Watch Items (Proposing).
+
+The read path for watch items is changelog-content matching: next run's
+researcher looks its tools up and reports a hit when this run's changelog
+touches a stored `topic`. **A topic no changelog can contain will never fire.**
+Filing one as a watch item does not preserve the knowledge — it files it where
+nothing will read it back out.
+
+Two worked examples, both filed as watch items last run, and neither was one:
+
+  **`brew:iproute2mac`** — *"always research this formula by reading the
+  `git compare vOLD...vNEW` commit range and the repo's issue tracker, never by
+  the release notes, whose emptiness is not evidence that a release is
+  cosmetic."* That is an instruction to the researcher. It fires every run
+  regardless of what shipped. **Method note.**
+
+  **`brew:nnn`** — *"This is a packaging state, not a release event, so nothing
+  in a future current→latest changelog delta would surface a change to it."*
+  The proposal disqualifies itself in its own first sentence. **Method note.**
+
+**If your rationale contains a sentence saying no future changelog would
+surface this, you have already answered the routing test. Believe it.**
+
+**A method note absorbs the watch item inside it.** Many concerns are half
+method and half worry: *"this vendor's release page is boilerplate, and if they
+ever changed the credential format we would not see it."* Write the method
+note; the worry is its reason for existing. Propose a watch item **as well**
+only if the worry independently clears the bar on its own evidence — not
+because writing the method note reminded you of it.
+
+Routing is not dropping. Both stores are read back into a future run; they are
+read by different readers, at different moments, for different purposes. Putting
+a note in the right one is the whole of this section.
+
+### Writing a Research-Method Note
+
+A method note is a durable correction to how a tool gets researched. It is
+worth writing when the ordinary path — read the release notes, check for CVEs —
+returns a wrong or empty answer **for this tool specifically**, and will keep
+doing so.
+
+Propose one as a suggestion in the tool's `suggestions[]` with
+`kind: "method-note"` (`references/schemas.md` §1.7b) — same array, same schema
+strictness as any other suggestion, just a different shape:
+
+```jsonc
+{
+	"id": "cask:claudebar:method-where-the-changelog-lives",
+	"kind": "method-note",
+	"title": "Read ClaudeBar's CHANGELOG.md, not its release bodies",
+	"target_files": [],          // nothing to edit
+	"command": null,             // nothing to run
+	"auto_runnable": false,      // accepting it writes a note, nothing else
+	"method_topic": "where the real changelog lives",
+	"method_note": "the instruction, written so it reads sensibly copied
+	                verbatim into the next run's context — because that is
+	                exactly what happens on accept",
+	"rationale": "how you know the ordinary path fails here"
+}
+```
+
+Like a watch item, this is a **proposal, not a write**: nothing reaches the
+store unless the user accepts it in the review UI.
+
+**The rationale must name a failure, not predict one.** Good:
+
+> "ClaudeBar's GitHub release bodies are boilerplate — verified: identical text
+> across all twelve releases in this range. The real detail is only in
+> CHANGELOG.md at the repo root. The prior review read the Releases page and
+> concluded the app 'does not maintain a structured CHANGELOG.md', which cost
+> this cask a real review."
+
+That names a failure that already happened, to this tool, in a previous run of
+this skill. Bad:
+
+> "Release notes for this project are sometimes thin, so a future run might
+> miss something."
+
+The second is a worry about a vendor. The first is a correction to a procedure.
+If you cannot point at the wrong answer the ordinary path produced — in a prior
+run, in this run's own research, or in the source you had to fall back on — you
+have the second one, and it belongs in the note's `self_test_failed` tag rather
+than in the store unexamined (§Before You Propose a Standing Note covers the tag;
+`unwitnessed` is the limb a method note fails).
+
+A method note that is right stays useful for years, and it is cheap: it changes
+how one researcher looks, not what the report says. That is why it does not get
+the watch item's bar. What it does get is the requirement above — say what went
+wrong, and how you know.
+
 ### Watch Items (Reading)
+
+This section is the **read** side of the stores above — both of them.
+
+**You are given your tools' entries; you do not go looking for them.** The
+dispatching step reads both stores by tool id and puts the matching entries in
+your prompt (`references/research-prompt-template.md`'s `{{STANDING_NOTES}}`).
+The stores themselves are siblings of `changelog.md`:
+
+```
+${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json
+${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json
+```
+
+If your prompt carries no entries for a tool, that tool has none — an empty
+`{{STANDING_NOTES}}` is a fact, not an omission to go and correct by reading
+the files yourself.
+
+The two are read at different moments:
+
+- **Method notes are read first, before you look anything up.** They change
+  where you look and what you trust. A note saying "this project's release
+  bodies are boilerplate, read CHANGELOG.md at the repo root" is worthless
+  after you have already read the release page and concluded there was nothing
+  in the range. Read the notes for your tools, then start.
+- **Watch items are matched as you read.** They are topics to notice in the
+  changelog you are going through anyway.
+
+Method notes carry no reporting obligation: an accepted note is an instruction
+to you, and following it is all it asks. If a note turns out to be wrong — the
+vendor started publishing properly, the path it names no longer exists — say so
+in your `context[]` findings, so the store can be corrected. A stale method note
+that nobody contradicts is worse than none, because it sends every future run
+to the wrong place with confidence.
+
+The rest of this section is the watch-item half.
 
 `config_status` above is backward-looking: "was this tool's config already
 handled." Watch items are forward-looking: "the user flagged an ongoing
@@ -786,7 +1115,7 @@ future cursor-cli changelog mentioning shell-integration/recording to be
 called out automatically, not re-investigated from scratch or missed.
 
 **File**: `${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json`
-— a sibling to `changelog.md`, same directory, created on first use. Shape:
+— created on first use. Shape:
 
 ```jsonc
 {
@@ -808,8 +1137,7 @@ everything.
 **Reading watch items** (this is the research-time half of the workflow;
 the write side — appending a new entry during step 7's `tool_comments`/
 `discuss` investigation — is `references/apply.md` §Watch Items, which
-cross-links back here): before researching, check whether your assigned
-tool(s) have any `watch-items.json` entries and include their `topic`/`note`
+cross-links back here): include your tools' `topic`/`note` entries
 in your own context. If this run's headliners/changelog touch a watched
 topic, that's not a normal `info` relevancy finding — bump it to at least
 `notable` severity (`references/schemas.md` §Report Object), prefix the
@@ -855,34 +1183,222 @@ example above (§Watch Items (Reading)) is exactly the kind of thing that
 could have been proposed at research time, the first time it was noticed,
 instead of waiting for the user to ask for it explicitly.
 
-**When to propose one** — rare, not a default. A genuine standing concern
-looks like: an intentional deviation from the vendor's default behavior that
-a future release could silently reintroduce or break (an on-demand wrapper
-replacing an always-on hook, a pin whose blocking condition is narrow and
-easy to miss changing back), or a config decision whose correctness depends
-on something the vendor could change without prominent announcement. It does
-**not** mean proposing one for every tool with a pin, a bespoke touchpoint,
-or a `needs_attention` verdict — those are already tracked via
-`config_status`/relevancy on every run; a watch item is for a concern that
-`config_status`'s per-run re-verification (§Config Status above) wouldn't
-naturally catch because there's no single delta to re-check, just an
-ongoing "did the vendor change their mind about X" question.
+**The bar.** A watch item exists for one of two things, and you must say
+which. Each limb is a conjunction: both halves, both answered concretely.
+
+**(a) Something expected to BOTH change AND require a change in the user's
+configs.**
+
+  - *Expected to change* → **name the party who can change it, and say why
+    they would not announce it prominently.** "Any vendor could change
+    anything" is not an answer; it is true of everything.
+  - *Require a config change* → **name the file, and say what the edit would
+    be.**
+
+  If you can name the file but not the edit, that file *depends on* the
+  behaviour — which is exposure, not a required change. Exposure is true of
+  nearly every tool on this machine, and a bar that admits it admits
+  everything. `cask:obsidian`'s proposal last run named
+  `dotfiles/config/bash/.aliases:35` and 31 Mermaid notes; if a confirmation
+  gate came back, neither would need editing — they would start prompting.
+  That is the shape to recognise.
+
+  The one entry the user has ever accepted is the model: cursor-agent's
+  shell-integration hook execs `agent record` on every new shell, the user
+  deliberately did not install it and wrote an on-demand `cursor-record()`
+  wrapper instead (`dotfiles/config/bash/.functions`). If the vendor changes
+  the hook, **that wrapper is the file that gets edited**. Named party, named
+  file, named edit.
+
+**(b) A config or use-case that is hard to reason about after the fact AND
+security-critical or load-bearing.**
+
+  - *Hard to reason about after the fact* → **could you tell, from the
+    machine's state alone, that it had already happened?** If yes, it is not
+    hard to reason about after the fact — you would find it next time you
+    looked. `brew:lazygit`'s proposal fails here: a config file rewritten in
+    place is a diff you see the moment you open it.
+  - *Security-critical or load-bearing* → **if it changed and nobody noticed
+    for six months, what breaks?** A credential, a trust boundary, an
+    unattended process, or something the setup depends on to work at all.
+    "Mildly annoying" is neither.
+
+  `cask:claudebar` passes both: a credential written back by an app the repo
+  launches unattended at login, where the failure already fired silently for
+  an unknown number of releases before issue #256 surfaced it.
+
+It does **not** mean proposing one for every tool with a pin, a bespoke
+touchpoint, or a `needs_attention` verdict — those are already tracked via
+`config_status`/relevancy on every run.
 
 **How to propose one**: add a suggestion to the tool's `suggestions[]` with
-`kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same
-schema strictness as any other suggestion, just a different shape:
-`target_files: []`, `command: null`, `auto_runnable: false`, and the
-proposal's payload in `watch_topic`/`watch_note` (same field meaning as
-`watch-items.json`'s `topic`/`note`, §Watch Items (Reading) above — write
-them so they'd read sensibly if copied verbatim into that file, because
-that's exactly what happens on accept). Give it a real `rationale` explaining
-why this is worth watching, same evidence-discipline as everything else
-here. **This is a proposal, not a write** — nothing touches
-`watch-items.json` unless the user explicitly accepts it in the review UI
+`kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same schema
+strictness as any other suggestion, just a different shape:
+
+```jsonc
+{
+	"id": "cask:cursor-cli:watch-shell-integration",
+	"kind": "watch-item",
+	"title": "Watch: shell-integration / session recording",
+	"target_files": [],          // nothing to edit
+	"command": null,             // nothing to run
+	"auto_runnable": false,      // accepting it writes a watch item, nothing else
+	"watch_topic": "the short phrase a future run matches against its changelog",
+	"watch_note": "the fuller context, so a future hit can explain itself
+	               without re-deriving everything",
+	"rationale": "your answers to the self-test below, in your own words"
+}
+```
+
+`watch_topic`/`watch_note` mean exactly what `watch-items.json`'s
+`topic`/`note` mean (§Watch Items (Reading) above) — write them so they read
+sensibly copied verbatim into that file, because that is what happens on
+accept.
+
+**`rationale` is where the self-test lands, and it is required.** It is also
+the field a later pass reads to decide whether to keep this at all, so it
+carries the same evidence discipline as everything else here.
+
+**This is a proposal, not a write** — nothing touches `watch-items.json`
+unless the user explicitly accepts it in the review UI
 (`references/apply.md` §Watch Items (Writing)); do not also write the file
-yourself from research. At most one or two per run across the whole
-candidate set is the expected volume — if you're proposing one for most
-tools you research, you're almost certainly over-applying this.
+yourself from research.
+
+How many to propose is answered in §There Is No Volume Target, two sections
+down. Read it before you decide to hold one back.
+
+### Before You Propose a Standing Note: the Self-Test
+
+You are about to add a permanent entry to a machine-global file. Run these
+questions and **write your answers into the proposal's `rationale`** — that
+field is required, and it is what a later pass reads.
+
+**Q1–Q4 are answerable from text you have already written in this same
+object.** If answering one sends you off to find something new, that is the
+answer: the support you were looking for is not there. Q5 is the exception and
+says so — a method note's witness is usually a *previous* run's mistake, which
+reaches you through the standing notes and hypotheses in your prompt rather
+than through anything you wrote today.
+
+**Nothing here deletes a proposal.** A question you fail tags the proposal and
+you write it anyway, with `self_test_failed: {limb, reason}` naming the
+question and your own reason in your own words (`references/schemas.md` §1.7c).
+**`reason` is required whenever the tag is present** — a limb name alone gives
+the later pass nothing to review the proposal against, which is a deletion
+wearing a tag, and the output is rejected for it (`E-SELFTEST-NOREASON`).
+A later corpus-wide pass reviews every tagged proposal and decides whether
+dropping it is right. **A proposal you never write is one that pass cannot
+restore** — that asymmetry is the whole reason the self-test tags instead of
+cutting. Never suppress a proposal because it failed a question here.
+
+**For a watch item — four questions.**
+
+> **Q1 — ROUTING.** Quote the sentence in your own note that says how a future
+> release's published text could match this topic. If you cannot write that
+> sentence, this is a research-method note, not a watch item. **File it as
+> one.** This is the one answer that is a *route* rather than a tag: the
+> knowledge is kept, it just moves to the store that fits it.
+>
+> **Q2 — SCOPE.** Read the `config_status` you just wrote for this same tool —
+> **write it before you write `suggestions[]`**, because this question quotes
+> it. Quote the sentence from its `detail` showing this concern is outside its
+> scope — typically a sentence naming what `config_status` *did* check, which
+> does not include your concern.
+>
+> If `config_status.detail` instead describes re-verifying **this** concern
+> against **this** run's delta, then `config_status` caught it. Write the
+> proposal anyway and tag it `self_test_failed: {limb: "scope", reason: <your
+> Q2 answer>}`.
+>
+> **If `config_status.state` is `"unknown"`, say so plainly.** Your quote will
+> be something like *"there is no prior handling to re-verify"* — true, and
+> worth nothing as evidence. This limb then gives you no support at all, and Q3
+> and Q4 carry the whole proposal alone. Do not read a vacuous pass as a pass.
+> This is not a rare corner: `config_status` was `unknown` on 22 of 78 tools
+> last run.
+>
+> **Q3 — THE CHANGING THING.** Name the thing that could change, and who owns
+> it. Then: is that thing something a file in the setup repos states, sets or
+> pins? If yes, a future delta against that file is exactly what
+> `config_status` re-checks every run — tag `{limb: "changing-thing", reason:
+> <which file states it>}`.
+>
+> Note what this asks and what it does not. It asks about the thing that could
+> **change** — not about any file your rationale happens to cite. A login item
+> in `tasks/config.sh` that makes a third party's credential handling run
+> unattended is not the changing thing; the credential's format is, and no file
+> here states it. Read the clause the other way and it drops the best proposal
+> in the set.
+>
+> **Q4 — THE LIMB.** Say which limb of the bar you are claiming, (a) or (b),
+> and answer its two halves in the bar's own terms:
+>   - (a) who changes it and why silently **+** which file, which edit
+>   - (b) could you tell from the machine's state alone that it already
+>     happened **+** what breaks after six months unnoticed
+>
+> If either half is unanswered, tag `{limb: "limb", reason: <which half, and
+> what you could not answer>}`.
+
+**For a method note — one question.**
+
+> **Q5 — THE WITNESS.** Point at the wrong or empty answer the ordinary path
+> produced for this tool: in a prior run, in this run's own research, or in the
+> source you had to fall back on. If your rationale predicts a failure rather
+> than naming one, tag `{limb: "unwitnessed", reason: <what you have instead of
+> a witnessed failure>}`.
+
+**A restatement is not an answer.** If a reply repeats the question, or recites
+the bar's own wording back at it, it fails. Two rationales last run opened with
+*"there is no single delta to re-check"* — the rule's own escape phrase —
+while the same tool's `config_status.detail`, written by the same agent minutes
+earlier, described re-checking exactly that delta. Three of eight did this.
+**Writing the rule's words is not passing the rule.**
+
+This self-test exists so that a later corpus-wide pass is not cutting a long
+list every run. It is not the last word: that pass sees every tool at once and
+holds final authority to cut anything, including proposals that pass every
+question here.
+
+### There Is No Volume Target — and Here Is Why
+
+You will not be told how many watch items or method notes to produce — not for
+this tool, not for your batch, not for the run. **You must not infer a number,
+and you must not invent one.**
+
+The reason is measured, not stylistic, and you need it: an agent told "there is
+no budget" with no explanation reads the omission as an oversight and invents a
+budget out of prudence, which is the same failure with a self-generated number.
+
+A previous version of this rule said *"at most one or two per run across the
+whole candidate set"*. That is a constraint on a sum no participant can see:
+twenty-two researchers each looking at between one and nine tools. Every one of
+them read a fleet allowance as a personal allowance, because from inside a
+one-to-nine-tool scope there is no other available reading. The result was eight
+proposals from eight different groups — **exactly one each, and not one group
+proposed two.** The instruction was obeyed locally and violated globally, which
+is the only outcome its structure allows.
+
+The same rule text produced 11, then 5, then 8 proposals across three runs. It
+was **byte-identical every time**. The number never came from the rule, so
+asking harder cannot move it. What moves it is the routing test and the
+self-test above, which change what you are asked to *produce* rather than what
+you are told to feel.
+
+Concretely:
+
+  - **Do not hold a proposal back because you imagine others are proposing
+    theirs.** You cannot see them and you would be guessing.
+  - **Do not propose one because you have researched several tools and none has
+    produced one yet.** An empty hand is a normal outcome. Most tools warrant
+    nothing.
+  - **Do not drop a proposal that failed the self-test.** Tag it. Dropping is
+    the one thing you cannot undo.
+  - **Judge each proposal on its own evidence**, against the bar and the
+    self-test, and nothing else.
+
+Volume is handled where volume is visible: a later pass reads every tool's
+output at once and cuts what does not hold. Your job is to be right about this
+tool, not to be economical about the fleet.
 
 ### Deduplicate Facts (Across Arrays, and Within One)
 
@@ -1012,6 +1528,18 @@ problem in the *surrounding* task code is not a reason to block the
 *package* upgrade itself from auto-running. Only mark it `false` if no
 command for this tool is safely testable at all, which should be rare.
 
+### Write `config_status` Before `suggestions[]`
+
+Within one tool object, author `config_status` first. The self-test's Q2
+(§Before You Propose a Standing Note) quotes `config_status.detail` to decide
+whether a concern is already covered, so a proposal written before there is a
+`detail` to quote has nothing to answer with — and the agent then either
+invents a quote or tags the proposal `scope` for the wrong reason, which
+invites a later pass to drop something that was fine.
+
+Nothing enforces the order; it is an ordering between two fields of one object
+you write in one pass. Just do it in that order.
+
 ### Schema Strictness
 
 **Hold yourself to the exact schema shapes** (spelled out in the research
@@ -1047,18 +1575,22 @@ Node semi-detailed (security advisories, breaking changes, notable features
 per minor); other runtimes coarse (breaking changes and majors only);
 everything else proportional to how much the user configures it.
 
-### Heterogeneous Hosts
+### One Host, One Manifest
 
-**The fleet has heterogeneous hosts** (until the eventual nix migration):
-`Brewfile` manifests the Apple Silicon host(s), `intel.Brewfile` the Intel
-host(s), and `tasks/*.sh` contain arch-conditional blocks. The collector's
-`machine` block describes only the host running this review. Assess impact
-per affected host/manifest — the same update can be `incompatible` on one
-host and desirable on the other (e.g. an ARM-only major on an Intel
-machine). Set severity to the worst affected host, spell out the per-host
-split in `detail`, and make each suggestion's `target_files` name the
-specific manifest(s) it touches (a Brewfile edit usually needs a decision
-about its intel counterpart, not a blind mirror).
+**This review covers the host it is running on, and `Brewfile` is the only
+manifest it looks at.** The collector's `machine` block describes that host;
+assess impact against it and against `tasks/*.sh`'s arch-conditional blocks as
+they apply there.
+
+`intel.Brewfile` is **out of this tool entirely**: not a source of candidates,
+not a compatibility check, not a suggestion target, and not on the page. Do
+not read it, cite it, or name it in a `target_files` entry — the deterministic
+layer rejects a suggestion that does (`references/item-schema.md` I-17), and
+the Intel host is going to NixOS rather than being reviewed here.
+
+Arch still matters *within* this host: an ARM-only dependency is an
+incompatibility on an x86_64 machine, not a footnote. Read it off the
+`machine` block rather than off which manifest a package is listed in.
 
 ### Brew-Health Enrichment
 

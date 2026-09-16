@@ -27,6 +27,7 @@ Seven groups:
    0 of 346 aborting cases and this group is how it stays there.
 """
 import contextlib
+import copy
 import io
 import json
 import os
@@ -34,6 +35,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import items as model  # noqa: E402
@@ -895,6 +897,267 @@ class ImpactAndBucketTests(unittest.TestCase):
 			local={"direction": "reaches", "effect": "risk", "statement": "s",
 				"evidence": [{"path": "Brewfile"}]})])
 		self.assertEqual(view["security_display_item_ids"], ["brew:x#issue:org%2Frepo%231"])
+
+
+# ── 6b. Memory proposals (REDESIGN.md L1, L7) ───────────────────────────────
+def _memory(kind="method-note", **kw):
+	base = {"id": "brew:x:" + kind, "kind": kind, "title": "A memory proposal",
+		"target_files": [], "command": None, "auto_runnable": False,
+		"rationale": "why this is worth remembering"}
+	for field in model.MEMORY_PAYLOAD_FIELDS[kind]:
+		base[field] = "some " + field
+	base.update(kw)
+	return base
+
+
+def _action(kind="edit", **kw):
+	base = {"id": "brew:x:" + str(kind), "kind": kind, "title": "An action proposal",
+		"target_files": [], "rationale": "why the user should change something"}
+	if kind == "structural":
+		base["structural"] = {"op": "tap_add", "subjects": [{"type": "tap", "name": "a/b"}],
+			"manifest": "Brewfile", "from": None, "to": {"type": "tap", "name": "a/b"},
+			"anchor": {"section": "TAPS"}}
+	base.update(kw)
+	return {k: v for k, v in base.items() if not (k == "structural" and v is None)}
+
+
+class MemoryProposalTests(unittest.TestCase):
+	"""`REDESIGN.md` §L1 expects **many** per-tool method notes and watch items,
+	and §L7 makes the self-test tag load-bearing — convergence keys its review
+	off it. Both facts are why these are validated rather than waved through as
+	free-floating extra fields: an unvalidated channel is how `Watch item hit:`
+	broke, and a misspelt `self_test_failed` would fail the same silent way."""
+
+	def _view(self, suggestions, **kw):
+		research = {"id": "brew:x", "links": [], "items": [_item()],
+			"suggestions": suggestions}
+		research.update(kw)
+		return validate_one(research)
+
+	# — the bucket rule —
+	def test_a_memory_proposal_alone_leaves_a_tool_routine(self):
+		"""The ruling, in one assertion. A method note or a watch item proposes
+		a change to what we remember; only `edit`/`structural` propose a change
+		to the user's system, and only those mean "a human has to look"."""
+		for kind in model.MEMORY_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				view, _ = self._view([_memory(kind)])
+				self.assertEqual(view["initial_review_bucket"], "routine")
+				self.assertEqual(view["risk_level"], "low")
+				self.assertEqual(view["impact"], "none")
+
+	def test_an_action_proposal_still_lands_in_attention(self):
+		for kind in model.ACTION_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				view, _ = self._view([_action(kind)])
+				self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_memory_proposal_beside_an_action_one_does_not_hide_it(self):
+		view, _ = self._view([_memory("watch-item"), _action("edit")])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_memory_proposal_does_not_answer_needs_attention(self):
+		"""I-15 reads the same tuple as the bucket clause. A note about how to
+		research this tool next time is not an answer to "the config may be
+		stale — what do I do about it", so it must not silence the warning any
+		more than it may raise the bucket."""
+		status = {"state": "needs_attention", "detail": "stale", "evidence": [],
+			"citations": []}
+		_, findings = self._view([_memory("method-note")], config_status=status)
+		self.assertIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+		_, findings = self._view([_action("edit")], config_status=status)
+		self.assertNotIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+
+	# — the payload —
+	def test_a_memory_proposal_without_its_payload_is_a_missing_field(self):
+		for kind, fields in sorted(model.MEMORY_PAYLOAD_FIELDS.items()):
+			for field in fields:
+				with self.subTest(kind + "." + field):
+					_, findings = self._view([_memory(kind, **{field: "   "})])
+					missing = {f["field"] for f in findings.entries
+						if f["code"] == "E-FIELD-MISSING"}
+					self.assertEqual(missing, {field})
+
+	def test_the_two_payloads_do_not_share_a_topic_or_note_field(self):
+		"""A watch item's topic and a method note's topic are different stores.
+		Sharing a field name is how they got conflated in the first place.
+		`rationale` is deliberately common to both — it is the same obligation
+		in both stores, and the field convergence reads."""
+		watch = set(model.MEMORY_PAYLOAD_FIELDS["watch-item"])
+		method = set(model.MEMORY_PAYLOAD_FIELDS["method-note"])
+		self.assertEqual(watch & method, {"rationale"})
+
+	def test_both_memory_kinds_owe_a_rationale(self):
+		"""The measured failure was never a missing topic — it was rationales
+		reciting the bar's own escape phrase. The self-test writes its answers
+		into this field and convergence promotes on it, so an empty one is a
+		proposal nobody downstream can review."""
+		for kind in model.MEMORY_SUGGESTION_KINDS:
+			with self.subTest(kind):
+				self.assertIn("rationale", model.MEMORY_PAYLOAD_FIELDS[kind])
+				_, findings = self._view([_memory(kind, rationale="   ")])
+				missing = [f for f in findings.entries if f["code"] == "E-FIELD-MISSING"]
+				self.assertEqual([f["field"] for f in missing], ["rationale"])
+
+	# — the self-test tag —
+	def test_a_well_formed_tag_is_accepted_and_exported(self):
+		for limb in model.SELF_TEST_LIMBS:
+			with self.subTest(limb):
+				view, findings = self._view([_memory("watch-item", self_test_failed={
+					"limb": limb, "reason": "config_status re-verified this exact delta"})])
+				self.assertEqual(findings.entries, [])
+				self.assertEqual(view["self_test_tagged_suggestion_ids"],
+					["brew:x:watch-item"])
+
+	def test_an_untagged_proposal_is_not_in_the_exported_set(self):
+		view, _ = self._view([_memory("watch-item")])
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_a_tag_with_no_reason_is_a_drop_with_extra_steps(self):
+		"""Criterion 17 exists to stop a self-test deleting a proposal. A tag
+		naming no reason gives convergence nothing to review it against, which
+		is a deletion wearing a tag."""
+		for reason in (None, "", "   ", 7):
+			with self.subTest(repr(reason)):
+				tag = {"limb": "scope"}
+				if reason is not None:
+					tag["reason"] = reason
+				self.assertIn("E-SELFTEST-NOREASON",
+					codes({"id": "brew:x", "links": [], "items": [_item()],
+						"suggestions": [_memory("watch-item", self_test_failed=tag)]}))
+
+	def test_a_limb_outside_the_vocabulary_is_reported(self):
+		_, findings = self._view([_memory("watch-item", self_test_failed={
+			"limb": "no-single-delta-to-re-check", "reason": "the rule's own words"})])
+		bad = [f for f in findings.entries if f["code"] == "E-ENUM-INVALID"]
+		self.assertEqual([f["field"] for f in bad], ["self_test_failed.limb"])
+
+	def test_a_tagged_proposal_is_still_kept_whole(self):
+		"""§L7's whole point: the agent writes the proposal it failed. Nothing
+		here removes it, empties it, or lowers anything on it."""
+		proposal = _memory("watch-item", self_test_failed={
+			"limb": "scope", "reason": "config_status caught it"})
+		view, _ = self._view([copy.deepcopy(proposal)])
+		self.assertEqual(view["suggestions"], [proposal])
+
+	def test_the_tag_belongs_only_on_a_memory_kind(self):
+		for kind in ("edit", "upgrade"):
+			with self.subTest(kind):
+				view, findings = self._view([_action(kind, self_test_failed={
+					"limb": "limb", "reason": "an action proposal has no self-test"})])
+				self.assertIn("E-FIELD-TYPE", {f["code"] for f in findings.entries})
+				# ...and it is NOT offered to convergence as a droppable note.
+				self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_a_non_object_tag_is_reported_not_crashed_on(self):
+		for tag in ("scope", ["scope"], 3):
+			with self.subTest(repr(tag)):
+				self.assertIn("E-FIELD-TYPE",
+					codes({"id": "brew:x", "links": [], "items": [_item()],
+						"suggestions": [_memory("watch-item", self_test_failed=tag)]}))
+
+	# — failing safe —
+	def test_an_unrecognized_kind_still_forces_a_decision(self):
+		"""The rule is "memory kinds do not force attention", not "only two
+		kinds do". Spelled the second way, a typo'd `"edits"` carrying a real
+		config edit reads as a memory proposal and the tool stays `routine`,
+		with E-ENUM-INVALID raised and feeding nothing."""
+		for kind in ("edits", "watchitem", "method_note", "future-kind"):
+			with self.subTest(kind):
+				view, findings = self._view([_action(kind, structural=None)])
+				self.assertEqual(view["initial_review_bucket"], "attention")
+				self.assertIn("E-ENUM-INVALID", {f["code"] for f in findings.entries})
+
+	def test_an_unrecognized_kind_never_reaches_the_pre_accepting_bucket(self):
+		"""`compute_initial_bucket` tests `security_auto` **before** its own
+		suggestion clause, and that clause's inputs are `impact` and
+		`security_only`. So the bucket clause's negation is not the guarantee —
+		`compute_impact` and `compute_risk_level` are.
+
+		No fixture anywhere crossed a security item with a suggestion, which is
+		why a 133-test suite stayed green over a route straight to
+		`security_auto`, pre-accepted, carrying an unreviewed proposed edit to
+		the user's system. That is the `brew:libpq` defect, exactly."""
+		security = _item(tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-1000", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		for kind in ("edit", "edits", "future-kind"):
+			with self.subTest(kind):
+				research = {"id": "brew:x", "links": [], "items": [security],
+					"suggestions": [_action(kind, structural=None)]}
+				view, _ = validate_one(research)
+				self.assertNotEqual(view["initial_review_bucket"], "security_auto")
+				self.assertEqual(view["initial_review_bucket"], "security_mixed")
+				self.assertEqual(view["impact"], "possible")
+				self.assertEqual(view["risk_level"], "elevated")
+
+	def test_a_memory_proposal_beside_security_content_still_auto_accepts(self):
+		"""The other side of the same clause: the negation must not over-fire.
+		A method note is not a reason to hold back a security-only upgrade."""
+		security = _item(tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-1000", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})
+		research = {"id": "brew:x", "links": [], "items": [security],
+			"suggestions": [_memory("method-note")]}
+		view, _ = validate_one(research)
+		self.assertEqual(view["impact"], "none")
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
+	def test_an_unrecognized_kind_does_not_silence_the_attention_warning(self):
+		status = {"state": "needs_attention", "detail": "stale", "evidence": [],
+			"citations": []}
+		_, findings = self._view([_action("edits", structural=None)], config_status=status)
+		self.assertNotIn("W-ATTENTION-NOSUG", {f["code"] for f in findings.entries})
+
+	def test_an_unhashable_kind_costs_the_tool_no_suggestions(self):
+		"""`assemble.suggestion_kind` returns what the checker wrote, so a
+		drifted `"kind": ["edit"]` arrives unhashable. A dict lookup on it would
+		raise out of the whole stage and take this tool's real edit proposal
+		with it — deletion, over a shape the rest of this file survives."""
+		for kind in (["edit"], {"a": 1}, {"edit"}):
+			with self.subTest(repr(kind)):
+				real = _action("edit", id="brew:x:real-edit")
+				view, findings = self._view([{"id": "brew:x:drifted", "kind": kind,
+					"title": "A suggestion whose kind is not even a string"}, real])
+				codes_seen = {f["code"] for f in findings.entries}
+				self.assertNotIn("E-VALIDATOR-CRASH", codes_seen)
+				self.assertIn("E-ENUM-INVALID", codes_seen)
+				self.assertIn(real, view["suggestions"])
+				self.assertEqual(len(view["suggestions"]), 2)
+
+	def test_an_unhashable_kind_carrying_a_tag_is_reported_by_type(self):
+		view, findings = self._view([{"id": "brew:x:drifted", "kind": ["watch-item"],
+			"title": "t", "self_test_failed": {"limb": "scope", "reason": "r"}}])
+		messages = [f["message"] for f in findings.entries if f["code"] == "E-FIELD-TYPE"]
+		self.assertTrue(any("\"list\"" in m for m in messages), messages)
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+
+	def test_the_tagged_list_survives_a_crash_inside_the_axis_derivation(self):
+		"""The default in the view literal is only ever *read* when
+		`_derive_axes` raises before assigning the key — so a test that lets
+		`_derive_axes` finish pins nothing, and passes with the default
+		removed. Inject the crash.
+
+		It also makes the ordering point visible rather than assumed: with the
+		crash injected before the tail, `initial_review_bucket` still reads
+		`attention`, so a failed stage cannot promote this tool."""
+		with mock.patch.object(V, "compute_impact", side_effect=RuntimeError("boom")):
+			view, _ = validate_one(None)
+		self.assertIn("self_test_tagged_suggestion_ids", view)
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
+		self.assertTrue(view["validator_error"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_tagged_proposal_missing_its_id_is_still_listed(self):
+		"""Absent from the list is the one thing it must never be — convergence
+		works from this list, and a proposal it cannot see is one it cannot
+		restore."""
+		proposal = _memory("watch-item", self_test_failed={
+			"limb": "limb", "reason": "neither half answered"})
+		del proposal["id"]
+		view, _ = self._view([proposal])
+		self.assertEqual(view["self_test_tagged_suggestion_ids"], ["brew:x:<no id>"])
 
 
 # ── 7. Degradation: per tool, loud, never fatal ─────────────────────────────

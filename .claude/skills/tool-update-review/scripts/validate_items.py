@@ -22,7 +22,7 @@ Six stages:
 	V2   spec validation      — required fields, types, closed vocabularies
 	V3   shape normalization  — the normalizations §5.3 licenses, and no others
 	V3b  id assignment and uniqueness, from the checker's declared anchor
-	V4   the eighteen invariants
+	V4   the nineteen invariants
 	V5   impact
 	V6   initial bucketing
 
@@ -1053,7 +1053,19 @@ def compute_impact(view) -> str:
 
 	`"watch-item"` is NOT in the suggestion clause: `REDESIGN.md` §D row 4
 	accepts dropping it, and `item-schema.md` §5.5 flags its own draft as wrong
-	against that row. Landed here as `("edit", "structural")`."""
+	against that row. It reads `model.needs_a_decision`, the same negation the
+	bucket clause and `W-ATTENTION-NOSUG` ask, and that matters here more than
+	anywhere: `compute_initial_bucket` tests `security_auto` **before** its own
+	suggestion clause, and `security_auto`'s inputs are `impact` and
+	`security_only`. Written positively, a suggestion whose kind is typo'd
+	`"edits"` — or drifted to a list — reads as no impact, and a tool with any
+	security content lands in `security_auto`, pre-accepted, carrying an
+	unreviewed proposed edit to the user's system. That is the `brew:libpq`
+	defect this module's header names, reached by exactly the route the header
+	describes.
+
+	`needs_a_decision` and `("edit", "structural")` differ **only** on kinds
+	outside the vocabulary, so no conforming input changes behaviour."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "none" if assemble.finding_expected(view) else "possible"
 	if not research_produced_content(view):
@@ -1064,7 +1076,7 @@ def compute_impact(view) -> str:
 	suggestions = view.get("suggestions") or []
 	if (view.get("pinned")
 			or assemble.config_needs_attention(view)
-			or any(assemble.suggestion_kind(s) in ("edit", "structural")
+			or any(model.needs_a_decision(assemble.suggestion_kind(s))
 				for s in suggestions if isinstance(s, dict))
 			or any(i.get("severity") == "incompatible" for i in view["items"])
 			# `isinstance`, not `or {}`: V2 reports a wrong-typed `local` and
@@ -1103,7 +1115,9 @@ def compute_risk_level(view) -> str:
 		if isinstance(item.get("local"), dict) and item.get("severity") in ("warning", "incompatible"):
 			return "elevated"
 	for sug in view.get("suggestions") or []:
-		if isinstance(sug, dict) and assemble.suggestion_kind(sug) in ("edit", "structural"):
+		# Same negation, same reason as `compute_impact`: `risk_level` feeds
+		# `pre_accept`, so an unrecognized kind must raise it, not be waved past.
+		if isinstance(sug, dict) and model.needs_a_decision(assemble.suggestion_kind(sug)):
 			return "elevated"
 	if view["version_delta"] in ("major", "unknown"):
 		return "elevated"
@@ -1134,7 +1148,31 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	**This is a baseline for convergence to review, not a decision**
 	(`REDESIGN.md` §C3). It is labelled `initial_review_bucket` in the output
 	and carries `bucket_inputs` so convergence can see *why* without
-	re-deriving it."""
+	re-deriving it.
+
+	**Memory proposals do not force `attention`; action proposals do.**
+	`method-note` and `watch-item` propose changes to what we remember; `edit`
+	and `structural` propose changes to the user's system. Only the latter
+	needs a decision, so the clause goes through `model.needs_a_decision`
+	rather than testing "anything that is not an upgrade".
+
+	That predicate is a negation — *not* a memory kind — so an unrecognized
+	kind still forces a decision. Testing `in ACTION_SUGGESTION_KINDS` instead
+	would let a drifted `"edits"` read as a memory proposal and leave a real
+	edit on a `routine` tool, with `E-ENUM-INVALID` raised and feeding nothing.
+
+	**This clause is not the whole guarantee**, and reading it as one is a
+	mistake: `security_auto` is tested two clauses earlier and never reaches
+	here. `compute_impact` and `compute_risk_level` ask the same predicate for
+	that reason — they are what hold an unrecognized kind out of the
+	pre-accepting bucket.
+
+	The old spelling was harmless only while watch items were rare. `REDESIGN.md`
+	§L1 now expects **many** per-tool method notes and watch items, so "not an
+	upgrade" would put most of the fleet on the "needs you" list — inflating the
+	surface §A and criterion 10 exist to compact, and forcing exactly the review
+	§L5 was designed to make optional. `W-ATTENTION-NOSUG` reads the same tuple,
+	so a bucket and its explanation cannot drift apart."""
 	if view["source"] in NON_VERSION_SOURCES:
 		return "routine" if assemble.finding_expected(view) else "attention"
 	if (has_security and security_only and impact == "none"
@@ -1144,7 +1182,7 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 		return "security_mixed"
 	if (risk_level == "elevated"
 			or assemble.config_needs_attention(view)
-			or any(assemble.suggestion_kind(s) != "upgrade"
+			or any(model.needs_a_decision(assemble.suggestion_kind(s))
 				for s in (view.get("suggestions") or []) if isinstance(s, dict))
 			or not runnable):
 		return "attention"
@@ -1191,6 +1229,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"bucket_inputs": {"has_security": False, "security_only": False,
 			"impact": "unknown", "version_delta": "unknown", "runnable": False},
 		"security_display_item_ids": [],
+		"self_test_tagged_suggestion_ids": [],
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1356,13 +1395,21 @@ def _derive_axes(view, candidate, findings):
 	}
 	view["security_display_item_ids"] = [
 		i["id"] for i in model.security_display_items(view["items"])]
+	# Criterion 17 makes convergence responsible for every tagged proposal, so
+	# the tagged set is exported rather than left to be re-derived from prose.
+	view["self_test_tagged_suggestion_ids"] = _self_test_tagged_ids(
+		view["suggestions"], view["id"])
 
-	# I-15 — existing rule, kept.
+	# I-15 — existing rule, kept. It reads the same tuple as
+	# `compute_initial_bucket`: a memory proposal is not an answer to
+	# "needs_attention but what do I do about it", so it must not silence the
+	# warning any more than it may raise the bucket.
 	if assemble.config_needs_attention(view) and not any(
-			assemble.suggestion_kind(s) != "upgrade"
+			model.needs_a_decision(assemble.suggestion_kind(s))
 			for s in view["suggestions"] if isinstance(s, dict)):
 		findings.add("W-ATTENTION-NOSUG",
-			"config_status is needs_attention but no non-upgrade suggestion says what to do",
+			"config_status is needs_attention but no edit or structural suggestion says "
+			"what to do about it",
 			tool_id=view["id"], field="config_status.state")
 
 
@@ -1420,6 +1467,7 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 			for subject in validate_structural(block, tool_id, sug_id, findings, manifest):
 				subject_refs.append({"subject": subject,
 					"suggestion_id": sug_id or (tool_id + ":<no id>")})
+		_validate_memory_proposal(sug, kind, findings, tool_id, sug_id)
 		# I-17, second limb — no target_files[] path is intel.Brewfile.
 		for target in as_list(sug.get("target_files"), findings, tool_id, "target_files", sug_id):
 			path = target.get("path") if isinstance(target, dict) else target
@@ -1428,6 +1476,91 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 					"intel.Brewfile is out of this tool entirely — it is not a suggestion "
 					"target", tool_id=tool_id, item_id=sug_id, field="target_files", value=path)
 	return suggestions, subject_refs, quarantine
+
+
+# I-19 — the memory-proposal shape. Two kinds, one payload pair each, and the
+# self-test tag that `REDESIGN.md` §L7 makes load-bearing.
+def _validate_memory_proposal(sug, kind, findings, tool_id, sug_id):
+	"""I-19. A memory proposal carries its payload, and a failed self-test
+	carries its reason.
+
+	The tag is validated rather than waved through as a free-floating extra
+	field, because §L7 makes convergence key its review off it. An unvalidated
+	channel is how `Watch item hit:` broke — a literal string worth 70
+	highlight points that nobody checked, which silently stopped firing the
+	moment it was paraphrased. A misspelt `self_test_failed` would be invisible
+	in exactly the same way.
+
+	A tag with no reason is a drop with extra steps, and criterion 17 exists to
+	prevent precisely that, so the reason is required whenever the tag is
+	present."""
+	# `assemble.suggestion_kind` returns `sug.get("kind")` verbatim, so a
+	# drifted `"kind": ["edit"]` arrives unhashable and `.get()` would raise —
+	# costing this tool its entire suggestions array, which is deletion, which
+	# is the one thing this layer may not do. Same guard as `derive_item_id`'s.
+	payload = model.MEMORY_PAYLOAD_FIELDS.get(kind) if isinstance(kind, str) else None
+	if payload:
+		for field, purpose in sorted(payload.items()):
+			value = sug.get(field)
+			if not isinstance(value, str) or not value.strip():
+				findings.add("E-FIELD-MISSING",
+					"a \"{}\" proposal needs `{}` — {}".format(kind, field, purpose),
+					tool_id=tool_id, item_id=sug_id, field=field)
+
+	tag = sug.get("self_test_failed")
+	if tag is None:
+		return
+	if payload is None:
+		findings.add("E-FIELD-TYPE",
+			"a `self_test_failed` tag on a suggestion of kind \"{}\" — the tag is present "
+			"iff the kind is one of: {}".format(
+				kind if isinstance(kind, str) else type(kind).__name__,
+				", ".join(model.MEMORY_SUGGESTION_KINDS)),
+			tool_id=tool_id, item_id=sug_id, field="self_test_failed")
+		return
+	if not isinstance(tag, dict):
+		findings.add("E-FIELD-TYPE",
+			"`self_test_failed` must be an object with `limb` and `reason`",
+			tool_id=tool_id, item_id=sug_id, field="self_test_failed",
+			value=type(tag).__name__)
+		return
+	limb = tag.get("limb")
+	if limb not in model.SELF_TEST_LIMBS:
+		findings.add("E-ENUM-INVALID",
+			"a self-test limb must be one of: {}".format(", ".join(model.SELF_TEST_LIMBS)),
+			tool_id=tool_id, item_id=sug_id, field="self_test_failed.limb",
+			value=limb if isinstance(limb, str) else None)
+	reason = tag.get("reason")
+	if not isinstance(reason, str) or not reason.strip():
+		findings.add("E-SELFTEST-NOREASON",
+			"a `self_test_failed` tag with no reason — convergence reviews the tag to "
+			"decide whether dropping the proposal is right, and cannot do that from the "
+			"limb name alone",
+			tool_id=tool_id, item_id=sug_id, field="self_test_failed.reason")
+
+
+def _self_test_tagged_ids(suggestions, tool_id):
+	"""The tagged set, exported per tool so criterion 17 is checkable rather
+	than asserted: convergence has to review every tagged proposal and verify
+	that dropping it is appropriate.
+
+	Memory kinds only. A tag on an `edit` is a shape error, not a droppable
+	memory proposal, and E-FIELD-TYPE is the loud channel for it — listing it
+	here would invite convergence to treat a proposed change to the user's
+	system as a note it may quietly discard.
+
+	An id-less suggestion gets the same `<no id>` placeholder a structural
+	subject ref does, so a proposal missing its id is still visible here rather
+	than silently absent from the list convergence works from."""
+	out = []
+	for sug in suggestions:
+		if not isinstance(sug, dict) or sug.get("self_test_failed") is None:
+			continue
+		if assemble.suggestion_kind(sug) not in model.MEMORY_SUGGESTION_KINDS:
+			continue
+		sug_id = sug.get("id")
+		out.append(sug_id if isinstance(sug_id, str) else tool_id + ":<no id>")
+	return out
 
 
 def _names_forbidden_manifest(path) -> bool:

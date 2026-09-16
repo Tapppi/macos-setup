@@ -10,9 +10,14 @@
 		],
 		"items": [
 			{
-				"anchor": {"kind": "commit", "value": "9f3c1de"},
+				"anchor": {
+					"kind": "commit",
+					"value": "9f3c1de"
+				},
 				"title": "The default config path moves from ~/.attentionrc to $XDG_CONFIG_HOME/attention",
-				"tags": ["breaking"],
+				"tags": [
+					"breaking"
+				],
 				"severity": "notable",
 				"change": {
 					"version": "2.4.1",
@@ -35,6 +40,17 @@
 				"command": "brew upgrade attention",
 				"auto_runnable": true,
 				"needs_sudo": false
+			},
+			{
+				"id": "brew:attention:method-xdg-path",
+				"kind": "method-note",
+				"title": "Research attention's config path from the source, not the release notes",
+				"target_files": [],
+				"command": null,
+				"auto_runnable": false,
+				"method_topic": "where attention's real config-path changes are announced",
+				"method_note": "attention moves its config path in ordinary commits and mentions it nowhere in the release body. Read the `config` package's diff across the range rather than the CHANGELOG, which said nothing about the 2.4.1 move.",
+				"rationale": "The 2.4.1 move was invisible in the release notes this review read first."
 			}
 		]
 	}

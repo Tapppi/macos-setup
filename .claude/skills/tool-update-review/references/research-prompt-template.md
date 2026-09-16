@@ -39,15 +39,50 @@ Repo context — recent commits, for config_status cross-referencing and
 general awareness of what's already changed recently (`references/collection.md`):
 {{REPO_CONTEXT_JSON}}
 
-Paths you may scan for relevancy (`references/research.md`'s "Relevancy is the point
-of this skill"):
-    ~/project/github/tapppi/macos-setup  (Brewfile, intel.Brewfile, tasks/,
-        dotfiles/ submodule — shell/git/tmux/Claude configs)
-    ~/project/github/tapppi/systems       (NixOS flake)
+Paths you may scan for relevancy — the user's LIVE checkouts, read-only
+(`references/research.md`'s "Relevancy is the point of this skill"):
+    ~/project/github/tapppi/macos-setup  (Brewfile, tasks/*.sh, backup.sh,
+        restore.sh, dotfiles/ submodule — shell/git/tmux/Claude configs)
+    ~/project/github/tapppi/systems       (Nix flake)
 
-Audit trail to check for config_status and watch items (`references/research.md`):
+`intel.Brewfile` is out of this tool entirely — do not read it, cite it or
+target it (`references/research.md` §One Host, One Manifest).
+`dotfiles/config/agent-skills/**` is vendored third-party skill content: grep
+hits there are almost never a real touchpoint, so ignore them unless the tool
+is genuinely configured there.
+
+Audit trail to check for config_status (`references/research.md` §Config Status):
     ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/changelog.md
-    ${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json
+
+Standing notes previous runs left about these tools — method notes (read them
+BEFORE you look anything up; they change where you look) and watch items
+(topics to notice in the changelog you are reading anyway). Empty means these
+tools have none (`references/research.md` §Watch Items (Reading)):
+{{STANDING_NOTES}}
+<!-- one block per tool that has any: kind (method-note | watch-item), topic,
+     note. Looked up by tool id from the two stores; never hand-written. -->
+
+Prior findings, as HYPOTHESES to verify — never as facts to restate. Each was
+believed by a previous review of this machine; confirm or refute it against
+today's versions from the sources you would have used had nobody told you, and
+say plainly when one no longer holds (`references/research.md` §Prior Findings
+Are Hypotheses):
+{{HYPOTHESES}}
+<!-- one block per tool that has any. Drawn mechanically by tool id from
+     changelog.md, the two standing-note stores and the previous run's report.
+     Form rules below in §Writing Hypotheses — they are not optional, and they
+     are the difference between raising research quality and nominating an
+     answer. -->
+
+Touchpoints found by word-boundary grep, per tool — where these tools are
+named in the setup repos. This is a starting signal, not a finding and not a
+list of what matters: verify each hit is a real touchpoint and find the ones
+grep cannot (`references/research.md` §Word-Boundary Grep Rule — a script can
+use a tool without ever naming it).
+{{TOUCHPOINTS}}
+<!-- one block per tool: the `grep -wn` hits from tiering, file:line + the
+     matched line. Generated, never hand-written: a hand-written hint is where
+     the nomination problem starts (§Writing Hypotheses below). -->
 
 Follow references/research.md's full research quality bar — headliner atomicity
 and category/severity classification, relevancy vs context vs
@@ -56,9 +91,10 @@ deletion boundary, CVE severity capture (`basis`, the fetch budget, never
 deriving a severity from how a description reads) and selecting `notable[]`
 (cap 3, `affects_me` set from the direction of your own finding), the
 vendor-silent compact-tag exception, link quality and the embedded_content
-fallback, config_status and watch-item cross-referencing (reading *and*,
-rarely, proposing a new one — see `references/research.md` §Watch Items
-(Proposing)), bespoke tasks/*.sh setup handling (see
+fallback, config_status, the two standing-note stores and how to
+tell them apart (`references/research.md` §Standing Notes: Three Stores,
+§Research-Method Notes vs Watch Items, §Watch Items (Proposing) and the
+self-test that follows it), bespoke tasks/*.sh setup handling (see
 `references/research.md` §Bespoke `tasks/*.sh` Setup Testing)
 — read it before you start, not after. Hold yourself to the exact schema
 shapes in `references/schemas.md` (headliners as {text,category,severity}
@@ -68,8 +104,11 @@ always an array, `security.cve_severities` as {cve_id,severity,basis} and
 written even when nothing qualifies, as `[]`, since an omitted block and an
 empty one mean different things to the card,
 suggestions using title/target_files/rationale/motivating_link/diff_preview,
-and a proposed watch item using `kind: "watch-item"` with
-`watch_topic`/`watch_note` instead — §1.7)
+a proposed watch item using `kind: "watch-item"` with
+`watch_topic`/`watch_note` instead (§1.7), a proposed method note using
+`kind: "method-note"` with `method_topic`/`method_note` (§1.7b), and either
+carrying `self_test_failed` when its self-test failed — tagged, never
+dropped (§1.7c))
 — loose shapes force hand-normalization during assembly.
 
 Write your findings as a JSON array to {{OUTPUT_PATH}} using the Write
@@ -87,6 +126,58 @@ fine as your actual response.
 | `{{TOOL_LIST}}` | One block per tool: id, name, source, current_version, latest_version, pinned — from `collect.sh`'s output |
 | `{{MACHINE_JSON}}` | The `machine` object from `collect.sh`'s output |
 | `{{REPO_CONTEXT_JSON}}` | The contents of `{session_dir}/repo_context.json` (`scripts/repo_context.sh`'s output) |
+| `{{HYPOTHESES}}` | Prior findings for this batch's tools, drawn mechanically by tool id — one block per tool that has any, in the form §Writing Hypotheses requires |
+| `{{STANDING_NOTES}}` | This batch's tools' entries from `watch-items.json` and `method-notes.json`, looked up by tool id — empty when they have none |
+| `{{TOUCHPOINTS}}` | The word-boundary grep hits from tiering (`references/research.md` §Word-Boundary Grep Rule), one block per tool — **generated from the grep, never typed by hand** |
+
+## Writing Hypotheses
+
+`{{HYPOTHESES}}` is where a prior run's findings reach a checker. **There are
+rules about their form, because the form changes what comes back**, and the
+measured effect is large in both directions.
+
+A hypothesis states an **observable** and asks for verification:
+
+> **GOOD** — "A prior review found v5.3 flips the Makefile default O_NORL 0→1,
+> and homebrew-core's formula runs a plain `make install` with no `O_NORL=0`.
+> Verify independently against the current formula and the v5.3 source."
+
+It never names a conclusion, a proposal, or an artefact kind:
+
+> **BAD** — "A prior review proposed a watch item for the widening local-data
+> surface; decide for yourself whether it clears the bar (the fleet-wide budget
+> is one or two total)."
+
+The second is a nomination wearing a question's clothes. It tells the checker a
+candidate exists, grants permission to take it, and — with a budget in the same
+breath — implies it is *the* one. **That exact sentence produced one of the
+last run's eight watch-item proposals, and six of the eight trace to hints of
+that shape.** The two the prompt did not name are the two both convergence
+passes kept.
+
+The good example is not hypothetical either: it measurably raised the quality
+of that group's research. The difference between them is that one hands over a
+**question with its evidence** and the other hands over an **answer**.
+
+Hard rules:
+
+  - **Never name an artefact kind.** Do not write "watch item", "method note"
+    or "suggestion" in a hypothesis. State the observation; the bar decides
+    what it becomes.
+  - **Never mention volume, budgets, counts, or how many were proposed last
+    time.** Not in a hypothesis, not anywhere else in the prompt
+    (`references/research.md` §There Is No Volume Target).
+  - **Never carry a prior conclusion without its evidence.** If you cannot
+    supply what it was based on, do not supply the conclusion.
+  - **Never phrase one as a decision for the checker to ratify** — "decide for
+    yourself whether", "confirm this is still worth flagging". Ask for the
+    observation, not for a verdict on a prior agent's judgement.
+  - **Prefer the raw observation to the prior agent's phrasing of it.**
+
+Hypotheses are drawn **mechanically, by tool id**, from `changelog.md`, the two
+standing-note stores and the previous run's report. They are not hand-written
+per run. A hand-written hint is where every one of the last run's nominations
+came from.
 
 ## Batch sizing and tiering
 

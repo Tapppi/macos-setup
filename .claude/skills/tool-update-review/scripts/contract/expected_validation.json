@@ -1,5 +1,5 @@
 {
-	"contract_version": 1,
+	"contract_version": 2,
 	"generated_at": "2026-09-07T00:00:00Z",
 	"session_id": "session",
 	"clean": false,
@@ -20,7 +20,7 @@
 			"item_id": null,
 			"field": "config_status.state",
 			"value": "",
-			"message": "config_status is needs_attention but no non-upgrade suggestion says what to do"
+			"message": "config_status is needs_attention but no edit or structural suggestion says what to do about it"
 		},
 		{
 			"code": "W-ENTRY-UNMATCHED",
@@ -317,7 +317,7 @@
 			"item_id": "brew:nonconforming:bad-kind",
 			"field": "kind",
 			"value": "refactor",
-			"message": "suggestion kind must be one of: upgrade, edit, structural, watch-item"
+			"message": "suggestion kind must be one of: upgrade, edit, structural, watch-item, method-note"
 		},
 		{
 			"code": "E-INTEL-BREWFILE",
@@ -327,6 +327,15 @@
 			"field": "target_files",
 			"value": "intel.Brewfile",
 			"message": "intel.Brewfile is out of this tool entirely — it is not a suggestion target"
+		},
+		{
+			"code": "E-FIELD-TYPE",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:edit-with-a-self-test-tag",
+			"field": "self_test_failed",
+			"value": "",
+			"message": "a `self_test_failed` tag on a suggestion of kind \"edit\" — the tag is present iff the kind is one of: watch-item, method-note"
 		},
 		{
 			"code": "E-FIELD-MISSING",
@@ -356,6 +365,33 @@
 			"message": "no readable manifest was named — the precondition for op \"manifest_move\" is unverified, not satisfied"
 		},
 		{
+			"code": "E-ENUM-INVALID",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:method-no-payload",
+			"field": "self_test_failed.limb",
+			"value": "recited-the-rule",
+			"message": "a self-test limb must be one of: scope, changing-thing, limb, unwitnessed"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:method-no-payload",
+			"field": "method_note",
+			"value": "",
+			"message": "a \"method-note\" proposal needs `method_note` — the instruction itself, written to read sensibly when copied verbatim into the next run's context"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:method-no-payload",
+			"field": "method_topic",
+			"value": "",
+			"message": "a \"method-note\" proposal needs `method_topic` — what the note is about, in a few words"
+		},
+		{
 			"code": "E-STRUCT-PRECOND",
 			"severity": "error",
 			"tool_id": "brew:nonconforming",
@@ -383,6 +419,15 @@
 			"message": "setup.sh already dispatches \"install\""
 		},
 		{
+			"code": "E-SELFTEST-NOREASON",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:watch-no-reason",
+			"field": "self_test_failed.reason",
+			"value": "",
+			"message": "a `self_test_failed` tag with no reason — convergence reviews the tag to decide whether dropping the proposal is right, and cannot do that from the limb name alone"
+		},
+		{
 			"code": "W-SUG-DUP-ID",
 			"severity": "warning",
 			"tool_id": "brew:nonconforming",
@@ -400,11 +445,11 @@
 			"E-CITE-KIND": 1,
 			"E-CITE-URL": 1,
 			"E-CVE-MALFORMED": 1,
-			"E-ENUM-INVALID": 2,
+			"E-ENUM-INVALID": 3,
 			"E-EVID-404": 1,
 			"E-EVID-MALFORMED": 2,
-			"E-FIELD-MISSING": 4,
-			"E-FIELD-TYPE": 1,
+			"E-FIELD-MISSING": 6,
+			"E-FIELD-TYPE": 2,
 			"E-FLAG-DISAGREE": 3,
 			"E-FLAG-FORBIDDEN": 1,
 			"E-INTEL-BREWFILE": 2,
@@ -416,6 +461,7 @@
 			"E-SEC-BLOCK-MISSING": 1,
 			"E-SEC-BLOCK-ORPHAN": 1,
 			"E-SEC-RATING-UNBASED": 1,
+			"E-SELFTEST-NOREASON": 1,
 			"E-SEV-INCOMPAT-UNGROUNDED": 1,
 			"E-SEV-WARNING-UNGROUNDED": 1,
 			"E-STRUCT-PRECOND": 2,
@@ -432,10 +478,10 @@
 		"by_tool": {
 			"brew:attention": 1,
 			"brew:ghost": 1,
-			"brew:nonconforming": 40
+			"brew:nonconforming": 45
 		},
 		"by_severity": {
-			"error": 36,
+			"error": 41,
 			"warning": 7
 		}
 	},
@@ -627,6 +673,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": []
 		},
 		{
@@ -815,6 +862,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": []
 		},
 		{
@@ -990,6 +1038,7 @@
 			"security_display_item_ids": [
 				"cask:codex#cve:CVE-2026-18408"
 			],
+			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": []
 		},
 		{
@@ -1042,6 +1091,17 @@
 					"command": "brew upgrade attention",
 					"auto_runnable": true,
 					"needs_sudo": false
+				},
+				{
+					"id": "brew:attention:method-xdg-path",
+					"kind": "method-note",
+					"title": "Research attention's config path from the source, not the release notes",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"method_topic": "where attention's real config-path changes are announced",
+					"method_note": "attention moves its config path in ordinary commits and mentions it nowhere in the release body. Read the `config` package's diff across the range rather than the CHANGELOG, which said nothing about the 2.4.1 move.",
+					"rationale": "The 2.4.1 move was invisible in the release notes this review read first."
 				}
 			],
 			"subject_refs": [],
@@ -1063,6 +1123,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"W-ATTENTION-NOSUG"
 			]
@@ -1325,6 +1386,45 @@
 					"title": "A suggestion id already claimed by another tool",
 					"target_files": [],
 					"rationale": "A collision almost always means an id pattern was copied rather than derived."
+				},
+				{
+					"id": "brew:nonconforming:watch-no-reason",
+					"kind": "watch-item",
+					"title": "A watch item tagged by its own self-test with no reason given",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"watch_topic": "the credential format this vendor writes back",
+					"watch_note": "Flag any future release touching the Keychain record.",
+					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"self_test_failed": {
+						"limb": "scope",
+						"reason": "  "
+					}
+				},
+				{
+					"id": "brew:nonconforming:method-no-payload",
+					"kind": "method-note",
+					"title": "A method note carrying neither topic nor note",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"rationale": "The payload is what gets copied into the next run's context.",
+					"self_test_failed": {
+						"limb": "recited-the-rule",
+						"reason": "The limb name is outside the vocabulary."
+					}
+				},
+				{
+					"id": "brew:nonconforming:edit-with-a-self-test-tag",
+					"kind": "edit",
+					"title": "An action proposal wearing a memory proposal's self-test tag",
+					"target_files": [],
+					"rationale": "The tag is present iff the kind is a memory kind.",
+					"self_test_failed": {
+						"limb": "limb",
+						"reason": "An edit has no self-test to fail."
+					}
 				}
 			],
 			"subject_refs": [
@@ -1357,6 +1457,10 @@
 			"security_display_item_ids": [
 				"brew:nonconforming#cve:CVE-26-1"
 			],
+			"self_test_tagged_suggestion_ids": [
+				"brew:nonconforming:watch-no-reason",
+				"brew:nonconforming:method-no-payload"
+			],
 			"spec_violations": [
 				"E-ANCHOR-MALFORMED",
 				"E-CHANGE-UNCITED",
@@ -1379,6 +1483,7 @@
 				"E-SEC-BLOCK-MISSING",
 				"E-SEC-BLOCK-ORPHAN",
 				"E-SEC-RATING-UNBASED",
+				"E-SELFTEST-NOREASON",
 				"E-SEV-INCOMPAT-UNGROUNDED",
 				"E-SEV-WARNING-UNGROUNDED",
 				"E-STRUCT-PRECOND",
@@ -1428,6 +1533,7 @@
 				"runnable": false
 			},
 			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
 			"health_expected": true,
 			"spec_violations": []
 		}

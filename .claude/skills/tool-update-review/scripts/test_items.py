@@ -393,9 +393,13 @@ class PublishedFixtureTests(unittest.TestCase):
 				self.assertTrue(code in golden or code in source,
 					"{} is declared but nothing exercises it".format(code))
 
-	def test_all_eighteen_invariants_have_at_least_one_code(self):
+	def test_all_nineteen_invariants_have_at_least_one_code(self):
+		"""I-19 is WP2's — the memory-proposal shape and the self-test tag
+		(`REDESIGN.md` §L7). An invariant with no code cannot be reported, so
+		the numbering and the code table are asserted equal rather than kept in
+		step by hand."""
 		invariants = {inv for _, inv, _ in model.FINDING_CODES.values() if inv}
-		self.assertEqual(invariants, {"I-{}".format(n) for n in range(1, 19)})
+		self.assertEqual(invariants, {"I-{}".format(n) for n in range(1, 20)})
 
 	def test_intel_brewfile_is_never_a_legal_value_anywhere_in_the_contract(self):
 		"""REDESIGN.md §B1: out of this tool entirely — not a candidate source,

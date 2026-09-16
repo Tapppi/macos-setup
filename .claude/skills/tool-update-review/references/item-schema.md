@@ -8,9 +8,10 @@ evaporate into a prompt and cannot drift from what actually runs:
 | Thing | Where |
 |---|---|
 | The model — vocabularies, groups, ids, **the ordering and the comparator** | `scripts/items.py` |
-| The six stages, the eighteen invariants, the finding codes | `scripts/validate_items.py` |
+| The six stages, the nineteen invariants, the finding codes | `scripts/validate_items.py` |
 | The published fixtures a sibling package imports and asserts against | `scripts/contract/` (see its `README.md`) |
 | The tests | `scripts/test_items.py`, `scripts/test_validate_items.py` |
+| The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` and `HANDOFF.md` — **not in this repo.** Every `§A`/`§C3`/`§L1`/`criterion N` citation in the skill resolves there |
 
 Design record and the measurements behind every rule below:
 `~/.local/state/tool-update-review/scratch/design/item-schema.md`.
@@ -55,6 +56,10 @@ convergence being the final cutting surface. **There is deliberately no filter
 for it in the validator**: a regex that deleted "internal-looking" items would
 be exactly the banned behaviour. It is enforced where it belongs — in the
 checker's own guidelines, and in this schema.
+
+**A checker's guidelines are where this is enforced**: `references/research.md`
+§Items Are Outward-Facing Changes states the rule to the agent that writes
+items, in the terms it decides in.
 
 **`intel.Brewfile` is out of this tool entirely.** Not a source of candidates,
 no compatibility checks against it, no suggestions targeting it, and it does not
@@ -408,7 +413,7 @@ Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
 runs. The workflow surfaces it; it never aborts.
 
-### The eighteen invariants
+### The nineteen invariants
 
 | id | invariant | code |
 |---|---|---|
@@ -426,15 +431,31 @@ runs. The workflow surfaces it; it never aborts.
 | I-12 | evidence entries are paths, and resolve | `E-EVID-MALFORMED` / `E-EVID-404` / `W-EVID-ROOT` |
 | I-13 | checker-emitted flags agree with recomputation | `E-FLAG-DISAGREE` |
 | I-14 | `direction == reaches` ⇒ evidence non-empty | `E-REACHES-UNEVIDENCED` |
-| I-15 | `config_needs_attention` ⇒ ≥1 non-upgrade suggestion | `W-ATTENTION-NOSUG` |
+| I-15 | `config_needs_attention` ⇒ ≥1 action suggestion (edit / structural) | `W-ATTENTION-NOSUG` |
 | I-16 | structural op preconditions hold | `E-STRUCT-PRECOND` / `W-STRUCT-UNCHECKED` |
 | I-17 | no `intel.Brewfile` in a manifest or a `target_files` path | `E-INTEL-BREWFILE` |
 | I-18 | suggestion ids unique across the whole report | `W-SUG-DUP-ID` |
+| I-19 | a memory proposal carries its payload, and a `self_test_failed` tag carries its reason | `E-FIELD-MISSING` / `E-SELFTEST-NOREASON` |
 
 I-14 is the mechanical replacement for the prose rule "if you can point at the
 touchpoint, you owe a relevancy item" — same claim, now checkable. It warns and
 never sets or clears the direction for you. Keep that discipline for all
-eighteen.
+nineteen.
+
+I-15 and the bucket clause read one tuple, `model.ACTION_SUGGESTION_KINDS`:
+**memory proposals do not force `attention`; action proposals do.**
+`watch-item` and `method-note` propose changes to what we remember, `edit` and
+`structural` to the user's system, and only the latter needs a decision.
+`REDESIGN.md` §L1 expects *many* per-tool method notes and watch items, so the
+older spelling — "anything that is not an upgrade" — would put most of the
+fleet on the "needs you" list.
+
+I-19 validates the `self_test_failed` tag rather than letting it ride as an
+extra field the validator happens to tolerate. §L7 makes convergence key its
+review off that tag, and an unvalidated channel is exactly how `Watch item
+hit:` broke: a literal string worth 70 highlight points that nobody checked,
+which stopped firing the moment it was paraphrased. See `references/schemas.md`
+§1.7b/§1.7c for the two memory kinds and the tag.
 
 The complete code table, with each code's severity and the invariant it serves,
 is `items.FINDING_CODES`, published in `contract/contract.json`.
