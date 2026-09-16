@@ -29,6 +29,7 @@ import os
 import re
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import assemble  # noqa: E402
@@ -380,9 +381,10 @@ class PublishedFixtureTests(unittest.TestCase):
 					self.assertRegex(invariant, r"^I-\d+$")
 
 	def test_every_finding_code_is_exercised_somewhere_in_the_suite(self):
-		"""A code nothing produces is a claim, not a check. 34 of the 40 come
+		"""A code nothing produces is a claim, not a check. 40 of the 46 come
 		out of the golden corpus; the six that need a broken file, a hostile
-		entry or a synthetic crash are named by their unit tests."""
+		entry, a synthetic crash or a snapshot-less session are named by their
+		unit tests."""
 		here = os.path.dirname(os.path.abspath(__file__))
 		golden = set(model.load_fixture("expected_validation.json")["counts"]["by_code"])
 		source = ""
@@ -455,6 +457,99 @@ class DegradationFixtureTests(unittest.TestCase):
 		covered = {r for case in self.FIXTURE["cases"] for r in case["expect"]}
 		self.assertEqual(covered, set(model.DEGRADATION_REASONS),
 			"a reason no fixture case produces is a claim, not a check")
+
+
+class ContractMirrorTests(unittest.TestCase):
+	"""The contract's published blocks and the hand-written fixtures that
+	mirror them must stay byte-equal — a fixture that can drift from the
+	contract is two contracts."""
+
+	def test_bucketing_json_mirrors_the_contract_block(self):
+		fixture = model.load_fixture("bucketing.json")
+		block = model.contract()["bucketing"]
+		self.assertEqual(fixture["clause_order"], block["clause_order"])
+		self.assertEqual(fixture["d2_routing"], block["d2_routing"])
+		self.assertEqual(fixture["pre_accept"], model.PRE_ACCEPT_PREDICATE)
+		self.assertEqual(fixture["pre_accept_bars"]["order"],
+			list(model.PRE_ACCEPT_BARS))
+
+	def test_degradation_json_mirrors_the_contract_block(self):
+		fixture = model.load_fixture("degradation.json")
+		block = model.contract()["degradation"]
+		self.assertEqual(fixture["reasons"], block["reasons"])
+		self.assertEqual(fixture["content_losing_codes"], block["content_losing_codes"])
+
+	def test_stores_json_mirrors_the_contract_block(self):
+		fixture = model.load_fixture("stores.json")
+		block = model.contract()["memory_stores"]
+		for name in ("watch-items.json", "method-notes.json"):
+			with self.subTest(name):
+				for key in ("path", "writer", "entry"):
+					self.assertEqual(fixture[name][key], block[name][key])
+
+	def test_every_content_losing_code_is_a_registered_finding(self):
+		for code in model.CONTENT_LOSING_CODES:
+			self.assertIn(code, model.FINDING_CODES)
+
+
+class StoreLayoutTests(unittest.TestCase):
+	"""`contract/stores.json` pins the on-disk layout of the two memory stores
+	and the golden state after one write of each (D4).
+
+	The watch-item half is driven against the live writer below. The
+	method-note half is pinned as layout only for now: `add-method-note` is
+	specified in stores.json and belongs to the write_status pass (pass 3),
+	WHICH OWES THIS TEST AN EXTENSION — drive
+	`write_status.py add-method-note` into the same temporary XDG_STATE_HOME
+	and assert equality against its `after_one_write`, exactly as the
+	watch-item case below does. Until then the two halves are asserted
+	layout-consistent, so the write_status pass implements a pinned shape
+	rather than choosing one."""
+
+	FIXTURE = model.load_fixture("stores.json")
+
+	def _run_writer(self, tmp, store, key):
+		import argparse
+		import contextlib
+		import io
+		import write_status
+		golden = self.FIXTURE[store]["after_one_write"]
+		(tool_id,) = golden
+		entry = golden[tool_id][0]
+		args = argparse.Namespace(tool_id=tool_id, topic=entry["topic"],
+			note=entry["note"])
+		with unittest.mock.patch.dict(os.environ, {"XDG_STATE_HOME": tmp}):
+			with contextlib.redirect_stdout(io.StringIO()):
+				write_status.cmd_add_watch_item(args)
+		with open(os.path.join(tmp, "tool-update-review", key),
+				encoding="utf-8") as fh:
+			return json.load(fh), golden
+
+	def test_one_watch_item_write_produces_the_golden_state(self):
+		import datetime
+		import tempfile
+		with tempfile.TemporaryDirectory() as tmp:
+			got, golden = self._run_writer(tmp, "watch-items.json", "watch-items.json")
+			today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+			expected = json.loads(json.dumps(golden).replace("<today>", today))
+			self.assertEqual(got, expected)
+
+	def test_the_two_stores_share_one_layout(self):
+		"""Same entry shape, same state directory, same keying — the
+		method-note half is a rename of the watch-item half, pinned so the
+		writer that lands later implements this and nothing else."""
+		watch, method = (self.FIXTURE["watch-items.json"],
+			self.FIXTURE["method-notes.json"])
+		self.assertEqual(watch["entry"], method["entry"])
+		self.assertEqual(os.path.dirname(watch["path"]), os.path.dirname(method["path"]))
+		self.assertEqual(watch["writer"].split()[1], "add-watch-item")
+		self.assertEqual(method["writer"].split()[1], "add-method-note")
+		self.assertEqual(watch["writer"].split()[2:], method["writer"].split()[2:])
+		for golden in (watch["after_one_write"], method["after_one_write"]):
+			for tool_id, entries in golden.items():
+				self.assertIn(":", tool_id)
+				for entry in entries:
+					self.assertEqual(set(entry), {"topic", "note", "added_at"})
 
 
 class BucketingFixtureTests(unittest.TestCase):

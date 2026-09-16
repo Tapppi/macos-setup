@@ -1,5 +1,5 @@
 {
-	"contract_version": 2,
+	"contract_version": 3,
 	"scope": {
 		"items_are": "outward-facing changes only — project-internal maintenance (repo upkeep, convention changes, documentation updates) never becomes an item (REDESIGN.md L3). This is a scoping rule about what counts as an item, enforced in the schema and the agent guidelines; it is NOT a trimming rule and there is no filter for it in the validator.",
 		"intel_brewfile": "out of this tool entirely (REDESIGN.md B1); I-17 checks it",
@@ -129,6 +129,104 @@
 			"with_no_reason": "E-SELFTEST-NOREASON"
 		},
 		"exported_for_convergence": "self_test_tagged_suggestion_ids, per tool"
+	},
+	"research_keys": {
+		"read": [
+			"id",
+			"research_error",
+			"links",
+			"vendor_silent_categories",
+			"items",
+			"config_status",
+			"suggestions",
+			"flags",
+			"release_inventory",
+			"cask_sudo_hint"
+		],
+		"echoed_ignored": [
+			"name",
+			"source",
+			"current_version",
+			"latest_version",
+			"pinned"
+		],
+		"forbidden": [
+			"security_only",
+			"impact",
+			"risk_level",
+			"review_bucket",
+			"pre_accept"
+		],
+		"unrecognized": "E-RESEARCH-UNKNOWNKEY — the value is quarantined verbatim and the tool is held for review"
+	},
+	"degradation": {
+		"reasons": [
+			"quarantined-content",
+			"shape-coerced",
+			"unrecognized-research-key",
+			"validator-error"
+		],
+		"content_losing_codes": {
+			"W-SHAPE-COERCED": "shape-coerced",
+			"E-RESEARCH-UNKNOWNKEY": "unrecognized-research-key"
+		},
+		"rule": "a non-empty content_losing forces `attention` and clears `pre_accept`; every other finding is a marker on the card and changes no bucket",
+		"block": {
+			"content_losing": "array<enum>",
+			"markers": "array<code>",
+			"quarantined": "int"
+		}
+	},
+	"bucketing": {
+		"clause_order": [
+			"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
+			"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
+			"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+			"3. has_security -> security_mixed",
+			"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
+			"5. -> routine"
+		],
+		"d2_routing": "clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles."
+	},
+	"pre_accept": {
+		"predicate": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)",
+		"bars": [
+			"elevated-risk",
+			"reaches-item",
+			"watch-hit"
+		]
+	},
+	"watch_hit": {
+		"authored_by": "the per-tool checker",
+		"grounded_against": "{session_dir}/watch-items.json — a copy of the machine-global store, taken when {{STANDING_NOTES}} is filled",
+		"topic_match": "exact, after .strip(); no case folding and no fuzzy match",
+		"absent_snapshot": "W-WATCH-UNCHECKED; the hit is kept",
+		"not_a_sort_tier": true,
+		"highlight": {
+			"code": "watch_item_hit",
+			"points": 70
+		},
+		"distinct_from": "memory_proposals.watch_topic/watch_note, which PROPOSE a watch item on a suggestion; watch_hit says an existing one FIRED, on an item"
+	},
+	"memory_stores": {
+		"method-notes.json": {
+			"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json",
+			"writer": "write_status.py add-method-note --tool-id ID --topic TEXT --note TEXT",
+			"entry": {
+				"topic": "string",
+				"note": "string",
+				"added_at": "YYYY-MM-DD (UTC)"
+			}
+		},
+		"watch-items.json": {
+			"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",
+			"writer": "write_status.py add-watch-item --tool-id ID --topic TEXT --note TEXT",
+			"entry": {
+				"topic": "string",
+				"note": "string",
+				"added_at": "YYYY-MM-DD (UTC)"
+			}
+		}
 	},
 	"fields": [
 		{

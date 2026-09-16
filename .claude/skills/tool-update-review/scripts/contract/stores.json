@@ -1,0 +1,41 @@
+{
+	"about": "The two per-tool memory stores, pinned as layout plus golden post-write state (D4). WP6 adopts this rather than re-deciding it. Both are machine-global, both are written only through their write_status.py subcommand, and both are read back at research time to fill {{STANDING_NOTES}}. test_items.py drives add-watch-item into a temporary XDG_STATE_HOME and asserts equality against after_one_write; the add-method-note subcommand is specified here and lands with the write_status pass, which extends that test to drive it the same way.",
+	"watch-items.json": {
+		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",
+		"writer": "write_status.py add-watch-item --tool-id ID --topic TEXT --note TEXT",
+		"entry": {
+			"topic": "string",
+			"note": "string",
+			"added_at": "YYYY-MM-DD (UTC)"
+		},
+		"after_one_write": {
+			"cask:cursor-cli": [
+				{
+					"topic": "shell-integration / session recording",
+					"note": "User wants any change to cursor-agent's shell hook or `agent record` behavior called out.",
+					"added_at": "<today>"
+				}
+			]
+		}
+	},
+	"method-notes.json": {
+		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json",
+		"writer": "write_status.py add-method-note --tool-id ID --topic TEXT --note TEXT",
+		"entry": {
+			"topic": "string",
+			"note": "string",
+			"added_at": "YYYY-MM-DD (UTC)"
+		},
+		"after_one_write": {
+			"brew:attention": [
+				{
+					"topic": "where attention's real config-path changes are announced",
+					"note": "attention moves its config path in ordinary commits and mentions it nowhere in the release body. Read the `config` package's diff across the range rather than the CHANGELOG.",
+					"added_at": "<today>"
+				}
+			]
+		}
+	},
+	"keying": "Both are keyed by tool id ({source}:{name}), one array per tool, appended to. A tool id always contains a colon, so any future reserved key WP6 wants for the third (global) store cannot collide with one.",
+	"not_pinned_here": "The global method-note store. It is filled by promotion during convergence (schemas.md §1.7b), convergence does not exist yet, and nothing in this pass writes it. WP6 owns it."
+}

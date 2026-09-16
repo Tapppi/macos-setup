@@ -16,7 +16,9 @@ import sys
 sys.path.insert(0, "<skill>/scripts")
 import items, validate_items
 
-items.CONTRACT_VERSION          # pin against this, not a git revision
+items.CONTRACT_VERSION          # assert EQUALITY and refuse on mismatch — a sibling
+                                #   package that merely reads the number and continues
+                                #   has bought nothing. No migration shim exists or ships.
 items.contract()                # the whole contract as data == contract.json
 items.order_items(my_items)     # THE ordering — do not re-derive one
 items.compare_items(a, b)       # THE comparator, -1 / 0 / 1
@@ -35,14 +37,17 @@ Run the validator over your own corpus:
 document = validate_items.validate_session(session_dir, roots)
 ```
 
-## The five fixtures
+## The eight fixtures
 
 | File | Generated? | Asserts |
 |---|---|---|
-| `contract.json` | yes, from `items.contract()` | the field table, every vocabulary, the group map, the rank tables, the ordering spec, the finding codes |
-| `ordering.json` | hand-written | a shuffled item list and the exact order `items.order_items()` must produce, one entry per tier of the sort key |
+| `contract.json` | yes, from `items.contract()` | the field table, every vocabulary, the group map, the rank tables, the ordering spec, the finding codes, the closed research-key set, the degradation rule, the bucketing clause order, the pre-accept predicate, the watch-hit contract, the memory-store layout |
+| `ordering.json` | hand-written | a shuffled item list and the exact order `items.order_items()` must produce, one entry per tier of the sort key — including that `watch_hit` is not a tier |
 | `comparator.json` | hand-written | pairwise comparisons, `worst_severity`, both CVE rank tables, the security-display bar, id derivation, the evidence shorthand grammar |
-| `session/` | hand-written | a complete research corpus: three conforming tools, one that violates nearly every invariant, one unmatched entry, one non-array file, one brew-health finding |
+| `bucketing.json` | hand-written | the clause order of `compute_initial_bucket` and the `apply_pre_accept` predicate, as a truth table driven through both live functions (D1, D2, E3) |
+| `degradation.json` | hand-written | `content_losing()` / `compute_degradation()` over synthetic tool shapes, and the `degradation` block's own shape (D1) |
+| `stores.json` | hand-written | the on-disk layout of `watch-items.json` and `method-notes.json`, and the golden file state after one write of each (D4) |
+| `session/` | hand-written | a complete research corpus: three conforming tools (one carrying a grounded watch hit), one that violates nearly every invariant, one retired-schema entry, the two content-losing degradation routes, the elevated security-only route, a watch-hit tool with one grounded control and five invalid hits, its `watch-items.json` grounding snapshot, one unmatched entry, one non-array file, one brew-health finding |
 | `expected_validation.json` | yes, from `session/` | the exact `validation.json` that corpus must produce — every finding, every id, every derived flag, every bucket |
 
 `session/roots/` ships the repo tree the fixture's evidence paths resolve

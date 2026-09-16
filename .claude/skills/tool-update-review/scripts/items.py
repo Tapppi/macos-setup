@@ -37,13 +37,23 @@ import os
 import re
 from urllib.parse import quote, urlsplit
 
-# Bumped when a consumer would have to change. Consumers pin against this, not
-# against a git revision.
+# Bumped when a consumer would have to change. Consumers assert EQUALITY and
+# refuse on mismatch — there is no migration shim and none ships
+# (`REDESIGN.md` §I9). A consumer built for a lower version would silently
+# drop fields and trust a `pre_accept` computed under a different predicate;
+# one built for a higher version would present output produced before a
+# defect class was closed as though it were not.
 #
 # 2 — WP2 admitted memory proposals: the `method-note` suggestion kind, the
 #     `self_test_failed` tag (`REDESIGN.md` §L7), and the rule that a memory
 #     proposal never forces a tool onto the attention list.
-CONTRACT_VERSION = 2
+# 3 — D1–D4: `watch_hit` on the item (grounded against a per-session
+#     watch-items snapshot), the closed top-level research-key set and
+#     E-RESEARCH-UNKNOWNKEY, the `degradation` block on every tool, and the
+#     fail-closed bucket/pre-accept precedence (content-losing input,
+#     elevated risk, reaching security changes and watch hits can no longer
+#     be pre-accepted).
+CONTRACT_VERSION = 3
 
 
 # ── vocabularies ────────────────────────────────────────────────────────────
@@ -928,6 +938,47 @@ ITEM_FIELDS = (
 )
 
 
+# Mirrored by `contract/bucketing.json` — test_items.py asserts the two stay
+# equal, so the published fixture and the published contract cannot drift.
+BUCKET_CLAUSE_ORDER = (
+	"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
+	"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
+	"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+	"3. has_security -> security_mixed",
+	"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
+	"5. -> routine",
+)
+D2_ROUTING = (
+	"clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): "
+	"a barred security-only tool falls through to security_mixed — never to attention (A), "
+	"and never left in security_auto with a cleared checkbox (B). security_mixed already "
+	"renders an expanded card with an 'affects this setup' badge and correct counters; "
+	"anything downstream of finalize_tool desyncs the Overview tiles.")
+PRE_ACCEPT_PREDICATE = (
+	"sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND "
+	"risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)")
+
+# The two per-tool memory stores (D4). Mirrored by `contract/stores.json`;
+# both are machine-global, both are written only through their write_status.py
+# subcommand, and both are read back at research time to fill
+# {{STANDING_NOTES}}. Keyed by tool id ({source}:{name}) — a tool id always
+# contains a colon, so any future reserved key for the third (global) store
+# cannot collide with one. The global method-note store is deliberately NOT
+# here: it is filled by promotion during convergence, and WP6 owns it.
+MEMORY_STORES = {
+	"watch-items.json": {
+		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",
+		"writer": "write_status.py add-watch-item --tool-id ID --topic TEXT --note TEXT",
+		"entry": {"topic": "string", "note": "string", "added_at": "YYYY-MM-DD (UTC)"},
+	},
+	"method-notes.json": {
+		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json",
+		"writer": "write_status.py add-method-note --tool-id ID --topic TEXT --note TEXT",
+		"entry": {"topic": "string", "note": "string", "added_at": "YYYY-MM-DD (UTC)"},
+	},
+}
+
+
 def contract() -> dict:
 	"""The whole contract as data. A sibling package that wants to assert
 	against field names, vocabularies, the group mapping, the ordering spec or
@@ -984,6 +1035,44 @@ def contract() -> dict:
 			},
 			"exported_for_convergence": "self_test_tagged_suggestion_ids, per tool",
 		},
+		"research_keys": {
+			"read": list(RESEARCH_KEYS_READ),
+			"echoed_ignored": list(RESEARCH_KEYS_ECHOED),
+			"forbidden": list(VALIDATOR_ONLY_FLAGS),
+			"unrecognized": "E-RESEARCH-UNKNOWNKEY — the value is quarantined "
+				"verbatim and the tool is held for review",
+		},
+		"degradation": {
+			"reasons": list(DEGRADATION_REASONS),
+			"content_losing_codes": dict(CONTENT_LOSING_CODES),
+			"rule": "a non-empty content_losing forces `attention` and clears "
+				"`pre_accept`; every other finding is a marker on the card and "
+				"changes no bucket",
+			"block": {"content_losing": "array<enum>", "markers": "array<code>",
+				"quarantined": "int"},
+		},
+		"bucketing": {
+			"clause_order": list(BUCKET_CLAUSE_ORDER),
+			"d2_routing": D2_ROUTING,
+		},
+		"pre_accept": {
+			"predicate": PRE_ACCEPT_PREDICATE,
+			"bars": list(PRE_ACCEPT_BARS),
+		},
+		"watch_hit": {
+			"authored_by": "the per-tool checker",
+			"grounded_against": "{session_dir}/watch-items.json — a copy of the "
+				"machine-global store, taken when {{STANDING_NOTES}} is filled",
+			"topic_match": "exact, after .strip(); no case folding and no fuzzy match",
+			"absent_snapshot": "W-WATCH-UNCHECKED; the hit is kept",
+			"not_a_sort_tier": True,
+			"highlight": {"code": "watch_item_hit", "points": 70},
+			"distinct_from": "memory_proposals.watch_topic/watch_note, which "
+				"PROPOSE a watch item on a suggestion; watch_hit says an existing "
+				"one FIRED, on an item",
+		},
+		"memory_stores": {name: dict(store, entry=dict(store["entry"]))
+			for name, store in sorted(MEMORY_STORES.items())},
 		"fields": [
 			{"name": n, "type": t, "required": r, "note": note}
 			for n, t, r, note in ITEM_FIELDS

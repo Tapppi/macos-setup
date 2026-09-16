@@ -54,7 +54,9 @@ mechanism).
 {
 	"schema_version": 2,                                 // 2 since items[] replaced the four
 	                                                     //   parallel arrays; render.py refuses 1
-	"contract_version": 1,                               // items.CONTRACT_VERSION
+	"contract_version": 3,                               // items.CONTRACT_VERSION — consumers
+	                                                     //   assert equality and refuse on
+	                                                     //   mismatch; no migration shim exists
 	"report_id": "tool-update-review-20260704T143012",   // stable within a session run
 	"generated_at": "2026-07-04T14:30:12Z",              // ISO-8601 UTC
 	"machine": {
@@ -848,6 +850,14 @@ different body:
   measured failure here was never a missing topic: it was rationales reciting
   the bar's own escape phrase, three of eight falsified by a sibling field in
   the same object.
+- **The store.** `${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json`,
+  keyed by tool id, one `{topic, note, added_at}` array per tool — the same
+  layout as `watch-items.json`, pinned with its golden post-write state in
+  `contract/stores.json` (D4). The store is written **only** through its
+  `write_status.py` subcommand (named in `stores.json`), never a hand-rolled
+  edit, and is read back at research time to fill `{{STANDING_NOTES}}` — which
+  is what makes "copied verbatim into the next run's context" the mechanism
+  rather than a promise.
 - **Scope.** A `method-note` proposal is always written against **one tool**,
   and per-tool notes are expected to be **many** — tools have weird conventions
   and unusual changelog locations. The third store, **global** method notes, is
