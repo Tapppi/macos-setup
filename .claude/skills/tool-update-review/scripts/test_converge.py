@@ -1,0 +1,1394 @@
+#!/usr/bin/env python3
+"""
+test_converge.py — the convergence output contract and its applier.
+Usage: python3 test_converge.py [-v]
+
+Stdlib `unittest` only, same constraint as every suite here.
+
+Groups:
+
+1. Fixture agreement — `convergence.json`, `expected_converge_view.json`,
+   `expected_converge_tables.json` and `expected_converge_effect.json` are
+   generated, so the checked-in copies must match what the code produces,
+   and `contract/converge.json` (the hand-written submission) must still
+   converge with zero critical findings. Ordering drifted twice on this
+   project against a pinned FIELD contract; executable fixtures are the fix.
+2. corpus.pre composition and the projections.
+3. The applier's phases — every code in `converge.CODES`, both directions:
+   the malformed submission is REPORTED (never silently skipped, never a
+   traceback), and the conforming one passes.
+4. Differential recomputation, leave-one-out attribution, the hard gate.
+5. The seven checks' attestation arithmetic — each `verify_cN` has a test
+   that fails if the verifier is deleted (this codebase measured ten areas
+   that survived deletion green; an uncaught check is a known failure mode
+   here, not a hypothesis).
+6. corpus_effect arithmetic and the narrative rule.
+7. The five-attempt loop and its conservative degradation, through the CLI.
+"""
+import copy
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import apply_converge  # noqa: E402
+import converge as C  # noqa: E402
+import items as model  # noqa: E402
+import validate_items  # noqa: E402
+
+
+# ── the fixture corpus, built once ──────────────────────────────────────────
+def _fixture_corpus():
+	session, roots, unconfigured = validate_items.fixture_session()
+	validation = validate_items.validate_session(session, roots,
+		manifest_root=roots[0], unconfigured_roots=unconfigured)
+	with open(os.path.join(session, "collect.json"), encoding="utf-8") as fh:
+		collect = json.load(fh)
+	with open(os.path.join(session, "watch-items.json"), encoding="utf-8") as fh:
+		stores = {"watch_items": json.load(fh)}
+	return C.build_corpus_pre(validation, collect, stores)
+
+
+FIXTURE_PRE = _fixture_corpus()
+FIXTURE_SUBMISSION = model.load_fixture("converge.json")
+
+
+def fixture_pre():
+	return copy.deepcopy(FIXTURE_PRE)
+
+
+def fixture_submission():
+	return copy.deepcopy(FIXTURE_SUBMISSION)
+
+
+# ── synthetic corpora ───────────────────────────────────────────────────────
+def make_item(tool_id, number, tags=("fix",), severity="notable", local=None,
+		security=None, title=None, body=None, watch_hit=None):
+	anchor = {"kind": "issue", "value": "o/r#{}".format(number)}
+	item = {
+		"anchor": anchor,
+		"title": title or "Synthetic change number {}".format(number),
+		"tags": list(tags),
+		"severity": severity,
+		"change": {"version": "1.0.1",
+			"citation": "Upstream text for change {}".format(number),
+			"link_index": None},
+		"id": model.derive_item_id(tool_id, anchor),
+		"id_stability": model.id_stability(anchor),
+	}
+	if body is not None:
+		item["body"] = body
+	if local is not None:
+		item["local"] = local
+	if security is not None:
+		item["security"] = security
+	if watch_hit is not None:
+		item["watch_hit"] = watch_hit
+	return item
+
+
+def plain_local(direction="unclear", effect="none", statement="How it lands here."):
+	return {"direction": direction, "effect": effect, "statement": statement,
+		"evidence": [], "citations": []}
+
+
+def make_view(tool_id, items, suggestions=None, watch_topics=None,
+		version_delta="patch"):
+	"""A validator-shaped view whose derived axes are stamped by the SAME
+	function the applier recomputes with, so the internal self-check holds
+	by construction."""
+	source, _, name = tool_id.partition(":")
+	view = {
+		"id": tool_id, "source": source, "name": name, "pinned": False,
+		"research_error": None, "validator_error": None,
+		"links": [], "vendor_silent_categories": [],
+		"items": model.order_items(items),
+		"quarantine": [],
+		"config_status": validate_items.default_config_status(),
+		"suggestions": list(suggestions or []),
+		"subject_refs": [], "flags": model.recompute_flags(items),
+		"version_delta": version_delta,
+		"impact": "unknown", "risk_level": "elevated",
+		"initial_review_bucket": "attention",
+		"bucket_inputs": {"has_security": False, "security_only": False,
+			"impact": "unknown", "version_delta": version_delta, "runnable": True},
+		"security_display_item_ids": [], "watch_hit_item_ids": [],
+		"self_test_tagged_suggestion_ids": [],
+		"spec_violations": [],
+		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
+	}
+	view["config_status"]["state"] = "up_to_date"
+	C.derive_tool_state(view, watch_topics)
+	return view
+
+
+def build_pre(views, watch_store=None, findings=None):
+	return {
+		"contract_version": model.CONTRACT_VERSION,
+		"generated_at": "2026-09-17T00:00:00Z",
+		"session_id": "synthetic",
+		"run_id": "synthetic",
+		"converge_version": C.CONVERGE_VERSION,
+		"clean": not findings,
+		"findings": list(findings or []),
+		"counts": {"by_code": {}, "by_tool": {}, "by_severity": {}},
+		"orphans": [], "unmatched": [],
+		"subject_index": {}, "target_file_index": {},
+		"stores": {"watch_items": watch_store, "method_notes": None},
+		"tools": views,
+	}
+
+
+# ── the submission helper ───────────────────────────────────────────────────
+def _auto_checks(pre, edits):
+	tables = C.build_tables(pre)
+	distributions = tables["distributions"]
+	by_check = {name: [] for name in C.CHECK_IDS}
+	for edit in edits:
+		if edit.get("check") in by_check:
+			by_check[edit["check"]].append(edit["edit_id"])
+	touched_c2 = {(e.get("target") or {}).get("id") for e in edits
+		if e.get("check") == "C2-tags-visibility"
+		and (e.get("target") or {}).get("kind") == "item"}
+	touched_c2.discard(None)
+	security_only = []
+	for view in pre["tools"]:
+		if (view.get("bucket_inputs") or {}).get("security_only"):
+			cves = {i["security"]["cve_id"] for i in view["items"]
+				if isinstance(i.get("security"), dict)
+				and isinstance(i["security"].get("cve_id"), str)}
+			security_only.append({"tool_id": view["id"], "cve_count": len(cves),
+				"verdict": "ok"})
+	auto = [{"tool_id": view["id"], "deciding_input": "risk_level",
+		"verdict": "ok"} for view in pre["tools"]
+		if view.get("initial_review_bucket") == "security_auto"
+		or view.get("initial_pre_accept")]
+	security_items = unrated = dnr = 0
+	for view in pre["tools"]:
+		for item in view["items"]:
+			tags = item.get("tags")
+			if not (isinstance(tags, list) and "security" in tags):
+				continue
+			security_items += 1
+			sec = item.get("security")
+			if isinstance(sec, dict) and sec.get("rating_basis") == "unrated":
+				unrated += 1
+			local = item.get("local")
+			if isinstance(local, dict) and local.get("direction") == "does_not_reach":
+				dnr += 1
+	return [
+		{"check": "C1-evidence",
+			"scanned": {"tools": len(pre["tools"]),
+				"items": distributions["items"],
+				"evidence_entries": distributions["evidence_entries"]},
+			"findings": len(tables["evidence_findings"]),
+			"edits": by_check["C1-evidence"]},
+		{"check": "C2-tags-visibility",
+			"scanned": {"items": distributions["items"]},
+			"clean": distributions["items"] - len(touched_c2),
+			"edits": by_check["C2-tags-visibility"]},
+		{"check": "C3-security-only", "security_only_tools": security_only,
+			"edits": by_check["C3-security-only"]},
+		{"check": "C4-notable-security",
+			"scanned": {"security_items": security_items,
+				"rating_unrated": unrated, "direction_does_not_reach": dnr,
+				"anchor_duplicates": len(tables["anchor_duplicates"])},
+			"edits": by_check["C4-notable-security"]},
+		{"check": "C5-auto-approval", "tools": auto,
+			"edits": by_check["C5-auto-approval"]},
+		{"check": "C6-memory", "edits": by_check["C6-memory"]},
+		{"check": "C7-collisions",
+			"clusters_inspected": len(tables["file_collisions"]),
+			"resolved": [], "flagged": 0, "edits": by_check["C7-collisions"]},
+	]
+
+
+def _auto_ledger(pre):
+	tables = C.build_tables(pre)
+	snapshot = (pre.get("stores") or {}).get("watch_items") or {}
+	run_tools = {v["id"] for v in pre["tools"]}
+	existing = []
+	for tool_id, entries in sorted(snapshot.items()):
+		if tool_id not in run_tools:
+			continue
+		grounded_topics = set()
+		view = next(v for v in pre["tools"] if v["id"] == tool_id)
+		for item in view["items"]:
+			if item.get("id") in (view.get("watch_hit_item_ids") or []):
+				grounded_topics.add((item.get("watch_hit") or {})
+					.get("topic", "").strip())
+		for stored in entries:
+			topic = stored["topic"].strip()
+			existing.append({"tool_id": tool_id, "topic": topic,
+				"fired_this_run": topic in grounded_topics,
+				"used_correctly": True, "note": "auto"})
+	watch_kept, notes_kept = [], []
+	for bucket, out in (("watch_item", watch_kept), ("method_note_tool", notes_kept)):
+		for proposal in tables["proposals"][bucket]:
+			row = {"suggestion_id": proposal["suggestion_id"], "reason": "auto"}
+			if proposal["self_test"]["verdict"] == "fails":
+				row["restored"] = True
+			out.append(row)
+	return {
+		"watch_items": {"existing": existing, "proposed_kept": watch_kept,
+			"proposed_cut": [], "rehomed_to_method_note": []},
+		"method_notes_tool": {"kept": notes_kept, "cut": [],
+			"promoted_to_global": []},
+		"method_notes_global": {"kept": [], "cut": [], "demoted_to_tool": []},
+	}
+
+
+def make_submission(pre, edits, attempt=1, checks=None, ledger=None,
+		corpus_effect=None):
+	"""A submission whose attestations, ledger and effect are correct for
+	`edits` over `pre` — so a test perturbs exactly the one thing it is
+	about."""
+	submission = {
+		"run_id": pre.get("run_id"),
+		"converge_version": C.CONVERGE_VERSION,
+		"view_version": C.VIEW_VERSION,
+		"corpus_digest": C.canonical_digest(pre),
+		"attempt": attempt,
+		"checks": checks if checks is not None else _auto_checks(pre, edits),
+		"edits": edits,
+		"ledger": ledger if ledger is not None else _auto_ledger(pre),
+		"corpus_effect": corpus_effect or {},
+	}
+	if corpus_effect is None:
+		probe = apply_converge.apply_converge(pre, copy.deepcopy(submission))
+		computed = probe.get("computed_effect") or apply_converge \
+			.compute_corpus_effect(pre, pre, [], {})
+		effect = copy.deepcopy(computed)
+		effect["narrative"] = "Movement summary naming every tool: " + \
+			", ".join(sorted(v["id"] for v in pre["tools"])) + "."
+		submission["corpus_effect"] = effect
+	return submission
+
+
+def run(pre, submission, terminal=False, attempt=1):
+	return apply_converge.apply_converge(copy.deepcopy(pre), submission,
+		attempt=attempt, terminal=terminal)
+
+
+def codes_of(result):
+	return sorted({f["code"] for f in result["critical"]})
+
+
+def cut_reason(headline="A reasoned cut.", body=None):
+	return {"headline": headline,
+		"body": body or ("The item cannot change any decision on its own; the "
+			"fact survives in the sibling item and the tool's bucket is "
+			"untouched by this removal."),
+		"rule_ref": "references/convergence.md §3.2", "confidence": "high"}
+
+
+def lateral(bucket):
+	return {"moves_bucket": False, "expected_from": bucket,
+		"expected_to": bucket, "direction": "lateral"}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+class FixtureAgreementTests(unittest.TestCase):
+	"""The published fixtures still agree with the code — a fixture that can
+	go stale is worth no more than a paragraph."""
+
+	def test_convergence_contract_fixture(self):
+		self.assertEqual(model.load_fixture("convergence.json"), C.contract())
+
+	def test_view_fixture(self):
+		self.assertEqual(model.load_fixture("expected_converge_view.json"),
+			C.build_view(FIXTURE_PRE))
+
+	def test_tables_fixture(self):
+		self.assertEqual(model.load_fixture("expected_converge_tables.json"),
+			C.build_tables(FIXTURE_PRE))
+
+	def test_effect_fixture_and_pinned_submission_converge(self):
+		result = run(FIXTURE_PRE, fixture_submission())
+		self.assertEqual(result["state"], "converged")
+		self.assertEqual(result["critical"], [])
+		effect = apply_converge.finalize_clean(fixture_pre(),
+			fixture_submission(), result, 1, [])
+		expected = model.load_fixture("expected_converge_effect.json")
+		self.assertEqual(expected["corpus_pre_digest"],
+			C.canonical_digest(FIXTURE_PRE))
+		self.assertEqual(expected["corpus_post_digest"],
+			C.canonical_digest(result["corpus_post"]))
+		self.assertEqual(expected["effect"], effect)
+
+	def test_pinned_label_is_judgement_with_counterweight(self):
+		"""The fixture's one permissive move carries the §4 label: source
+		computed (not asserted), reasoning verbatim, quote from the cut."""
+		expected = model.load_fixture("expected_converge_effect.json")
+		block = expected["effect"]["tools"]["brew:openssh"]
+		label = block["auto_update_label"]
+		self.assertEqual(label["source"], "judgement")
+		self.assertEqual(label["edit_ids"], ["cv-003"])
+		self.assertEqual(block["bucket"]["attributed_to"], ["cv-003"])
+		self.assertIn("security_auto", label["reasoning"])
+		self.assertEqual(label["counterweight"]["items_removed"], 1)
+		self.assertTrue(label["quotes"][0]["text"])
+
+	def test_view_version_and_digest_travel(self):
+		view = model.load_fixture("expected_converge_view.json")
+		self.assertEqual(view["view_version"], C.VIEW_VERSION)
+		self.assertEqual(view["corpus_digest"], C.canonical_digest(FIXTURE_PRE))
+
+
+class CorpusPreTests(unittest.TestCase):
+	def test_versions_and_flags_composed(self):
+		openssh = next(v for v in FIXTURE_PRE["tools"] if v["id"] == "brew:openssh")
+		self.assertEqual(openssh["current_version"], "10.4p1")
+		self.assertEqual(openssh["latest_version"], "10.5p1")
+		self.assertTrue(openssh["initial_pre_accept"])
+		self.assertEqual(openssh["pre_accept_bars"], [])
+
+	def test_initial_pre_accept_conjuncts(self):
+		"""Every conjunct of the view-level predicate flips it — the mapping
+		of assemble.apply_pre_accept onto the view, clause for clause."""
+		base = next(v for v in FIXTURE_PRE["tools"] if v["id"] == "brew:openssh")
+		self.assertTrue(C.initial_pre_accept(base))
+		for mutate in (
+				lambda v: v.__setitem__("initial_review_bucket", "attention"),
+				lambda v: v.__setitem__("risk_level", "elevated"),
+				lambda v: v.__setitem__("source", "brew-health"),
+				lambda v: v["bucket_inputs"].__setitem__("runnable", False),
+				lambda v: v.__setitem__("quarantine", [{"field": "x",
+					"item_id": None, "value": 1}]),
+				lambda v: v["items"].append({"local": {"direction": "reachs",
+					"effect": "none"}})):
+			view = copy.deepcopy(base)
+			mutate(view)
+			self.assertFalse(C.initial_pre_accept(view))
+
+	def test_inputs_not_mutated_and_corpus_immutable_shape(self):
+		session, roots, unconfigured = validate_items.fixture_session()
+		validation = validate_items.validate_session(session, roots,
+			manifest_root=roots[0], unconfigured_roots=unconfigured)
+		snapshot = copy.deepcopy(validation)
+		with open(os.path.join(session, "collect.json"), encoding="utf-8") as fh:
+			collect = json.load(fh)
+		C.build_corpus_pre(validation, collect, {})
+		self.assertEqual(validation, snapshot)
+
+	def test_digest_is_order_insensitive_and_content_sensitive(self):
+		a = {"x": 1, "y": [1, 2]}
+		b = {"y": [1, 2], "x": 1}
+		self.assertEqual(C.canonical_digest(a), C.canonical_digest(b))
+		self.assertNotEqual(C.canonical_digest(a), C.canonical_digest({"x": 2,
+			"y": [1, 2]}))
+
+
+class ProjectionTests(unittest.TestCase):
+	def test_body_becomes_has_body(self):
+		view = C.build_view(FIXTURE_PRE)
+		codex = next(t for t in view["tools"] if t["id"] == "cask:codex")
+		with_body = next(i for i in codex["items"]
+			if i["id"] == "cask:codex#issue:openai%2Fcodex%234110")
+		without = next(i for i in codex["items"]
+			if i["id"] == "cask:codex#cve:CVE-2026-18408")
+		self.assertTrue(with_body["has_body"])
+		self.assertFalse(without["has_body"])
+		self.assertNotIn("body", with_body)
+
+	def test_config_status_projected_to_state(self):
+		view = C.build_view(FIXTURE_PRE)
+		codex = next(t for t in view["tools"] if t["id"] == "cask:codex")
+		self.assertEqual(codex["config_status_state"], "needs_attention")
+		self.assertNotIn("config_status", codex)
+
+	def test_suggestions_ride_whole(self):
+		view = C.build_view(FIXTURE_PRE)
+		codex = next(t for t in view["tools"] if t["id"] == "cask:codex")
+		pre_codex = next(t for t in FIXTURE_PRE["tools"] if t["id"] == "cask:codex")
+		self.assertEqual(codex["suggestions"], pre_codex["suggestions"])
+
+
+class TablesTests(unittest.TestCase):
+	def test_proposals_routed_with_self_test_verdicts(self):
+		tables = C.build_tables(FIXTURE_PRE)
+		watch = {p["suggestion_id"]: p for p in tables["proposals"]["watch_item"]}
+		self.assertEqual(sorted(watch), ["brew:nonconforming:watch-no-reason"])
+		self.assertEqual(watch["brew:nonconforming:watch-no-reason"]
+			["self_test"]["verdict"], "fails")
+		notes = {p["suggestion_id"]: p
+			for p in tables["proposals"]["method_note_tool"]}
+		self.assertEqual(notes["brew:attention:method-xdg-path"]
+			["self_test"]["verdict"], "passes")
+		self.assertEqual(tables["proposals"]["method_note_global"], [])
+
+	def test_file_collisions_need_two(self):
+		pre = fixture_pre()
+		pre["target_file_index"] = {"setup.sh": ["a:1"], "Brewfile": ["a:1", "b:2"]}
+		tables = C.build_tables(pre)
+		self.assertEqual([c["path"] for c in tables["file_collisions"]],
+			["Brewfile"])
+
+	def test_anchor_duplicates_cross_tool_only(self):
+		security = {"cve_id": "CVE-2026-11111", "advisory_id": None,
+			"rating": "high", "rating_basis": "nvd", "exploited_in_wild": False}
+		item_a = make_item("brew:a", 1, tags=("security", "fix"), security=security,
+			local=plain_local())
+		item_a["anchor"] = {"kind": "cve", "value": "CVE-2026-11111"}
+		item_a["id"] = model.derive_item_id("brew:a", item_a["anchor"])
+		item_b = copy.deepcopy(item_a)
+		item_b["id"] = model.derive_item_id("brew:b", item_b["anchor"])
+		pre = build_pre([make_view("brew:a", [item_a]),
+			make_view("brew:b", [item_b])])
+		tables = C.build_tables(pre)
+		self.assertEqual(len(tables["anchor_duplicates"]), 1)
+		self.assertEqual(tables["anchor_duplicates"][0]["anchor"],
+			"cve:CVE-2026-11111")
+
+	def test_evidence_findings_are_the_declared_codes(self):
+		tables = C.build_tables(FIXTURE_PRE)
+		self.assertEqual(
+			sorted({f["code"] for f in tables["evidence_findings"]}),
+			sorted({"E-EVID-MALFORMED", "E-EVID-404", "W-EVID-ROOT",
+				"E-REACHES-UNEVIDENCED"}))
+		self.assertEqual(len(tables["evidence_findings"]), 5)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+class SubmissionLevelTests(unittest.TestCase):
+	"""Phase 1 — a submission that cannot be resolved applies NOTHING."""
+
+	def test_not_an_object(self):
+		result = run(FIXTURE_PRE, ["not", "a", "submission"])
+		self.assertEqual(result["state"], "rejected")
+		self.assertIn("E-SUBMIT-SHAPE", codes_of(result))
+		self.assertIsNone(result["corpus_post"])
+
+	def test_run_id_version_digest(self):
+		submission = fixture_submission()
+		submission["run_id"] = "someone-elses-session"
+		self.assertIn("E-SUBMIT-RUN", codes_of(run(FIXTURE_PRE, submission)))
+		submission = fixture_submission()
+		submission["view_version"] = 99
+		self.assertIn("E-SUBMIT-VERSION", codes_of(run(FIXTURE_PRE, submission)))
+		submission = fixture_submission()
+		submission["corpus_digest"] = "sha256:" + "0" * 64
+		self.assertIn("E-SUBMIT-DIGEST", codes_of(run(FIXTURE_PRE, submission)))
+
+	def test_duplicate_edit_id(self):
+		submission = fixture_submission()
+		submission["edits"].append(copy.deepcopy(submission["edits"][0]))
+		self.assertIn("E-SUBMIT-SHAPE", codes_of(run(FIXTURE_PRE, submission)))
+
+	def test_missing_blocks(self):
+		submission = fixture_submission()
+		del submission["ledger"]
+		self.assertIn("E-SUBMIT-SHAPE", codes_of(run(FIXTURE_PRE, submission)))
+
+
+class PrecheckTests(unittest.TestCase):
+	"""Phase 2 — per-edit rejection, coded, never silent."""
+
+	def setUp(self):
+		self.item = make_item("brew:t", 1, severity="notable",
+			local=plain_local(statement="A statement long enough to quote from."))
+		self.view = make_view("brew:t", [self.item])
+		self.pre = build_pre([self.view])
+
+	def one(self, edit, **kwargs):
+		return run(self.pre, make_submission(self.pre, [edit], **kwargs))
+
+	def delete_edit(self, **overrides):
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": None},
+			"quote": "A statement long enough to quote from.",
+			"bucket_claim": lateral("routine"),
+			"reason": cut_reason()}
+		edit.update(overrides)
+		return edit
+
+	def test_clean_delete_applies(self):
+		result = self.one(self.delete_edit())
+		self.assertEqual(result["critical"], [])
+		self.assertEqual(result["applied"], ["cv-001"])
+		post_view = result["corpus_post"]["tools"][0]
+		self.assertEqual(post_view["items"], [])
+
+	def test_target_unresolved(self):
+		result = self.one(self.delete_edit(target={"tool_id": "brew:t",
+			"kind": "item", "id": "brew:t#issue:nothing", "field": None}))
+		self.assertIn("E-EDIT-TARGET", codes_of(result))
+		self.assertEqual(result["rejected"][0]["code"], "E-EDIT-TARGET")
+
+	def test_unknown_tool(self):
+		result = self.one(self.delete_edit(target={"tool_id": "brew:ghost",
+			"kind": "item", "id": self.item["id"], "field": None}))
+		self.assertIn("E-EDIT-TARGET", codes_of(result))
+
+	def test_field_on_whole_element_op(self):
+		result = self.one(self.delete_edit(target={"tool_id": "brew:t",
+			"kind": "item", "id": self.item["id"], "field": "tags"}))
+		self.assertIn("E-EDIT-TARGET", codes_of(result))
+
+	def retag_edit(self, **overrides):
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "retag",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": "tags"},
+			"precondition": {"before": ["fix"]},
+			"quote": "A statement long enough to quote from.",
+			"after": ["chore"],
+			"bucket_claim": lateral("routine"),
+			"reason": cut_reason()}
+		edit.update(overrides)
+		return edit
+
+	def test_precondition_mismatch(self):
+		result = self.one(self.retag_edit(precondition={"before": ["security"]}))
+		self.assertIn("E-EDIT-PRECOND", codes_of(result))
+		detail = next(f for f in result["critical"]
+			if f["code"] == "E-EDIT-PRECOND")["detail"]
+		self.assertIn("fix", detail)  # the resolved value comes back
+
+	def test_quote_missing_and_unresolved(self):
+		result = self.one({k: v for k, v in self.retag_edit().items()
+			if k != "quote"})
+		self.assertIn("E-EDIT-QUOTE", codes_of(result))
+		result = self.one(self.retag_edit(quote="text the element never held"))
+		self.assertIn("E-EDIT-QUOTE", codes_of(result))
+
+	def test_quote_must_come_from_body_when_item_has_one(self):
+		"""§3.3 — the projection withheld `body`; a cut of an item that has
+		one can only be satisfied by text read out of corpus.pre."""
+		item = make_item("brew:t", 2, body="The body paragraph nobody saw in "
+			"the projection.", local=plain_local())
+		view = make_view("brew:t", [self.item, item])
+		pre = build_pre([view])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": None},
+			"quote": item["title"],  # verbatim from the TITLE — not enough
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertIn("E-EDIT-QUOTE", codes_of(result))
+		edit["quote"] = "paragraph nobody saw"
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertNotIn("E-EDIT-QUOTE", codes_of(result))
+
+	def test_bucket_claim_required_and_forbidden(self):
+		result = self.one({k: v for k, v in self.delete_edit().items()
+			if k != "bucket_claim"})
+		self.assertIn("E-EDIT-OP", codes_of(result))
+		trim = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "trim",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": "local.statement"},
+			"precondition": {"before": "A statement long enough to quote from."},
+			"after": "A statement long enough to quote",
+			"bucket_claim": lateral("routine"),
+			"reason": {"headline": "Shorter."}}
+		self.assertIn("E-EDIT-OP", codes_of(self.one(trim)))
+
+	def test_retag_outside_closed_set(self):
+		result = self.one(self.retag_edit(after=["notes"]))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_rerate_and_redirect_vocabularies(self):
+		rerate = self.retag_edit(op="rerate",
+			target={"tool_id": "brew:t", "kind": "item", "id": self.item["id"],
+				"field": "severity"},
+			precondition={"before": "notable"}, after="loud")
+		self.assertIn("E-EDIT-OP", codes_of(self.one(rerate)))
+		redirect = self.retag_edit(op="redirect",
+			target={"tool_id": "brew:t", "kind": "item", "id": self.item["id"],
+				"field": "local.direction"},
+			precondition={"before": "unclear"}, after="sideways")
+		self.assertIn("E-EDIT-OP", codes_of(self.one(redirect)))
+
+	def test_trim_must_be_token_subsequence(self):
+		trim = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "trim",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": "local.statement"},
+			"precondition": {"before": "A statement long enough to quote from."},
+			"after": "A statement rewritten in other words.",
+			"reason": {"headline": "Shorter."}}
+		self.assertIn("E-EDIT-OP", codes_of(self.one(trim)))
+		trim["after"] = "A statement long enough to quote"  # dropped "from."
+		result = self.one(trim)
+		self.assertNotIn("E-EDIT-OP", codes_of(result))
+
+	def test_noop_edit_rejected(self):
+		result = self.one(self.retag_edit(after=["fix"],
+			precondition={"before": ["fix"]}))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_headline_length_capped(self):
+		result = self.one(self.delete_edit(reason=cut_reason(
+			headline="x" * 141)))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_cut_reason_needs_body_and_confidence(self):
+		bad = cut_reason()
+		del bad["body"]
+		self.assertIn("E-EDIT-OP", codes_of(self.one(self.delete_edit(reason=bad))))
+		bad = cut_reason()
+		bad["confidence"] = "certain"
+		self.assertIn("E-EDIT-OP", codes_of(self.one(self.delete_edit(reason=bad))))
+
+	def test_requires_unknown_and_transitive(self):
+		first = self.delete_edit()
+		second = {"edit_id": "cv-002", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": "severity"},
+			"precondition": {"before": "notable"},
+			"quote": "A statement long enough to quote from.",
+			"after": "info", "bucket_claim": lateral("routine"),
+			"reason": cut_reason(), "requires": ["cv-404"]}
+		result = run(self.pre, make_submission(self.pre, [second]))
+		self.assertIn("E-EDIT-DEP", codes_of(result))
+		# a rejected requirement rejects its dependents, transitively
+		first["target"]["id"] = "brew:t#issue:nothing"  # rejects
+		second["requires"] = ["cv-001"]
+		third = dict(copy.deepcopy(second), edit_id="cv-003", requires=["cv-002"])
+		third["after"] = "warning"
+		result = run(self.pre, make_submission(self.pre,
+			[first, second, third]))
+		rejected_ids = {r["edit_id"] for r in result["rejected"]}
+		self.assertEqual(rejected_ids, {"cv-001", "cv-002", "cv-003"})
+
+	def test_duplicate_writers_and_supersedes(self):
+		a = self.retag_edit()
+		b = self.retag_edit(edit_id="cv-002", after=["packaging"])
+		result = run(self.pre, make_submission(self.pre, [a, b]))
+		self.assertIn("E-EDIT-DUP", codes_of(result))
+		b_sup = dict(copy.deepcopy(b), supersedes=["cv-001"])
+		result = run(self.pre, make_submission(self.pre, [a, b_sup]))
+		self.assertNotIn("E-EDIT-DUP", codes_of(result))
+		self.assertIn("cv-001", result["superseded"])
+		post_item = result["corpus_post"]["tools"][0]["items"][0]
+		self.assertEqual(post_item["tags"], ["packaging"])
+
+	def test_delete_conflicts_with_field_edit_on_same_element(self):
+		result = run(self.pre, make_submission(self.pre,
+			[self.delete_edit(), self.retag_edit(edit_id="cv-002")]))
+		self.assertIn("E-EDIT-DUP", codes_of(result))
+
+	def test_add_id_collision_and_prefix(self):
+		proposal = {"id": "brew:t:note", "kind": "method-note",
+			"method_topic": "t", "method_note": "n", "rationale": "r"}
+		view = make_view("brew:t", [self.item], suggestions=[proposal])
+		pre = build_pre([view])
+		add = {"edit_id": "cv-001", "check": "C6-memory", "op": "add",
+			"target": {"tool_id": "brew:t", "kind": "suggestion", "id": None,
+				"field": None},
+			"after": dict(proposal),
+			"bucket_claim": lateral("attention"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [add]))
+		self.assertIn("E-EDIT-ID", codes_of(result))
+		add2 = copy.deepcopy(add)
+		add2["after"]["id"] = "elsewhere:note"
+		result = run(pre, make_submission(pre, [add2]))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_add_must_be_memory_kind(self):
+		add = {"edit_id": "cv-001", "check": "C6-memory", "op": "add",
+			"target": {"tool_id": "brew:t", "kind": "suggestion", "id": None,
+				"field": None},
+			"after": {"id": "brew:t:edit-something", "kind": "edit",
+				"title": "an authored action"},
+			"bucket_claim": lateral("attention"), "reason": cut_reason()}
+		result = self.one(add)
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_unknown_check_and_unknown_op(self):
+		self.assertIn("E-EDIT-OP",
+			codes_of(self.one(self.delete_edit(check="C9-invented"))))
+		self.assertIn("E-EDIT-OP",
+			codes_of(self.one(self.delete_edit(op="obliterate"))))
+
+
+class ApplyAndScopeTests(unittest.TestCase):
+	def setUp(self):
+		self.item = make_item("brew:t", 1, body="The body carries the detail "
+			"the projection withheld.", local=plain_local(
+			statement="A statement long enough to quote from."))
+		self.other = make_item("brew:t", 2, severity="info")
+		self.view = make_view("brew:t", [self.item, self.other])
+		self.pre = build_pre([self.view])
+
+	def merge_edit(self, changed_fields, mutate):
+		after = copy.deepcopy(self.item)
+		mutate(after)
+		return {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.item["id"], "field": None},
+			"quote": "carries the detail",
+			"after": after, "changed_fields": changed_fields,
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+
+	def test_merge_scope_containment_is_not_a_tautology(self):
+		"""An `after` that quietly also changed severity is caught here and
+		nowhere else (§1.7 phase 4)."""
+		def mutate(after):
+			after["body"] = "New body."
+			after["severity"] = "info"  # NOT declared
+		result = run(self.pre, make_submission(self.pre,
+			[self.merge_edit(["body"], mutate)]))
+		self.assertIn("E-APPLY-SCOPE", codes_of(result))
+
+	def test_merge_declared_and_derived_agree(self):
+		def mutate(after):
+			after["body"] = "New body."
+		result = run(self.pre, make_submission(self.pre,
+			[self.merge_edit(["body"], mutate)]))
+		self.assertNotIn("E-APPLY-SCOPE", codes_of(result))
+		post = result["corpus_post"]["tools"][0]
+		merged = next(i for i in post["items"] if i["id"] == self.item["id"])
+		self.assertEqual(merged["body"], "New body.")
+
+	def test_merge_cannot_rewrite_id(self):
+		def mutate(after):
+			after["id"] = "brew:t#issue:renamed"
+		result = run(self.pre, make_submission(self.pre,
+			[self.merge_edit(["id"], mutate)]))
+		self.assertIn("E-EDIT-OP", codes_of(result))
+
+	def test_move_evidence_and_annotate_apply(self):
+		item = make_item("brew:t", 3, local={"direction": "unclear",
+			"effect": "none", "statement": "s",
+			"evidence": ["prose that belongs in citations"], "citations": []})
+		view = make_view("brew:t", [item])
+		pre = build_pre([view])
+		edits = [
+			{"edit_id": "cv-001", "check": "C1-evidence", "op": "move_evidence",
+				"target": {"tool_id": "brew:t", "kind": "item",
+					"id": item["id"], "field": "local.evidence"},
+				"precondition": {"before": "prose that belongs in citations"},
+				"after": {"citation": {"kind": "observation",
+					"text": "prose that belongs in citations"}},
+				"reason": {"headline": "Filed as a citation."}},
+			{"edit_id": "cv-002", "check": "C7-collisions", "op": "annotate",
+				"target": {"tool_id": "brew:t", "kind": "item",
+					"id": item["id"], "field": None},
+				"precondition": {"before": 0},
+				"after": "See also brew:other's identical change.",
+				"reason": {"headline": "Cross-reference."}},
+		]
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		post_item = result["corpus_post"]["tools"][0]["items"][0]
+		self.assertEqual(post_item["local"]["evidence"], [])
+		self.assertEqual(post_item["local"]["citations"][0]["text"],
+			"prose that belongs in citations")
+		self.assertEqual(post_item["convergence_notes"][0]["edit_id"], "cv-002")
+
+	def test_annotate_tool_level(self):
+		edit = {"edit_id": "cv-001", "check": "C7-collisions", "op": "annotate",
+			"target": {"tool_id": "brew:t", "kind": "tool", "id": None,
+				"field": None},
+			"precondition": {"before": 0},
+			"after": "The losing card's finding lives on brew:other now.",
+			"reason": {"headline": "Cross-reference."}}
+		result = run(self.pre, make_submission(self.pre, [edit]))
+		self.assertEqual(codes_of(result), [])
+		post_view = result["corpus_post"]["tools"][0]
+		self.assertEqual(len(post_view["convergence_notes"]), 1)
+
+	def test_diff_before_is_derived_not_declared(self):
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": self.other["id"], "field": "severity"},
+			"precondition": {"before": "info"},
+			"quote": self.other["title"],
+			"after": "notable", "bucket_claim": lateral("routine"),
+			"reason": cut_reason()}
+		result = run(self.pre, make_submission(self.pre, [edit]))
+		entry = next(d for d in result["diff"] if d["change"] == "field")
+		self.assertEqual(entry["before"], "info")
+		self.assertEqual(entry["after"], "notable")
+		self.assertEqual(entry["edit_ids"], ["cv-001"])
+
+	def test_schema_regression_is_caught(self):
+		"""A merge that drops the security tag but keeps the block raises
+		I-4 where corpus.pre did not — E-APPLY-SCHEMA."""
+		security = {"cve_id": "CVE-2026-22222", "advisory_id": None,
+			"rating": "high", "rating_basis": "nvd", "exploited_in_wild": False}
+		item = make_item("brew:t", 4, tags=("security", "fix"),
+			security=security, local=plain_local())
+		view = make_view("brew:t", [item])
+		pre = build_pre([view])
+		after = copy.deepcopy(item)
+		after["tags"] = ["fix"]
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": None},
+			"quote": item["title"], "after": after, "changed_fields": ["tags"],
+			"bucket_claim": lateral("security_mixed"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertIn("E-APPLY-SCHEMA", codes_of(result))
+
+	def test_added_proposal_missing_payload_is_schema_failure(self):
+		add = {"edit_id": "cv-001", "check": "C6-memory", "op": "add",
+			"target": {"tool_id": "brew:t", "kind": "suggestion", "id": None,
+				"field": None},
+			"after": {"id": "brew:t:new-note", "kind": "method-note",
+				"title": "no payload"},
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		result = run(self.pre, make_submission(self.pre, [add]))
+		self.assertIn("E-APPLY-SCHEMA", codes_of(result))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+def _auto_tool():
+	"""A tool one deletion away from security_auto: two security fixes that
+	do not reach, plus one feature item blocking security_only."""
+	security = {"cve_id": None, "advisory_id": None, "rating": "unknown",
+		"rating_basis": "unrated", "exploited_in_wild": False}
+	fixes = [make_item("brew:auto", n, tags=("security", "fix"),
+		severity="info", security=copy.deepcopy(security),
+		local=plain_local(direction="does_not_reach", effect="none"))
+		for n in (1, 2)]
+	blocker = make_item("brew:auto", 3, tags=("feature",), severity="notable",
+		local=plain_local(statement="The feature statement to quote."))
+	return make_view("brew:auto", fixes + [blocker]), blocker
+
+
+def _gate_delete(blocker, declared=True, reasoned=True):
+	body = ("Removing it makes the tool security-only, which moves it into "
+		"security_auto and pre-accepts the upgrade; the counterweight is on "
+		"the card.") if reasoned else \
+		("A feature note is detail, not a decision input, and nobody would "
+		"decide differently believing the opposite of it.")
+	return {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+		"target": {"tool_id": "brew:auto", "kind": "item",
+			"id": blocker["id"], "field": None},
+		"quote": "The feature statement to quote.",
+		"bucket_claim": {"moves_bucket": declared,
+			"expected_from": "security_mixed", "expected_to": "security_auto",
+			"direction": "permissive" if declared else "lateral"},
+		"reason": cut_reason(body=body)}
+
+
+class GateAndAttributionTests(unittest.TestCase):
+	def test_declared_reasoned_move_passes_and_labels(self):
+		view, blocker = _auto_tool()
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+		pre = build_pre([view])
+		result = run(pre, make_submission(pre, [_gate_delete(blocker)]))
+		self.assertEqual(codes_of(result), [])
+		self.assertEqual(result["moved"]["brew:auto"]["direction"], "permissive")
+		attribution = result["attribution"]["brew:auto"]
+		self.assertEqual(attribution["initial_review_bucket"]["attributed_to"],
+			["cv-001"])
+		effect = apply_converge.finalize_clean(pre,
+			make_submission(pre, [_gate_delete(blocker)]), result, 1, [])
+		label = effect["tools"]["brew:auto"]["auto_update_label"]
+		self.assertEqual(label["source"], "judgement")
+
+	def test_gate_undeclared(self):
+		view, blocker = _auto_tool()
+		pre = build_pre([view])
+		result = run(pre, make_submission(pre,
+			[_gate_delete(blocker, declared=False)]))
+		self.assertIn("E-GATE-UNDECLARED", codes_of(result))
+
+	def test_gate_unreasoned(self):
+		view, blocker = _auto_tool()
+		pre = build_pre([view])
+		result = run(pre, make_submission(pre,
+			[_gate_delete(blocker, reasoned=False)]))
+		self.assertIn("E-GATE-UNREASONED", codes_of(result))
+
+	def test_gate_unattributed_fails_closed(self):
+		"""The defensive branch: if attribution cannot explain a permissive
+		move, the gate fires rather than trusting it."""
+		view, blocker = _auto_tool()
+		pre = build_pre([view])
+		empty = {"initial_review_bucket": {"attributed_to": [], "joint": False,
+			"unattributed": True}}
+		with mock.patch.object(apply_converge, "_attribute",
+				return_value=empty):
+			result = run(pre, make_submission(pre, [_gate_delete(blocker)]))
+		self.assertIn("E-GATE-UNATTRIBUTED", codes_of(result))
+
+	def test_restrictive_move_is_reported_never_blocked(self):
+		item = make_item("brew:t", 1, local=plain_local(
+			statement="A statement long enough to quote from."))
+		view = make_view("brew:t", [item])
+		pre = build_pre([view])
+		self.assertEqual(view["initial_review_bucket"], "routine")
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": "severity"},
+			"precondition": {"before": "notable"},
+			"quote": "A statement long enough to quote from.",
+			"after": "warning",
+			"bucket_claim": {"moves_bucket": True, "expected_from": "routine",
+				"expected_to": "attention", "direction": "restrictive"},
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertEqual(codes_of(result), [])
+		self.assertEqual(result["moved"]["brew:t"]["direction"], "restrictive")
+
+	def test_joint_attribution_when_no_single_omission_restores(self):
+		"""Two rerates, either alone sufficient to elevate risk — leave-one-
+		out finds no single cause and the subset search attributes both."""
+		items = [make_item("brew:t", n, local=plain_local(
+			statement="Statement {} to quote.".format(n))) for n in (1, 2)]
+		view = make_view("brew:t", items)
+		pre = build_pre([view])
+		edits = []
+		for n, item in enumerate(items, start=1):
+			edits.append({"edit_id": "cv-00{}".format(n),
+				"check": "C2-tags-visibility", "op": "rerate",
+				"target": {"tool_id": "brew:t", "kind": "item",
+					"id": item["id"], "field": "severity"},
+				"precondition": {"before": "notable"},
+				"quote": "Statement {} to quote.".format(n),
+				"after": "warning",
+				"bucket_claim": {"moves_bucket": True,
+					"expected_from": "routine", "expected_to": "attention",
+					"direction": "restrictive"},
+				"reason": cut_reason()})
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		attribution = result["attribution"]["brew:t"]["risk_level"]
+		self.assertTrue(attribution["joint"])
+		self.assertEqual(attribution["attributed_to"], ["cv-001", "cv-002"])
+
+	def test_internal_selfcheck_detects_derivation_drift(self):
+		"""A corpus whose recorded axes disagree with the one implementation
+		is an applier-side bug — E-APPLY-INTERNAL, never a silent re-grade."""
+		pre = fixture_pre()
+		view = next(v for v in pre["tools"] if v["id"] == "brew:watched")
+		view["initial_review_bucket"] = "attention"  # falsified record
+		submission = make_submission(pre, [])
+		result = run(pre, submission)
+		self.assertIn("E-APPLY-INTERNAL", codes_of(result))
+
+	def test_validator_error_tool_keeps_recorded_axes(self):
+		pre = fixture_pre()
+		view = next(v for v in pre["tools"] if v["id"] == "brew:watched")
+		view["validator_error"] = "stage crashed"
+		view["initial_review_bucket"] = "attention"
+		result = run(pre, make_submission(pre, []))
+		self.assertNotIn("E-APPLY-INTERNAL", codes_of(result))
+		post = next(v for v in result["corpus_post"]["tools"]
+			if v["id"] == "brew:watched")
+		self.assertEqual(post["initial_review_bucket"], "attention")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+class CheckVerifierTests(unittest.TestCase):
+	"""Each verify_cN fires on the wrong attestation and stays silent on the
+	right one. Deleting a verifier fails the firing test — that is the
+	deletion detection the acceptance criteria demand."""
+
+	def _submission(self):
+		return fixture_submission()
+
+	def _entry(self, submission, name):
+		return next(e for e in submission["checks"] if e["check"] == name)
+
+	def assert_fires(self, submission, code="E-CHECK-ARITH", fragment=None):
+		result = run(FIXTURE_PRE, submission)
+		self.assertIn(code, codes_of(result))
+		if fragment:
+			details = " | ".join(f["detail"] for f in result["critical"]
+				if f["code"] == code)
+			self.assertIn(fragment, details)
+
+	def test_fixture_attestations_all_pass(self):
+		result = run(FIXTURE_PRE, self._submission())
+		for code in ("E-CHECK-ARITH", "E-CHECK-CLOSURE", "E-CHECK-OP"):
+			self.assertNotIn(code, codes_of(result))
+
+	def test_c1_scanned_and_findings(self):
+		submission = self._submission()
+		self._entry(submission, "C1-evidence")["scanned"]["items"] = 23
+		self.assert_fires(submission, fragment="C1 scanned.items")
+		submission = self._submission()
+		self._entry(submission, "C1-evidence")["findings"] = 4
+		self.assert_fires(submission, fragment="C1 findings")
+
+	def test_c2_coverage(self):
+		submission = self._submission()
+		self._entry(submission, "C2-tags-visibility")["clean"] = 16
+		self.assert_fires(submission, fragment="C2 clean")
+
+	def test_c3_enumeration_and_counts(self):
+		submission = self._submission()
+		self._entry(submission, "C3-security-only")["security_only_tools"] \
+			.pop()  # drops brew:quarantined
+		self.assert_fires(submission, fragment="C3 must enumerate")
+		submission = self._submission()
+		self._entry(submission, "C3-security-only")["security_only_tools"] \
+			[0]["cve_count"] = 7
+		self.assert_fires(submission, fragment="cve_count")
+
+	def test_c4_populations(self):
+		submission = self._submission()
+		self._entry(submission, "C4-notable-security")["scanned"] \
+			["rating_unrated"] = 0
+		self.assert_fires(submission, fragment="C4 scanned.rating_unrated")
+
+	def test_c5_enumeration_and_verdicts(self):
+		submission = self._submission()
+		self._entry(submission, "C5-auto-approval")["tools"] = []
+		self.assert_fires(submission, fragment="C5 must enumerate")
+		submission = self._submission()
+		self._entry(submission, "C5-auto-approval")["tools"][0]["verdict"] = " "
+		self.assert_fires(submission, fragment="C5 brew:openssh")
+
+	def test_c6_dispositions(self):
+		submission = self._submission()
+		submission["ledger"]["watch_items"]["rehomed_to_method_note"] = []
+		self.assert_fires(submission, fragment="exactly ONE disposition")
+		submission = self._submission()
+		submission["ledger"]["watch_items"]["existing"][0]["fired_this_run"] \
+			= False
+		self.assert_fires(submission, fragment="fired_this_run")
+		submission = self._submission()
+		del submission["ledger"]["watch_items"]["existing"][1]["used_correctly"]
+		self.assert_fires(submission, fragment="used_correctly")
+		submission = self._submission()
+		del submission["ledger"]["method_notes_tool"]["kept"][1]["restored"]
+		self.assert_fires(submission, fragment="restored")
+		submission = self._submission()
+		submission["ledger"]["watch_items"]["existing"] = \
+			submission["ledger"]["watch_items"]["existing"][:1]
+		self.assert_fires(submission, fragment="no `existing` row")
+
+	def test_c7_clusters_and_survivors(self):
+		submission = self._submission()
+		self._entry(submission, "C7-collisions")["clusters_inspected"] = 3
+		self.assert_fires(submission, fragment="C7 clusters_inspected")
+		submission = self._submission()
+		self._entry(submission, "C7-collisions")["resolved"] = [
+			{"surviving_suggestion_id": "brew:nonconforming:watch-no-reason"}]
+		self.assert_fires(submission, fragment="does not survive")
+
+	def test_closure_missing_and_mismatched(self):
+		submission = self._submission()
+		submission["checks"] = [e for e in submission["checks"]
+			if e["check"] != "C4-notable-security"]
+		self.assert_fires(submission, code="E-CHECK-CLOSURE",
+			fragment="C4-notable-security has no attestation")
+		submission = self._submission()
+		self._entry(submission, "C1-evidence")["edits"] = ["cv-001"]
+		self.assert_fires(submission, code="E-CHECK-CLOSURE",
+			fragment="C1-evidence.edits")
+
+	def test_op_discipline(self):
+		submission = self._submission()
+		delete = next(e for e in submission["edits"]
+			if e["edit_id"] == "cv-003")
+		delete["check"] = "C1-evidence"
+		# keep closure consistent so ONLY the op rule fires
+		self._entry(submission, "C1-evidence")["edits"].append("cv-003")
+		self._entry(submission, "C2-tags-visibility")["edits"].remove("cv-003")
+		self.assert_fires(submission, code="E-CHECK-OP",
+			fragment="C1-evidence emits")
+
+
+class CorpusEffectTests(unittest.TestCase):
+	def test_safety_field_mismatch_is_critical(self):
+		submission = fixture_submission()
+		submission["corpus_effect"]["pre_accept"] = {"before": 1, "after": 2}
+		result = run(FIXTURE_PRE, submission)
+		self.assertIn("E-EFFECT-ARITH", codes_of(result))
+		self.assertEqual(result["state"], "rejected")
+
+	def test_other_field_mismatch_is_a_note(self):
+		submission = fixture_submission()
+		submission["corpus_effect"]["edits_by_op"]["trim"] = 9
+		result = run(FIXTURE_PRE, submission)
+		self.assertEqual(result["state"], "converged")
+		self.assertIn("E-EFFECT-ARITH",
+			sorted({f["code"] for f in result["notes"]}))
+
+	def test_narrative_mandatory(self):
+		submission = fixture_submission()
+		del submission["corpus_effect"]["narrative"]
+		result = run(FIXTURE_PRE, submission)
+		self.assertIn("E-EFFECT-NARRATIVE", codes_of(result))
+
+	def test_narrative_enumeration_past_threshold(self):
+		"""A -20%+ warning-or-worse shrink must name every affected tool —
+		a reporting threshold, never a cap: the cut itself is not blocked."""
+		items = [make_item("brew:t", n, severity="warning",
+			local=plain_local(statement="Statement {} to quote.".format(n),
+				direction="unclear"))
+			for n in (1, 2)]
+		view = make_view("brew:t", items)
+		pre = build_pre([view])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": items[0]["id"], "field": "severity"},
+			"precondition": {"before": "warning"},
+			"quote": "Statement 1 to quote.",
+			"after": "info", "bucket_claim": lateral("attention"),
+			"reason": cut_reason()}
+		submission = make_submission(pre, [edit])
+		submission["corpus_effect"]["narrative"] = "Something fell."
+		result = run(pre, submission)
+		self.assertIn("E-EFFECT-NARRATIVE", codes_of(result))
+		submission["corpus_effect"]["narrative"] = \
+			"brew:t lost one warning item to a re-rate."
+		result = run(pre, submission)
+		self.assertNotIn("E-EFFECT-NARRATIVE", codes_of(result))
+
+	def test_shipped_numbers_are_the_appliers(self):
+		result = run(FIXTURE_PRE, fixture_submission())
+		effect = apply_converge.finalize_clean(fixture_pre(),
+			fixture_submission(), result, 1, [])
+		recomputed = apply_converge.compute_corpus_effect(FIXTURE_PRE,
+			result["corpus_post"],
+			[e for e in fixture_submission()["edits"]
+				if e["edit_id"] in result["applied"]],
+			result["moved"])
+		for field in C.EFFECT_FIELDS:
+			self.assertEqual(effect["corpus_effect"][field], recomputed[field])
+
+
+class LabelContractTests(unittest.TestCase):
+	def test_rule_label_for_untouched_auto_tool(self):
+		"""§4.3 — a tool auto by rule alone still gets a label, so the reader
+		can tell which kind it is looking at."""
+		security = {"cve_id": None, "advisory_id": None, "rating": "unknown",
+			"rating_basis": "unrated", "exploited_in_wild": False}
+		fixes = [make_item("brew:pure", n, tags=("security", "fix"),
+			severity="info", security=copy.deepcopy(security),
+			local=plain_local(direction="does_not_reach"))
+			for n in (1, 2)]
+		view = make_view("brew:pure", fixes)
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+		pre = build_pre([view])
+		submission = make_submission(pre, [])
+		result = run(pre, submission)
+		self.assertEqual(codes_of(result), [])
+		effect = apply_converge.finalize_clean(pre, submission, result, 1, [])
+		label = effect["tools"]["brew:pure"]["auto_update_label"]
+		self.assertEqual(label["source"], "rule")
+		self.assertTrue(label["headline"])
+		self.assertTrue(label["reasoning"])
+		self.assertEqual(label["edit_ids"], [])
+
+	def test_absent_not_null_for_non_auto_tools(self):
+		result = run(FIXTURE_PRE, fixture_submission())
+		effect = apply_converge.finalize_clean(fixture_pre(),
+			fixture_submission(), result, 1, [])
+		watched = effect["tools"]["brew:watched"]
+		self.assertNotIn("auto_update_label", watched)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+class TerminalDegradationTests(unittest.TestCase):
+	"""§L4 / criterion 13 — the pure function's terminal behavior. The CLI
+	loop around it is LoopCliTests."""
+
+	def test_degraded_gate_forces_conservative(self):
+		view, blocker = _auto_tool()
+		pre = build_pre([view])
+		submission = make_submission(pre,
+			[_gate_delete(blocker, reasoned=False)])
+		result = run(pre, submission, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+		post = next(v for v in result["corpus_post"]["tools"]
+			if v["id"] == "brew:auto")
+		self.assertEqual(post["initial_review_bucket"], "security_mixed")
+		self.assertFalse(post["initial_pre_accept"])
+		self.assertEqual(post["forced_conservative"]["code"],
+			"E-GATE-UNREASONED")
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["state"], "degraded_gate")
+		self.assertEqual(status["degraded_tools"][0]["tool_id"], "brew:auto")
+		self.assertEqual(status["degraded_tools"][0]["would_have_been"],
+			{"bucket": "security_auto", "pre_accept": True})
+		# a degraded tool carries NO auto_update_label (§4.4)
+		self.assertNotIn("auto_update_label",
+			result["effect"]["tools"]["brew:auto"])
+
+	def test_degraded_unapplied_ships_pre_verbatim(self):
+		result = run(FIXTURE_PRE, {"nonsense": True}, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_unapplied")
+		self.assertEqual(result["corpus_post"], FIXTURE_PRE)
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["state"], "degraded_unapplied")
+		self.assertTrue(status["explanation"]["headline"])
+		self.assertTrue(status["standing_rejects"])
+
+	def test_terminal_excludes_implicated_edits_and_ships_the_rest(self):
+		"""At attempt 5 a scope-violating merge is excluded — reported, not
+		silently skipped — and the sound edits still apply."""
+		item = make_item("brew:t", 1, body="The body to quote from at length.",
+			local=plain_local(statement="A statement long enough to quote."))
+		other = make_item("brew:t", 2)
+		view = make_view("brew:t", [item, other])
+		pre = build_pre([view])
+		after = copy.deepcopy(item)
+		after["body"] = "New body."
+		after["severity"] = "info"  # undeclared
+		bad = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": None},
+			"quote": "body to quote", "after": after, "changed_fields": ["body"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		good = {"edit_id": "cv-002", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": other["id"],
+				"field": "severity"},
+			"precondition": {"before": "notable"},
+			"quote": other["title"], "after": "info",
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		submission = make_submission(pre, [bad, good])
+		result = run(pre, submission, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "converged")
+		self.assertEqual(result["applied"], ["cv-002"])
+		self.assertEqual(result["rejected"][0]["edit_id"], "cv-001")
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["standing_rejects"][0]["edit_id"], "cv-001")
+		post = result["corpus_post"]["tools"][0]
+		merged = next(i for i in post["items"] if i["id"] == item["id"])
+		self.assertNotIn("body", set(merged) - set(item))  # bad edit not applied
+		self.assertEqual(merged.get("severity"), "notable")
+
+
+class LoopCliTests(unittest.TestCase):
+	"""The durable counter, the artefacts, and the refusals — through main()."""
+
+	def setUp(self):
+		self.tmp = tempfile.mkdtemp(prefix="converge-test-")
+		self.addCleanup(shutil.rmtree, self.tmp, True)
+		self.session = os.path.join(self.tmp, "session")
+		os.makedirs(self.session)
+		self.pre = fixture_pre()
+		self._write(os.path.join(self.session, "corpus.pre.json"), self.pre)
+
+	def _write(self, path, document):
+		with open(path, "w", encoding="utf-8") as fh:
+			json.dump(document, fh, ensure_ascii=False)
+
+	def _read(self, name):
+		with open(os.path.join(self.session, name), encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def _draft(self, submission):
+		path = os.path.join(self.tmp, "converge.draft.json")
+		self._write(path, submission)
+		return path
+
+	def _main(self, *argv):
+		stdout = mock.patch("sys.stdout")
+		stderr = mock.patch("sys.stderr")
+		with stdout, stderr:
+			return apply_converge.main(["--session", self.session] + list(argv))
+
+	def test_prepare_writes_three_artifacts_and_refuses_overwrite(self):
+		session_src, roots, _ = validate_items.fixture_session()
+		prepare_dir = os.path.join(self.tmp, "prepare-session")
+		shutil.copytree(session_src, prepare_dir)
+		for name in ("corpus.pre.json",):
+			path = os.path.join(prepare_dir, name)
+			if os.path.exists(path):
+				os.remove(path)
+		argv = ["--session", prepare_dir, "--prepare",
+			"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+			"--systems-root", roots[2]]
+		with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+			self.assertEqual(apply_converge.main(argv), 0)
+			for name in ("corpus.pre.json", "converge-view.json",
+					"converge-tables.json"):
+				self.assertTrue(os.path.exists(os.path.join(prepare_dir, name)))
+			# immutable for the run: a second prepare refuses without --force
+			self.assertEqual(apply_converge.main(argv), 4)
+			self.assertEqual(apply_converge.main(argv + ["--force"]), 0)
+
+	def test_check_writes_nothing_and_counts_no_attempt(self):
+		submission = make_submission(self.pre, [])
+		code = self._main("--check", self._draft(submission))
+		self.assertEqual(code, 0)
+		self.assertEqual(sorted(os.listdir(self.session)), ["corpus.pre.json"])
+
+	def test_submit_bounce_then_converge(self):
+		bad = make_submission(self.pre, [])
+		bad["corpus_effect"]["pre_accept"] = {"before": 9, "after": 9}
+		self.assertEqual(self._main("--submit", self._draft(bad)), 1)
+		log = self._read("converge-attempts.json")
+		self.assertEqual(len(log["attempts"]), 1)
+		self.assertIn("E-EFFECT-ARITH", log["attempts"][0]["codes"])
+		self.assertFalse(os.path.exists(
+			os.path.join(self.session, "corpus.post.json")))
+		good = make_submission(self.pre, [], attempt=2)
+		self.assertEqual(self._main("--submit", self._draft(good)), 0)
+		effect = self._read("converge-effect.json")
+		self.assertEqual(effect["state"], "converged")
+		self.assertEqual(effect["attempt"], 2)
+		log_entries = effect["convergence_status"]["explanation"]["attempt_log"]
+		self.assertEqual([e["attempt"] for e in log_entries], [1, 2])
+		self.assertIn("E-EFFECT-ARITH", log_entries[0]["codes"])
+		self.assertTrue(os.path.exists(
+			os.path.join(self.session, "corpus.post.json")))
+		self.assertTrue(os.path.exists(
+			os.path.join(self.session, "converge.json")))
+		# terminal: nothing is resubmittable
+		self.assertEqual(self._main("--submit", self._draft(good)), 4)
+
+	def test_five_attempts_then_degrade_unapplied(self):
+		garbage = {"not": "a submission"}
+		for attempt in range(1, 5):
+			self.assertEqual(self._main("--submit", self._draft(garbage)), 1)
+		self.assertEqual(self._main("--submit", self._draft(garbage)), 0)
+		effect = self._read("converge-effect.json")
+		self.assertEqual(effect["state"], "degraded_unapplied")
+		self.assertEqual(effect["attempt"], 5)
+		self.assertEqual(self._read("corpus.post.json"), self.pre)
+		log = self._read("converge-attempts.json")
+		self.assertEqual([e["attempt"] for e in log["attempts"]],
+			[1, 2, 3, 4, 5])
+
+	def test_attempt_disagreement_is_noted_not_fatal(self):
+		submission = make_submission(self.pre, [], attempt=4)
+		self.assertEqual(self._main("--submit", self._draft(submission)), 0)
+		effect = self._read("converge-effect.json")
+		self.assertIn("W-SUBMIT-ATTEMPT",
+			{f["code"] for f in effect["findings"]})
+
+	def test_unreadable_draft_is_a_coded_rejection(self):
+		path = os.path.join(self.tmp, "broken.json")
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write("{not json")
+		self.assertEqual(self._main("--check", path), 1)
+
+
+class ContractSurfaceTests(unittest.TestCase):
+	def test_every_code_documented(self):
+		for code, (severity, phase, meaning) in C.CODES.items():
+			self.assertIn(severity, ("critical", "note", "graded"))
+			self.assertTrue(meaning)
+
+	def test_bucket_capable_and_cut_sets(self):
+		self.assertEqual(set(C.BUCKET_CAPABLE_OPS),
+			{"delete", "merge", "retag", "rerate", "redirect", "add"})
+		self.assertEqual(set(C.CUT_OPS),
+			{"delete", "merge", "retag", "rerate", "redirect"})
+
+	def test_check_ids_are_the_seven(self):
+		self.assertEqual(len(C.CHECK_IDS), 7)
+		self.assertEqual(C.CHECK_IDS[0], "C1-evidence")
+		self.assertEqual(C.CHECK_IDS[-1], "C7-collisions")
+
+	def test_flag_scope_is_empty(self):
+		self.assertEqual(C.OPS["flag"]["scope"],
+			"EMPTY — writes nothing to the corpus")
+
+
+if __name__ == "__main__":
+	unittest.main()
