@@ -4,8 +4,8 @@ Fill in the placeholders and pass the result verbatim as the subagent's
 prompt (`references/research.md`). This exists because the prompt used to get
 retyped by hand every run, with no fixed skeleton — real risk of forgetting
 a quality-bar rule or drifting the schema shape between runs. The
-substantive rules (what counts as a good headliner, how to classify
-category/severity, when something is context vs relevancy vs filler, link
+substantive rules (what counts as an item, tags vs. severity, local
+findings vs. inventory vs. filler, link
 quality, watch items, ...) live in `references/research.md` and are deliberately
 **not** duplicated here — this template's job is only the boilerplate that
 never changes: what to fill in, what file to write, what shape to write it
@@ -18,8 +18,8 @@ tiering).
 
 ```
 You are researching {{TOOL_COUNT}} tool update(s) for the tool-update-review
-skill. For each tool below, produce one Tool research object per
-`references/schemas.md`, and write the complete array (one element per
+skill. For each tool below, produce one research object in the exact
+closed shape below, and write the complete array (one element per
 tool, even if {{TOOL_COUNT}} is 1) to:
 
     {{OUTPUT_PATH}}
@@ -39,8 +39,8 @@ Repo context — recent commits, for config_status cross-referencing and
 general awareness of what's already changed recently (`references/collection.md`):
 {{REPO_CONTEXT_JSON}}
 
-Paths you may scan for relevancy — the user's LIVE checkouts, read-only
-(`references/research.md`'s "Relevancy is the point of this skill"):
+Paths you may scan for local findings — the user's LIVE checkouts,
+read-only (`references/research.md` §Local Findings Are the Point):
     ~/project/github/tapppi/macos-setup  (Brewfile, tasks/*.sh, backup.sh,
         restore.sh, dotfiles/ submodule — shell/git/tmux/Claude configs)
     ~/project/github/tapppi/systems       (Nix flake)
@@ -56,7 +56,9 @@ Audit trail to check for config_status (`references/research.md` §Config Status
 
 Standing notes previous runs left about these tools — method notes (read them
 BEFORE you look anything up; they change where you look) and watch items
-(topics to notice in the changelog you are reading anyway). Empty means these
+(topics to notice in the changelog you are reading anyway). A watch item's
+`topic` below is the exact string to put in `watch_hit.topic` when this
+run's changes answer it — copied verbatim, never rewritten. Empty means these
 tools have none (`references/research.md` §Watch Items (Reading)):
 {{STANDING_NOTES}}
 <!-- one block per tool that has any: kind (method-note | watch-item), topic,
@@ -84,32 +86,96 @@ use a tool without ever naming it).
      matched line. Generated, never hand-written: a hand-written hint is where
      the nomination problem starts (§Writing Hypotheses below). -->
 
-Follow references/research.md's full research quality bar — headliner atomicity
-and category/severity classification, relevancy vs context vs
-release_inventory vs filler, the noise floor's eight classes and its hard
-deletion boundary, CVE severity capture (`basis`, the fetch budget, never
-deriving a severity from how a description reads) and selecting `notable[]`
-(cap 3, `affects_me` set from the direction of your own finding), the
-vendor-silent compact-tag exception, link quality and the embedded_content
-fallback, config_status, the two standing-note stores and how to
-tell them apart (`references/research.md` §Standing Notes: Three Stores,
-§Research-Method Notes vs Watch Items, §Watch Items (Proposing) and the
-self-test that follows it), bespoke tasks/*.sh setup handling (see
-`references/research.md` §Bespoke `tasks/*.sh` Setup Testing)
-— read it before you start, not after. Hold yourself to the exact schema
-shapes in `references/schemas.md` (headliners as {text,category,severity}
-objects, relevancy items with category+severity+motivating_change, evidence
-always an array, `security.cve_severities` as {cve_id,severity,basis} and
-`security.notable` as {cve_id,advisory_id,severity,summary,affects_me} (§1.9) —
-written even when nothing qualifies, as `[]`, since an omitted block and an
-empty one mean different things to the card,
-suggestions using title/target_files/rationale/motivating_link/diff_preview,
-a proposed watch item using `kind: "watch-item"` with
-`watch_topic`/`watch_note` instead (§1.7), a proposed method note using
-`kind: "method-note"` with `method_topic`/`method_note` (§1.7b), and either
-carrying `self_test_failed` when its self-test failed — tagged, never
-dropped (§1.7c))
-— loose shapes force hand-normalization during assembly.
+Follow references/research.md's full research quality bar — one real
+change per item and the splitting of compound bullets, tags vs. severity
+as independent axes, local findings vs. release_inventory vs. filler, the
+noise floor's eight classes and its hard deletion boundary, CVE rating
+capture (`rating_basis`, the fetch budget, never deriving a rating from
+how a description reads), direction and effect read off your own finding,
+the vendor-silent compact-tag exception, link quality and the
+embedded_content fallback, config_status, the two standing-note stores
+and how to tell them apart (`references/research.md` §Standing Notes:
+Three Stores, §Research-Method Notes vs Watch Items, §Watch Items
+(Proposing) and the self-test that follows it), bespoke tasks/*.sh setup
+handling (see `references/research.md` §Bespoke `tasks/*.sh` Setup
+Testing) — read it before you start, not after.
+
+Each research object carries EXACTLY this closed set of top-level keys
+(published in `scripts/contract/contract.json`; an unrecognized key is
+quarantined, reported as E-RESEARCH-UNKNOWNKEY, and holds the tool for
+review with its upgrade no longer pre-accepted):
+
+    id, items, links, config_status, suggestions, release_inventory,
+    vendor_silent_categories, flags, research_error, cask_sudo_hint
+
+plus five echoed identity keys — name, source, current_version,
+latest_version, pinned — recognized and ignored; collect.json is
+authoritative for them. The retired shapes (headliners, relevancy,
+context, notable, cve_severities) are REJECTED, not read — items[] and
+its tags are their single successor. Never emit security_only, impact,
+risk_level, review_bucket or pre_accept anywhere in your output: they are
+validator-only (E-FLAG-FORBIDDEN).
+
+Hold yourself to the exact shapes (`references/item-schema.md` §2):
+
+- items[] — one element per real change. Required on every item:
+    anchor: {kind: "cve"|"advisory"|"issue"|"commit"|"release"|"none",
+             value}  (for kind "none": value null plus a "slug" string;
+             the validator derives the item id from the anchor — never
+             write an id yourself)
+    title:  one line, <= 120 chars — the fact and nothing else; the why/
+            how/consequence goes in the optional body
+    tags:   >= 1 of the closed eight: security | fix | feature |
+            breaking | deprecation | perf | packaging | chore
+    severity: info | notable | warning | incompatible — "how much does
+            this matter to THIS machine"
+  and at least one of:
+    change: {version, citation, link_index} — the upstream fact;
+            citation is the VERBATIM upstream text (required when change
+            is present), link_index indexes your links[]
+    local:  {direction: "reaches"|"does_not_reach"|"unclear",
+             effect: "risk"|"benefit"|"none", statement,
+             evidence: [{path, lines, note}, ...],
+             citations: [{kind, text, url}, ...]} — the finding about
+            this setup; evidence is PATHS ONLY (a "reaches" item must
+            carry at least one), prose and commands go in citations
+  A "security" tag requires a security block, and vice versa:
+    security: {cve_id, advisory_id,
+               rating: "critical"|"high"|"medium"|"low"|"unknown",
+               rating_basis: "vendor"|"nvd"|"cvss"|"unrated",
+               exploited_in_wild: bool}
+  Severity consistency: "incompatible" requires direction "reaches" AND
+  effect "risk"; "warning" requires a local block.
+  An item that answers a stored watch item for its tool additionally
+  carries
+    watch_hit: {topic} — copy the topic string exactly as it appears in
+    the standing notes above; do not rewrite it. Such an item must carry
+    a local block and at least "notable" severity.
+- suggestions[] — always title/target_files/rationale/motivating_link/
+  diff_preview, plus per kind:
+    "upgrade" — NEVER authored by you; it is synthesized mechanically
+      for every tool.
+    "edit" (the default) — a concrete Brewfile/dotfiles/config change.
+    "structural" — the change re-manages an entity (deprecated cask
+      migrated, formula moved between sections, tap trusted/dropped,
+      install handed between mechanisms, setup.sh task added/changed):
+      add a structural block {op: "manifest_add"|"manifest_remove"|
+      "manifest_replace"|"manifest_move"|"tap_add"|"tap_remove"|
+      "install_method_change"|"task_add"|"task_change",
+      subjects: [{type, name}, ...] — the entities the change is ABOUT,
+      manifest: "Brewfile" or null (intel.Brewfile is out of this tool
+      entirely), from, to, anchor} — see `references/research.md`
+      §Suggestion Kinds for each op's required fields.
+    "watch-item" — a proposed watch item: watch_topic/watch_note/
+      rationale.
+    "method-note" — a proposed method note: method_topic/method_note/
+      rationale.
+    Either memory kind carries self_test_failed: {limb, reason} when its
+    self-test failed — tagged, never dropped.
+
+Loose shapes force hand-normalization, and a coerced shape is
+content-losing: the tool is then held for review instead of
+pre-accepting.
 
 Write your findings as a JSON array to {{OUTPUT_PATH}} using the Write
 tool. Do not return the JSON as your final message text — the array in the
