@@ -32,6 +32,15 @@ Subcommands:
                                                            Items (Writing)). No <session_dir> — this file is
                                                            machine-global, not scoped to any one review session, and
                                                            this subcommand never touches status.json.
+  add-method-note --tool-id ID --topic TEXT --note TEXT   the same write, one store over: an accepted method-note
+                                                           proposal's {topic, note, added_at} into method-notes.json
+                                                           (references/apply.md §Method Notes (Writing)). A watch item
+                                                           says what to tell the user if it happens; a method note says
+                                                           how to research this tool correctly next time.
+  add-global-method-note --topic TEXT --note TEXT         the third store: a method note that holds across many tools,
+                                                           written under method-notes.json's reserved "global" key.
+                                                           Promotion-only — convergence is the one stage that can see
+                                                           a note generalises (references/schemas.md §1.7b Scope).
   finalize        <session_dir> [--phase discussing|done] --recap TEXT|--recap-file FILE
 """
 from __future__ import annotations
@@ -47,8 +56,9 @@ from datetime import datetime, timezone
 # below must ask the same question check_pin.py's own --source choices ask,
 # from the same single set, not a second hand-typed list that can drift.
 import assemble
-# For CONTRACT_VERSION — `init`'s equality gate reads the one published
-# contract rather than re-typing the number.
+# For CONTRACT_VERSION and MEMORY_STORES — `init`'s equality gate and the
+# three store writers read the one published contract rather than re-typing
+# either the number or the file names.
 import items
 
 
@@ -509,28 +519,120 @@ def cmd_append_changelog(args):
 	print(f"appended {len(entries)} changelog entries")
 
 
-# ── add-watch-item (references/apply.md §Watch Items (Writing)) ───────────
-def cmd_add_watch_item(args):
-	# Deliberately independent of any session_dir/status.json — watch-items.json
-	# is a machine-global audit trail read at *research* time on a later run
-	# (references/research.md §Watch Items (Reading)), not part of this
-	# session's own state. Same directory/atomic-write pattern as changelog.md
-	# (append-changelog above).
-	watch_path = os.path.expanduser(
-		os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/tool-update-review/watch-items.json"
+# ── the three memory stores (REDESIGN.md §L1, contract/stores.json) ───────
+# Three stores in TWO files. Watch items and per-tool method notes are keyed
+# by tool id; global method notes share method-notes.json under the reserved
+# key below. A tool id is always `{source}:{name}` and so always contains a
+# colon, which is why the contract's `keying` rule reserved the colon-free
+# namespace rather than opening a third file — and why `_require_tool_id`
+# exists, so the reserved key can never be reached through the per-tool door.
+#
+# All three are machine-global and deliberately independent of any
+# session_dir/status.json: they are read at *research* time on a later run
+# (references/research.md §Watch Items (Reading)), not part of this session's
+# own state. Same directory/atomic-write pattern as changelog.md
+# (append-changelog above).
+#
+# The two file names and the reserved key come from `items` — they are
+# contract data (contract/stores.json pins them), not three strings this
+# file gets to spell its own way.
+
+
+def store_path(filename: str) -> str:
+	"""`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/<filename>` — a
+	sibling of changelog.md, never inside a session dir."""
+	return os.path.expanduser(
+		os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/tool-update-review/" + filename
 	)
-	os.makedirs(os.path.dirname(watch_path), exist_ok=True)
-	watch_items = load_json(watch_path, default={})
-	if not isinstance(watch_items, dict):
-		watch_items = {}
-	entries = watch_items.setdefault(args.tool_id, [])
+
+
+def _load_store(path: str):
+	"""(store, None) or (None, reason).
+
+	An **absent** file is an empty store — that is what "memory artifacts are
+	created on first use" means (REDESIGN.md §I3): no pre-seeding, no
+	migration machinery, the first accepted proposal creates the file.
+
+	A file that **exists but cannot be read as an object** is a refusal, not
+	a fresh start. `load_json`'s `default=` collapses both cases, and these
+	stores accumulate for months: silently replacing an unparseable one with
+	`{}` would destroy every note in it on the next accept, with a success
+	message. Distinguishing the two is the whole guard."""
+	if not os.path.exists(path):
+		return {}, None
+	try:
+		with open(path, "r", encoding="utf-8") as fh:
+			store = json.load(fh)
+	except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+		return None, f"it exists but could not be read ({exc})"
+	if not isinstance(store, dict):
+		return None, f"it holds a {type(store).__name__}, not a JSON object keyed by tool id"
+	return store, None
+
+
+def _require_tool_id(tool_id: str) -> None:
+	"""A tool id is `{source}:{name}` (references/schemas.md §1.3) and always
+	contains a colon. Enforcing that here is what keeps the colon-free
+	namespace reserved: a mistyped `--tool-id global` cannot quietly land in
+	the global store, and no future reserved key can be written through a
+	per-tool subcommand either."""
+	if ":" not in tool_id:
+		print(f"Error: --tool-id must be a {{source}}:{{name}} tool id, got {tool_id!r} — the "
+			f"colon-free namespace is reserved for the global store, which is written with "
+			f"`add-global-method-note` (references/schemas.md §1.7b Scope).", file=sys.stderr)
+		sys.exit(1)
+
+
+def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
+	"""Append one `{topic, note, added_at}` entry under `key`, creating the
+	store on first use. One atomic .tmp + os.replace(), same as every other
+	write in this file."""
+	path = store_path(filename)
+	store, problem = _load_store(path)
+	if problem is not None:
+		print(f"Error: refusing to write {path} — {problem}. Fix or move the file; "
+			f"nothing was written.", file=sys.stderr)
+		sys.exit(1)
+	entries = store.setdefault(key, [])
+	if not isinstance(entries, list):
+		print(f"Error: refusing to write {path} — {key!r} holds a "
+			f"{type(entries).__name__}, not an array of entries. Nothing was written.",
+			file=sys.stderr)
+		sys.exit(1)
 	entries.append({
-		"topic": args.topic,
-		"note": args.note,
+		"topic": topic,
+		"note": note,
 		"added_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 	})
-	write_json_atomic(watch_path, watch_items)
+	os.makedirs(os.path.dirname(path), exist_ok=True)
+	write_json_atomic(path, store)
+
+
+# ── add-watch-item (references/apply.md §Watch Items (Writing)) ───────────
+def cmd_add_watch_item(args):
+	_require_tool_id(args.tool_id)
+	append_store_entry(items.WATCH_ITEMS_STORE, args.tool_id, args.topic, args.note)
 	print(f"added watch item for {args.tool_id!r}: {args.topic!r}")
+
+
+# ── add-method-note (references/apply.md §Method Notes (Writing)) ─────────
+def cmd_add_method_note(args):
+	# The watch-item writer with the path and the noun changed, which is the
+	# point: the two stores share one layout (contract/stores.json), so they
+	# share one writer rather than growing two that can drift.
+	_require_tool_id(args.tool_id)
+	append_store_entry(items.METHOD_NOTES_STORE, args.tool_id, args.topic, args.note)
+	print(f"added method note for {args.tool_id!r}: {args.topic!r}")
+
+
+# ── add-global-method-note (references/apply.md §Method Notes (Writing)) ──
+def cmd_add_global_method_note(args):
+	# No --tool-id, because a global note is not about a tool. It takes no
+	# tool id rather than a magic one, so the reserved key is spelled in
+	# exactly one place in this file.
+	append_store_entry(items.METHOD_NOTES_STORE, items.GLOBAL_METHOD_NOTE_KEY,
+		args.topic, args.note)
+	print(f"added global method note: {args.topic!r}")
 
 
 # ── finalize ──────────────────────────────────────────────────────────────
@@ -613,6 +715,17 @@ def main():
 	p.add_argument("--topic", required=True)
 	p.add_argument("--note", required=True)
 	p.set_defaults(func=cmd_add_watch_item)
+
+	p = sub.add_parser("add-method-note")
+	p.add_argument("--tool-id", required=True)
+	p.add_argument("--topic", required=True)
+	p.add_argument("--note", required=True)
+	p.set_defaults(func=cmd_add_method_note)
+
+	p = sub.add_parser("add-global-method-note")
+	p.add_argument("--topic", required=True)
+	p.add_argument("--note", required=True)
+	p.set_defaults(func=cmd_add_global_method_note)
 
 	p = sub.add_parser("finalize")
 	p.add_argument("session_dir")

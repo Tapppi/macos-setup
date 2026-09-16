@@ -1,5 +1,5 @@
 {
-	"about": "The two per-tool memory stores, pinned as layout plus golden post-write state (D4). WP6 adopts this rather than re-deciding it. Both are machine-global, both are written only through their write_status.py subcommand, and both are read back at research time to fill {{STANDING_NOTES}}. test_items.py drives add-watch-item into a temporary XDG_STATE_HOME and asserts equality against after_one_write; the add-method-note subcommand is specified here and lands with the write_status pass, which extends that test to drive it the same way.",
+	"about": "The memory stores, pinned as layout plus golden post-write state (D4). THREE STORES IN TWO FILES: watch items and per-tool method notes are keyed by tool id; global method notes are the third store and live inside method-notes.json under the reserved colon-free key named in its \"global\" block. All are machine-global, all are written only through their write_status.py subcommand, and all are read back at research time to fill {{STANDING_NOTES}}. test_items.py drives each writer into a temporary XDG_STATE_HOME and asserts equality against the matching after_one_write.",
 	"watch-items.json": {
 		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",
 		"writer": "write_status.py add-watch-item --tool-id ID --topic TEXT --note TEXT",
@@ -26,6 +26,21 @@
 			"note": "string",
 			"added_at": "YYYY-MM-DD (UTC)"
 		},
+		"global": {
+			"key": "global",
+			"writer": "write_status.py add-global-method-note --topic TEXT --note TEXT",
+			"filled_by": "promotion during convergence only — never a per-tool proposal (schemas.md §1.7b Scope)",
+			"why_not_a_third_file": "a tool id always contains a colon, so this key cannot collide with one; the store then rides along in the method-notes snapshot every reader already takes, instead of needing a third one"
+		},
+		"after_one_global_write": {
+			"global": [
+				{
+					"topic": "a vendor's own release page can lag its tag",
+					"note": "When a release page and the git tag disagree on what shipped, the tag is the fact and the page is the announcement. Cite the tag, and say in the item which one you read.",
+					"added_at": "<today>"
+				}
+			]
+		},
 		"after_one_write": {
 			"brew:attention": [
 				{
@@ -36,6 +51,6 @@
 			]
 		}
 	},
-	"keying": "Both are keyed by tool id ({source}:{name}), one array per tool, appended to. A tool id always contains a colon, so any future reserved key WP6 wants for the third (global) store cannot collide with one.",
-	"not_pinned_here": "The global method-note store. It is filled by promotion during convergence (schemas.md §1.7b), convergence does not exist yet, and nothing in this pass writes it. WP6 owns it."
+	"keying": "Per-tool entries are keyed by tool id ({source}:{name}), one array per tool, appended to. A tool id always contains a colon, which is what makes the colon-free \"global\" key safe: every tool-id lookup in the pipeline is a plain snapshot.get(tool_id) and can never reach it, and no per-tool writer can write it either — add-watch-item and add-method-note refuse a --tool-id with no colon.",
+	"created_on_first_use": "No pre-seeding and no migration machinery (REDESIGN.md §I3, §L9). An absent file is an empty store that the first accepted proposal creates. A file that exists but does not parse as a JSON object is a REFUSAL, not a fresh start — these stores accumulate for months, so silently replacing an unreadable one with {} would destroy every note in it and report success."
 }

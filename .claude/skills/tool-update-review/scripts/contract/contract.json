@@ -219,6 +219,12 @@
 				"topic": "string",
 				"note": "string",
 				"added_at": "YYYY-MM-DD (UTC)"
+			},
+			"global": {
+				"key": "global",
+				"writer": "write_status.py add-global-method-note --topic TEXT --note TEXT",
+				"filled_by": "promotion during convergence only — never a per-tool proposal (schemas.md §1.7b Scope)",
+				"why_not_a_third_file": "a tool id always contains a colon, so this key cannot collide with one; the store then rides along in the method-notes snapshot every reader already takes, instead of needing a third one"
 			}
 		},
 		"watch-items.json": {

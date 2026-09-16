@@ -32,6 +32,7 @@ from __future__ import annotations  # `X | None` annotations on Python 3.9
                                      # provisions a newer one — same
                                      # constraint as assemble.py/server.py)
 
+import copy
 import json
 import os
 import re
@@ -1020,23 +1021,46 @@ PRE_ACCEPT_PREDICATE = (
 	"assembled items, which can hold synthesized reaching security items the "
 	"bucket never saw")
 
-# The two per-tool memory stores (D4). Mirrored by `contract/stores.json`;
-# both are machine-global, both are written only through their write_status.py
-# subcommand, and both are read back at research time to fill
-# {{STANDING_NOTES}}. Keyed by tool id ({source}:{name}) — a tool id always
-# contains a colon, so any future reserved key for the third (global) store
-# cannot collide with one. The global method-note store is deliberately NOT
-# here: it is filled by promotion during convergence, and WP6 owns it.
+# The memory stores (D4, REDESIGN.md §L1). Mirrored by `contract/stores.json`;
+# all are machine-global, all are written only through their write_status.py
+# subcommand, and all are read back at research time to fill
+# {{STANDING_NOTES}}.
+#
+# THREE STORES IN TWO FILES, and the asymmetry is deliberate rather than an
+# oversight to tidy up later. Watch items and per-tool method notes are keyed
+# by tool id ({source}:{name}), which always contains a colon; global method
+# notes are the third store and live in method-notes.json under the reserved,
+# colon-free key `GLOBAL_METHOD_NOTE_KEY`, which therefore cannot collide with
+# any tool id. A third file would have to be threaded through every reader
+# that already snapshots these two (the session copy the validator grounds
+# watch hits against, and the one apply_converge.py hands convergence); a
+# reserved key rides along in the snapshot that already exists, and every
+# tool-id lookup in the pipeline is a plain `snapshot.get(tool_id)` that can
+# never reach it. Global notes are rare by definition and are filled only by
+# promotion during convergence, which is the one stage that sees enough tools
+# at once to know a note generalises (schemas.md §1.7b Scope).
+WATCH_ITEMS_STORE = "watch-items.json"
+METHOD_NOTES_STORE = "method-notes.json"
+GLOBAL_METHOD_NOTE_KEY = "global"
 MEMORY_STORES = {
-	"watch-items.json": {
+	WATCH_ITEMS_STORE: {
 		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",
 		"writer": "write_status.py add-watch-item --tool-id ID --topic TEXT --note TEXT",
 		"entry": {"topic": "string", "note": "string", "added_at": "YYYY-MM-DD (UTC)"},
 	},
-	"method-notes.json": {
+	METHOD_NOTES_STORE: {
 		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json",
 		"writer": "write_status.py add-method-note --tool-id ID --topic TEXT --note TEXT",
 		"entry": {"topic": "string", "note": "string", "added_at": "YYYY-MM-DD (UTC)"},
+		"global": {
+			"key": GLOBAL_METHOD_NOTE_KEY,
+			"writer": "write_status.py add-global-method-note --topic TEXT --note TEXT",
+			"filled_by": "promotion during convergence only — never a per-tool proposal "
+				"(schemas.md §1.7b Scope)",
+			"why_not_a_third_file": "a tool id always contains a colon, so this key cannot "
+				"collide with one; the store then rides along in the method-notes snapshot "
+				"every reader already takes, instead of needing a third one",
+		},
 	},
 }
 
@@ -1140,8 +1164,11 @@ def contract() -> dict:
 				"PROPOSE a watch item on a suggestion; watch_hit says an existing "
 				"one FIRED, on an item",
 		},
-		"memory_stores": {name: dict(store, entry=dict(store["entry"]))
-			for name, store in sorted(MEMORY_STORES.items())},
+		# deepcopy, not a two-level hand-rolled copy: method-notes.json now
+		# carries a nested `global` block, and a caller that mutated the
+		# returned contract would otherwise be mutating MEMORY_STORES.
+		"memory_stores": copy.deepcopy(
+			{name: MEMORY_STORES[name] for name in sorted(MEMORY_STORES)}),
 		"fields": [
 			{"name": n, "type": t, "required": r, "note": note}
 			for n, t, r, note in ITEM_FIELDS

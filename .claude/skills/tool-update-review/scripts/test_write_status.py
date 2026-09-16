@@ -373,5 +373,137 @@ class InitContractVersionGateTests(unittest.TestCase):
 		self.assertIn("Re-run the review", stderr)
 
 
+# ── the three memory stores (REDESIGN.md §L1; contract/stores.json) ────────
+# `test_items.StoreLayoutTests` drives each writer to its pinned golden state.
+# These cover the other half — what the writers REFUSE — because every one of
+# these refusals stands between an accepted proposal and a store file that has
+# been accumulating for months.
+class MemoryStoreWriterTests(unittest.TestCase):
+	def _state_home(self):
+		tmp = tempfile.mkdtemp(prefix="write-status-store-test-")
+		self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+		return tmp
+
+	def _run(self, state_home, *argv):
+		env = dict(os.environ, XDG_STATE_HOME=state_home)
+		return subprocess.run([sys.executable, WRITE_STATUS, *argv],
+			capture_output=True, text=True, timeout=60, env=env)
+
+	def _store(self, state_home, filename):
+		path = os.path.join(state_home, "tool-update-review", filename)
+		with open(path, "r", encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def test_each_store_is_created_on_first_use(self):
+		"""No pre-seeding (REDESIGN.md §I3): a fresh XDG_STATE_HOME has no
+		state directory at all, and the first accepted proposal makes both
+		the directory and the file."""
+		for filename, argv in (
+			(model.WATCH_ITEMS_STORE, ("add-watch-item", "--tool-id", "brew:nnn",
+				"--topic", "plugin dir", "--note", "n")),
+			(model.METHOD_NOTES_STORE, ("add-method-note", "--tool-id", "brew:nnn",
+				"--topic", "where the changelog is", "--note", "n")),
+			(model.METHOD_NOTES_STORE, ("add-global-method-note",
+				"--topic", "tags beat release pages", "--note", "n")),
+		):
+			with self.subTest(argv[0]):
+				state_home = self._state_home()
+				self.assertFalse(os.path.exists(os.path.join(state_home, "tool-update-review")))
+				p = self._run(state_home, *argv)
+				self.assertEqual(p.returncode, 0, p.stderr)
+				self.assertEqual(os.listdir(os.path.join(state_home, "tool-update-review")),
+					[filename])
+
+	def test_the_three_stores_do_not_collide_in_one_state_home(self):
+		"""Three stores, two files: the per-tool notes and the global notes
+		share `method-notes.json` and must not overwrite each other, and the
+		watch store is a separate file throughout."""
+		state_home = self._state_home()
+		self.assertEqual(self._run(state_home, "add-watch-item", "--tool-id", "cask:x",
+			"--topic", "w", "--note", "n").returncode, 0)
+		self.assertEqual(self._run(state_home, "add-method-note", "--tool-id", "cask:x",
+			"--topic", "m", "--note", "n").returncode, 0)
+		self.assertEqual(self._run(state_home, "add-global-method-note",
+			"--topic", "g", "--note", "n").returncode, 0)
+		self.assertEqual(sorted(os.listdir(os.path.join(state_home, "tool-update-review"))),
+			sorted([model.WATCH_ITEMS_STORE, model.METHOD_NOTES_STORE]))
+		notes = self._store(state_home, model.METHOD_NOTES_STORE)
+		self.assertEqual(sorted(notes), sorted(["cask:x", model.GLOBAL_METHOD_NOTE_KEY]))
+		self.assertEqual([e["topic"] for e in notes["cask:x"]], ["m"])
+		self.assertEqual([e["topic"] for e in notes[model.GLOBAL_METHOD_NOTE_KEY]], ["g"])
+		self.assertEqual([e["topic"] for e in
+			self._store(state_home, model.WATCH_ITEMS_STORE)["cask:x"]], ["w"])
+
+	def test_a_second_write_appends_and_never_replaces(self):
+		state_home = self._state_home()
+		for topic in ("first", "second", "third"):
+			self.assertEqual(self._run(state_home, "add-method-note", "--tool-id",
+				"brew:jq", "--topic", topic, "--note", "n").returncode, 0)
+		self.assertEqual([e["topic"] for e in
+			self._store(state_home, model.METHOD_NOTES_STORE)["brew:jq"]],
+			["first", "second", "third"])
+
+	def test_a_tool_id_with_no_colon_is_refused_by_both_per_tool_writers(self):
+		"""What reserves the colon-free namespace. Without this a mistyped
+		`--tool-id global` writes into the global store, and a note about one
+		tool silently becomes a note the next run applies to every tool."""
+		for sub in ("add-watch-item", "add-method-note"):
+			for tool_id in (model.GLOBAL_METHOD_NOTE_KEY, "nnn", ""):
+				with self.subTest(f"{sub} {tool_id!r}"):
+					state_home = self._state_home()
+					p = self._run(state_home, sub, "--tool-id", tool_id,
+						"--topic", "t", "--note", "n")
+					self.assertNotEqual(p.returncode, 0)
+					self.assertIn("--tool-id", p.stderr)
+					self.assertFalse(os.path.exists(
+						os.path.join(state_home, "tool-update-review")))
+
+	def test_an_unreadable_existing_store_is_refused_never_replaced(self):
+		"""The difference between "absent" and "unreadable" is the
+		difference between creating a store and destroying one. `load_json`'s
+		`default=` collapses them; `_load_store` is what keeps them apart."""
+		for label, body in (
+			("truncated json", '{"brew:jq": [{"topic": "t",'),
+			("a json array", '["brew:jq"]'),
+			("a json string", '"nope"'),
+			("not json at all", 'brew:jq = topic'),
+		):
+			with self.subTest(label):
+				state_home = self._state_home()
+				path = os.path.join(state_home, "tool-update-review",
+					model.METHOD_NOTES_STORE)
+				os.makedirs(os.path.dirname(path))
+				with open(path, "w", encoding="utf-8") as fh:
+					fh.write(body)
+				p = self._run(state_home, "add-method-note", "--tool-id", "brew:jq",
+					"--topic", "t", "--note", "n")
+				self.assertNotEqual(p.returncode, 0, label)
+				self.assertIn("refusing to write", p.stderr)
+				with open(path, "r", encoding="utf-8") as fh:
+					self.assertEqual(fh.read(), body, label)
+
+	def test_a_key_holding_something_other_than_an_array_is_refused(self):
+		state_home = self._state_home()
+		path = os.path.join(state_home, "tool-update-review", model.WATCH_ITEMS_STORE)
+		os.makedirs(os.path.dirname(path))
+		body = json.dumps({"brew:jq": {"topic": "t"}})
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write(body)
+		p = self._run(state_home, "add-watch-item", "--tool-id", "brew:jq",
+			"--topic", "t", "--note", "n")
+		self.assertNotEqual(p.returncode, 0)
+		self.assertIn("not an array of entries", p.stderr)
+		with open(path, "r", encoding="utf-8") as fh:
+			self.assertEqual(fh.read(), body)
+
+	def test_every_entry_carries_exactly_the_pinned_three_fields(self):
+		state_home = self._state_home()
+		self._run(state_home, "add-global-method-note", "--topic", "t", "--note", "n")
+		(entry,) = self._store(state_home,
+			model.METHOD_NOTES_STORE)[model.GLOBAL_METHOD_NOTE_KEY]
+		self.assertEqual(set(entry),
+			set(model.MEMORY_STORES[model.METHOD_NOTES_STORE]["entry"]))
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)

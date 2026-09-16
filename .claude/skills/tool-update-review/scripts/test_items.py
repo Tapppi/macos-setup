@@ -480,12 +480,17 @@ class ContractMirrorTests(unittest.TestCase):
 		self.assertEqual(fixture["content_losing_codes"], block["content_losing_codes"])
 
 	def test_stores_json_mirrors_the_contract_block(self):
+		"""Iterating the block's own keys, never a hardcoded pair: a store
+		added to one side and not the other is exactly the drift a mirror
+		test exists to catch, and a literal list cannot see it."""
 		fixture = model.load_fixture("stores.json")
 		block = model.contract()["memory_stores"]
-		for name in ("watch-items.json", "method-notes.json"):
+		self.assertTrue(set(block) <= set(fixture),
+			f"stores.json is missing {sorted(set(block) - set(fixture))}")
+		for name, store in block.items():
 			with self.subTest(name):
-				for key in ("path", "writer", "entry"):
-					self.assertEqual(fixture[name][key], block[name][key])
+				for key, value in store.items():
+					self.assertEqual(fixture[name][key], value)
 
 	def test_every_content_losing_code_is_a_registered_finding(self):
 		for code in model.CONTENT_LOSING_CODES:
@@ -493,51 +498,96 @@ class ContractMirrorTests(unittest.TestCase):
 
 
 class StoreLayoutTests(unittest.TestCase):
-	"""`contract/stores.json` pins the on-disk layout of the two memory stores
-	and the golden state after one write of each (D4).
+	"""`contract/stores.json` pins the on-disk layout of the memory stores and
+	the golden state after one write of each (D4).
 
-	The watch-item half is driven against the live writer below. The
-	method-note half is pinned as layout only for now: `add-method-note` is
-	specified in stores.json and belongs to the write_status pass (pass 3),
-	WHICH OWES THIS TEST AN EXTENSION — drive
-	`write_status.py add-method-note` into the same temporary XDG_STATE_HOME
-	and assert equality against its `after_one_write`, exactly as the
-	watch-item case below does. Until then the two halves are asserted
-	layout-consistent, so the write_status pass implements a pinned shape
-	rather than choosing one."""
+	**Three stores in two files.** Watch items and per-tool method notes are
+	keyed by tool id; global method notes are the third store and live inside
+	`method-notes.json` under a reserved colon-free key. Every one of the three
+	is driven through its live `write_status.py` writer into a fresh temporary
+	`XDG_STATE_HOME` and asserted equal to its golden — so "created on first
+	use" (`REDESIGN.md` §I3) is a measured property of the code, not a claim in
+	a docstring."""
 
 	FIXTURE = model.load_fixture("stores.json")
 
-	def _run_writer(self, tmp, store, key):
+	def _run_writer(self, tmp, store, golden_key="after_one_write", command=None):
+		"""Drive one store's writer into `tmp` as XDG_STATE_HOME; return
+		(what landed on disk, the golden it must equal)."""
 		import argparse
 		import contextlib
 		import io
 		import write_status
-		golden = self.FIXTURE[store]["after_one_write"]
-		(tool_id,) = golden
-		entry = golden[tool_id][0]
-		args = argparse.Namespace(tool_id=tool_id, topic=entry["topic"],
-			note=entry["note"])
+		golden = self.FIXTURE[store][golden_key]
+		(key,) = golden
+		entry = golden[key][0]
+		if command is None:
+			command = {"watch-items.json": write_status.cmd_add_watch_item,
+				"method-notes.json": write_status.cmd_add_method_note}[store]
+		args = argparse.Namespace(tool_id=key, topic=entry["topic"], note=entry["note"])
 		with unittest.mock.patch.dict(os.environ, {"XDG_STATE_HOME": tmp}):
 			with contextlib.redirect_stdout(io.StringIO()):
-				write_status.cmd_add_watch_item(args)
-		with open(os.path.join(tmp, "tool-update-review", key),
-				encoding="utf-8") as fh:
+				command(args)
+		with open(os.path.join(tmp, "tool-update-review", store), encoding="utf-8") as fh:
 			return json.load(fh), golden
 
-	def test_one_watch_item_write_produces_the_golden_state(self):
+	def _expect(self, golden):
 		import datetime
+		today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+		return json.loads(json.dumps(golden).replace("<today>", today))
+
+	def test_one_watch_item_write_produces_the_golden_state(self):
 		import tempfile
 		with tempfile.TemporaryDirectory() as tmp:
-			got, golden = self._run_writer(tmp, "watch-items.json", "watch-items.json")
-			today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-			expected = json.loads(json.dumps(golden).replace("<today>", today))
-			self.assertEqual(got, expected)
+			got, golden = self._run_writer(tmp, "watch-items.json")
+			self.assertEqual(got, self._expect(golden))
+
+	def test_one_method_note_write_produces_the_golden_state(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as tmp:
+			got, golden = self._run_writer(tmp, "method-notes.json")
+			self.assertEqual(got, self._expect(golden))
+
+	def test_one_global_method_note_write_produces_the_golden_state(self):
+		import tempfile
+		import write_status
+		with tempfile.TemporaryDirectory() as tmp:
+			got, golden = self._run_writer(tmp, "method-notes.json",
+				golden_key="after_one_global_write",
+				command=write_status.cmd_add_global_method_note)
+			self.assertEqual(got, self._expect(golden))
+
+	def test_a_fresh_state_home_holds_nothing_until_a_writer_runs(self):
+		"""The other half of "created on first use": no store exists before
+		one is written. A pre-seeded file would make the three tests above
+		pass for the wrong reason."""
+		import tempfile
+		with tempfile.TemporaryDirectory() as tmp:
+			self.assertFalse(os.path.exists(os.path.join(tmp, "tool-update-review")))
+			self._run_writer(tmp, "watch-items.json")
+			landed = os.listdir(os.path.join(tmp, "tool-update-review"))
+			self.assertEqual(landed, ["watch-items.json"])
+
+	def test_the_global_store_shares_the_per_tool_file_under_a_reserved_key(self):
+		"""Three stores, two files — and the key that makes that safe. A
+		reader who counts files and finds two must find the reason here
+		rather than "fixing" the missing third one."""
+		import write_status
+		method = self.FIXTURE["method-notes.json"]
+		self.assertEqual(method["global"]["key"], model.GLOBAL_METHOD_NOTE_KEY)
+		self.assertEqual(write_status.items.GLOBAL_METHOD_NOTE_KEY,
+			model.GLOBAL_METHOD_NOTE_KEY)
+		# The whole safety argument in one assertion: a tool id always
+		# carries a colon, the reserved key never does, so no tool-id lookup
+		# can reach it and no tool id can be shadowed by it.
+		self.assertNotIn(":", model.GLOBAL_METHOD_NOTE_KEY)
+		self.assertEqual(method["global"]["writer"].split()[1], "add-global-method-note")
+		self.assertNotIn("--tool-id", method["global"]["writer"])
 
 	def test_the_two_stores_share_one_layout(self):
 		"""Same entry shape, same state directory, same keying — the
-		method-note half is a rename of the watch-item half, pinned so the
-		writer that lands later implements this and nothing else."""
+		method-note writer is a rename of the watch-item writer, pinned so it
+		implements this and nothing else."""
 		watch, method = (self.FIXTURE["watch-items.json"],
 			self.FIXTURE["method-notes.json"])
 		self.assertEqual(watch["entry"], method["entry"])
@@ -550,6 +600,10 @@ class StoreLayoutTests(unittest.TestCase):
 				self.assertIn(":", tool_id)
 				for entry in entries:
 					self.assertEqual(set(entry), {"topic", "note", "added_at"})
+		for key, entries in method["after_one_global_write"].items():
+			self.assertNotIn(":", key)
+			for entry in entries:
+				self.assertEqual(set(entry), {"topic", "note", "added_at"})
 
 
 class BucketingFixtureTests(unittest.TestCase):
