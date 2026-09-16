@@ -427,8 +427,8 @@ report-wide CVE **union** (per-tool counts summed to 77; the union is 76).
 | Stage | Does |
 |---|---|
 | **V1** load | per file, per entry. An unreadable file costs that file; a non-object entry becomes an `orphan` |
-| **V2** spec | required fields, types, closed vocabularies. **The item survives with every offending field exactly as written** — a wrong-typed `change`/`local`/`security` is reported, not nulled, because the finding's `value` is bounded for readability and nulling would make the truncated copy the only one |
-| **V3** normalize | only the normalizations above: `null` → `[]`, non-list → `[]` with a warning, evidence shorthand → object form, wrong-typed members quarantined |
+| **V2** spec | required fields, types, closed vocabularies — including the closed **top-level key set** (`items.RESEARCH_KEYS`): an unrecognized key is `E-RESEARCH-UNKNOWNKEY`, quarantined verbatim and content-losing, which is how the retired `headliners[]`/`relevancy[]` schema stopped being silently discarded. **The item survives with every offending field exactly as written** — a wrong-typed `change`/`local`/`security` is reported, not nulled, because the finding's `value` is bounded for readability and nulling would make the truncated copy the only one |
+| **V3** normalize | only the normalizations above: `null` → `[]`, non-list → `[]` with a warning, evidence shorthand → object form, wrong-typed members quarantined. `quarantine[]` holds wrong-typed array members **and** the payloads of unrecognized top-level keys — same entry shape `{field, item_id, value}`, `item_id: null` for the key case |
 | **V3b** identify | ids assigned from the anchor, in authored order, then disambiguated |
 | **V4** invariants | the twenty below. Every one **reports and changes nothing** |
 | **V5** impact | `none` \| `possible` \| `unknown` |

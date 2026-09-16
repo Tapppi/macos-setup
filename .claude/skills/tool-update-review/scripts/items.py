@@ -586,6 +586,28 @@ def has_watch_hit(items) -> bool:
 		for i in items or () if isinstance(i, dict))
 
 
+# ── the closed top-level research-key set (U1) ──────────────────────────────
+# Every top-level key a research object may carry. Anything else is
+# E-RESEARCH-UNKNOWNKEY: quarantined, reported, and content-losing — the
+# retired schema (headliners[], relevancy[], context[], notable[],
+# cve_severities) used to be discarded with zero findings, and 70 of the 78
+# entries in the real recorded corpus then landed routine/low/pre-accepted
+# over an empty items[].
+#
+# RESEARCH_KEYS_READ is the measured read surface: every key
+# validate_items.py or assemble.py reads off a research object.
+# test_validate_items.py asserts that claim against the live source, so a new
+# read cannot be added without widening the set here.
+RESEARCH_KEYS_READ = (
+	"id", "research_error", "links", "vendor_silent_categories", "items",
+	"config_status", "suggestions", "flags", "release_inventory", "cask_sudo_hint",
+)
+# Candidate identity a checker may echo back from its prompt. Recognized and
+# IGNORED — collect.json's candidate is authoritative for every one of them.
+RESEARCH_KEYS_ECHOED = ("name", "source", "current_version", "latest_version", "pinned")
+RESEARCH_KEYS = RESEARCH_KEYS_READ + RESEARCH_KEYS_ECHOED
+
+
 # ── degradation: the fail-closed predicate (D1) ─────────────────────────────
 # The four ways a view can be missing content a human would have read. Order
 # is the emission order, fixed, so the page's chips never reshuffle between
@@ -844,6 +866,9 @@ FINDING_CODES = {
 	"W-WATCH-HIT-UNRAISED": ("warning", "I-20", "a watch-item hit left at `info`; a watched topic earns at least `notable`"),
 	# criterion 2 — no per-tool checker emits a bucket or an auto-approval
 	"E-FLAG-FORBIDDEN": ("error", None, "a checker emitted a validator-only flag"),
+	# U1 — the closed top-level key set. Content-losing: the value went into
+	# quarantine[] instead of the report, so the tool is held for review.
+	"E-RESEARCH-UNKNOWNKEY": ("error", None, "a research object carries a top-level key outside the closed set (kept in quarantine)"),
 	# criterion 4 — degradation is per tool and loud. The next unknown shape
 	# costs one tool and says so, rather than costing the run.
 	"E-VALIDATOR-CRASH": ("error", None, "a validator stage failed on this tool; it is kept with what conformed"),

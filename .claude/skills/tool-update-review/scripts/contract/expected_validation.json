@@ -41,6 +41,33 @@
 			"message": "names no candidate in collect.json — kept as unmatched, merged into no tool"
 		},
 		{
+			"code": "E-RESEARCH-UNKNOWNKEY",
+			"severity": "error",
+			"tool_id": "brew:legacy-shape",
+			"item_id": null,
+			"field": "context",
+			"value": "[{'text': 'This machine installs it from the Brewfile.'}]",
+			"message": "a research object carries `context`, which this contract does not recognize — the value is quarantined, not dropped, and this tool is held for review"
+		},
+		{
+			"code": "E-RESEARCH-UNKNOWNKEY",
+			"severity": "error",
+			"tool_id": "brew:legacy-shape",
+			"item_id": null,
+			"field": "headliners",
+			"value": "[{'text': 'A security fix for CVE-2026-19001', 'category': 'security', 'severity': 'notable'}]",
+			"message": "a research object carries `headliners`, which this contract does not recognize — the value is quarantined, not dropped, and this tool is held for review"
+		},
+		{
+			"code": "E-RESEARCH-UNKNOWNKEY",
+			"severity": "error",
+			"tool_id": "brew:legacy-shape",
+			"item_id": null,
+			"field": "relevancy",
+			"value": "[{'category': 'security', 'severity': 'warning', 'summary': '⚠ Watch item hit: it lands here', 'motivating_change': 'the parser fix'}]",
+			"message": "a research object carries `relevancy`, which this contract does not recognize — the value is quarantined, not dropped, and this tool is held for review"
+		},
+		{
 			"code": "E-EVID-MALFORMED",
 			"severity": "error",
 			"tool_id": "brew:nonconforming",
@@ -530,6 +557,7 @@
 			"E-LINK-INDEX": 1,
 			"E-REACHES-UNEVIDENCED": 1,
 			"E-RESEARCH-NOTARRAY": 1,
+			"E-RESEARCH-UNKNOWNKEY": 3,
 			"E-SEC-BLOCK-MISSING": 1,
 			"E-SEC-BLOCK-ORPHAN": 1,
 			"E-SEC-RATING-UNBASED": 1,
@@ -555,12 +583,13 @@
 			"brew:attention": 1,
 			"brew:coerced": 1,
 			"brew:ghost": 1,
+			"brew:legacy-shape": 3,
 			"brew:nonconforming": 45,
 			"brew:quarantined": 1,
 			"brew:watched": 6
 		},
 		"by_severity": {
-			"error": 46,
+			"error": 49,
 			"warning": 10
 		}
 	},
@@ -2099,6 +2128,97 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:legacy-shape",
+			"source": "brew",
+			"name": "legacy-shape",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "legacy-shape 1.0.1",
+					"url": "https://example.invalid/legacy/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [
+				"deprecation"
+			],
+			"items": [],
+			"quarantine": [
+				{
+					"field": "context",
+					"item_id": null,
+					"value": [
+						{
+							"text": "This machine installs it from the Brewfile."
+						}
+					]
+				},
+				{
+					"field": "headliners",
+					"item_id": null,
+					"value": [
+						{
+							"text": "A security fix for CVE-2026-19001",
+							"category": "security",
+							"severity": "notable"
+						}
+					]
+				},
+				{
+					"field": "relevancy",
+					"item_id": null,
+					"value": [
+						{
+							"category": "security",
+							"severity": "warning",
+							"summary": "⚠ Watch item hit: it lands here",
+							"motivating_change": "the parser fix"
+						}
+					]
+				}
+			],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "nothing tracked",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"version_delta": "patch",
+			"impact": "unknown",
+			"risk_level": "elevated",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"spec_violations": [
+				"E-RESEARCH-UNKNOWNKEY"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content",
+					"unrecognized-research-key"
+				],
+				"markers": [],
+				"quarantined": 3
 			}
 		},
 		{

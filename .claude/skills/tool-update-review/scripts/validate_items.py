@@ -1372,14 +1372,37 @@ def _guard(view, findings: Findings, stage, work):
 def _read_research(view, research, findings, tool_id, resolver, manifest,
 		watch_topics=None):
 	"""V1-input → V2/V3/V3b/V4 for one tool's research object."""
+	# The closed top-level key set (U1) — before anything else in this
+	# function, so it sits inside _guard's "research section" stage and a
+	# crash while reporting it degrades the tool rather than the run. The
+	# five VALIDATOR_ONLY_FLAGS are excluded: they already raise
+	# E-FLAG-FORBIDDEN in _check_flags — one finding, not two — and they are
+	# markers, not content-losing, because the validator ignores the value
+	# and computes its own, so nothing a human would have read went missing.
+	quarantine = []
+	view["quarantine"] = quarantine
+	for key in sorted(research):
+		if key in model.RESEARCH_KEYS or key in model.VALIDATOR_ONLY_FLAGS:
+			continue
+		findings.add("E-RESEARCH-UNKNOWNKEY",
+			"a research object carries `{}`, which this contract does not recognize — "
+			"the value is quarantined, not dropped, and this tool is held for "
+			"review".format(key),
+			tool_id=tool_id, field=key, value=research[key])
+		# The value goes in VERBATIM, not _short()-ed — same rule and same
+		# reason as split_members: the quarantine exists so nothing a human
+		# would have read is lost, and it came from JSON so it is
+		# serializable by construction.
+		quarantine.append({"field": key, "item_id": None, "value": research[key]})
+
 	links = as_list(research.get("links"), findings, tool_id, "links")
 	view["links"] = links
 	silent = as_list(research.get("vendor_silent_categories"), findings, tool_id,
 		"vendor_silent_categories")
 	view["vendor_silent_categories"] = [c for c in silent if isinstance(c, str)]
 
-	raw_items, quarantine = split_members(research.get("items"), findings, tool_id, "items")
-	view["quarantine"] = quarantine
+	raw_items, member_quarantine = split_members(research.get("items"), findings, tool_id, "items")
+	quarantine.extend(member_quarantine)
 	# V3b — ids are assigned here, after normalization and before any invariant
 	# that references an item by id. Assigned in AUTHORED order, so a
 	# duplicate's `~2` suffix falls on the later of the pair; the canonical

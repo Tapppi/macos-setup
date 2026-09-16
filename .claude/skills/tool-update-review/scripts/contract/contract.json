@@ -509,6 +509,11 @@
 			"invariant": null,
 			"summary": "a research file is not a JSON array"
 		},
+		"E-RESEARCH-UNKNOWNKEY": {
+			"severity": "error",
+			"invariant": null,
+			"summary": "a research object carries a top-level key outside the closed set (kept in quarantine)"
+		},
 		"E-RESEARCH-UNREADABLE": {
 			"severity": "error",
 			"invariant": null,

@@ -1,0 +1,42 @@
+[
+	{
+		"id": "brew:legacy-shape",
+		"headliners": [
+			{
+				"text": "A security fix for CVE-2026-19001",
+				"category": "security",
+				"severity": "notable"
+			}
+		],
+		"relevancy": [
+			{
+				"category": "security",
+				"severity": "warning",
+				"summary": "⚠ Watch item hit: it lands here",
+				"motivating_change": "the parser fix"
+			}
+		],
+		"context": [
+			{
+				"text": "This machine installs it from the Brewfile."
+			}
+		],
+		"links": [
+			{
+				"type": "changelog",
+				"label": "legacy-shape 1.0.1",
+				"url": "https://example.invalid/legacy/CHANGELOG.md"
+			}
+		],
+		"vendor_silent_categories": [
+			"deprecation"
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "nothing tracked",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	}
+]

@@ -1705,6 +1705,83 @@ class DegradationChannelTests(unittest.TestCase):
 			self.assertEqual(view["initial_review_bucket"], "routine")
 
 
+# ── U1: the closed top-level research-key set ───────────────────────────────
+class ResearchKeyTests(unittest.TestCase):
+	"""A key outside the closed set used to be discarded with zero findings —
+	an entry in the RETIRED schema (headliners/relevancy/context) produced
+	items: [], quarantine: [], spec_violations: [], and with a non-empty
+	vendor_silent_categories the tool landed routine/low/pre-accepted over an
+	empty items[]. 70 of the 78 entries in the real recorded corpus carry
+	that field, so the silent discard was the fleet's default path."""
+
+	def test_the_read_set_is_the_measured_read_surface(self):
+		"""Every key the two layers read off a research object must be in
+		RESEARCH_KEYS_READ — asserted against the live source, so a new read
+		cannot be added without widening the closed set (and a stale entry in
+		the set shows up here as unread)."""
+		import re as _re
+		here = os.path.dirname(os.path.abspath(__file__))
+		read = set()
+		for name in ("validate_items.py", "assemble.py"):
+			with open(os.path.join(here, name), encoding="utf-8") as fh:
+				src = fh.read()
+			read |= set(_re.findall(r'research(?:_obj)?\.get\("([a-z_]+)"', src))
+		read.add("id")  # v1_load reads entry.get("id") before the merge
+		self.assertEqual(read, set(model.RESEARCH_KEYS_READ))
+
+	def test_an_unknown_key_is_reported_quarantined_verbatim_and_held(self):
+		payload = [{"text": "A security fix", "category": "security"}]
+		view, findings = validate_one({"id": "brew:x", "links": [],
+			"items": [_item()], "headliners": payload})
+		hits = [f for f in findings.entries if f["code"] == "E-RESEARCH-UNKNOWNKEY"]
+		self.assertEqual(len(hits), 1)
+		self.assertEqual(hits[0]["field"], "headliners")
+		# Verbatim in quarantine — not the finding's bounded repr.
+		self.assertIn({"field": "headliners", "item_id": None, "value": payload},
+			view["quarantine"])
+		self.assertEqual(view["degradation"]["content_losing"],
+			["quarantined-content", "unrecognized-research-key"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertEqual(view["risk_level"], "elevated")
+
+	def test_the_retired_schema_lands_on_attention_not_routine(self):
+		"""The measured promotion: with vendor_silent_categories non-empty the
+		no-items elevation is suppressed, so the discarded-schema tool came
+		out routine/low/pre-accepted with the synthesized rationale reading
+		over an empty items[]."""
+		view, findings = validate_one({"id": "brew:x", "links": [],
+			"vendor_silent_categories": ["deprecation"],
+			"headliners": [], "relevancy": [], "context": []})
+		codes = [f["field"] for f in findings.entries
+			if f["code"] == "E-RESEARCH-UNKNOWNKEY"]
+		self.assertEqual(codes, ["context", "headliners", "relevancy"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertEqual(view["risk_level"], "elevated")
+
+	def test_echoed_candidate_identity_is_recognized_and_ignored(self):
+		"""A checker that echoes its prompt's candidate block is not forced
+		onto the attention list for a harmless habit — collect.json stays
+		authoritative for every one of them."""
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [_item()],
+			"name": "x", "source": "brew", "current_version": "9.9.9",
+			"latest_version": "9.9.10", "pinned": True})
+		self.assertEqual([f for f in findings.entries
+			if f["code"] == "E-RESEARCH-UNKNOWNKEY"], [])
+		# collect.json's candidate is authoritative: the echoed pin is ignored.
+		self.assertFalse(view["pinned"])
+		self.assertEqual(view["initial_review_bucket"], "routine")
+
+	def test_a_validator_only_flag_is_one_finding_not_two(self):
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [_item()],
+			"pre_accept": True})
+		codes = [f["code"] for f in findings.entries]
+		self.assertIn("E-FLAG-FORBIDDEN", codes)
+		self.assertNotIn("E-RESEARCH-UNKNOWNKEY", codes)
+		# And it is a marker, not a loss: the validator ignored the value and
+		# computed its own.
+		self.assertEqual(view["degradation"]["content_losing"], [])
+
+
 # ── D2/E3: the pre-acceptance bar at the bucket ─────────────────────────────
 class PreAcceptBarTests(unittest.TestCase):
 	"""The security_auto clause asks `model.pre_accept_bars`: a barred
