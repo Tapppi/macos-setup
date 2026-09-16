@@ -720,7 +720,12 @@ def apply_pre_accept(tool: dict) -> None:
 		sug["pre_accept"] = bool(
 			sug is baseline
 			and sug.get("auto_runnable")
-			and (tool["risk_level"] == "low" or tool["review_bucket"] == "security_auto"))
+			and (tool["risk_level"] == "low" or tool["review_bucket"] == "security_auto")
+			# D1 — belt and braces: `compute_risk_level` already elevates every
+			# content-losing tool, but this is a second CALL SITE of one shared
+			# function, not a second implementation, so an edit to
+			# compute_risk_level cannot silently re-open the auto-approval hole.
+			and not model.content_losing(tool))
 
 
 def finalize_tool(tool: dict, view: dict) -> None:
@@ -983,6 +988,11 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 		"quarantine": list(view.get("quarantine") or []),
 		"spec_violations": list(view.get("spec_violations") or []),
 		"validator_error": view.get("validator_error"),
+		# The fourth loudness channel, pre-reduced for a consumer: which
+		# content-losing reasons hold, and which findings are markers.
+		# Recomputed from the view by the one shared function, so the block
+		# and the fields beside it cannot disagree.
+		"degradation": model.compute_degradation(view),
 		"links": list(view.get("links") or []),
 		"config_status": view.get("config_status") or {"state": "unknown", "detail": "", "evidence": []},
 		"vendor_silent_categories": list(view.get("vendor_silent_categories") or []),

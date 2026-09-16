@@ -1,0 +1,157 @@
+{
+	"about": "The fail-closed predicate as data. content_losing() reads a validation view and an assembled Tool identically; each case is one shape and the ordered reasons it must produce. Order is the emission order — a chip list that reshuffles between runs is a diff nobody can read. test_items.py drives every case through items.content_losing()/items.compute_degradation(), so this fixture cannot go stale against the code.",
+	"reasons": [
+		"quarantined-content",
+		"shape-coerced",
+		"unrecognized-research-key",
+		"validator-error"
+	],
+	"content_losing_codes": {
+		"W-SHAPE-COERCED": "shape-coerced",
+		"E-RESEARCH-UNKNOWNKEY": "unrecognized-research-key"
+	},
+	"cases": [
+		{
+			"tool": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": []
+			},
+			"expect": []
+		},
+		{
+			"tool": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": "a bare string"
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [
+					"W-MEMBER-QUARANTINED"
+				]
+			},
+			"expect": [
+				"quarantined-content"
+			]
+		},
+		{
+			"tool": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"W-SHAPE-COERCED"
+				]
+			},
+			"expect": [
+				"shape-coerced"
+			]
+		},
+		{
+			"tool": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"E-RESEARCH-UNKNOWNKEY"
+				]
+			},
+			"expect": [
+				"unrecognized-research-key"
+			]
+		},
+		{
+			"tool": {
+				"quarantine": [],
+				"validator_error": "research section: TypeError",
+				"spec_violations": [
+					"E-VALIDATOR-CRASH"
+				]
+			},
+			"expect": [
+				"validator-error"
+			]
+		},
+		{
+			"tool": {
+				"quarantine": [
+					{
+						"field": "headliners",
+						"item_id": null,
+						"value": []
+					}
+				],
+				"validator_error": "x",
+				"spec_violations": [
+					"E-RESEARCH-UNKNOWNKEY",
+					"W-SHAPE-COERCED"
+				]
+			},
+			"expect": [
+				"quarantined-content",
+				"shape-coerced",
+				"unrecognized-research-key",
+				"validator-error"
+			],
+			"why": "all four, in emission order, never in the order they were discovered"
+		},
+		{
+			"tool": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"E-EVID-404",
+					"E-EVID-MALFORMED",
+					"E-FLAG-FORBIDDEN",
+					"W-TITLE-LONG"
+				]
+			},
+			"expect": [],
+			"why": "D1(b): every other finding is a marker. E-FLAG-FORBIDDEN included — the validator ignores the flag and computes its own, so nothing was lost"
+		},
+		{
+			"tool": {},
+			"expect": [],
+			"why": "a tool missing every key does not raise"
+		},
+		{
+			"tool": {
+				"quarantine": "not a list",
+				"validator_error": null,
+				"spec_violations": null
+			},
+			"expect": [],
+			"why": "a drifted container is not evidence of loss; it is E-FIELD-TYPE's business, and this function never raises"
+		}
+	],
+	"degradation_block": [
+		{
+			"tool": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": 1
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [
+					"E-EVID-404",
+					"W-MEMBER-QUARANTINED"
+				]
+			},
+			"expect": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"E-EVID-404",
+					"W-MEMBER-QUARANTINED"
+				],
+				"quarantined": 1
+			},
+			"why": "W-MEMBER-QUARANTINED is a marker, not a content-losing code — the loss is signalled by the non-empty quarantine[] it produced, and coding it twice would make a tool whose quarantine was later emptied still read as degraded"
+		}
+	]
+}

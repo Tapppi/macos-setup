@@ -1166,6 +1166,12 @@ def compute_risk_level(view) -> str:
 	above info" clause becomes "an item with a `local` block at warning or
 	worse", which is the same population under the new shape. `structural`
 	joins `edit` as an authored, non-baseline action."""
+	if model.content_losing(view):
+		# D1(b): a view missing content a human would have read can justify no
+		# risk grade below elevated. Above the source clause on purpose — this
+		# already held for validator_error and now holds for the other three
+		# content-losing reasons.
+		return "elevated"
 	if view["source"] in NON_VERSION_SOURCES:
 		return "low" if assemble.finding_expected(view) else "elevated"
 	if view.get("pinned"):
@@ -1233,6 +1239,14 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	surface §A and criterion 10 exist to compact, and forcing exactly the review
 	§L5 was designed to make optional. `W-ATTENTION-NOSUG` reads the same tuple,
 	so a bucket and its explanation cannot drift apart."""
+	# Clause 0 — D1(b): content-losing input fails closed. Deliberately ABOVE
+	# the source clause: a content-losing degradation on an `expected`
+	# brew-health or skill-drift finding still forces review — the one class
+	# of tool whose findings are routinely waved through must not also be the
+	# one class whose degradation is invisible. Every non-content-losing
+	# finding is a marker on the card and moves nothing.
+	if model.content_losing(view):
+		return "attention"
 	if view["source"] in NON_VERSION_SOURCES:
 		return "routine" if assemble.finding_expected(view) else "attention"
 	if (has_security and security_only and impact == "none"
@@ -1290,6 +1304,8 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 			"impact": "unknown", "version_delta": "unknown", "runnable": False},
 		"security_display_item_ids": [],
 		"self_test_tagged_suggestion_ids": [],
+		"spec_violations": [],
+		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1402,6 +1418,17 @@ def _derive_axes(view, candidate, findings):
 	research stage failed lands on `unknown`/`elevated`/`attention`, exactly
 	where one with no research at all lands."""
 	source, name = view["source"], view["name"]
+	# The codes raised so far, BEFORE any axis reads them — `content_losing`
+	# feeds `compute_risk_level` and `compute_initial_bucket` below. All four
+	# content-losing reasons are raised during `_read_research` or by `_guard`
+	# around it, both complete by now; `validate_session` re-runs both
+	# assignments after the run-level checks so `markers` also picks up the
+	# late codes (W-SUG-DUP-ID, W-ENTRY-UNMATCHED). That the content_losing
+	# limb cannot differ between the two computations is a positional
+	# guarantee, so it is pinned by a test rather than trusted
+	# (test_validate_items.DegradationChannelTests).
+	view["spec_violations"] = findings.codes_for(view["id"])
+	view["degradation"] = model.compute_degradation(view)
 	view["version_delta"] = assemble.compute_version_delta(
 		candidate.get("current_version"), candidate.get("latest_version"), source,
 		view["id"])[0]
@@ -1801,6 +1828,11 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 	entries = findings.sorted()
 	for view in views:
 		view["spec_violations"] = findings.codes_for(view["id"])
+		# Second computation, same function: picks up the codes raised after
+		# per-tool validation. The content_losing limb cannot change here —
+		# every content-losing signal is raised inside the per-tool stages —
+		# and DegradationChannelTests pins that rather than trusting it.
+		view["degradation"] = model.compute_degradation(view)
 
 	by_code, by_tool, by_severity = {}, {}, {}
 	for entry in entries:

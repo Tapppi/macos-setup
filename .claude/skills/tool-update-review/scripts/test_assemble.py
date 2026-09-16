@@ -553,6 +553,29 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertEqual(tool["review_bucket"], "security_auto")
 		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
+	def test_a_content_losing_tool_is_never_pre_accepted(self):
+		"""The quarantine route, end to end: one bare string in items[] used to
+		come out security_auto/low with the baseline pre-accepted and
+		W-MEMBER-QUARANTINED the only trace. Fail-closed now: attention,
+		elevated, undecided — and the Tool carries the pre-reduced
+		`degradation` block so the page reads one field instead of
+		re-deriving the rule."""
+		tool = build_one(_cand("brew:q", "q", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:q", "links": [], "items": [
+				_item("cve", tags=["security"], severity="info",
+					security=_sec("CVE-2026-31001", "medium", "nvd")),
+				"a bare string member"]})
+		self.assertEqual(tool["degradation"]["content_losing"], ["quarantined-content"])
+		self.assertEqual(tool["review_bucket"], "attention")
+		self.assertEqual(tool["risk_level"], "elevated")
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_a_clean_tool_carries_an_empty_degradation_block(self):
+		tool = build_one(_cand("brew:c", "c", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:c", "links": [], "items": [_item("a")]})
+		self.assertEqual(tool["degradation"],
+			{"content_losing": [], "markers": [], "quarantined": 0})
+
 	def test_health_suggestions_never_pre_accept(self):
 		# brew link tree-sitter IS auto_runnable — it is excluded because a
 		# health remediation is not a `:upgrade`-suffixed baseline, not because

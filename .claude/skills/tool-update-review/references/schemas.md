@@ -236,6 +236,14 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	"quarantine": [],                   // wrong-typed array members, kept verbatim and whole.
 	                                    //   Dropping one is deletion, and a human would have
 	                                    //   read it.
+	// The fourth loudness channel, pre-reduced for a consumer (D1).
+	// `content_losing` names the ways this view is missing content a human
+	// would have read — quarantined-content | shape-coerced |
+	// unrecognized-research-key | validator-error, in fixed emission order.
+	// Non-empty forces `attention` and `elevated` and clears `pre_accept`;
+	// every OTHER finding is a marker (listed under `markers`) and moves
+	// nothing. Pinned in contract/degradation.json.
+	"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
 	// ── Items ─────────────────────────────────────────────────────────
 	// ONE array replaces headliners[]/relevancy[]/context[] and
 	// security.notable[]. Each element is one real change carrying TAGS (a

@@ -425,5 +425,36 @@ class PublishedFixtureTests(unittest.TestCase):
 					self.assertNotIn("intel.Brewfile", text)
 
 
+class DegradationFixtureTests(unittest.TestCase):
+	"""`contract/degradation.json` pins the fail-closed predicate as data. A
+	published fixture that can go stale is worth no more than a paragraph, so
+	every case is driven through the live functions here."""
+
+	FIXTURE = model.load_fixture("degradation.json")
+
+	def test_the_reason_tuple_and_code_map_are_the_published_ones(self):
+		self.assertEqual(tuple(self.FIXTURE["reasons"]), model.DEGRADATION_REASONS)
+		self.assertEqual(self.FIXTURE["content_losing_codes"], model.CONTENT_LOSING_CODES)
+
+	def test_every_published_case_agrees_with_content_losing(self):
+		for case in self.FIXTURE["cases"]:
+			with self.subTest(str(case["tool"])[:60]):
+				self.assertEqual(model.content_losing(case["tool"]), case["expect"],
+					case.get("why", ""))
+
+	def test_the_degradation_block_cases(self):
+		for case in self.FIXTURE["degradation_block"]:
+			with self.subTest(str(case["tool"])[:60]):
+				self.assertEqual(model.compute_degradation(case["tool"]), case["expect"],
+					case.get("why", ""))
+
+	def test_every_reason_is_reachable_and_every_code_maps_to_a_reason(self):
+		self.assertTrue(set(model.CONTENT_LOSING_CODES.values())
+			<= set(model.DEGRADATION_REASONS))
+		covered = {r for case in self.FIXTURE["cases"] for r in case["expect"]}
+		self.assertEqual(covered, set(model.DEGRADATION_REASONS),
+			"a reason no fixture case produces is a claim, not a check")
+
+
 if __name__ == "__main__":
 	unittest.main()

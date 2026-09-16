@@ -586,6 +586,80 @@ def has_watch_hit(items) -> bool:
 		for i in items or () if isinstance(i, dict))
 
 
+# ── degradation: the fail-closed predicate (D1) ─────────────────────────────
+# The four ways a view can be missing content a human would have read. Order
+# is the emission order, fixed, so the page's chips never reshuffle between
+# runs.
+DEGRADATION_REASONS = (
+	"quarantined-content",        # quarantine[] is non-empty
+	"shape-coerced",              # W-SHAPE-COERCED — an array or object arrived as
+	                              #   something else and was read as empty
+	"unrecognized-research-key",  # E-RESEARCH-UNKNOWNKEY
+	"validator-error",            # a validator stage failed partway on this tool
+)
+
+# The finding codes that themselves signal lost content. W-MEMBER-QUARANTINED
+# is deliberately NOT here: the loss it reports is signalled by the non-empty
+# `quarantine[]` it produced, and coding it twice would make a tool whose
+# quarantine was later emptied still read as degraded.
+CONTENT_LOSING_CODES = {
+	"W-SHAPE-COERCED": "shape-coerced",
+	"E-RESEARCH-UNKNOWNKEY": "unrecognized-research-key",
+}
+
+
+def content_losing(tool) -> list:
+	"""→ the ordered reasons this tool's view is missing content a human would
+	have read, or [] when nothing was lost.
+
+	Reads a validation view and an assembled Tool identically — both carry
+	`quarantine`, `validator_error` and `spec_violations` — so the bucket the
+	validator computes and the card the page renders cannot come to disagree.
+
+	This is `_guard`'s doctrine (the per-stage boundary in validate_items)
+	applied to the paths that were never given it: computing a bucket from
+	what survived is the `brew:libpq` defect by another route, whether the
+	content went missing because a stage crashed or because a container
+	arrived as the wrong type. Every OTHER finding is a marker on the card
+	(D1(b)): an evidence-path typo is not a reason to hold an upgrade.
+
+	Never raises: a drifted container is not evidence of loss — it is
+	E-FIELD-TYPE's business."""
+	if not isinstance(tool, dict):
+		return []
+	codes = tool.get("spec_violations")
+	codes = {c for c in codes if isinstance(c, str)} if isinstance(codes, list) else set()
+	code_reasons = {reason for code, reason in CONTENT_LOSING_CODES.items() if code in codes}
+	reasons = []
+	for reason in DEGRADATION_REASONS:
+		if reason == "quarantined-content":
+			quarantine = tool.get("quarantine")
+			fires = isinstance(quarantine, list) and bool(quarantine)
+		elif reason == "validator-error":
+			fires = bool(tool.get("validator_error"))
+		else:
+			fires = reason in code_reasons
+		if fires:
+			reasons.append(reason)
+	return reasons
+
+
+def compute_degradation(tool) -> dict:
+	"""→ {"content_losing": [...], "markers": [...], "quarantined": int}
+
+	`markers` is every other finding code on this tool, sorted: D1's "renders
+	as a visible marker rather than changing a bucket" half, given one place
+	to be read from instead of requiring the page to re-derive it."""
+	codes = tool.get("spec_violations") if isinstance(tool, dict) else None
+	codes = [c for c in codes if isinstance(c, str)] if isinstance(codes, list) else []
+	quarantine = tool.get("quarantine") if isinstance(tool, dict) else None
+	return {
+		"content_losing": content_losing(tool),
+		"markers": sorted(c for c in codes if c not in CONTENT_LOSING_CODES),
+		"quarantined": len(quarantine) if isinstance(quarantine, list) else 0,
+	}
+
+
 # ── which flags a checker may emit (`item-schema.md` §5.1) ──────────────────
 #   A checker may emit a flag iff (a) it is a pure function of that checker's
 #   own items, AND (b) it is not an input to an auto-approving decision.

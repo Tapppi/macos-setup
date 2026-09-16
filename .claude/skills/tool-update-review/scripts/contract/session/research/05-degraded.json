@@ -1,0 +1,90 @@
+[
+	{
+		"id": "brew:quarantined",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "quarantined 1.0.1",
+				"url": "https://example.invalid/quarantined/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-31001"
+				},
+				"title": "Fixes a heap overflow in the archive reader",
+				"tags": [
+					"security"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix a heap overflow reachable through crafted archives",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-31001",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false
+				}
+			},
+			"and a second change the checker wrote as a bare string"
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures quarantined.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:coerced",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "coerced 1.0.1",
+				"url": "https://example.invalid/coerced/CHANGELOG.md"
+			}
+		],
+		"items": {
+			"0": {
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-31002"
+				},
+				"title": "Fixes a use-after-free in the parser",
+				"tags": [
+					"security"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix a use-after-free in the parser",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-31002",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false
+				}
+			}
+		},
+		"vendor_silent_categories": [
+			"deprecation"
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures coerced.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	}
+]

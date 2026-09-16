@@ -616,6 +616,25 @@ defect by another route. So `validator_error` makes `impact` read `unknown` and
 | no entry at all for a candidate | tool | `research_error` set |
 | the watch-item snapshot is absent, unreadable or wrong-typed | run's hits | every `watch_hit` degrades to `W-WATCH-UNCHECKED` and is kept; an unreadable or wrong-typed snapshot adds one `E-RESEARCH-UNREADABLE` naming the file |
 
-Three loudness channels, all required: `validation.json` (the machine-readable
-primary), `assemble.warn` (the human tail), and `tool.spec_violations[]` so a
-consumer sees it without opening a second file.
+Four loudness channels, all required: `validation.json` (the machine-readable
+primary), `assemble.warn` (the human tail), `tool.spec_violations[]` so a
+consumer sees it without opening a second file, and `tool.degradation` — the
+channel that is pre-reduced for a consumer:
+
+```jsonc
+"degradation": {
+	"content_losing": ["quarantined-content"],   // ordered; the fail-closed reasons
+	"markers": ["E-EVID-404"],                   // every other code — visible, moves nothing
+	"quarantined": 1
+}
+```
+
+**Content-losing input fails closed** (`items.content_losing`, pinned in
+`contract/degradation.json`): a non-empty `quarantine[]`, `W-SHAPE-COERCED`,
+`E-RESEARCH-UNKNOWNKEY` or a `validator_error` forces
+`initial_review_bucket: "attention"` (clause 0, above even the source clause)
+and `risk_level: "elevated"`, and clears `pre_accept`. Computing a bucket from
+what survived is the `brew:libpq` defect by another route, whether the content
+went missing because a stage crashed or because a container arrived as the
+wrong type. Every other finding is a **marker**: reported on the card, moving
+nothing — an evidence-path typo is not a reason to hold an upgrade.

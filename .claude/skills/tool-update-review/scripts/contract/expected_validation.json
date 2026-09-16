@@ -23,6 +23,15 @@
 			"message": "config_status is needs_attention but no edit or structural suggestion says what to do about it"
 		},
 		{
+			"code": "W-SHAPE-COERCED",
+			"severity": "warning",
+			"tool_id": "brew:coerced",
+			"item_id": null,
+			"field": "items",
+			"value": "{'0': {'anchor': {'kind': 'cve', 'value': 'CVE-2026-31002'}, 'title': 'Fixes a use-after-free in the parser', 'tags': ['security'], 'severity': 'info', 'change': {'version': '1.0.1', 'citation': 'Fix a use-after-free in the parser', 'link_index': 0}, 'security': {'cve_id': 'CVE-2026-31002', 'advisor…",
+			"message": "items was dict, not an array — read as empty"
+		},
+		{
 			"code": "W-ENTRY-UNMATCHED",
 			"severity": "warning",
 			"tool_id": "brew:ghost",
@@ -437,6 +446,15 @@
 			"message": "also used by cask:codex — a collision almost always means an id pattern was copied rather than derived"
 		},
 		{
+			"code": "W-MEMBER-QUARANTINED",
+			"severity": "warning",
+			"tool_id": "brew:quarantined",
+			"item_id": null,
+			"field": "items",
+			"value": "and a second change the checker wrote as a bare string",
+			"message": "a items entry is str, not an object — quarantined, not dropped"
+		},
+		{
 			"code": "E-WATCH-HIT-UNGROUNDED",
 			"severity": "error",
 			"tool_id": "brew:watched",
@@ -526,7 +544,8 @@
 			"W-ATTENTION-NOSUG": 1,
 			"W-ENTRY-UNMATCHED": 1,
 			"W-EVID-ROOT": 1,
-			"W-MEMBER-QUARANTINED": 1,
+			"W-MEMBER-QUARANTINED": 2,
+			"W-SHAPE-COERCED": 1,
 			"W-STRUCT-UNCHECKED": 1,
 			"W-SUG-DUP-ID": 1,
 			"W-TITLE-LONG": 1,
@@ -534,13 +553,15 @@
 		},
 		"by_tool": {
 			"brew:attention": 1,
+			"brew:coerced": 1,
 			"brew:ghost": 1,
 			"brew:nonconforming": 45,
+			"brew:quarantined": 1,
 			"brew:watched": 6
 		},
 		"by_severity": {
 			"error": 46,
-			"warning": 8
+			"warning": 10
 		}
 	},
 	"orphans": [],
@@ -732,7 +753,12 @@
 			},
 			"security_display_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
-			"spec_violations": []
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
 		},
 		{
 			"id": "brew:openssh",
@@ -921,7 +947,12 @@
 			},
 			"security_display_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
-			"spec_violations": []
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
 		},
 		{
 			"id": "cask:codex",
@@ -1100,7 +1131,12 @@
 				"cask:codex#cve:CVE-2026-18408"
 			],
 			"self_test_tagged_suggestion_ids": [],
-			"spec_violations": []
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
 		},
 		{
 			"id": "brew:attention",
@@ -1187,7 +1223,14 @@
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"W-ATTENTION-NOSUG"
-			]
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"W-ATTENTION-NOSUG"
+				],
+				"quarantined": 0
+			}
 		},
 		{
 			"id": "brew:nonconforming",
@@ -1507,7 +1550,7 @@
 			"version_delta": "patch",
 			"impact": "possible",
 			"risk_level": "elevated",
-			"initial_review_bucket": "security_mixed",
+			"initial_review_bucket": "attention",
 			"bucket_inputs": {
 				"has_security": true,
 				"security_only": false,
@@ -1555,7 +1598,47 @@
 				"W-STRUCT-UNCHECKED",
 				"W-SUG-DUP-ID",
 				"W-TITLE-LONG"
-			]
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"E-ANCHOR-MALFORMED",
+					"E-CHANGE-UNCITED",
+					"E-CITE-EMPTY",
+					"E-CITE-KIND",
+					"E-CITE-URL",
+					"E-CVE-MALFORMED",
+					"E-ENUM-INVALID",
+					"E-EVID-404",
+					"E-EVID-MALFORMED",
+					"E-FIELD-MISSING",
+					"E-FIELD-TYPE",
+					"E-FLAG-DISAGREE",
+					"E-FLAG-FORBIDDEN",
+					"E-INTEL-BREWFILE",
+					"E-ITEM-DUP-ANCHOR",
+					"E-ITEM-EMPTY",
+					"E-LINK-INDEX",
+					"E-REACHES-UNEVIDENCED",
+					"E-SEC-BLOCK-MISSING",
+					"E-SEC-BLOCK-ORPHAN",
+					"E-SEC-RATING-UNBASED",
+					"E-SELFTEST-NOREASON",
+					"E-SEV-INCOMPAT-UNGROUNDED",
+					"E-SEV-WARNING-UNGROUNDED",
+					"E-STRUCT-PRECOND",
+					"E-TAG-NONE",
+					"E-TAG-UNKNOWN",
+					"W-EVID-ROOT",
+					"W-MEMBER-QUARANTINED",
+					"W-STRUCT-UNCHECKED",
+					"W-SUG-DUP-ID",
+					"W-TITLE-LONG"
+				],
+				"quarantined": 1
+			}
 		},
 		{
 			"id": "brew:watched",
@@ -1765,7 +1848,164 @@
 				"E-WATCH-HIT-NOLOCAL",
 				"E-WATCH-HIT-UNGROUNDED",
 				"W-WATCH-HIT-UNRAISED"
-			]
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-FIELD-MISSING",
+					"E-FIELD-TYPE",
+					"E-WATCH-HIT-NOLOCAL",
+					"E-WATCH-HIT-UNGROUNDED",
+					"W-WATCH-HIT-UNRAISED"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:quarantined",
+			"source": "brew",
+			"name": "quarantined",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "quarantined 1.0.1",
+					"url": "https://example.invalid/quarantined/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-31001"
+					},
+					"title": "Fixes a heap overflow in the archive reader",
+					"tags": [
+						"security"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a heap overflow reachable through crafted archives",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-31001",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"id": "brew:quarantined#cve:CVE-2026-31001",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [
+				{
+					"field": "items",
+					"item_id": null,
+					"value": "and a second change the checker wrote as a bare string"
+				}
+			],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures quarantined.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "info",
+				"local_findings": 0
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "elevated",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"spec_violations": [
+				"W-MEMBER-QUARANTINED"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"W-MEMBER-QUARANTINED"
+				],
+				"quarantined": 1
+			}
+		},
+		{
+			"id": "brew:coerced",
+			"source": "brew",
+			"name": "coerced",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "coerced 1.0.1",
+					"url": "https://example.invalid/coerced/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [
+				"deprecation"
+			],
+			"items": [],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures coerced.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"version_delta": "patch",
+			"impact": "unknown",
+			"risk_level": "elevated",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"spec_violations": [
+				"W-SHAPE-COERCED"
+			],
+			"degradation": {
+				"content_losing": [
+					"shape-coerced"
+				],
+				"markers": [],
+				"quarantined": 0
+			}
 		},
 		{
 			"id": "brew-health:path_note:gnubin",
@@ -1805,8 +2045,13 @@
 			},
 			"security_display_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
-			"health_expected": true,
-			"spec_violations": []
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"health_expected": true
 		}
 	]
 }

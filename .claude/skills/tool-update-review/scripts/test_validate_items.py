@@ -1610,6 +1610,98 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 		self.assertNotIn(view["initial_review_bucket"], ("security_auto", "security_mixed"))
 
 
+# ── D1: the degradation channel and the fail-closed clause ──────────────────
+class DegradationChannelTests(unittest.TestCase):
+	"""Content-losing input fails closed: `attention`, `elevated`, and never
+	pre-accepted. Every OTHER finding is a marker on the card and moves
+	nothing — that half is asserted here too, because a fail-closed rule that
+	quietly widens is how the whole fleet lands on the "needs you" list."""
+
+	def test_a_quarantined_member_forces_attention_and_elevated(self):
+		"""The measured brew:quarantined route: security-only plus one bare
+		string in items[] came out security_auto/low/pre-accepted, with
+		W-MEMBER-QUARANTINED the only trace."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(tags=["security"], severity="info",
+				security={"cve_id": None, "rating": "medium", "rating_basis": "nvd",
+					"exploited_in_wild": False}),
+			"a bare string member"]})
+		self.assertEqual(view["degradation"]["content_losing"], ["quarantined-content"])
+		self.assertEqual(view["risk_level"], "elevated")
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_a_coerced_items_container_forces_attention_and_elevated(self):
+		"""The measured brew:coerced route: items as an object map plus a
+		non-empty vendor_silent_categories came out routine/low/pre-accepted —
+		the members were not even quarantined."""
+		view, _ = validate_one({"id": "brew:x", "links": [],
+			"items": {"0": _item()}, "vendor_silent_categories": ["deprecation"]})
+		self.assertEqual(view["degradation"]["content_losing"], ["shape-coerced"])
+		self.assertEqual(view["risk_level"], "elevated")
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_clause_zero_outranks_the_source_clause(self):
+		"""An `expected` brew-health finding is the one class of tool whose
+		findings are routinely waved through — its degradation must not also
+		be invisible."""
+		candidate = _candidate(id="brew-health:f", name="f", source="brew-health",
+			current_version=None, latest_version=None, expected=True)
+		research = {"id": "brew-health:f", "links": [], "items": [_item(), 7]}
+		view, _ = validate_one(research, candidate=candidate)
+		self.assertEqual(view["degradation"]["content_losing"], ["quarantined-content"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertEqual(view["risk_level"], "elevated")
+
+	def test_marker_findings_move_nothing(self):
+		"""D1(b)'s other half: an evidence-path typo is a marker, not a gate."""
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(local={"direction": "unclear", "effect": "none", "statement": "s",
+				"evidence": ["no/such/path.txt"], "citations": []})]})
+		self.assertIn("E-EVID-404", {f["code"] for f in findings.entries})
+		self.assertEqual(view["degradation"]["content_losing"], [])
+		self.assertIn("E-EVID-404", view["degradation"]["markers"])
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(view["initial_review_bucket"], "routine")
+
+	def test_the_two_computations_cannot_disagree_on_content_losing(self):
+		"""§S5's lesson: a guarantee that depends on statement order is one
+		refactor from being false, so it is pinned. The bucket was computed
+		from the FIRST spec_violations assignment (inside _derive_axes); the
+		stored block comes from the second (after run-level checks). The
+		content_losing limb must be identical in both — asserted here by
+		recomputing the bucket from the final view."""
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		for view in document["tools"]:
+			with self.subTest(view["id"]):
+				self.assertEqual(view["degradation"],
+					model.compute_degradation(view))
+				losing = model.content_losing(view)
+				self.assertEqual(view["degradation"]["content_losing"], losing)
+				if losing:
+					self.assertEqual(view["initial_review_bucket"], "attention")
+					self.assertEqual(view["risk_level"], "elevated")
+
+	def test_late_run_level_codes_are_markers_and_flip_no_bucket(self):
+		"""W-SUG-DUP-ID is raised after per-tool validation. It must appear in
+		`markers` (the second computation) and must not have changed the
+		bucket the first computation produced."""
+		sug = {"id": "shared:id", "kind": "watch-item", "title": "w",
+			"target_files": [], "command": None, "auto_runnable": False,
+			"watch_topic": "t", "watch_note": "n", "rationale": "r"}
+		document = session_with({"00-a.json": [
+			{"id": "brew:x", "links": [], "items": [_item()], "suggestions": [dict(sug)]},
+			{"id": "brew:y", "links": [], "items": [_item()], "suggestions": [dict(sug)]},
+		]}, collect={"generated_at": "2026-09-07T00:00:00Z", "machine": {},
+			"brew": [_candidate(), _candidate(id="brew:y", name="y")]})
+		dup = [v for v in document["tools"] if "W-SUG-DUP-ID" in v["spec_violations"]]
+		self.assertTrue(dup)
+		for view in dup:
+			self.assertIn("W-SUG-DUP-ID", view["degradation"]["markers"])
+			self.assertEqual(view["degradation"]["content_losing"], [])
+			self.assertEqual(view["initial_review_bucket"], "routine")
+
+
 # ── I-20: watch-item hits ───────────────────────────────────────────────────
 def _hit_item(watch_hit, severity="notable", local=True, **kw):
 	item = _item(severity=severity, watch_hit=watch_hit, **kw)
