@@ -40,13 +40,15 @@ CHECK_PIN = os.path.join(SCRIPT_DIR, "check_pin.py")
 # supplies its own; `doctor` and everything else stay silent, which collect.sh
 # already treats as "nothing to report".
 #
-# STUB_OUTDATED_RC and STUB_INFO_PREFIX exist for the degradation tests at the
-# bottom of this file: a real `brew` can print a complete listing and *then*
-# exit non-zero, and can put a deprecation notice on stdout ahead of the JSON.
-# Both are ways a healthy brew derails a collector that assumes otherwise.
+# STUB_OUTDATED_RC, STUB_OUTDATED_PREFIX and STUB_INFO_PREFIX exist for the
+# degradation tests at the bottom of this file: a real `brew` can print a
+# complete listing and *then* exit non-zero, and can put a deprecation notice
+# on stdout ahead of the JSON (of `brew info` and of `brew outdated` alike).
+# All are ways a healthy brew derails a collector that assumes otherwise.
 BREW_STUB = """#!/usr/bin/env bash
 case "$1" in
-	outdated) cat "${STUB_OUTDATED}"; exit "${STUB_OUTDATED_RC:-0}" ;;
+	outdated) [[ -n "${STUB_OUTDATED_PREFIX:-}" ]] && printf '%s\\n' "${STUB_OUTDATED_PREFIX}"
+		cat "${STUB_OUTDATED}"; exit "${STUB_OUTDATED_RC:-0}" ;;
 	list) [[ "${2:-}" == "--pinned" ]] && printf '%s' "${STUB_PINNED:-}" ;;
 	info) [[ -n "${STUB_INFO_PREFIX:-}" ]] && printf '%s\\n' "${STUB_INFO_PREFIX}"
 		[[ -n "${STUB_INFO:-}" ]] && cat "${STUB_INFO}" ;;
@@ -69,7 +71,7 @@ class CollectRunner(unittest.TestCase):
 	stubbed brew/mise/softwareupdate executables placed first on PATH."""
 
 	def run_collect(self, brewfile, outdated, pinned="", info=None,
-			outdated_rc=None, info_prefix=None):
+			outdated_rc=None, info_prefix=None, outdated_prefix=None):
 		"""Run collect.sh in a throwaway workspace; return the CompletedProcess.
 
 		Most fixture Brewfiles carry both a `brew "` and a `cask "` line — not
@@ -95,6 +97,8 @@ class CollectRunner(unittest.TestCase):
 				env["STUB_OUTDATED_RC"] = str(outdated_rc)
 			if info_prefix is not None:
 				env["STUB_INFO_PREFIX"] = info_prefix
+			if outdated_prefix is not None:
+				env["STUB_OUTDATED_PREFIX"] = outdated_prefix
 			if info is not None:
 				_write(os.path.join(root, "info.json"), json.dumps(info))
 				env["STUB_INFO"] = os.path.join(root, "info.json")
@@ -244,6 +248,28 @@ class CollectDegradationTests(CollectRunner):
 		# …and the operator is told which formula was dropped.
 		self.assertIn("brew info", p.stderr)
 		self.assertIn("curl", p.stderr)
+
+	def test_a_notice_ahead_of_the_outdated_json_costs_the_brew_section_not_the_run(self):
+		"""`brew outdated` putting a notice on stdout ahead of its JSON makes
+		the jq it is piped into emit nothing at all — zero bytes, not partial
+		JSON. Without the post-hoc `jq -e .` fallback on `brew_json`, that
+		empty string reaches the final `jq -n --argjson` and kills the whole
+		collector: no collect.json, and nothing on stderr but
+		`jq: invalid JSON text passed to --argjson`."""
+		p = self.run_collect(
+			'brew "curl"\ncask "1password"\n',
+			{"formulae": [{"name": "curl", "installed_versions": ["8.1.0"],
+				"current_version": "8.2.0", "pinned": False}], "casks": []},
+			outdated_prefix="Warning: brew has something to say first")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		report = json.loads(p.stdout)
+		# The brew section is the only casualty…
+		self.assertEqual(report["brew"], [])
+		# …it is attributable…
+		self.assertIn("could not read `brew outdated` output as JSON", p.stderr)
+		# …and the rest of the run is intact.
+		self.assertEqual(set(report), {"generated_at", "machine", "brew", "mise",
+			"standalone", "macos", "brew_health", "skill_drift"})
 
 
 class CollectPinnedRevisionTests(CollectRunner):
