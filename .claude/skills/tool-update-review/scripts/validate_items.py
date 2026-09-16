@@ -439,7 +439,13 @@ class Manifest:
 		try:
 			with open(path, "r", encoding="utf-8") as fh:
 				lines = fh.read().splitlines()
-		except OSError:
+		except (OSError, UnicodeDecodeError):
+			# UnicodeDecodeError is the one that was missing: one non-UTF-8
+			# byte in the real Brewfile (an em dash truncated mid-character)
+			# aborted the whole run with a bare traceback before a single tool
+			# was built — no report.json, no validation.json, no assemble.warn.
+			# The designed degradation (`readable=False` → W-STRUCT-UNCHECKED)
+			# existed and was unreachable behind the OSError-only handler.
 			return
 		self.readable = True
 		# A top-level header is three lines — rule, title, rule — so the
@@ -479,7 +485,9 @@ class Manifest:
 		try:
 			with open(path, "r", encoding="utf-8") as fh:
 				text = fh.read()
-		except OSError:
+		except (OSError, UnicodeDecodeError):
+			# Same width as _load_brewfile, same reason: an undecodable
+			# setup.sh is "cannot check", never "abort the run".
 			return
 		self.tasks_readable = True
 		self.tasks = set(_DISPATCH_TOKEN.findall(text))

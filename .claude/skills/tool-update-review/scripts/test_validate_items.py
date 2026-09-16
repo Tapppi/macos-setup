@@ -549,6 +549,34 @@ class ManifestTests(unittest.TestCase):
 			self.assertFalse(manifest.readable)
 			self.assertFalse(manifest.tasks_readable)
 
+	def test_an_undecodable_manifest_is_unreadable_never_an_abort(self):
+		"""One non-UTF-8 byte in the Brewfile (an em dash truncated
+		mid-character, reproduced on the real repo file) used to raise
+		UnicodeDecodeError out of Manifest.__init__ and abort the whole run
+		before a single tool was built — no report.json, no validation.json,
+		no assemble.warn. The designed degradation (`readable=False` →
+		W-STRUCT-UNCHECKED) existed and was unreachable behind the
+		OSError-only handler."""
+		td = tempfile.mkdtemp()
+		self.addCleanup(shutil.rmtree, td, True)
+		with open(os.path.join(td, "Brewfile"), "wb") as fh:
+			fh.write(b'brew "sops"\n# GNU coreutils \xe2\x80 the good ones\n')
+		with open(os.path.join(td, "setup.sh"), "wb") as fh:
+			fh.write(b'[[ "${1}" = "install" ]]\n# \xe2\x80\n')
+		manifest = V.Manifest(td)
+		self.assertFalse(manifest.readable)
+		self.assertFalse(manifest.tasks_readable)
+		# And the degradation is reported, not silent: a structural op against
+		# the undecodable manifest is "unchecked", never "passing" or a crash.
+		research = {"id": "brew:x", "links": [], "items": [_item()],
+			"suggestions": [{"id": "brew:x:s", "kind": "structural", "target_files": [],
+				"structural": {"op": "manifest_remove", "manifest": "Brewfile",
+					"subjects": [{"type": "formula", "name": "sops"}],
+					"from": {"type": "formula", "name": "sops"}}}]}
+		found = codes(research, manifest_root=td)
+		self.assertIn("W-STRUCT-UNCHECKED", found)
+		self.assertNotIn("E-STRUCT-PRECOND", found)
+
 
 class RootResolverTests(unittest.TestCase):
 	def test_a_path_under_a_configured_root_resolves(self):
