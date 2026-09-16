@@ -475,6 +475,14 @@ install_agent_skills_venv() {
 		defusedxml lxml \
 		openpyxl pandas
 
+	# The browser bundle's deterministic mode (tapppi/skills, browser:browser)
+	# drives Playwright from Python scripts run with this interpreter; the MCP
+	# servers in that bundle bring their own browser, this one needs its own.
+	# `playwright install` is idempotent: it downloads only what is missing.
+	p3 "Installing Python Playwright and its Chromium for the browser bundle..."
+	uv pip install --python "${venv_python}" --quiet playwright
+	"${venv_dir}/bin/playwright" install chromium
+
 	p2 "Agent-skills venv ready at ${venv_dir}"
 }
 
