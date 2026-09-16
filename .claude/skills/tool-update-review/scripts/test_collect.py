@@ -33,6 +33,7 @@ import unittest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 COLLECT_SH = os.path.join(SCRIPT_DIR, "collect.sh")
+CHECK_PIN = os.path.join(SCRIPT_DIR, "check_pin.py")
 
 # A stub `brew` that answers only the subcommands collect.sh calls. `outdated`
 # and `list --pinned` read their payload out of the environment so each test
@@ -243,6 +244,80 @@ class CollectDegradationTests(CollectRunner):
 		# …and the operator is told which formula was dropped.
 		self.assertIn("brew info", p.stderr)
 		self.assertIn("curl", p.stderr)
+
+
+class CollectPinnedRevisionTests(CollectRunner):
+	"""Criterion 22's collect-side half. The pinned block's `latest_version`
+	becomes the upgrade suggestion's `target_version`, and check_pin.py's
+	preflight compares it against `brew info`'s versions.stable composed with
+	the packaging revision — the same composition `brew outdated`'s
+	current_version uses. Emitting the bare stable here made the two sides of
+	the pin check different strings for every pinned formula whose current
+	version carries a revision. Dormant while `brew list --pinned` is empty,
+	but six Brewfile formulae sit at a revisioned current version today, so a
+	single `brew pin` reaches it."""
+
+	INFO_CURRENT_AT_REVISION = {"formulae": [{
+		"installed": [{"version": "1.5.4_1"}],
+		"versions": {"stable": "1.5.4"}, "revision": 1}]}
+	INFO_BEHIND_AT_REVISION = {"formulae": [{
+		"installed": [{"version": "1.5.4_1"}],
+		"versions": {"stable": "1.5.5"}, "revision": 1}]}
+
+	def test_pinned_and_current_at_a_revision_is_not_a_phantom_downgrade(self):
+		"""Measured before the fix: `duti` emitted "1.5.4_1 → 1.5.4" — a
+		downgrade card that survives the current != latest filter — for a
+		pinned formula with nothing to report. `brew outdated` does include
+		pinned formulae, so pinned-and-current is exactly the case only this
+		block ever surfaces."""
+		report = self.collect('brew "duti"\ncask "1password"\n',
+			{"formulae": [], "casks": []},
+			pinned="duti\n", info=self.INFO_CURRENT_AT_REVISION)
+		self.assertEqual(report["brew"], [])
+
+	def test_pinned_and_behind_composes_the_revision_into_latest_version(self):
+		report = self.collect('brew "duti"\ncask "1password"\n',
+			{"formulae": [], "casks": []},
+			pinned="duti\n", info=self.INFO_BEHIND_AT_REVISION)
+		self.assertEqual(self.brew_ids(report), ["brew:duti"])
+		self.assertEqual(report["brew"][0]["current_version"], "1.5.4_1")
+		self.assertEqual(report["brew"][0]["latest_version"], "1.5.5_1")
+
+	def test_both_sides_of_the_pin_check_compute_the_same_string(self):
+		"""The criterion itself, across the two scripts: run collect.sh and
+		`check_pin.py preflight` against the *same* stubbed `brew info` and
+		require preflight to call collect's `latest_version` a match. While
+		the two sides composed differently, preflight could never match for a
+		revisioned pinned formula and `set-action done` was permanently
+		refused."""
+		with tempfile.TemporaryDirectory(prefix="collect-test-") as root:
+			bindir = os.path.join(root, "bin")
+			work = os.path.join(root, "work")
+			os.makedirs(bindir)
+			os.makedirs(work)
+			_write(os.path.join(bindir, "brew"), BREW_STUB, 0o755)
+			_write(os.path.join(bindir, "mise"), MISE_STUB, 0o755)
+			_write(os.path.join(bindir, "softwareupdate"), SOFTWAREUPDATE_STUB, 0o755)
+			_write(os.path.join(work, "Brewfile"), 'brew "duti"\ncask "1password"\n')
+			_write(os.path.join(root, "outdated.json"),
+				json.dumps({"formulae": [], "casks": []}))
+			_write(os.path.join(root, "info.json"),
+				json.dumps(self.INFO_BEHIND_AT_REVISION))
+			env = dict(os.environ)
+			env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+			env["STUB_OUTDATED"] = os.path.join(root, "outdated.json")
+			env["STUB_PINNED"] = "duti\n"
+			env["STUB_INFO"] = os.path.join(root, "info.json")
+			collected = subprocess.run(["bash", COLLECT_SH, "Brewfile"], cwd=work,
+				env=env, capture_output=True, text=True, timeout=180)
+			self.assertEqual(collected.returncode, 0, collected.stderr)
+			target = json.loads(collected.stdout)["brew"][0]["latest_version"]
+			preflight = subprocess.run([sys.executable, CHECK_PIN, "preflight",
+				"--source", "brew", "--name", "duti", "--target-version", target],
+				env=env, capture_output=True, text=True, timeout=60)
+			self.assertEqual(preflight.returncode, 0,
+				preflight.stdout + preflight.stderr)
+			self.assertTrue(json.loads(preflight.stdout.strip())["match"])
 
 
 if __name__ == "__main__":

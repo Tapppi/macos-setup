@@ -122,11 +122,24 @@ if [[ -n "${pinned_names}" ]]; then
 		# carried it to the `jq -s .` pipeline, and `set -e` killed the whole
 		# collector at this assignment — one pinned formula costing the entire
 		# run, with only `jq: parse error` on stderr to explain it.
+		# `versions.stable` never carries the packaging revision, but the
+		# `.installed` version above does ("1.5.4_1") and so does `brew
+		# outdated`'s current_version — the composition check_pin.py mirrors
+		# (its brew_formula_candidate_version). Emitting the bare stable here
+		# made the two sides of the pin check different strings: a pinned
+		# formula *current* at a revision rendered as the phantom downgrade
+		# "1.5.4_1 → 1.5.4" (surviving the current!=latest filter below), and
+		# a pinned-and-behind one carried a target_version no preflight could
+		# ever match, so `set-action done` was permanently refused. Compose
+		# stable_revision exactly as brew itself does, revision 0/absent
+		# meaning no suffix.
 		printf '%s' "${info}" | jq --arg name "${short_name}" '
 			.formulae[0] | {
 				id: ("brew:" + $name), name: $name, source: "brew",
 				current_version: (.installed | last | .version),
-				latest_version: .versions.stable,
+				latest_version: (.versions.stable as $s
+					| if $s != null and ((.revision // 0) > 0)
+						then "\($s)_\(.revision)" else $s end),
 				pinned: true
 			}' 2>/dev/null || {
 			echo "warning: could not read \`brew info\` output for pinned formula ${name}; leaving it out" >&2
