@@ -156,13 +156,12 @@ cask "cursor"
 # Claude desktop app
 cask "claude"
 
-# Terminal AI Agents
+# Terminal AI Agents. codex, opencode and pi come from tapppi/systems
+# (nix, modules/darwin/); claude-code and cursor-cli stay here.
 cask "claude-code@latest"
-cask "codex"
-# ChatGPT desktop app (GUI) — companion to the codex CLI
+# ChatGPT desktop app (GUI)
 cask "chatgpt"
 cask "cursor-cli"
-brew "anomalyco/tap/opencode"
 
 # Monitor for AI Agent subscription usage limits
 cask "claudebar"
