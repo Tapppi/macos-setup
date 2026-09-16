@@ -697,7 +697,10 @@ Order of evaluation (pinned as data in `contract/bucketing.json`, which
    runnable baseline **and** no pre-acceptance bar (D2/E3,
    `items.pre_accept_bars`: elevated risk, a reaching security **item** —
    one that itself carries security content, never merely any reaching item
-   on a security tool — or a watch hit — a barred tool falls through to `security_mixed`,
+   on a security tool — a present-but-invalid `local.direction`/`local.effect`
+   enum — an unreadable local claim fails closed, since one character of
+   drift otherwise blinds both the reaches-item bar and impact at once — or
+   a watch hit — a barred tool falls through to `security_mixed`,
    where the card renders expanded, rather than sitting in the one bucket
    whose name means "no decision needed");
 3. `security_mixed` — `has_security`;

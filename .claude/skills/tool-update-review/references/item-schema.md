@@ -576,7 +576,10 @@ halves are needed and the second is the easy one to miss.
 It now reaches everywhere (D2): `pre_accept` requires `risk_level == "low"`
 outright, and the security_auto clause itself asks `items.pre_accept_bars` —
 elevated risk, a reaching security **item** (one that itself carries security
-content; never merely any reaching item on a security tool), or a watch hit — so a
+content; never merely any reaching item on a security tool), a
+present-but-invalid `local.direction`/`local.effect` enum (an unreadable
+local claim fails closed — one character of drift otherwise blinds the
+reaches-item bar and impact together), or a watch hit — so a
 barred security-only tool falls through to `security_mixed`, visible and
 undecided, instead of being pre-accepted "by design" the way the old
 precedence allowed. The bar and the clause order are pinned as data in

@@ -193,6 +193,7 @@
 		"bars": [
 			"elevated-risk",
 			"reaches-item",
+			"local-enum-invalid",
 			"watch-hit"
 		],
 		"bars_source": "the validator's view — finalize_tool computes tool.pre_accept_bars from the same inputs the bucket's clause 2 read, and apply_pre_accept refuses (KeyError) a tool nobody computed them for rather than recomputing from assembled items"

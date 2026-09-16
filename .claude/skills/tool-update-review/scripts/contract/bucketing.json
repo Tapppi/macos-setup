@@ -14,10 +14,12 @@
 		"order": [
 			"elevated-risk",
 			"reaches-item",
+			"local-enum-invalid",
 			"watch-hit"
 		],
 		"elevated-risk": "risk_level == \"elevated\" — bars everywhere (D2 core)",
 		"reaches-item": "an item that ITSELF carries security content (the security tag, or a security block) with local.direction == \"reaches\" — the measured case: cask:wireshark-app's reaching item IS the security item. Never any reaching item, and never any reaching item on a security tool: the measurement was taken on security items only, and a re-widened predicate quietly un-compresses the routine population (919 words per decision is the number this redesign exists to kill)",
+		"local-enum-invalid": "an item whose local.direction or local.effect is present but outside the vocabulary — the fail-closed twin of reaches-item: a one-character drift (\"reachs\", \"risks\") on a real CVE item removes the reaches-item bar and the impact signal at once, and E-ENUM-INVALID alone bars nothing. An unverifiable claim fails closed here as everywhere in this contract (an unchecked watch_hit bars for exactly this reason). Mirrors E-ENUM-INVALID's trigger: present and not in the vocabulary; absent is E-FIELD-MISSING's business",
 		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3)"
 	},
 	"cases": [
@@ -745,6 +747,60 @@
 				"pre_accept": true,
 				"content_losing": [],
 				"bars": []
+			}
+		},
+		{
+			"name": "19 security-only, low risk, but a local enum is drifted - fails closed",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [
+					"E-ENUM-INVALID"
+				],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-18408",
+						"title": "Fixes CVE-2026-18408",
+						"tags": [
+							"security"
+						],
+						"severity": "notable",
+						"security": {
+							"cve_id": "CVE-2026-18408",
+							"rating": "high",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false
+						},
+						"local": {
+							"direction": "reachs",
+							"effect": "risks",
+							"statement": "s",
+							"evidence": []
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"local-enum-invalid"
+				]
 			}
 		}
 	]

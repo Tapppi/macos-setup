@@ -722,7 +722,7 @@ def compute_degradation(tool) -> dict:
 
 # ── the pre-acceptance bar (D2, E3) ─────────────────────────────────────────
 # Emission order, fixed, like DEGRADATION_REASONS and for the same reason.
-PRE_ACCEPT_BARS = ("elevated-risk", "reaches-item", "watch-hit")
+PRE_ACCEPT_BARS = ("elevated-risk", "reaches-item", "local-enum-invalid", "watch-hit")
 
 
 def pre_accept_bars(tool) -> list:
@@ -759,6 +759,20 @@ def pre_accept_bars(tool) -> list:
 	  population is a regression against a redesign that exists because the
 	  old report cost 919 words per decision, with 373 of 584 items unable to
 	  change any decision.
+	- ``local-enum-invalid`` — the fail-closed twin of ``reaches-item``: an
+	  item whose `local.direction` or `local.effect` is present but outside
+	  the vocabulary is a claim about this setup written in a dialect the
+	  reaches-item limb cannot read. One character of drift ("reachs",
+	  "risks") on a real CVE item used to remove the bar AND the impact
+	  signal at once, landing the tool in `security_auto` with two
+	  E-ENUM-INVALID markers as the only trace. Everywhere else in this
+	  contract an unverifiable claim fails closed — an unchecked `watch_hit`
+	  bars precisely because it cannot be verified — so an unreadable one
+	  does too: holding the tool costs a click. Mirrors E-ENUM-INVALID's
+	  trigger exactly (present and not in the vocabulary; absent is
+	  E-FIELD-MISSING's business and the item then makes no direction
+	  claim), and reads the items directly rather than the findings list so
+	  a view and an assembled Tool answer identically.
 	- ``watch-hit`` — E3: a watch item exists to be told about, and one that
 	  fires into an auto-accepted card is inert — which is the measured
 	  end-state the redesign exists to fix. Bars everywhere, bounded by the
@@ -777,6 +791,15 @@ def pre_accept_bars(tool) -> list:
 				or isinstance(i.get("security"), dict))
 			for i in items):
 		reasons.append("reaches-item")
+	if any(
+			isinstance(i.get("local"), dict)
+			and any(
+				i["local"].get(field) is not None
+				and i["local"].get(field) not in vocabulary
+				for field, vocabulary in (("direction", DIRECTIONS),
+					("effect", EFFECTS)))
+			for i in items):
+		reasons.append("local-enum-invalid")
 	if has_watch_hit(items):
 		reasons.append("watch-hit")
 	return reasons

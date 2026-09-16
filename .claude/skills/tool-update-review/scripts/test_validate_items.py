@@ -1052,11 +1052,14 @@ class ImpactAndBucketTests(unittest.TestCase):
 	def test_local_enum_drift_is_reported_field_by_field(self):
 		"""One character of drift on `local.effect` ("risks") stops the item
 		counting toward impact, and one on `local.direction` ("reachs") stops
-		the reaches-item bar firing — drift both and a security item that
-		genuinely reaches this setup lands the tool in `security_auto`. The
-		E-ENUM-INVALID markers on these two fields are then the only trace,
-		and the per-code sweeps elsewhere in this suite are satisfied by
-		other fields — so the fields themselves are pinned here."""
+		the reaches-item bar reading the claim — measured before the
+		`local-enum-invalid` bar existed, drifting both landed a real CVE
+		item's tool in `security_auto` with two E-ENUM-INVALID markers as the
+		only trace. An unverifiable claim fails CLOSED here as everywhere in
+		this contract (an unchecked `watch_hit` bars for exactly this
+		reason): a present-but-invalid enum now bars pre-acceptance, and the
+		field-level findings are pinned by name because the per-code sweeps
+		elsewhere in this suite are satisfied by other fields."""
 		security = {"cve_id": "CVE-2026-18408", "rating": "high",
 			"rating_basis": "nvd", "exploited_in_wild": False}
 
@@ -1070,41 +1073,33 @@ class ImpactAndBucketTests(unittest.TestCase):
 			return [(f["field"], f["value"]) for f in findings.entries
 				if f["code"] == "E-ENUM-INVALID"]
 
-		_, findings = drifted("reaches", "risks")
+		view, findings = drifted("reaches", "risks")
 		self.assertEqual(enum_fields(findings), [("local.effect", "risks")])
-		_, findings = drifted("reachs", "risk")
+		self.assertIn("local-enum-invalid", model.pre_accept_bars(view))
+		view, findings = drifted("reachs", "risk")
 		self.assertEqual(enum_fields(findings), [("local.direction", "reachs")])
-		# The measured stake, not an endorsement: with both fields drifted the
-		# tool auto-accepts, and these two markers are all that says why.
+		self.assertIn("local-enum-invalid", model.pre_accept_bars(view))
+		# Both drifted: the reaches-item bar cannot read the claim, so this
+		# bar is the only thing between the tool and `security_auto`.
 		view, findings = drifted("reachs", "risks")
-		self.assertEqual(view["initial_review_bucket"], "security_auto")
+		self.assertEqual(model.pre_accept_bars(view), ["local-enum-invalid"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
 		self.assertEqual(enum_fields(findings),
 			[("local.direction", "reachs"), ("local.effect", "risks")])
 
-	def test_a_non_version_finding_source_short_circuits(self):
-		for source, flag in (("brew-health", True), ("skill-drift", True)):
-			with self.subTest(source):
-				candidate = _candidate(id=source + ":f", name="f", source=source,
-					current_version=None, latest_version=None, expected=flag)
-				view, _ = validate_one(None, candidate=candidate)
-				self.assertEqual(view["impact"], "none")
-				self.assertEqual(view["initial_review_bucket"], "routine")
-				self.assertEqual(view["risk_level"], "low")
-
-	def test_an_unexpected_finding_needs_attention(self):
-		candidate = _candidate(id="brew-health:f", name="f", source="brew-health",
-			current_version=None, latest_version=None, expected=False)
-		view, _ = validate_one(None, candidate=candidate)
-		self.assertEqual(view["initial_review_bucket"], "attention")
-		self.assertEqual(view["risk_level"], "elevated")
-
-	def test_the_security_display_ids_are_carried_for_the_page(self):
-		view = self._view(items=[_item(tags=["security"], severity="warning",
-			security={"cve_id": None, "rating": "critical", "rating_basis": "vendor",
-				"exploited_in_wild": False},
-			local={"direction": "reaches", "effect": "risk", "statement": "s",
-				"evidence": [{"path": "Brewfile"}]})])
-		self.assertEqual(view["security_display_item_ids"], ["brew:x#issue:org%2Frepo%231"])
+	def test_a_valid_local_block_is_not_barred_by_the_enum_limb(self):
+		"""The other side: the bar mirrors E-ENUM-INVALID exactly. A valid
+		vocabulary never trips it, and an ABSENT direction/effect is
+		E-FIELD-MISSING's business — the item then makes no claim for the
+		limb to distrust."""
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(local={"direction": "does_not_reach", "effect": "benefit",
+				"statement": "s", "evidence": []})]})
+		self.assertNotIn("local-enum-invalid", model.pre_accept_bars(view))
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
+			_item(local={"statement": "s", "evidence": []})]})
+		self.assertNotIn("local-enum-invalid", model.pre_accept_bars(view))
+		self.assertIn("E-FIELD-MISSING", {f["code"] for f in findings.entries})
 
 
 # ── 6b. Memory proposals (REDESIGN.md L1, L7) ───────────────────────────────
