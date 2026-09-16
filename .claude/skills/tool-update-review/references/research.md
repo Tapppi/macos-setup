@@ -36,12 +36,12 @@ Table of contents:
   - What You May Touch
   - Prior Findings Are Hypotheses
   - Items Are Outward-Facing Changes
-  - Headliners
-  - Category vs. Severity — Independent Axes
+  - One Change, One Item
+  - Tags vs. Severity — Independent Axes
   - CVE Severity Capture
-  - Selecting Notable Security Items
+  - Security Items: Direction Decides the Display
   - Links
-  - Relevancy Is the Point
+  - Local Findings Are the Point
   - Classify Non-Changelog Findings Correctly
   - Don't Author "I Checked, Found Nothing"
   - The Noise Floor
@@ -55,7 +55,7 @@ Table of contents:
   - Watch Items (Proposing)
   - Before You Propose a Standing Note: the Self-Test
   - There Is No Volume Target — and Here Is Why
-  - Deduplicate Facts (Across Arrays, and Within One)
+  - Deduplicate Facts (One Array, Same Discipline)
   - Scope-vs-Changelog Separation
   - Bespoke `tasks/*.sh` Setup Testing
   - Write `config_status` Before `suggestions[]`
@@ -90,8 +90,8 @@ plus one standing tier per non-version source:
 - **Individual-focus**: one subagent per tool, for any tool with a real
   touchpoint in the setup repos — a bespoke `tasks/*.sh` function (grep
   `tasks/install.sh`/`tasks/config.sh`), a dotfiles config file, or a
-  Brewfile pin/comment naming it. These need the full relevancy/config_status
-  depth this skill exists to produce, and batching them would dilute that.
+  Brewfile pin/comment naming it. These need the full local-findings/
+  config_status depth this skill exists to produce, and batching them would dilute that.
 - **Batched-by-category**: one subagent covering ~4-9 tools with no repo
   touchpoint beyond a plain Brewfile/mise line — group by rough category
   (CLI utilities, GUI casks, mise runtimes) so the subagent's changelog-skim
@@ -169,7 +169,7 @@ thinner research than the touchpoint warrants.
 Spawn every subagent (both tiers) in one turn. Each gets: the tool
 id(s)/name/source/versions in its scope, the machine context (arch matters —
 ARM-only dependencies are incompatibilities on x86_64, not footnotes), the
-paths it may scan for relevancy, and the two repos' `recent_commits` from
+paths it may scan for local findings, and the two repos' `recent_commits` from
 step 1's `repo_context` (see `references/collection.md` §Repo Freshness for
 where that comes from).
 
@@ -329,13 +329,14 @@ not evidence that a candidate exists.
 
 The same asymmetry applies to a hypothesis you *disprove*. "A prior review said
 v5.3 flips this default; it does not — the flag was reverted in 5.3.1, here is
-the commit" is a real finding and worth writing, in `context[]`. Silently not
+the commit" is a real finding and worth writing — an item, typically `chore` at
+`info`, citing the reverting commit. Silently not
 mentioning a disproved hypothesis leaves the next run to rediscover it.
 
 ### Items Are Outward-Facing Changes
 
 *Item* here means anything you report about what changed in this tool —
-whichever array it lands in.
+an element of `items[]`, whatever its tags.
 
 **Project-internal maintenance never becomes an item.** Repo upkeep,
 convention changes, documentation updates, CI and release-tooling churn, test
@@ -375,42 +376,47 @@ Read this together with §Don't Author "I Checked, Found Nothing": an empty
 result for a tool whose whole range was internal maintenance is the correct
 result. Say nothing rather than reporting the maintenance to fill the space.
 
-### Headliners
+### One Change, One Item
 
-**≤6 bullets** covering the whole current→latest range, not just the newest
-release. Skim actual release notes/changelogs — don't guess from version
-numbers. **One fact per bullet — split compound bullets before classifying
+Items cover the whole current→latest range, not just the newest release.
+Skim actual release notes/changelogs — don't guess from version numbers.
+**One real change per item — split compound bullets before tagging
 them.** A changelog often bundles unrelated changes into one sentence
-("added X and Y, plus fixed CVE Z"); if you classify the bundle as one
-atomic item, it gets filed under whichever topic feels most severe and the
-rest of the content is lost (seen this run: rust's "added
+("added X and Y, plus fixed CVE Z"); if you write the bundle as one item,
+it gets tagged by whichever half feels most severe and the rest of the
+content is lost (seen this run: rust's "added
 assert_matches!/Copy-range-types, plus fixed two Cargo CVEs" got filed
-entirely under Security — the macro/feature content never showed up under
-Features at all). Split first, classify each resulting item independently;
-both can cite the same source link since they came from the same release.
-**The ≤6 budget is per tool, not per changelog section** — seen this run,
-`cask:gcloud-cli` spent five of its six `notes` slots on one deprecation
-family, leaving no room for an answer to "does anything I run break" (§The
-Noise Floor, N8).
+entirely as security — the macro/feature content never showed up tagged
+`feature` at all). Split first, tag each resulting item independently;
+both can cite the same source link (`change.link_index`) since they came
+from the same release.
 
-### Category vs. Severity — Independent Axes
+**There is no item cap.** The old ≤6-headliner budget is retired with the
+array that carried it: a count invites padding and rationing in equal
+measure. What kept the budget honest is answered elsewhere now — the
+noise floor (below) decides what earns a line at all, the dedup pass
+(§Deduplicate Facts) collapses restatements, and what the budget used to
+catch survives as N8: one change spent as many items is redundancy,
+however many items the tool carries.
 
-**Category is topic, not urgency — the two are independent axes.** Which
-group a headliner/relevancy item belongs to (Security/Fixes/Features/Notes)
-is decided purely by *what kind of change it is*, never by how urgent or
-prominent it feels relative to other items you're also reporting for the
-same tool. Severity/priority is a separate, per-item property that drives
-visual weight *within* whichever category the item topically belongs to
-(`references/rendering-report.md` §Page Layout) — it never changes which
-category the item is in. Seen this run: yt-dlp's "restricts --exec command
+### Tags vs. Severity — Independent Axes
+
+**Tags are topic, not urgency — the two are independent axes.** An item's
+tags (`references/item-schema.md` §2.2's closed set of eight) are decided
+purely by *what kind of change it is*, never by how urgent or prominent
+it feels relative to other items you're also reporting for the same tool.
+Severity is a separate, per-item property — "how much does this matter to
+this machine" — that drives visual weight within whichever content group
+the tags derive (`references/rendering-report.md` §Page Layout); it never
+changes the tags. Seen this run: yt-dlp's "restricts --exec command
 templates to safe string conversions... to close a command-injection
-footgun" is unambiguously Security by topic, but got filed under Notes,
-apparently because it read as less prominent than the CVEs already sitting
-under Security for that tool — it should have stayed Security with a lower
-per-item priority, not moved category. For contrast, yt-dlp's "Minimum
-recommended Python raised to 3.11, Node to v22..." is a correctly-placed
-Notes item — genuine compatibility/requirements info that isn't
-Security/Fixes/Features by topic at all.
+footgun" is unambiguously `security` by topic, but got filed as a plain
+note, apparently because it read as less prominent than the CVEs already
+on the card — it should have kept the `security` tag with a lower
+severity, not lost the tag. For contrast, yt-dlp's "Minimum recommended
+Python raised to 3.11, Node to v22..." is a correctly-tagged `packaging`
+item — genuine compatibility/requirements info that is not security, a
+fix or a feature by topic at all.
 
 ### CVE Severity Capture
 
@@ -418,29 +424,30 @@ The card shows `security.cve_ids` as a count, not a list — the user's own
 words, "no need to list the CVEs in per-tool, we need to trim those down to
 allow faster review". What replaces the list is a severity breakdown, and a
 breakdown assembly cannot compute on its own: it has no network and no
-advisory database. So research supplies the per-id ratings it read, in a
-`security.cve_severities` array of `{cve_id, severity, basis}`
-(`references/schemas.md` §1.9), and assembly rolls them up into
-`security.severity_counts`.
+advisory database. So research supplies the per-id ratings it read, on the
+item that carries the CVE: the item's `security` block's
+`rating`/`rating_basis` (`references/item-schema.md` §2), and assembly
+rolls them up into `security.severity_counts`.
 
-**`severity` is `critical | high | medium | low | unknown`** — the CVSS
+**`rating` is `critical | high | medium | low | unknown`** — the CVSS
 qualitative bands, because every source below already speaks them. **This is
-deliberately not `relevancy[]`'s vocabulary.** Relevancy severity answers "how
-much does this matter to *this* machine"; CVE severity answers "what did the
+deliberately not the item-severity vocabulary.** Item severity answers "how
+much does this matter to *this* machine"; a CVE rating answers "what did the
 issuer rate the flaw". Seen this run: teamviewer's `CVE-2026-19042` carries
 CVSS 8.8 and is Linux-client-only, so it is `high` and irrelevant at the same
 time. Collapsing the two axes is how that item would have read as the most
 urgent thing on a macOS card.
 
-**`basis` is `vendor | nvd | cvss | unrated`** — where the rating came from.
-`cvss` means you banded a numeric score the source published (≥9.0 critical,
-7.0–8.9 high, 4.0–6.9 medium, 0.1–3.9 low); `unrated` means nobody published
-one. Assembly reads a grade with no basis as `unknown`, because a rating with
-no source is not a rating.
+**`rating_basis` is `vendor | nvd | cvss | unrated`** — where the rating came
+from. `cvss` means you banded a numeric score the source published (≥9.0
+critical, 7.0–8.9 high, 4.0–6.9 medium, 0.1–3.9 low); `unrated` means nobody
+published one. A rating whose basis is `unrated` is read as `unknown` and
+reported (I-6, `E-SEC-RATING-UNBASED`), because a rating with no source is
+not a rating.
 
 **Where the severity comes from, in priority order:**
 
-1. **The page you already fetched for the headliners.** Free, so do it for
+1. **The page you already fetched for the items.** Free, so do it for
    every id you see. Vendors publish ratings inline far more often than it
    feels: Chrome's release blog tags each entry (`[$25000][…] Critical
    CVE-…`), Firefox's MFSA lists an impact per advisory, Node's
@@ -454,7 +461,7 @@ no source is not a rating.
 4. **Nothing.** Record `unknown`/`unrated`. This is a correct outcome, not a
    failure.
 
-**Never derive a severity from how the description reads.** "Remote code
+**Never derive a rating from how the description reads.** "Remote code
 execution" is not evidence of `critical`, and "memory leak" is not evidence of
 `low`. This is the same doctrine as §Links' "confirm you actually fetched the
 page you're linking" and assembly's `cve_count`-vs-`cve_claimed_count` split:
@@ -465,11 +472,14 @@ fetched.** This run's real distribution — `cask:google-chrome` 18 ids,
 `cask:firefox` 14, `mise:node` 12, `brew:rsync` 10, `mise:go` 10,
 `brew:nmap` 6, `brew:gh` 5, `brew:libpq` 4, everything else ≤4; 99 ids across
 41 tools. So: **rate free from the page you already read, for every id; then
-at most 3 extra fetches per tool** (per tool, not per batch), spent on the ids
-going into `notable[]` — and on nothing else. Every other id is `unknown`.
-"The vendor's prose singles this one out" is not a fourth budget: an id worth
-a fetch on that basis is an id that belongs in `notable[]`, so decide that
-first and let the budget follow.
+at most 3 extra fetches per tool** (per tool, not per batch), spent on the
+ids whose items you expect to clear the security display bar — rating
+`critical`, exploited in the wild, `direction == "reaches"`, or severity
+`warning`+ (`references/item-schema.md` §Security display) — and on nothing
+else. Every other id is `unknown`. "The vendor's prose singles this one
+out" is not a fourth budget: an id worth a fetch on that basis is an id
+whose item belongs on the card, so decide that first and let the budget
+follow.
 
 **`unknown` dominating is the expected state, not a degraded one.** Measured
 on this run's text: 22 of 99 ids carry a rating the research had already read,
@@ -479,117 +489,96 @@ graded classes that are non-zero. A subagent that fetched 18 Chrome advisories
 to avoid an `unknown: 14` cell spent the run's budget on the number least
 likely to change a decision — the reviewer is taking Chrome either way.
 
-**Never rate an advisory that has no CVE.** `cve_severities` is keyed by CVE
-id and feeds a count of `cve_ids`; a vendor-only advisory has no id to key
+**A CVE-less advisory never enters the rollup.** `severity_counts` is
+rolled up over CVE ids; a vendor-only advisory has no id to key
 (this run: wireshark's 28 `wnpa-sec-*`, tailscale's `TS-2026-011`,
 teamviewer's `TV-2026-1009`, and iproute2mac's command-injection fix, which
-was never assigned one at all). Those carry their severity on the
-`notable[]` entry instead, with `cve_id: null` and the vendor's id in
-`advisory_id`.
+was never assigned one at all). Its item still carries the full `security`
+block — `cve_id: null`, the vendor's id in `advisory_id`, and its
+`rating`/`rating_basis` on their own terms — and still clears the display
+bar on its own merits; it just never lands in `severity_counts`.
 
 Shape and validation: `references/schemas.md` §1.9; the rollup and its sum
 invariant: `references/assembly.md` §Severity Rollup and the Sum Invariant.
 
-### Selecting Notable Security Items
+### Security Items: Direction Decides the Display
 
-`security.notable[]` is the **only** security content shown inline on a tool's
-card. Everything else is compressed into the severity strip and a detail list
-that is collapsed by default. So the predicate has to be tight enough that two
-subagents pick the same ≤3 items.
+The security content shown inline on a tool's card is **derived, not
+selected**. The validator lists an item in the card's security block when
+its `rating` is `critical`, or it is `exploited_in_wild`, or its
+`local.direction` is `"reaches"`, or its severity is `warning`/
+`incompatible` (`items.is_security_display_item`; `references/schemas.md`
+§1.9's `display_item_ids`). There is **no cap** and nothing to rank: the
+old cap-of-3 `notable[]` invited padding and evicted the wrong items —
+openssh filled all three of its slots with items whose own summaries said
+the fix does not reach this machine. Whatever clears the bar is shown;
+everything else still exists, still renders in the collapsed detail, and
+still carries its findings.
 
-**An item qualifies when any of these holds:**
+So your job is not to pick the display; it is to write each
+`security`-tagged item's fields accurately, because the display follows
+them:
 
-- its `severity` is `critical` — unconditionally;
-- its `severity` is `high` **and** the flaw's precondition is something this
-  setup actually does (a network-facing service, untrusted input this machine
-  processes, code running as this user);
-- it is the subject of a `security`-category `relevancy[]` item at `notable`
-  or worse — **whether or not it names a CVE**. This clause is what makes the
-  24 tools with no extracted ids representable at all: `brew:iproute2mac`'s
-  reproduced command injection and `cask:wireshark-app`'s
-  `wnpa-sec-2026-87` are the two most important security items in this run
-  and neither has a CVE id;
-- the vendor or CISA reports in-the-wild exploitation, or it is a zero-day —
-  regardless of severity, because this is the one class where the reviewer's
-  *timing* changes.
+- **`local.direction` is the load-bearing field, and you set it
+  explicitly.** `"reaches"` means a concrete touchpoint on this setup — a
+  file, a service, a call site, a running process — in the same
+  evidentiary sense every `local` block demands, and I-14 requires a
+  reaching item to carry evidence. "The tool is installed" is not a
+  touchpoint; if it were, every item would reach and the field would
+  carry no information.
+- **A `does_not_reach` security item is still worth writing.** A third of
+  this run's security findings exist precisely to say the fix does *not*
+  reach this machine: openssh's sshd fix landing on Apple's
+  `/usr/sbin/sshd` rather than Homebrew's, `cask:microsoft-teams`' patch
+  that "carries no security benefit here", `brew:fd`'s terminal-gated
+  sanitization, `mise:python`'s own bundled expat, `brew:rsync`'s
+  rrsync/nixpkgs split. A negative-direction finding is the answer to a
+  question the reviewer would otherwise have to ask — and it stays off
+  the inline display unless its rating or severity puts it there, which
+  is correct.
+- **A reaching security fix is not "impact".** `impact` reads
+  `local.effect == "risk"` — a risk *of taking* the update — and a
+  security fix that lands on something this machine runs is a reason to
+  *take* it, so its `effect` is `benefit`. Treating a reaching fix as
+  impact emptied the `security_auto` bucket across a whole live run
+  (`references/assembly.md` §`impact`). Read the direction and effect off
+  your own finding and write both.
+- **Empty is the common, correct result — do not pad.** A tool with six
+  medium CVEs and no touchpoint renders a severity strip and no inline
+  security items, which is exactly the layout the user asked for. Seen
+  this run: `brew:redis` (its own items say "all nine of 8.10.1's fixes
+  are server-side") and `brew:nmap` (six bundled-libssh2 CVEs, no
+  touchpoint) both correctly show none. On the projected run, 24 of the
+  41 security-bearing tools come out empty.
 
-**Cap 3, ordered `affects_me: true` first**, then worst severity, then the CVE
-id's `(year, sequence)`, then an id-less entry last. Assembly re-sorts and
-re-caps by exactly this key *after* validating every entry, so an over-long
-array loses its weakest entries rather than its last ones — write your
-strongest item wherever it falls naturally.
+**Worked fields from this run:**
 
-`affects_me` outranks severity because the key evicts as well as orders, and
-an ungraded item is not a weak one: `unknown` ranks above `low`, not below it.
-The third clause above is what makes that matter — `brew:iproute2mac`'s
-never-assigned command injection is id-less, ungraded and lands on a wrapper
-this machine runs, and severity-first ordering let three unreachable `low`
-CVEs push it off the card entirely. The `severity` vocabulary is unchanged
-(`critical|high|medium|low|unknown`); only the rank moved.
-
-**Empty is the common, correct result — do not pad to three.** This is the
-rule that does the actual shrinking: a tool with six medium CVEs and no
-touchpoint gets `notable: []` and renders as a severity strip with a single
-column of changes, which is exactly the layout the user asked for. Seen this
-run: `brew:redis` (its own `context[]` says "all nine of 8.10.1's fixes are
-server-side") and `brew:nmap` (six bundled-libssh2 CVEs, no touchpoint) are
-both correctly empty. On the projected run, 24 of the 41 security-bearing
-tools come out empty.
-
-**`affects_me` is a direction, and you set it explicitly.** It means a
-concrete touchpoint on this setup — a file, a service, a call site, a running
-process — in the same evidentiary sense `relevancy[]` demands. "The tool is
-installed" is not a touchpoint; if it were, the flag would be true everywhere
-and carry no information.
-
-The trap is assuming that a security item *with* a relevancy finding is
-therefore `affects_me: true`. **It is not.** A third of this run's
-security-category relevancy items exist precisely to say the fix does *not*
-reach this machine: openssh's sshd fix landing on Apple's `/usr/sbin/sshd`
-rather than Homebrew's, `cask:microsoft-teams`' patch that "carries no
-security benefit here", `brew:fd`'s terminal-gated sanitization,
-`mise:python`'s own bundled expat, `brew:rsync`'s rrsync/nixpkgs split. Those
-are **`affects_me: false` and still worth writing** — a negative-direction
-finding is the answer to a question the reviewer would otherwise have to ask,
-and it may still be `notable` if its severity qualifies. Read the direction of
-your own finding and set the flag from it.
-
-The converse does hold: if you can point at the touchpoint, you owe a
-`relevancy[]` item too — they are the same claim. Assembly warns when
-`affects_me: true` has no security-category relevancy backing it, and warns
-only: it never sets or clears the flag for you.
-
-**`affects_me` does not change `security.impact`.** `impact` is a bucket
-input; `affects_me` is a display flag on one item. A security-category
-relevancy is a reason to *take* the update, not a risk of taking it — treating
-it as impact emptied the `security_auto` bucket across a whole live run
-(`references/assembly.md` §`impact`). Nothing here touches that.
-
-**Worked selections from this run:**
-
-| Tool | ids | `notable[]` | Why |
+| Tool | ids | what the fields say | what the card shows |
 |---|---:|---|---|
-| `brew:libpq` | 4 (28 claimed) | 3 — `CVE-2026-18408`, `CVE-2026-19385`, `CVE-2026-6464` | its `context[]` already says 3 of 28 land in code this machine runs, and those are the three; the fourth id is server-side |
-| `brew:gh` | 5 | 1 — `CVE-2026-64654` | it "lands directly on gh commands this machine pre-approves for agents"; the other four are real and untouched here |
-| `brew:iproute2mac` | 0 | 1 — `cve_id: null`, `advisory_id: null` | the installed 1.7.4 executes injected shell commands, reproduced on this machine. The run's best example of a `notable` with no id at all |
-| `cask:teamviewer` | 3 | 2 — `CVE-2026-12703`, `CVE-2026-16444`, **not** `CVE-2026-19042` | the highest CVSS on the card is the Linux-only one. It stays on the card as a low-priority item and must never be promoted |
+| `brew:libpq` | 4 (28 claimed) | 3 of the 28 land in code this machine runs — those three items are `reaches`; the fourth id is server-side, `does_not_reach` | the three reaching CVEs inline |
+| `brew:gh` | 5 | `CVE-2026-64654` "lands directly on gh commands this machine pre-approves for agents" — `reaches`; the other four are real and untouched here | one item inline |
+| `brew:iproute2mac` | 0 | the installed 1.7.4 executes injected shell commands, reproduced on this machine — `reaches`, with `cve_id: null`, `advisory_id: null` | the run's best example of a displayed security item with no id at all |
+| `cask:teamviewer` | 3 | `CVE-2026-19042` is rated `high` (basis `cvss`, 8.8) and is Linux-client-only — `does_not_reach`, severity `info` | the highest-rated CVE on the card stays out of the inline display |
 
-That last row is the whole rule in one line.
+That last row is the whole rule in one line: the rating records what the
+issuer said, the direction records what it means here, and neither is
+allowed to overwrite the other.
 
-**Write the `security` block even when nothing qualifies — `"notable": []`.**
-An empty array and a missing key are different answers to the card
-(`references/schemas.md` §1.9): `[]` says you looked and nothing rose to the
-bar, and the card drops its security column rather than drawing an empty one;
-a missing key says the question was never put, and assembly makes the card
-fall back to listing every security sentence the run produced. Omitting the
-block on a tool you did assess therefore ships the noisy card the whole
-selection exists to replace.
+**Every `security`-tagged item carries its `security` block** — I-4
+reports the omission (`E-SEC-BLOCK-MISSING`) and the converse
+(`E-SEC-BLOCK-ORPHAN`, a block on an item that forgot the tag). And when a
+release has security content the vendor refuses to detail, say exactly
+that with `vendor_silent_categories: ["security"]` rather than
+manufacturing items (§Don't Author "I Checked, Found Nothing") — the
+field is load-bearing, not cosmetic: it feeds `has_security` and keeps
+the tool out of the pre-accepting buckets.
 
 ### Links
 
 Always the canonical changelog for the version range; add release pages for
-majors and official blog posts when they exist. Every relevancy finding and
-suggestion should be traceable to a link. **Prefer the most specific
+majors and official blog posts when they exist. Every item and
+suggestion should be traceable to a link — an item's through
+`change.link_index`. **Prefer the most specific
 destination that actually covers the version range, never a generic "all
 versions" index page when a dedicated page for this range exists** — a
 GitHub Releases page for the specific tag, a CHANGELOG.md section anchor, a
@@ -608,42 +597,53 @@ omitted — the page renders that in a modal instead of navigating
 externally. This is the exception, not the default; most tools have a
 normal browsable page and should just link it.
 
-### Relevancy Is the Point
+### Local Findings Are the Point
 
-**Relevancy is the point of this skill.** Scan the user's setup repos —
-`~/project/github/tapppi/macos-setup` (Brewfile, tasks/, dotfiles/ submodule
-with shell/git/tmux/Claude configs) and
+**The `local` block is the point of this skill.** Scan the user's setup
+repos — `~/project/github/tapppi/macos-setup` (Brewfile, tasks/, dotfiles/
+submodule with shell/git/tmux/Claude configs) and
 `~/project/github/tapppi/systems` (NixOS flake) — plus machine facts, for
-places the tool is configured or its changed behavior lands. Severity:
-`incompatible` (won't work here — e.g. new major requires Apple Silicon on
-an Intel machine) > `warning` (breaks a config/workflow the user has) >
-`notable` (touches something they use) > `info`. Cite evidence as
-`file:line` paths. **`relevancy[]` requires a genuine `motivating_change`**
-— an actual changelog item driving the finding. If you're about to write
-`motivating_change: null` or something like "none found"/"not a
-changelog-driven finding", that finding isn't relevancy at all; see the next
-section for where it actually belongs.
+places the tool is configured or its changed behavior lands, and write
+what you find as the item's `local` block: `direction` (does this land on
+something this setup runs), `effect` (is that good or bad for me), a
+`statement`, and `evidence[]` as path objects
+(`references/item-schema.md` §3 — paths only; prose belongs in
+`citations[]`). Severity is the item's own: `incompatible` (something
+that works here today stops working — requires `reaches` and `risk`,
+I-2) > `warning` (a behaviour change here the reader must know before
+upgrading — requires a `local` block, I-3) > `notable` (worth reading; no
+action needed) > `info`. **A `local` block about a change rides the item
+whose `change` motivates it** — an actual changelog fact driving the
+finding. If there is no motivating change — you looked, and the finding
+is about this setup as it stands — that is not a change item; see the
+next section for where it actually belongs.
 
 ### Classify Non-Changelog Findings Correctly
 
-**Classify non-changelist findings correctly instead of defaulting them into
-`relevancy` with severity `"info"`.** Three different things show up during
-research that aren't "a changelog item affects this setup," and each has
-its own home (`references/schemas.md` §Report Object):
+**Classify non-changelog findings correctly instead of defaulting them
+into `info` change items.** Three different things show up during
+research that aren't "a changelog fact that lands on this setup," and
+each has its own home:
 
-- **`context[]`** — present-tense repo-scope/usage/locality/
-  config-verification notes: is this tool even used here, does a claimed
-  touchpoint actually hold, does existing script logic still cover this
-  release. E.g. "azure-cli has no bespoke touchpoint anywhere in this
-  repo," "duckdb is actively used by this machine's shell config," "the
-  existing warning and control flow in install_macos_sw remain accurate as
-  written." Keep these — they're genuinely useful — just route them to
-  `context`, not `relevancy`.
+- **A present-tense fact about this machine** — repo-scope, usage,
+  locality, config-verification: is this tool even used here, does a
+  claimed touchpoint actually hold, does existing script logic still
+  cover this release. When it qualifies a change you are already
+  reporting, it *is* that item's `local` block — "ffv/rfv run fzf with
+  the matcher disabled" belongs on the speedup item it defuses
+  (`direction: "does_not_reach"`, `effect: "none"`), never beside it as a
+  second entry. When it stands alone and a reviewer deciding this tool
+  would act on it, write a `local`-only item — `change: null`; I-1
+  accepts either half alone — e.g. "duckdb is actively used by this
+  machine's shell config", tagged for what it is about, at `info` unless
+  it changes a decision. When it verifies prior config handling, it
+  belongs in `config_status.detail`/`evidence` (§Config Status), not in
+  `items[]` at all.
 - **`release_inventory[]`** — bookkeeping about which releases exist in the
   current→latest range (e.g. "two releases landed: 2026.06.09 and
-  2026.07.04"). This is inventory about the range itself, not a claim about
-  tool behavior; it doesn't belong as prose under any content group or
-  under `context` — one `{version, link}` entry per release.
+  2026.07.04"). This is inventory about the range itself, not a claim
+  about tool behavior; it doesn't belong in `items[]` — one
+  `{version, link}` entry per release.
 - **Pure absence-of-change statements** — "no mention in the release notes
   of any change to X" with nothing else to say. These aren't findings at
   all; per the next section's filler-suppression rule, omit them entirely
@@ -651,26 +651,30 @@ its own home (`references/schemas.md` §Report Object):
 
 ### Don't Author "I Checked, Found Nothing"
 
-An empty `relevancy`/`context` array is the normal, expected result for most
+Finding no local touchpoint is the normal, expected result for most
 tools on most runs — it does not need an item that says so. Seen this run:
 "None of the 18 CVEs... apply to this repo's curl usage pattern," "No
 relevant change found (checked commit range for 'focus' keyword)," and,
-filed under FIXES as if it were a real changelog bullet, "No breaking
+filed as if it were a real changelog fix, "No breaking
 changes identified between 1.95.0 and 1.96.1." All of these should have been
 *nothing* — omit the item entirely rather than narrating the due-diligence
-that produced an empty result.
+that produced an empty result. (A scoping statement on a real change is
+different: "this fix does not reach us" is that item's `local` block with
+`direction: "does_not_reach"`, and §Security Items: Direction Decides the
+Display says why those are worth writing.)
 
 **Exception — vendor genuinely publishes no detail.** When a release
 happened (so it's worth acknowledging) but the vendor's own notes are just a
 non-answer ("This release includes security improvements. Updating is
-recommended.", with nothing technical ever published), don't manufacture 1-2
-bullets restating that non-answer — render a single small compact tag
-instead (e.g. "No detailed changelog published"), with the link living once
-on the tool's canonical changelog reference, not repeated per bullet. Seen
-this run: Slack's research produced two redundant SECURITY bullets citing
+recommended.", with nothing technical ever published), don't manufacture
+one or two items restating that non-answer — name the category in
+`vendor_silent_categories` (e.g. `["security"]`), which renders a single
+small compact tag in its place, with the link living once on the tool's
+canonical changelog reference. Seen
+this run: Slack's research produced two redundant security bullets citing
 the identical release-notes link, one restating the vendor's non-answer and
 one explicitly noting the vendor doesn't publish detail — should have been
-one compact tag.
+the one field.
 
 ### The Noise Floor
 
@@ -684,37 +688,41 @@ change a decision is attention taken from one that can, so:
 Two corollaries. The first keeps the rule from over-firing; the second keeps
 it from changing a decision it has no business changing.
 
-**Route, trim or merge before you cut.** Most of what follows is not deletion
-— it is relocation into `release_inventory[]` (which releases exist) or
-`context[]` (what is true of this machine), or a trimmed clause on a bullet
-that keeps its load-bearing half, or two near-identical bullets becoming one.
+**Route, trim, retag or merge before you cut.** Most of what follows is
+not deletion — it is relocation into `release_inventory[]` (which releases
+exist) or an item's `local` block (what is true of this machine), or a
+trimmed clause on an item that keeps its load-bearing half, or two
+near-identical items becoming one, or the `chore` tag at `info`: the
+explicit way to say "real and inconsequential", so the page collapses it
+and convergence can still see it.
 
-**Deletion has a hard boundary, and it is not editorial.** `security_only` is
-an `all()` over `headliners + relevancy`; `impact` and `risk_level` are
-`any()`s over the same items; `has_security` reads the security category and
-the CVE ids. All four feed `review_bucket` and then `pre_accept`, so a
-deletion can *approve an update*. Concretely: cut the last `security` item and
-the tool falls out of the security buckets into `routine`; cut the last
-`features` item and it walks the other way, from `security_mixed` into
-`security_auto`, and pre-accepts itself. **Delete only these, and only when
-the text carries no CVE id, no "fixes N CVEs" claim and no item carrying
-`watch_hit`, and never the tool's last headliner:**
+**Deletion has a hard boundary, and it is not editorial.** `security_only`
+is an `all()` over `items[]`; `impact` and `risk_level` are `any()`s over
+the same items; `has_security` reads the `security` tag, the per-item
+`security` blocks and `vendor_silent_categories`. All four feed
+`review_bucket` and then `pre_accept`, so a
+deletion can *approve an update*. Concretely: cut the last
+`security`-tagged item and the tool falls out of the security buckets into
+`routine`; cut the last `feature` item and it walks the other way, from
+`security_mixed` into `security_auto`, and pre-accepts itself. **Delete
+only these, and only when the text carries no CVE id, no "fixes N CVEs"
+claim and no item carrying `watch_hit`, and never the tool's last item:**
 
-| Array | Deletable pairs |
+| Tags | Deletable at |
 |---|---|
-| `headliners[]` | `fixes/info`, `fixes/notable`, `notes/info` |
-| `relevancy[]` | `fixes/info`, `notes/info` |
+| `fix` alone | `info`; `notable` only when the item has no `local` block |
+| `packaging`/`chore`, no other tag | `info` |
 
-**A `security`-category item is never deletable as noise, at any severity.**
+**A `security`-tagged item is never deletable as noise, at any severity.**
 The only rule that may remove one is the dedup rule below, and only against
-another security item on the same tool. Everything the user named as noise is
-non-security by category, so this costs nothing.
+another security item on the same tool. Everything the user named as noise
+is non-security by tag, so this costs nothing.
 
 If the noise floor tells you to delete something outside that table, it is
-telling you the item's category or severity is wrong, not that the item should
-go. A cadence note filed `notes/notable` is a mis-rating — nothing that cannot
-change a decision is `notable`. A performance bullet filed `features/info` is
-a bullet to **trim**, because `features` is precisely the signal that says
+telling you the item's tags or severity are wrong, not that the item should
+go. A cadence note at `notable` is a mis-rating — nothing that cannot
+change a decision is `notable`. A performance item at `info` is an item to
+**trim**, because `perf` and `feature` are precisely the signals that say
 "this release is more than patches".
 
 **The boundary is no longer encoded in code, and that is deliberate.**
@@ -735,7 +743,8 @@ ready to apply.
 **N1 — Release cadence and publication process.** Facts about *when and how
 the vendor published*: build numbers of releases you are not taking,
 patch-Tuesday chronology, "there is no 8.9", "18.5 was pulled", tag-vs-release
-bookkeeping, contributor counts. Seen this run, in `brew:libpq`'s `notes`:
+bookkeeping, contributor counts. Seen this run, a `brew:libpq` `chore`
+item:
 *"PostgreSQL 18.5 was never shipped — the project pulled it over a regression
 and went straight from 18.4 to 18.6."* Genuinely interesting to someone
 reading advisory metadata, and useless here: the reviewer is on 18.4 going to
@@ -753,32 +762,33 @@ The discriminator: does the sentence describe the release you are moving to
 
 **N2 — Regressions in versions you step over.** A defect introduced *after*
 `current_version` and fixed at or before `latest_version` is invisible to this
-upgrade. Seen this run, `brew:pkgconf`'s `relevancy`: *"Going 3.0.3 → 3.0.6
-steps over 3.0.4's parse-time unescaping…"* — whose own detail text ends by
+upgrade. Seen this run, on `brew:pkgconf`: *"Going 3.0.3 → 3.0.6
+steps over 3.0.4's parse-time unescaping…"* — whose own body ends by
 admitting the point, *"this host never runs the 3.0.4-only behavior"*. It
-spent a relevancy slot and pushed the tool's `why` line. See §Current → Target
+spent an item on a version this machine never ran and pushed the tool's
+`why` line. See §Current → Target
 Is the Only Frame for the general rule and the one carve-out. **Near-miss:**
 `brew:sops`' MAC-computation regression looks identical in shape and is the
 opposite, because 3.13.2 *is the installed version* — the regression is live
 right now and the upgrade is the fix.
 
 **N3 — Performance micro-details.** A speed or memory number is a fact only
-when it crosses a threshold the reviewer would act on. Seen this run, in
-`brew:fzf`'s `features`: *"0.74.3 optimizes non-ASCII input: reading accented
+when it crosses a threshold the reviewer would act on. Seen this run, a
+`brew:fzf` `perf` item: *"0.74.3 optimizes non-ASCII input: reading accented
 Latin input up to 37% faster and CJK input using up to 29% less memory."* —
-while the same tool's `context[]` already says *"ffv/rfv run fzf with the
+whose own `local` block already says *"ffv/rfv run fzf with the
 matcher disabled, so neither release's speedups reach them"*. Nobody declines
 an upgrade because it got faster. **Near-miss:** a defect with an observable
 symptom is not an optimisation (`cask:yaak`'s *"constant high CPU usage while
 idle"*), and a step change is a fact in its own right (`brew:pkgconf`'s
 *"roughly six times faster … on a ~40-module graph"*). A workable bright line:
 an order of magnitude, on something you invoke repeatedly. 6× clears it; 37%
-does not. Remember these are `features` items, so the move is to trim to the
+does not. Remember these are `perf` items, so the move is to trim to the
 load-bearing clause, not to delete.
 
 **N4 — Project-internal conventions, process, docs, packaging.** How the
 project runs itself is not a change in the software you run. Seen this run,
-`brew:yt-dlp`'s `notes`: *"Build: PyInstaller temporarily pinned to v6.22.0
+a `brew:yt-dlp` `chore` item: *"Build: PyInstaller temporarily pinned to v6.22.0
 (#17478) and 38 dependencies updated across two PRs. Affects the released
 binaries' build, not the Homebrew formula this host installs."* A bullet that
 concludes with its own irrelevance should not have been written. **Near-miss:**
@@ -791,7 +801,7 @@ The discriminator: would the fact still be true under a different maintainer,
 licence, docs toolchain or CI? Then it is about the project, not the software.
 
 **N5 — Dependency-bump inventory with no stated effect.** A list of bumped
-versions is inventory. Seen this run, `brew:azcopy`'s `notes`:
+versions is inventory. Seen this run, a `brew:azcopy` `packaging` item:
 *"golang.org/x/crypto → v0.54.0, golang.org/x/net → v0.57.0 … (routine
 dependency refresh; the vendor does not flag any of them as an advisory
 fix)"* — self-refuting in its own parenthesis. It becomes a fact when it names
@@ -804,17 +814,19 @@ mpv's card and ffmpeg's card one decision).
 
 **N6 — Changes that do not reach this platform.** An item whose own text
 scopes it to Windows, Linux, s390, or a server component of a client-only
-install is not a change here. Seen this run, `cask:codex`'s `security`:
-*"0.148.0 makes sandbox restrictions fail closed for denied or unreadable
-paths **on Linux and Windows** …"* — a security headliner on a macOS-only
-fleet. **Near-miss, and this is the important half:** when the item carries a
-CVE, a CVSS or a scary name a reviewer might meet elsewhere, the scoping *is*
-the finding. `cask:teamviewer`'s *"CVE-2026-19042 (CVSS 8.8) … is
-Linux-client-only and does not affect the macOS builds"* must stay — and must
-never be promoted into `notable[]`. Its aggregate form belongs in `context[]`,
-which is where `brew:libpq`'s *"Client-only install: 3 of the 28 CVEs land in
-code this machine runs, 25 do not"* correctly sits — the single most useful
-line on that card. Note that under the boundary above, a `security`-category
+install is not a change here. Seen this run, a `cask:codex`
+`security`-tagged item: *"0.148.0 makes sandbox restrictions fail closed for
+denied or unreadable paths **on Linux and Windows** …"* — a security item on
+a macOS-only fleet. **Near-miss, and this is the important half:** when the
+item carries a CVE, a CVSS or a scary name a reviewer might meet elsewhere,
+the scoping *is* the finding. `cask:teamviewer`'s *"CVE-2026-19042 (CVSS
+8.8) … is Linux-client-only and does not affect the macOS builds"* must
+stay — written `does_not_reach`, so the display bar correctly leaves it out
+of the inline security list (§Security Items: Direction Decides the
+Display). Its aggregate form belongs in a `local` statement, which is where
+`brew:libpq`'s *"Client-only install: 3 of the 28 CVEs land in code this
+machine runs, 25 do not"* correctly sits — the single most useful line on
+that card. Note that under the boundary above, a `security`-tagged
 platform-scoped item is trimmed (drop the Windows clause), never deleted.
 
 **N7 — Vacuous items and narrated due diligence.** §Don't Author "I Checked,
@@ -831,14 +843,15 @@ characterisation of the target, and the number is a scale cue. The
 discriminator: the keeper says what the release **is**; the cut says what you
 **did**.
 
-**N8 — One change spent as many bullets.** The ≤6 headliner budget is per
-tool, not per changelog section. Seen this run, `cask:gcloud-cli` spends
-**five** of six `notes` bullets on one theme — the retirement of the
-`api-registry mcp` / `beta services mcp` surfaces across 577–582 — so its six
-slots contain no answer to "does anything I run break". One bullet carries the
-same decision. **Near-miss:** `cask:tor-browser`'s two `security` bullets are
-identical in shape and different in content — two distinct ESR rebases
-carrying two distinct MFSA sets. N8 fires on redundancy, not on symmetry.
+**N8 — One change spent as many items.** There is no item cap any more
+(§One Change, One Item), so redundancy is caught by shape, not by count.
+Seen this run, `cask:gcloud-cli` spends **five** near-identical notes on one
+theme — the retirement of the `api-registry mcp` / `beta services mcp`
+surfaces across 577–582 — so the card contains no answer to "does anything
+I run break". One item carries the same decision. **Near-miss:**
+`cask:tor-browser`'s two `security` items are identical in shape and
+different in content — two distinct ESR rebases carrying two distinct MFSA
+sets. N8 fires on redundancy, not on symmetry.
 
 ### Current → Target Is the Only Frame
 
@@ -863,7 +876,7 @@ For `current = C`, `target = T`, and an intermediate `I` with `C < I < T`:
 Row four is subtler than it looks and produced this run's most misleading
 item: `cask:obsidian`'s *"The `obsidian://` confirmation dialog added in
 1.13.0 was removed again in 1.13.6, so the `to` alias steps over the gate
-entirely"*, filed as a **security** relevancy. A gate added and removed inside
+entirely"*, filed as a **`security`-tagged item**. A gate added and removed inside
 the range leaves the end state identical to the start state — the finding
 manufactured a security item out of a no-op.
 
@@ -873,7 +886,7 @@ the card offers exactly one target. All three phrasings appear in this run and
 all three are cuts. Equally: do not reconstruct intermediate history to
 explain a net-zero — if the reconstruction ends "so nothing changes here", it
 was not a finding. (A *pin* that would stop at an intermediate is a different
-thing: that is a relevancy finding about the pin, and the target is then the
+thing: that is a local finding about the pin, and the target is then the
 pinned version — see §Pinned Tools.)
 
 **The one carve-out: MAJOR security in an intermediate.** An intermediate
@@ -882,9 +895,10 @@ I exposed to while I sat on `C`" — so it is worth a line. It qualifies only if
 it meets **both** tests: severity `critical`, or `high` with a published CVSS
 ≥ 7.0 (§CVE Severity Capture's recorded value, not an impression); **and** the
 exposure required something this setup actually does, evidenced as concretely
-as `relevancy[]` demands. A critical CVE in a code path this machine never
-enters is still a cut. Frame it explicitly as exposure, and keep it out of
-`security.notable[]`, which is about what this patch delivers. **No item in
+as a `local` block demands. A critical CVE in a code path this machine never
+enters is still a cut. Frame it explicitly as exposure — and do not write it
+as `reaches`, because the exposure ends the moment the upgrade lands and the
+inline security display is about what this patch delivers. **No item in
 this entire run cleared that bar**, which is the expected frequency: a run
 where several items claim the carve-out is a run where the bar is being read
 too loosely.
@@ -909,7 +923,7 @@ excuse to stop looking: "verify again, just from the version that was
 already handled to the newest version" instead of from scratch.
 
 1. Grep targeted `git log --oneline -- <files you're already inspecting for
-   relevancy>` (its Brewfile line, its `tasks/*.sh` section, its dotfiles
+   local findings>` (its Brewfile line, its `tasks/*.sh` section, its dotfiles
    config) — beyond just the last 20 commits in `repo_context` — for a
    commit whose message references this tool or its version.
 2. Check
@@ -931,7 +945,7 @@ already handled to the newest version" instead of from scratch.
      re-verify the **V→`latest_version` delta's** changelog for a
      config-relevant change, the same cross-referencing this rule already
      used (grep the prior fix's own commit message/diff for keywords that
-     also appear in this run's headliners — e.g. "libkrun", "Apple Silicon",
+     also appear in this run's items — e.g. "libkrun", "Apple Silicon",
      the specific flag/requirement named):
      - Delta **contains** a change that could affect this tool's
        config/setup: `state: "needs_attention"`, with `detail` naming
@@ -953,7 +967,7 @@ already handled to the newest version" instead of from scratch.
    other finding.
 
 This deliberately reuses the same "cite it or don't claim it" discipline as
-`relevancy[]` — a verdict, in either direction, without a concrete look at
+an item's `local` block — a verdict, in either direction, without a concrete look at
 the V→latest delta is worse than no verdict at all.
 
 **A `"needs_attention"` verdict must come with at least one suggestion
@@ -1301,7 +1315,7 @@ security-critical or load-bearing.**
 
 It does **not** mean proposing one for every tool with a pin, a bespoke
 touchpoint, or a `needs_attention` verdict — those are already tracked via
-`config_status`/relevancy on every run.
+`config_status` and items' `local` findings on every run.
 
 **How to propose one**: add a suggestion to the tool's `suggestions[]` with
 `kind: "watch-item"` (`references/schemas.md` §1.7) — same array, same schema
@@ -1472,24 +1486,23 @@ Volume is handled where volume is visible: a later pass reads every tool's
 output at once and cuts what does not hold. Your job is to be right about this
 tool, not to be economical about the fleet.
 
-### Deduplicate Facts (Across Arrays, and Within One)
+### Deduplicate Facts (One Array, Same Discipline)
 
-**Deduplicate facts across headliners and relevancy for the same tool
-before returning.** It's easy to restate one underlying change twice — once
-as a headliner bullet, once as a relevancy finding citing the same
-PR/commit to reach the same conclusion (seen this run: codex's CI/release
-signing migration to Azure Key Vault + rcodesign showed up as both a
-headliner and a full relevancy finding about the same quarantine
-workaround). Once you've drafted both arrays, check whether any headliner
-and relevancy finding describe the same underlying change; if so, keep it
-once — normally as the relevancy finding, since that's the more specific,
-actionable placement — and drop or trim the headliner rather than shipping
-both. Do this self-check every time rather than assuming it won't happen;
-it happens by default when a change is both changelog-worthy and relevant
-to this setup.
+**One `items[]` removes the old cross-array duplication by construction** —
+a change can no longer be written once as a headline bullet and once as a
+separate machine-relevance finding, because the upstream fact and the local
+finding are two halves of one item (seen this run, under the old shape:
+codex's CI/release signing migration to Azure Key Vault + rcodesign shipped
+twice, as both, about the same quarantine workaround — the item model fuses
+that pair). When a change is both changelog-worthy and relevant to this
+setup, that is **one item** with both `change` and `local`, never two.
 
-**The other axis: two headliners inside one tool restating one change.** The
-canonical pair, seen this run in `cask:1password-cli`, both `features/info`,
+What survives the merge is the other axis: **two items restating one
+change.** The validator catches the mechanical case — two items deriving
+one anchor id raise `E-ITEM-DUP-ANCHOR`, and both are kept for convergence
+to merge — so what is left to you is the pair the anchors cannot see: same
+change, different anchors. The
+canonical pair, seen this run in `cask:1password-cli`, both `feature`/`info`,
 both citing 2.38.1:
 
 > Reading an item with `op read` or `op item get` uses one fewer network
@@ -1498,31 +1511,31 @@ both citing 2.38.1:
 > Resolving an item or vault by name uses one fewer round-trip across
 > `op read`, `op item get`, `op item list` and `op vault get` (2.38.1)
 
-Same release, same mechanism, overlapping command set — two of six headliner
-slots on one optimisation. `brew:yq` did the same with two adjacent
+Same release, same mechanism, overlapping command set — two items on one
+optimisation. `brew:yq` did the same with two adjacent
 enumerations of 4.53.4's bugfix list.
 
-Run this as a bounded mechanical pass once both arrays are drafted, not as
+Run this as a bounded mechanical pass once `items[]` is drafted, not as
 "be careful" — "I'll notice if it happens" is exactly what failed this run:
 
-1. **Key every item.** For each entry in `headliners + relevancy`, write a
+1. **Key every item.** For each element of `items[]`, write a
    three-part key in your reasoning: *(the release or version it cites, the
    subject it changes as a noun phrase, the direction of the change)*. The
    1Password pair keys as `(2.38.1, item/vault resolution, fewer
    round-trips)` — twice.
-2. **Compare every pair.** ≤6 headliners plus typically ≤5 relevancy items is
-   ≤55 pairs; cheap and finite. Two items are candidates when they share the
+2. **Compare every pair.** A typical tool's item count keeps this cheap and
+   finite. Two items are candidates when they share the
    **version** *and* the **subject**. Direction alone is not enough.
 3. **Apply the reader test.** Would a reader who had seen only item A ask a
    question item B answers? If no, they are one item.
 4. **Merge, do not drop.** The survivor keeps the union of the specifics — the
-   1Password pair merges to one bullet naming all four commands. Merging is
-   also the safe move mechanically: it keeps the surviving item's category and
+   1Password pair merges to one item naming all four commands. Merging is
+   also the safe move mechanically: it keeps the surviving item's tags and
    severity, so it cannot move a bucket the way a deletion can (§The Noise
    Floor).
-5. **Re-run the budget.** A merge frees a slot; spend it on something not yet
-   covered, or ship five bullets. Do not backfill with an N1–N8 item to get
-   back to six.
+5. **Do not backfill.** A merge is not a freed slot to spend — there is no
+   budget to refill (§One Change, One Item) — so never follow a merge with
+   an N1–N8 item to restore a count nothing asked for.
 
 Two boundaries. The **version conjunction in step 2 is load-bearing**:
 `cask:tor-browser`'s two `security` bullets share subject and direction but
@@ -1533,23 +1546,24 @@ duplication**: `cask:brave-browser` restates `cask:google-chrome`'s Chromium
 numbers word for word and both must stay — two separate decisions on two
 separate casks. The rule is scoped to one tool, always.
 
-Within `security.notable[]` the same rule is the *only* thing allowed to
-remove a security item: two entries describing one advisory become one, and
+Among `security`-tagged items the same rule is the *only* thing allowed to
+remove one: two items describing one advisory become one, and
 nothing else about a security item is ever cut for length (§The Noise Floor).
 
 ### Scope-vs-Changelog Separation
 
 **Separate a changelog fact from a note about *this machine's* scope or
-usage of the tool.** "v5 dropped X" is a changelog fact (Security/Fixes/
-Features); "this tool isn't currently in the Brewfile" or "we don't use the
-feature this release changes" is context about *this setup*, not a change
-in the tool itself — keep the two apart in your returned object
-(`relevancy[]` for the former is fine, but don't write a scope/usage
-observation as if it were a headliner). Rendering pulls context-flavored
-notes into their own section (`references/rendering-report.md` §Page
-Layout) instead of mixing them into the changelog groups, so return them in
-a way that's cleanly separable — don't bury a scope note as an extra clause
-on a changelog bullet.
+usage of the tool.** "v5 dropped X" is a changelog fact — an item's
+`change` half, cited verbatim in `change.citation`; "this tool isn't
+currently in the Brewfile" or "we don't use the feature this release
+changes" is about *this setup* — the item's `local` half, or a
+`local`-only item when no change motivates it (§Classify Non-Changelog
+Findings Correctly). The item model keeps the two apart on one item:
+`change.citation` is the upstream's text, `local.statement` is yours.
+Rendering separates the two halves (`references/rendering-report.md` §Page
+Layout), so never bury a scope note as an extra clause inside a
+`change.citation`, and never write a scope observation as if it were an
+upstream fact.
 
 ### Bespoke `tasks/*.sh` Setup Testing
 
@@ -1565,7 +1579,7 @@ apply-time tail — how an accepted, tested fix actually gets applied — is
 here):
 
 1. **Read the current function implementation** and compare it against this
-   run's headliners/changelog to judge whether the function's own logic
+   run's items/changelog to judge whether the function's own logic
    (not just the package version) needs to change — e.g. a
    removed/renamed flag, a changed default, a new required step.
 2. **If a change is needed, identify the specific underlying command(s)
@@ -1615,30 +1629,31 @@ you write in one pass. Just do it in that order.
 ### Schema Strictness
 
 **Hold yourself to the exact schema shapes** (spelled out in the research
-prompt): `evidence` is always an array, suggestions always use
-`title`/`target_files`/`rationale`/`motivating_link`/`diff_preview`, and the
-security block is `security.cve_severities[{cve_id, severity, basis}]` plus
-`security.notable[{cve_id, advisory_id, severity, summary, affects_me}]`
-(`references/schemas.md` §1.9). Loose
+prompt): `local.evidence` is always an array of path objects, suggestions
+always use `title`/`target_files`/`rationale`/`motivating_link`/
+`diff_preview`, and a `security`-tagged item always carries its `security`
+block — `{cve_id, advisory_id, rating, rating_basis, exploited_in_wild}`
+(`references/item-schema.md` §2). Loose
 shapes (bare strings, ad-hoc `description` fields) force hand
 normalization during assembly and have caused real rework.
 
-**Assembly tolerates a drifted shape; that does not make it acceptable.**
-Every array the schema declares — `headliners`, `links`, `relevancy`,
-`context`, `release_inventory`, `suggestions`, `vendor_silent_categories`, and
-the `security` block's `cve_severities`/`notable` — is
-coerced at the boundary by `as_item_list()` (`references/assembly.md`
-§Loading and Merging → Shape Normalization): a non-list becomes `[]`, a
-wrong-typed member is dropped, and each case prints a warning naming the tool
-and the field. That exists because one report is assembled from ~22 research
-files covering ~77 tools, and a single drifted file used to abort the whole
-run *after* the expensive part of the session was already spent — the
-tolerance buys a warned-about tool instead of a destroyed report.
+**The validator tolerates a drifted shape; that does not make it
+acceptable.** Every array the contract declares — `items`, `links`,
+`release_inventory`, `suggestions`, `vendor_silent_categories` — is
+normalized at the boundary (`references/item-schema.md` §7, stage V3): a
+non-list becomes `[]` and is reported (`W-SHAPE-COERCED`), a wrong-typed
+member is quarantined on the tool verbatim, and every case is a finding
+naming the tool and the field. That exists because one report is assembled
+from ~22 research files covering ~77 tools, and a single drifted file used
+to abort the whole run *after* the expensive part of the session was
+already spent — the tolerance buys a reported, held-for-review tool
+instead of a destroyed report.
 
-What it does **not** buy is your content surviving. A `"headliners": "no
-notable changes"` string is not parsed into a headliner; it is discarded, and
-the tool then classifies as "research told us nothing" — `risk_level` elevates
-and the card ships with no changelog at all. Writing the array correctly is
+What it does **not** buy is your work reaching the reviewer as written. An
+`"items": "no notable changes"` string is not parsed into an item; it is
+coerced to `[]`, the coercion is content-losing
+(`references/item-schema.md` §8), and the tool is held in `attention` at
+`elevated` risk with no changelog at all. Writing the array correctly is
 still the only way the work you did reaches the user.
 
 ### Depth by Tool
@@ -1697,15 +1712,15 @@ page — the finding hands you `upstream_url`, `upstream_branch`,
    a `--stat`. Same for a renamed or moved skill directory: it breaks the
    `.claude-plugin/marketplace.json` entry and every symlink
    `tasks/projects.sh` writes into a repo's `.claude/skills/`, which is an
-   `incompatible`-severity relevancy finding, not a note.
+   `incompatible`-severity item (`reaches`/`risk`), not a note.
 3. **Cross-reference the vendor's `CUSTOMISATION.md`.** A documented local
    patch touching the same files is what turns "sync it" into "sync it and
    re-apply X" — mandatory for a `diverged` finding, whose whole character
    is that both sides moved; a suggestion that reads as a clean pull there
    is actively misleading. For a `local_only` finding the same check is the
    reassuring half: the customisation is intact and upstream has not moved,
-   so the honest output is a short `context[]` note naming the patch, not a
-   relevancy item and not a suggestion.
+   so the honest output is a short `local`-only item naming the patch
+   (`chore` at `info`), not a warning and not a suggestion.
 4. **Answer "is this sync safe to take", concretely** — new or removed
    scripts the skill shells out to, a changed dependency, a new required
    tool, an instruction that now conflicts with this setup's own CLAUDE.md

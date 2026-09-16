@@ -146,8 +146,8 @@ class IntelBrewfileTests(GuidelineTestCase):
 					self.assertTrue(any(f in window for f in forbidding),
 						"unexplained mention: " + line.strip())
 
-	def test_the_relevancy_scan_list_names_only_the_live_manifest(self):
-		scan = section_of(RESEARCH, "### Relevancy Is the Point",
+	def test_the_local_findings_scan_list_names_only_the_live_manifest(self):
+		scan = section_of(RESEARCH, "### Local Findings Are the Point",
 			"### Classify Non-Changelog Findings Correctly")
 		self.assertSays("Brewfile", scan)
 		self.assertNotIn("intel.Brewfile", scan)
@@ -665,7 +665,7 @@ class OutwardFacingTests(GuidelineTestCase):
 
 	def section(self):
 		return section_of(RESEARCH, "### Items Are Outward-Facing Changes",
-			"### Headliners")
+			"### One Change, One Item")
 
 	def test_the_rule_reaches_the_agent_that_writes_items(self):
 		text = self.section()
