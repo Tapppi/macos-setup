@@ -214,6 +214,31 @@ tiering/dispatch mechanics summarized above.
 On subagent failure/timeout, set `research_error` and keep the tool listed
 with versions only.
 
+### 3b. Converge
+
+When every research file is in, run the deterministic prepare step, then
+review the whole corpus yourself — this is the one agentic stage that sees
+every tool at once, and the final trimming surface:
+
+```sh
+python3 scripts/apply_converge.py --session {session_dir} --prepare \
+	--macos-setup-root {macos_setup_root}
+```
+
+Read `references/convergence.md` in full, then `converge-view.json` and
+`converge-tables.json`, and write your modification list to
+`converge.draft.json`. Self-check with `--check` (free, writes nothing) until
+clean, then `--submit`. The applier — not you — applies the edits, counts the
+attempts, and enforces the five-attempt loop: a critical finding bounces the
+submission with coded, resolved-value findings; at attempt 5 the run degrades
+conservatively (`degraded_gate` / `degraded_unapplied`) with a first-class
+`convergence_status` explanation instead of dying. It writes
+`corpus.post.json` and `converge-effect.json` beside the untouched
+`corpus.pre.json`, so the work is checkable by comparison rather than
+asserted. (Step 4's report still renders the pre-convergence corpus until the
+report pass wires `corpus.post.json` / `converge-effect.json` through — the
+artefacts and their shapes are final.)
+
 ### 4. Assemble and render
 
 Run `scripts/assemble.py`. It runs the deterministic validator over
