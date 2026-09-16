@@ -99,9 +99,16 @@ if ! printf '%s' "${brew_json}" | jq -e . >/dev/null 2>&1; then
 	brew_json='[]'
 fi
 
-# Pinned formulae are hidden from `brew outdated` by default; surface them
-# explicitly so a pinned-but-behind tool (the whole point of a pin) shows up.
-# Filtered to Brewfile-manifested formulae only, same scope as brew_json
+# A second surface for pinned formulae. Current brew's `brew outdated` DOES
+# list them (verified against Homebrew/Library/Homebrew/cmd/outdated.rb:
+# an outdated pinned formula prints with a "[pinned at ...]" suffix and
+# carries `pinned:` in the JSON read above), so a pinned-and-behind formula
+# already arrives via brew_json and `unique_by(.id)` below keeps that entry;
+# the one shape only this block emits is a pinned-and-CURRENT formula, which
+# the current != latest filter at the end then drops. Kept as a belt anyway:
+# pinning is exactly where a silently missed update hurts most, and
+# outdated's inclusion of pinned formulae is brew behaviour, not our
+# contract. Filtered to Brewfile-manifested formulae only, same scope as brew_json
 # above — a pin on a transitive dependency (not in the Brewfile) isn't ours
 # to track and shouldn't pollute the report.
 pinned_json="[]"

@@ -293,9 +293,12 @@ class CollectPinnedRevisionTests(CollectRunner):
 	def test_pinned_and_current_at_a_revision_is_not_a_phantom_downgrade(self):
 		"""Measured before the fix: `duti` emitted "1.5.4_1 → 1.5.4" — a
 		downgrade card that survives the current != latest filter — for a
-		pinned formula with nothing to report. `brew outdated` does include
-		pinned formulae, so pinned-and-current is exactly the case only this
-		block ever surfaces."""
+		pinned formula with nothing to report. Current brew's `brew outdated`
+		DOES list pinned formulae (pinning gates `brew upgrade`, never
+		`outdated` — see the comment on collect.sh's pinned block), so a
+		pinned-and-behind formula already arrives via brew_json and dedupes;
+		pinned-and-current is the one shape only the pinned block emits, and
+		it must emit nothing that survives the filter."""
 		report = self.collect('brew "duti"\ncask "1password"\n',
 			{"formulae": [], "casks": []},
 			pinned="duti\n", info=self.INFO_CURRENT_AT_REVISION)
