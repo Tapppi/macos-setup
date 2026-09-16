@@ -697,8 +697,8 @@ deletion can *approve an update*. Concretely: cut the last `security` item and
 the tool falls out of the security buckets into `routine`; cut the last
 `features` item and it walks the other way, from `security_mixed` into
 `security_auto`, and pre-accepts itself. **Delete only these, and only when
-the text carries no CVE id, no "fixes N CVEs" claim and no `Watch item hit:`,
-and never the tool's last headliner:**
+the text carries no CVE id, no "fixes N CVEs" claim and no item carrying
+`watch_hit`, and never the tool's last headliner:**
 
 | Array | Deletable pairs |
 |---|---|
@@ -1152,9 +1152,10 @@ The two are read at different moments:
 Method notes carry no reporting obligation: an accepted note is an instruction
 to you, and following it is all it asks. If a note turns out to be wrong — the
 vendor started publishing properly, the path it names no longer exists — say so
-in your `context[]` findings, so the store can be corrected. A stale method note
-that nobody contradicts is worse than none, because it sends every future run
-to the wrong place with confidence.
+by proposing a corrected `method-note` (§Writing a Research-Method Note; the
+witnessed failure is the stale note itself), so the store can be corrected. A
+stale method note that nobody contradicts is worse than none, because it sends
+every future run to the wrong place with confidence.
 
 The rest of this section is the watch-item half.
 
@@ -1189,22 +1190,16 @@ everything.
 the write side — appending a new entry during step 7's `tool_comments`/
 `discuss` investigation — is `references/apply.md` §Watch Items, which
 cross-links back here): include your tools' `topic`/`note` entries
-in your own context. If this run's headliners/changelog touch a watched
-topic, that's not a normal `info` relevancy finding — bump it to at least
-`notable` severity (`references/schemas.md` §Report Object), prefix the
-summary with the literal phrase below, and cite the watch item's `note` as
-part of the evidence. This is the one case where relevancy severity is
-elevated by something *other* than the changelog content's own weight — a
-topic the user asked to be told about earns extra prominence regardless of
-how minor the change looks on its own.
-
-**The prefix is mandatory and exact.** The relevancy item's `summary` **must**
-contain the literal phrase `Watch item hit:` — write it as
-`⚠ Watch item hit: <what changed>`:
-
-```jsonc
-"summary": "⚠ Watch item hit: install-shell-integration now writes to ~/.zprofile as well"
-```
+in your own context. If this run's changes touch a watched topic, that is
+not a normal `info` item — set `watch_hit` on the item, give the item at
+least `notable` severity (the item's own `severity`, per
+`references/item-schema.md` §2.3; the omission is reported as
+`W-WATCH-HIT-UNRAISED`), and cite the watch item's `note` as part of the
+local finding. This is the one case where an item's severity is elevated
+by something *other* than the change's own weight — a topic the user
+asked to be told about earns extra prominence regardless of how minor the
+change looks on its own, and it is the only reason the tool tolerates a
+severity the changelog content alone would not earn.
 
 **The textual channel is retired** (`REDESIGN.md` §I4). `assemble.py` used to
 match `/watch[\s\-]?item hit/i` against each relevancy item's `summary` +
@@ -1212,14 +1207,40 @@ match `/watch[\s\-]?item hit/i` against each relevancy item's `summary` +
 paraphrase ("this matches a watched topic", "flagged per the watch item") made
 the hit invisible, the highlight silently never rendered, and the one thing the
 user explicitly asked to be told about was the thing that got buried. The
-regex and the 70-point signal are both **deleted**.
+regex is deleted and the literal `Watch item hit:` prefix went with it;
+restoring the signal meant adding a field, never the regex.
 
-The replacement is a **structured field** on the checker's output: the per-tool
-agent is given the watch items, matches them against the changes it is already
-reading, and labels the hit per the output spec. That field does not exist in
-the item schema yet — it belongs with the checker contract, not with assembly —
-so **there is currently no highlight signal for a watch-item hit at all**.
-Restoring it means adding the field, never the regex.
+The replacement is the **structured field** on the item, `watch_hit`
+(`references/item-schema.md` §2.5):
+
+```jsonc
+"watch_hit": {
+	"topic": "shell-integration / session recording"
+}
+```
+
+- `topic` is copied **verbatim** from the stored watch item's `topic` as
+  it appears in `{{STANDING_NOTES}}` — character for character. Not a
+  paraphrase, not a restatement, not your own summary of it.
+- The validator **grounds** every hit against the session's snapshot of
+  the watch-item store (I-20). Four codes report what it finds:
+  `E-WATCH-HIT-UNGROUNDED` — the topic names no stored watch item for
+  this tool (a rewritten topic grounds nothing, which is why verbatim
+  matters); `E-WATCH-HIT-NOLOCAL` — the item carries no `local` block;
+  `W-WATCH-UNCHECKED` — the snapshot was absent or unreadable, so the hit
+  is kept but could not be checked; `W-WATCH-HIT-UNRAISED` — the hit sits
+  below `notable` (reported, never bumped — re-rating is convergence's).
+- **A hit carries a `local` block**, because a hit is a statement about
+  this setup: say what the change means here, with evidence.
+- A grounded hit restores the highlight signal — 70 points under
+  `watch_item_hit` — so the one thing the user explicitly asked to be
+  told about surfaces at the top of the report instead of being buried.
+
+A *hit* reports that a stored watch item already fired on this release;
+it is a different act from *proposing* a new watch item, which is a
+`kind: "watch-item"` suggestion carrying `watch_topic`/`watch_note`
+(§Watch Items (Proposing)) — writing one when you mean the other either
+proposes a duplicate store entry or claims a topic that does not exist.
 
 ### Watch Items (Proposing)
 
