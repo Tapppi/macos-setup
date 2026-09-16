@@ -13,12 +13,14 @@ be observable at all.
 
 What this file is about, in order of stakes:
 
-1. **The `</` escape.** REPORT_DATA lands inside a `<script>` block, and any
-   agent-written free-text field can carry a literal `</script>`. Without the
-   escape, `</script><img src=x onerror=alert(1)>` closes the script element
-   and the payload renders as live HTML in the page a human then clicks
-   "accept" on. This is the one test in the file that is about security
-   rather than robustness.
+1. **The `<` escape.** REPORT_DATA lands inside a `<script>` block, and any
+   agent-written free-text field can carry a literal `</script>` (closes the
+   element early; the payload renders as live HTML in the page a human then
+   clicks "accept" on) or `<!--` (flips the parser into
+   script-data-double-escaped state and the template's own `</script>` stops
+   terminating). "<" is escaped wholesale, so both spellings — and any next
+   one — die together. This is the one test group in the file that is about
+   security rather than robustness.
 2. **The schema-2 refusal.** The template reads the item model and nothing
    else; a schema-1 report would render a page of EMPTY cards rather than
    failing, so render.py refusing it is what keeps that impossible.
@@ -123,46 +125,62 @@ class RenderHappyPathTests(RenderRunner):
 
 
 class RenderEscapeTests(RenderRunner):
-	PAYLOAD = "</script><img src=x onerror=alert(1)>"
+	CLOSER = "</script><img src=x onerror=alert(1)>"
+	DOUBLE_ESCAPE = "<!--<script>"
 
-	def test_a_script_closing_sequence_never_lands_verbatim_in_the_page(self):
-		"""REPORT_DATA is a JS object literal inside a <script> element. HTML
-		parses the element's end BEFORE JavaScript ever runs, so a literal
-		"</script>" inside any agent-written string ends the block mid-JSON
-		and everything after it — here an onerror handler — is live markup.
-		"<\\/" is identical inside a JS string, so the escape costs nothing."""
+	def test_no_angle_bracket_survives_into_the_script_element(self):
+		"""REPORT_DATA is a JS object literal inside a <script> element, and
+		HTML parses the element's end BEFORE JavaScript ever runs. Escaping
+		only "</" was measured insufficient: a literal "<!--" flips the
+		parser into script-data-double-escaped state, where the template's
+		own closing tag no longer terminates the element and the rest of the
+		document is swallowed. So "<" is escaped wholesale as \u003c — a
+		denylist of breakout spellings is a losing game."""
 		report = minimal_report(tools=[{
 			"id": "brew:x",
-			"items": [{"id": "brew:x#none:t", "title": self.PAYLOAD,
-				"tags": ["fix"], "severity": "info"}],
+			"items": [{"id": "brew:x#none:t", "title": self.CLOSER,
+				"tags": ["fix"], "severity": "info"},
+				{"id": "brew:x#none:u", "title": self.DOUBLE_ESCAPE,
+					"tags": ["fix"], "severity": "info"}],
 			"suggestions": [{"id": "brew:x:upgrade", "kind": "upgrade",
-				"rationale": self.PAYLOAD}],
+				"rationale": self.CLOSER}],
 		}])
 		p, report_dir = self.render(report)
 		self.assertEqual(p.returncode, 0, p.stderr)
 		html = self.read_page(report_dir)
-		# The attack sequence appears nowhere in the page…
-		self.assertNotIn(self.PAYLOAD, html)
+		# Neither breakout spelling appears anywhere in the page…
+		self.assertNotIn(self.CLOSER, html)
 		self.assertNotIn("</script><img", html)
-		# …its escaped spelling does (twice: the item and the suggestion)…
-		self.assertEqual(html.count("<\\/script><img src=x onerror=alert(1)>"), 2)
-		# …and it still reads back as the SAME string once the page's JS
-		# parses the object literal — the escape must never alter content,
-		# only its byte spelling inside the script element.
-		self.assertEqual(json.loads(json.dumps(self.PAYLOAD).replace("</", "<\\/")),
-			self.PAYLOAD)
+		self.assertNotIn(self.DOUBLE_ESCAPE, html)
+		# …their escaped spellings do (closer twice: the item and the
+		# suggestion; the double-escape opener once)…
+		self.assertEqual(
+			html.count("\\u003c/script>\\u003cimg src=x onerror=alert(1)>"), 2)
+		self.assertEqual(html.count("\\u003c!--\\u003cscript>"), 1)
+		# …and the data segment carries no raw "<" from the payload at all —
+		# the token replacement happened, so the only guarantee worth making
+		# is on content: see the round-trip test below.
 
-	def test_the_escape_touches_only_closing_tag_bytes(self):
-		"""A title full of ordinary angle brackets and slashes must come
-		through byte-identical — over-escaping would corrupt rendered text."""
-		title = "a < b, path/to/file, 2 </ maybe, a <= b"
+	def test_the_escape_is_content_preserving(self):
+		"""\u003c inside a JSON/JS string literal IS "<" once parsed — the
+		escape may change byte spelling inside the script element, never what
+		the page's JS reads back. Ordinary titles full of angle brackets and
+		slashes must round-trip identically."""
+		for text in (self.CLOSER, self.DOUBLE_ESCAPE,
+				"a < b, path/to/file, 2 </ maybe, a <= b"):
+			with self.subTest(text):
+				escaped = json.dumps(text, ensure_ascii=False).replace("<", "\\u003c")
+				self.assertEqual(json.loads(escaped), text)
+
+	def test_an_escaped_title_still_reaches_the_page(self):
+		title = "a < b and a <= b"
 		report = minimal_report(tools=[{"id": "brew:x", "items": [
 			{"id": "brew:x#none:t", "title": title, "tags": ["fix"],
 				"severity": "info"}], "suggestions": []}])
 		p, report_dir = self.render(report)
 		self.assertEqual(p.returncode, 0, p.stderr)
 		html = self.read_page(report_dir)
-		self.assertIn(title.replace("</", "<\\/"), html)
+		self.assertIn(title.replace("<", "\\u003c"), html)
 
 
 class RenderRefusalTests(RenderRunner):

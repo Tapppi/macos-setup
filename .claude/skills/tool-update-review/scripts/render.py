@@ -85,13 +85,16 @@ def main():
 	html = html.replace('"__REPORT_ID__"',    json.dumps(report_id))
 	html = html.replace('"__GENERATED_AT__"', json.dumps(generated_at))
 	# The REPORT_DATA token is unquoted — it lands as a JS object literal.
-	# Escape "</" so a literal "</script>" inside any agent-written free-text
-	# field (headliners, rationale, config_status.detail, tool_comments, ...)
-	# can't prematurely close the surrounding <script> tag and corrupt the
-	# rest of the page — a standard JSON-in-<script> HTML-breakout guard.
-	# Valid inside a JS string/object literal either way; only affects bytes
-	# that would otherwise read as a closing tag.
-	report_json = json.dumps(report, ensure_ascii=False).replace("</", "<\\/")
+	# Escape "<" wholesale (as \u003c — valid JSON, identical once parsed)
+	# so no agent-written free-text field can splice markup into the
+	# surrounding <script> element. Escaping only "</" was not enough: a
+	# literal "<!--" flips the HTML parser into script-data-double-escaped
+	# state, where the template's own "</script>" no longer terminates the
+	# element and the rest of the document is swallowed. A denylist of
+	# breakout spellings ("</", "<!--", "<script") is a losing game, so no
+	# "<" survives at all. JSON puts "<" only inside string literals, so the
+	# blanket replace can never touch structure.
+	report_json = json.dumps(report, ensure_ascii=False).replace("<", "\\u003c")
 	html = html.replace("__REPORT_DATA__", report_json)
 
 	# ── Write index.html ──────────────────────────────────────────────────
