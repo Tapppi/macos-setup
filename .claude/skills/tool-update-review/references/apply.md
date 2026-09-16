@@ -10,10 +10,12 @@ Table of contents:
 - Skill-Drift Remediation
 - Executing Upgrade Suggestions
 - Executing `watch-item` Suggestions
+- Executing `method-note` Suggestions
 - Bespoke Setup Execution
 - Tool Comments and Discuss
 - Agent-Initiated Followups
 - Watch Items (Writing)
+- Method Notes (Writing)
 - Turn-Based Threads (Session Side)
 - Push and Terminal Status
 - Surfacing Discuss Items
@@ -471,6 +473,32 @@ about how the decision arrives, only about what accepting it does:
 - **Discuss**: normal discuss handling (§Tool Comments and Discuss below) —
   never writes `watch-items.json` on the strength of a discuss alone.
 
+## Executing `method-note` Suggestions
+
+A `kind: "method-note"` suggestion (`references/schemas.md` §1.7b,
+`references/research.md` §Writing a Research-Method Note) is the sibling of a
+watch item and is decided through the same `feedback.json` `decisions` map as
+any other suggestion. A watch item changes the next **report** — what to tell
+the user if the thing happens. A method note changes the next **researcher** —
+how to research this tool correctly at all. Nothing else about them differs,
+which is the point: neither is a parallel system.
+
+- **Accept**: run `scripts/write_status.py add-method-note --tool-id
+  {tool_id} --topic "{method_topic}" --note "{method_note}"` (writes the
+  `{topic, note, added_at}` entry into `method-notes.json` under this tool's
+  id — see §Method Notes (Writing) below for the file mechanics shared with
+  the other path that writes it). No repo edit, no command, no commit action
+  gets synthesized for this suggestion — `target_files` is always `[]`, so
+  `write_status.py init`'s dotfiles/macos-setup commit detection never fires
+  for it. Mark the action `"done"` with a note like `"Added method note:
+  {method_topic}"`.
+- **Reject**: already handled generically at `init` time (rejected →
+  `state: "skipped"` immediately) — no file write, nothing further to do.
+- **Discuss**: normal discuss handling (§Tool Comments and Discuss below) —
+  **never writes `method-notes.json` on the strength of a discuss alone.** A
+  discussion that concludes the note is right ends in an accept, or in a
+  followup that is then accepted; it never ends in a quiet write.
+
 ## Bespoke Setup Execution
 
 For tools with setup logic beyond a plain package command (podman's
@@ -582,6 +610,91 @@ now — surfaced explicitly in the review UI for accept/reject, same as any
 other suggestion — rather than the session silently deciding one is
 warranted from a comment. Path 3 remains for the free-text case where
 nothing already produced a formal proposal to accept.
+
+## Method Notes (Writing)
+
+`method-notes.json` (see `references/research.md` §Watch Items (Reading) for
+the read side that consumes it on the next run) gets a new entry from
+**exactly one action**, whichever path proposed it —
+`scripts/write_status.py add-method-note --tool-id {tool_id} --topic
+"{topic}" --note "{note}"` (atomic write, no `session_dir` argument: this
+file is machine-global, not scoped to one review session). Never write the
+file any other way (no hand-rolled `jq`/Python edit) — always go through this
+subcommand, so every write follows the same atomic pattern the rest of this
+skill's state files use and the store has exactly one writer to audit.
+
+**Two paths that can trigger it, and no comment-driven third one:**
+
+1. **A research-proposed `kind: "method-note"` suggestion, accepted** (the
+   normal case — `references/research.md` §Writing a Research-Method Note,
+   execution mechanics in §Executing `method-note` Suggestions above).
+2. **An agent-initiated followup proposing one mid-apply, accepted** (the
+   session itself, applying something, finds that the ordinary research path
+   for this tool is wrong). Same mechanism as §Agent-Initiated Followups
+   above, with `kind: "method-note"` and `method_topic`/`method_note` in
+   place of `target_files`/`command`/`diff_preview`.
+
+Both share the rule the watch store has: **never written on the strength of a
+proposal alone; always a separate, explicit accept.**
+
+The missing third path is deliberate, and it is the one place this section
+diverges from §Watch Items (Writing). A watch item can come straight from a
+comment because a standing preference is something a user simply states
+("tell me if this tool's shell integration changes, ever") and the session
+files verbatim. A method note asserts that the ordinary research path
+**failed for this tool**, and `references/schemas.md` §1.7b requires its
+`rationale` to name a failure that happened rather than predict one that
+might. A comment cannot supply that; a session writing one from a comment
+would be inventing the witness. So if a comment says the research was done
+wrong, investigate it (§Tool Comments and Discuss above) and raise a followup
+by path 2, carrying what actually went wrong.
+
+### Three stores, two files
+
+`method-notes.json` holds **two** of the three memory stores (`REDESIGN.md`
+§L1). A reader who counts files, finds two, and goes looking for a missing
+third is reading it wrong — the split is by key, not by file:
+
+| Store | Where | Written by |
+|---|---|---|
+| Watch items | `watch-items.json`, keyed by tool id | `add-watch-item` |
+| Per-tool method notes | `method-notes.json`, keyed by tool id | `add-method-note` |
+| Global method notes | `method-notes.json`, under the reserved key `global` | `add-global-method-note` |
+
+A tool id is always `{source}:{name}` and so always contains a colon;
+`global` never does. That is what makes one file safe for two stores: every
+tool-id lookup in the pipeline is a plain `snapshot.get(tool_id)` and can
+never reach the global entries, and `add-watch-item`/`add-method-note`
+**refuse** a `--tool-id` with no colon, so nothing lands in the reserved
+namespace through the per-tool door. A third file would have to be threaded
+through every reader that already snapshots these two (the session copy the
+validator grounds watch hits against, and the one convergence is handed); a
+reserved key rides along in the snapshot that already exists. The layout and
+the golden state after one write of each are pinned in
+`scripts/contract/stores.json` and driven against the live writers by
+`test_items.StoreLayoutTests`.
+
+**A global note is never written from an apply pass.** Its entry condition is
+holding across many tools, and only convergence sees enough tools at once to
+establish that (`references/schemas.md` §1.7b Scope,
+`references/convergence.md` §5 C6) — `add-global-method-note` exists for that
+promotion and takes no `--tool-id` at all.
+
+### The stores are created on first use
+
+There is no seeding step and no migration machinery (`REDESIGN.md` §I3, §L9).
+An absent store file **is** an empty store: the first accepted proposal
+creates the state directory and the file. A file that exists but does not
+parse as a JSON object is a **refusal**, not a fresh start — these stores
+accumulate for months, and silently replacing an unreadable one with an empty
+object would destroy every note in it while printing a success line.
+
+The one store that predates this layout, `watch-items.json` with its single
+`cask:cursor-cli` entry from 2026-07-16, was checked against the pinned
+layout on 2026-09-17 and already conformed — same tool-id keying, same
+`{topic, note, added_at}` entry, its claims re-verified against the Brewfile
+and dotfiles — so **no migration was required**, which is not the same fact
+as no migration having been done.
 
 ## Turn-Based Threads (Session Side)
 

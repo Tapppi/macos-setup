@@ -866,7 +866,9 @@ different body:
   `write_status.py` subcommand (named in `stores.json`), never a hand-rolled
   edit, and is read back at research time to fill `{{STANDING_NOTES}}` — which
   is what makes "copied verbatim into the next run's context" the mechanism
-  rather than a promise.
+  rather than a promise. `references/apply.md` §Method Notes (Writing) has the
+  write mechanics: what Accept runs, the two proposal paths and why there is no
+  comment-driven third one, and why the three stores live in two files.
 - **Scope.** A `method-note` proposal is always written against **one tool**,
   and per-tool notes are expected to be **many** — tools have weird conventions
   and unusual changelog locations. The third store, **global** method notes, is
@@ -875,7 +877,12 @@ different body:
   nine of them cannot establish that. A checker that thinks a note generalises
   says so in its `rationale`; convergence, which reads every tool at once,
   decides. That is why global notes are rare (`REDESIGN.md` §L1) — the evidence
-  for one exists at exactly one place in the pipeline.
+  for one exists at exactly one place in the pipeline. **Three stores, two
+  files**: global notes live in `method-notes.json` itself, under the reserved
+  key `global`. A tool id always contains a colon and that key never does, so a
+  tool-id lookup can never reach them and `add-method-note` refuses a
+  colon-free `--tool-id`; their own writer is `add-global-method-note`, which
+  takes no tool id at all.
 - Never elevates a tool's `risk_level` or its review bucket. See §1.7c.
 
 ### 1.7c The self-test tag
