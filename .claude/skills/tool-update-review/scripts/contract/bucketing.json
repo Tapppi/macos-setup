@@ -9,7 +9,7 @@
 		"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
 		"5. -> routine"
 	],
-	"pre_accept": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)",
+	"pre_accept": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in finalize_tool and carried on the tool; assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
 	"pre_accept_bars": {
 		"order": [
 			"elevated-risk",

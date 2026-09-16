@@ -1315,6 +1315,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"bucket_inputs": {"has_security": False, "security_only": False,
 			"impact": "unknown", "version_delta": "unknown", "runnable": False},
 		"security_display_item_ids": [],
+		"watch_hit_item_ids": [],
 		"self_test_tagged_suggestion_ids": [],
 		"spec_violations": [],
 		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
@@ -1435,6 +1436,13 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 		normalized.append(item)
 		quarantine.extend(item_quarantine)
 	view["items"] = model.order_items(normalized)
+	# The GROUNDED hits, exported like security_display_item_ids: the 70-point
+	# highlight and the page's badge read this list, never the raw claim —
+	# scoring an unverified topic would let a paraphrase displace a genuine
+	# highlight, the unvalidated-channel failure the field exists to kill.
+	# The claim itself (has_watch_hit) still bars pre-acceptance unverified.
+	view["watch_hit_item_ids"] = [i["id"] for i in view["items"]
+		if model.grounded_watch_hit(i, watch_topics)]
 	view["config_status"] = _validate_config_status(view, research, findings, tool_id,
 		resolver)
 	suggestions, subject_refs, sug_quarantine = _validate_suggestions(

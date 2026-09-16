@@ -2019,6 +2019,47 @@ class WatchHitTests(unittest.TestCase):
 				# Kept verbatim, whatever the shape.
 				self.assertEqual(view["items"][0]["watch_hit"], hit)
 
+	def test_only_grounded_hits_are_exported_for_prominence(self):
+		"""`watch_hit_item_ids` is what the 70-point highlight and the badge
+		read. Grounded hits only: an ungrounded, malformed or unchecked hit
+		is kept and bars pre-acceptance, but an unverified claim must not
+		earn prominence — that is the unvalidated channel the field
+		replaced."""
+		items = [
+			_hit_item({"topic": "a stored topic"}),
+			_hit_item({"topic": "a topic nobody ever stored"},
+				anchor={"kind": "issue", "value": "org/repo#2"}),
+			_hit_item({}, anchor={"kind": "issue", "value": "org/repo#3"}),
+		]
+		view, _ = validate_one({"id": "brew:x", "links": [], "items": items},
+			watch_topics=self.TOPICS)
+		self.assertEqual(view["watch_hit_item_ids"], ["brew:x#issue:org%2Frepo%231"])
+		# No snapshot → nothing grounds, nothing is exported — while the
+		# claims still bar (has_watch_hit is the bar's predicate).
+		unchecked, _ = validate_one({"id": "brew:x", "links": [],
+			"items": [_hit_item({"topic": "a stored topic"})]})
+		self.assertEqual(unchecked["watch_hit_item_ids"], [])
+		self.assertEqual(model.pre_accept_bars(unchecked), ["watch-hit"])
+
+	def test_the_golden_corpus_exports_exactly_the_grounded_hits(self):
+		"""Grounded means the TOPIC verified against the store — item 104's
+		hit grounds even though the item is badly filed (info severity, no
+		local block): those defects are E-WATCH-HIT-NOLOCAL and
+		W-WATCH-HIT-UNRAISED's to report, and denying a verified hit its
+		prominence over them would be re-rating by the back door. The
+		ungrounded (102), wrong-tool (103), topicless (105) and non-object
+		(106) hits are what stay out."""
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		ids = {v["id"]: v["watch_hit_item_ids"] for v in document["tools"]}
+		self.assertEqual(ids["cask:codex"], ["cask:codex#cve:CVE-2026-18408"])
+		self.assertEqual(ids["brew:watched"], [
+			"brew:watched#issue:watched%2Fwatched%23101",
+			"brew:watched#issue:watched%2Fwatched%23104"])
+		for tool_id, exported in ids.items():
+			if tool_id not in ("cask:codex", "brew:watched"):
+				self.assertEqual(exported, [], tool_id)
+
 	def test_a_non_dict_hit_raises_no_secondary_findings(self):
 		"""A bare-string watch_hit is one E-FIELD-TYPE, not a cascade — the
 		local/severity checks apply to a *claim*, which a non-object is not."""

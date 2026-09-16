@@ -583,17 +583,43 @@ def security_display_items(items) -> list:
 # `watch_note` on a suggestion, and conflating the two is what produced the
 # literal channel in the first place.
 def has_watch_hit(items) -> bool:
-	"""Does any item claim to answer a stored watch item?
+	"""Does any item CLAIM to answer a stored watch item?
 
-	The one predicate for every consumer of the claim — the 70-point
-	`watch_item_hit` highlight and the page's badge ask this rather than
-	re-deriving it, because the retired channel died precisely of consumers
-	matching it differently. A dict is a claim even when malformed: a
-	malformed one is reported (E-FIELD-MISSING / E-FIELD-TYPE on
-	`watch_hit.topic`) and the claim still counts, which is the fail-closed
-	direction."""
+	This is the pre-acceptance bar's predicate and only that. A dict is a
+	claim even when malformed or ungrounded: a bad one is reported
+	(E-FIELD-MISSING / E-FIELD-TYPE / E-WATCH-HIT-UNGROUNDED) and the claim
+	still bars, which is the fail-closed direction — holding a tool on an
+	unverified claim costs a click; auto-accepting past one is the defect
+	class this redesign exists for.
+
+	Prominence is the opposite trade. The 70-point `watch_item_hit`
+	highlight and the page's badge read the view's `watch_hit_item_ids` —
+	`grounded_watch_hit` below — never this predicate: scoring an unverified
+	claim would let a paraphrased or invented topic displace a genuinely
+	scoring tool from the capped highlight list, which is precisely the
+	unvalidated-channel failure the structured field was introduced to
+	kill."""
 	return any(isinstance(i.get("watch_hit"), dict)
 		for i in items or () if isinstance(i, dict))
+
+
+def grounded_watch_hit(item, watch_topics) -> bool:
+	"""True iff the item carries a well-formed `watch_hit` whose topic is in
+	the stored topic set for this tool.
+
+	`watch_topics` is None when the session supplied no snapshot; nothing is
+	grounded then — an unchecked hit is kept and BARS pre-acceptance
+	(fail-closed, `has_watch_hit`), but earns no prominence, because
+	prominence for an unverifiable claim is the channel the regex died of.
+	The validator exports the grounded ids per view as `watch_hit_item_ids`;
+	the highlight and the badge read that export."""
+	if not isinstance(item, dict) or watch_topics is None:
+		return False
+	hit = item.get("watch_hit")
+	if not isinstance(hit, dict):
+		return False
+	topic = hit.get("topic")
+	return isinstance(topic, str) and topic.strip() in watch_topics
 
 
 # ── the closed top-level research-key set (U1) ──────────────────────────────
@@ -963,7 +989,11 @@ D2_ROUTING = (
 	"anything downstream of finalize_tool desyncs the Overview tiles.")
 PRE_ACCEPT_PREDICATE = (
 	"sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND "
-	"risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)")
+	"risk_level == \"low\" AND not content_losing(tool) AND not "
+	"tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in "
+	"finalize_tool and carried on the tool; assembly never recomputes them from "
+	"assembled items, which can hold synthesized reaching security items the "
+	"bucket never saw")
 
 # The two per-tool memory stores (D4). Mirrored by `contract/stores.json`;
 # both are machine-global, both are written only through their write_status.py
@@ -1065,6 +1095,10 @@ def contract() -> dict:
 		"pre_accept": {
 			"predicate": PRE_ACCEPT_PREDICATE,
 			"bars": list(PRE_ACCEPT_BARS),
+			"bars_source": "the validator's view — finalize_tool computes "
+				"tool.pre_accept_bars from the same inputs the bucket's clause 2 "
+				"read, and apply_pre_accept refuses (KeyError) a tool nobody "
+				"computed them for rather than recomputing from assembled items",
 		},
 		"watch_hit": {
 			"authored_by": "the per-tool checker",
@@ -1073,7 +1107,10 @@ def contract() -> dict:
 			"topic_match": "exact, after .strip(); no case folding and no fuzzy match",
 			"absent_snapshot": "W-WATCH-UNCHECKED; the hit is kept",
 			"not_a_sort_tier": True,
-			"highlight": {"code": "watch_item_hit", "points": 70},
+			"highlight": {"code": "watch_item_hit", "points": 70,
+				"scored": "grounded hits only — the view's watch_hit_item_ids "
+					"export. An ungrounded, malformed or unchecked hit bars "
+					"pre-acceptance (fail-closed) but earns no prominence"},
 			"distinct_from": "memory_proposals.watch_topic/watch_note, which "
 				"PROPOSE a watch item on a suggestion; watch_hit says an existing "
 				"one FIRED, on an item",

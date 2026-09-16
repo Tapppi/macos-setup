@@ -730,12 +730,18 @@ def apply_pre_accept(tool: dict) -> None:
 			# function, not a second implementation, so an edit to
 			# compute_risk_level cannot silently re-open the auto-approval hole.
 			and not model.content_losing(tool)
-			# D2 (widened) + E3 — the same shared predicate as the bucket's
-			# security_auto clause: elevated risk, a reaching change on a
-			# security tool, or a watch hit. The elevated limb is redundant
-			# with the risk_level conjunct above by the same belt-and-braces
-			# doctrine.
-			and not model.pre_accept_bars(tool))
+			# D2 (narrowed) + E3 — elevated risk, a reaching security ITEM
+			# (one that itself carries security content), or a watch hit.
+			# Read off the tool as a FIELD, bracket access on purpose: the
+			# bars are computed once in finalize_tool from the VALIDATOR'S
+			# view — the same inputs the bucket's clause 2 read — because the
+			# assembled tool's items[] can hold items the view never had
+			# (build_health_tool synthesizes a reaching item, `security`-tagged
+			# for untrusted_tap), and a bar recomputed here from those would
+			# be the two-layers-two-stories divergence the shared predicate
+			# exists to prevent. A tool nobody computed the bars for raises
+			# KeyError rather than silently diverging.
+			and not tool["pre_accept_bars"])
 
 
 def finalize_tool(tool: dict, view: dict) -> None:
@@ -760,6 +766,12 @@ def finalize_tool(tool: dict, view: dict) -> None:
 	tool["risk_level"] = view.get("risk_level", "elevated")
 	tool["review_bucket"] = view.get("initial_review_bucket", "attention")
 	tool["bucket_inputs"] = dict(view.get("bucket_inputs") or {})
+	# The pre-acceptance bar, computed from the VIEW — the same inputs the
+	# bucket's clause 2 read — and carried on the tool for the page. Never
+	# from the assembled tool: its items[] can hold synthesized items the
+	# validator never saw (a health finding's reaching `security`-tagged
+	# item), and the two layers would then tell two stories.
+	tool["pre_accept_bars"] = model.pre_accept_bars(view)
 	apply_pre_accept(tool)
 
 
@@ -1003,6 +1015,10 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 		# Recomputed from the view by the one shared function, so the block
 		# and the fields beside it cannot disagree.
 		"degradation": model.compute_degradation(view),
+		# Grounded watch hits only (I-20) — what the highlight and the page's
+		# badge read. The raw claim is on the items and bars pre-acceptance;
+		# prominence needs verification.
+		"watch_hit_item_ids": list(view.get("watch_hit_item_ids") or []),
 		"links": list(view.get("links") or []),
 		"config_status": view.get("config_status") or {"state": "unknown", "detail": "", "evidence": []},
 		"vendor_silent_categories": list(view.get("vendor_silent_categories") or []),
@@ -1315,7 +1331,12 @@ def score_tool(tool: dict) -> tuple:
 			scored.append((points, code))
 
 	add(100, "incompatible_finding", any(i.get("severity") == "incompatible" for i in local))
-	add(70, "watch_item_hit", model.has_watch_hit(items))
+	# GROUNDED hits only — the validator's export, never the raw `watch_hit`
+	# claim: an ungrounded or malformed hit is flagged (E-WATCH-HIT-UNGROUNDED
+	# / E-FIELD-*) and must not also collect 70 points, or a paraphrased or
+	# invented topic could displace a genuinely-scoring tool from the capped
+	# highlight list — the unvalidated-channel defect the field replaced.
+	add(70, "watch_item_hit", bool(tool.get("watch_hit_item_ids")))
 	# 70 is the documented prior weight; re-weighing it is WP4's deferred
 	# surface question (`REDESIGN.md` §Q2), not this pass's.
 	add(60, "config_stale", config_needs_attention(tool))

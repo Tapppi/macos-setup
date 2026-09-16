@@ -237,7 +237,10 @@ re-open a promotion route: it is not read by `recompute_flags`,
 `compute_risk_level`; it is not a tier of `item_sort_key` or
 `security_display_sort_key` — two items identical on every tier sort by id,
 and prominence is delivered by the 70-point `watch_item_hit` highlight and the
-item badge, never by reordering a card's body.
+item badge — both reading the view's `watch_hit_item_ids` export, i.e.
+**grounded hits only**: an ungrounded, malformed or unchecked hit bars
+pre-acceptance (fail-closed) but earns no prominence — never by reordering a
+card's body.
 
 ## 3. The evidence split
 
@@ -569,7 +572,8 @@ halves are needed and the second is the easy one to miss.
 
 It now reaches everywhere (D2): `pre_accept` requires `risk_level == "low"`
 outright, and the security_auto clause itself asks `items.pre_accept_bars` —
-elevated risk, a reaching item on a security tool, or a watch hit — so a
+elevated risk, a reaching security **item** (one that itself carries security
+content; never merely any reaching item on a security tool), or a watch hit — so a
 barred security-only tool falls through to `security_mixed`, visible and
 undecided, instead of being pre-accepted "by design" the way the old
 precedence allowed. The bar and the clause order are pinned as data in

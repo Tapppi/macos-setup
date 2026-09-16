@@ -206,14 +206,16 @@ def _cand(tool_id, name, source, current, latest, **extra):
 	return cand
 
 
-def assemble_session(collect, research_entries, extra_files=None):
+def assemble_session(collect, research_entries, extra_files=None, session_files=None):
 	"""Write a throwaway session dir, run it through main(), and return
 	(report, stderr). Going through main() rather than build_tool() is the
 	point: it is the only way to exercise validation, the two ordering
 	constraints and the id-uniqueness pass together.
 
 	`extra_files` maps a research/ filename to raw bytes or text, for the
-	degradation cases where the file itself is the hostile input."""
+	degradation cases where the file itself is the hostile input.
+	`session_files` maps a session-root filename to a JSON-serializable
+	object — e.g. the watch-items.json grounding snapshot."""
 	with tempfile.TemporaryDirectory() as tmp:
 		session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
 		os.makedirs(os.path.join(session, "research"))
@@ -227,6 +229,9 @@ def assemble_session(collect, research_entries, extra_files=None):
 			kwargs = {} if isinstance(blob, bytes) else {"encoding": "utf-8"}
 			with open(os.path.join(session, "research", name), mode, **kwargs) as fh:
 				fh.write(blob)
+		for name, obj in (session_files or {}).items():
+			with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+				json.dump(obj, fh)
 		argv, err = sys.argv, io.StringIO()
 		sys.argv = ["assemble.py", session, "--macos-setup-root", tmp,
 			"--dotfiles-root", tmp, "--systems-root", tmp]
@@ -244,7 +249,7 @@ def assemble_session(collect, research_entries, extra_files=None):
 		return report, err.getvalue()
 
 
-def build_one(candidate, research, **collect_extra):
+def build_one(candidate, research, session_files=None, **collect_extra):
 	"""One candidate through the whole path → its Tool object."""
 	key = {"brew-health": "brew_health", "skill-drift": "skill_drift"}.get(candidate["source"])
 	collect = {"generated_at": "2026-08-22T11:33:44Z", "machine": {}}
@@ -254,7 +259,8 @@ def build_one(candidate, research, **collect_extra):
 		collect[{"mise": "mise", "standalone": "standalone", "macos": "macos"}
 			.get(candidate["source"], "brew")] = [candidate]
 	collect.update(collect_extra)
-	report, _ = assemble_session(collect, [research] if research is not None else [])
+	report, _ = assemble_session(collect, [research] if research is not None else [],
+		session_files=session_files)
 	return report["tools"][0]
 
 
@@ -621,6 +627,25 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertEqual(tool["review_bucket"], "security_mixed")
 		self.assertEqual(tool["risk_level"], "low")
 		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_the_bars_are_computed_from_the_view_never_from_synthesized_items(self):
+		"""Finding 6's pin. build_health_tool synthesizes an item the
+		validator's view never had — `local.direction: "reaches"`, and
+		`security`-tagged for untrusted_tap — so a bar recomputed from the
+		assembled tool would carry `reaches-item` while the bucket, computed
+		from the view, never saw it: two layers, two stories. The carried
+		bars must be the VIEW'S."""
+		tool = build_one({"id": "brew-health:untrusted_tap:evil/tap",
+			"name": "Untrusted tap: evil/tap", "source": "brew-health",
+			"category": "untrusted_tap", "severity": "warning",
+			"detail": "Tap evil/tap is not on the trusted list.",
+			"remediation": None, "expected": False}, None)
+		# The synthesized item WOULD fire the narrowed limb if read directly:
+		self.assertEqual(model.pre_accept_bars(
+			{"risk_level": tool["risk_level"], "items": tool["items"]}),
+			["elevated-risk", "reaches-item"])
+		# …but the carried bars are the view's, which had no items at all.
+		self.assertEqual(tool["pre_accept_bars"], ["elevated-risk"])
 
 	def test_health_suggestions_never_pre_accept(self):
 		# brew link tree-sitter IS auto_runnable — it is excluded because a
@@ -1214,25 +1239,60 @@ class HighlightScoringTests(unittest.TestCase):
 			source = fh.read()
 		self.assertNotIn("_WATCH_HIT_RE", source)
 
-	def test_a_watch_hit_scores_seventy_in_its_documented_rank(self):
+	SNAPSHOT = {"watch-items.json": {"brew:h": [
+		{"topic": "a stored topic", "note": "n", "added_at": "2026-07-06"}]}}
+
+	def test_a_grounded_watch_hit_scores_seventy_in_its_documented_rank(self):
 		"""70 is the documented prior weight, emitted second — between
 		`incompatible_finding` (100) and `config_stale` (60) — so the page's
 		chips never reshuffle between runs. Re-weighing it is WP4's question,
-		not this pass's."""
-		hit = self._tool([_item("a", severity="notable",
-			local=_local("unclear", "none"),
-			watch_hit={"topic": "a stored topic"})])
+		not this pass's. GROUNDED is load-bearing: the session ships the
+		snapshot and the topic matches."""
+		hit = build_one(_cand("brew:h", "h", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:h", "links": [], "items": [_item("a", severity="notable",
+				local=_local("unclear", "none"),
+				watch_hit={"topic": "a stored topic"})]},
+			session_files=self.SNAPSHOT)
+		self.assertEqual(hit["watch_hit_item_ids"], [hit["items"][0]["id"]])
 		score, reasons = assemble.score_tool(hit)
 		self.assertEqual(reasons, ["watch_item_hit"])
 		self.assertEqual(score, 70)
-		stacked = self._tool([_item("a", severity="incompatible",
-			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]),
-			watch_hit={"topic": "a stored topic"})],
-			config_status={"state": "needs_attention", "detail": "stale",
-				"evidence": [], "citations": []})
+		stacked = build_one(_cand("brew:h", "h", "brew", "1.0.0", "1.0.1"),
+			{"id": "brew:h", "links": [], "items": [_item("a", severity="incompatible",
+				local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]),
+				watch_hit={"topic": "a stored topic"})],
+				"config_status": {"state": "needs_attention", "detail": "stale",
+					"evidence": [], "citations": []}},
+			session_files=self.SNAPSHOT)
 		_, stacked_reasons = assemble.score_tool(stacked)
 		self.assertEqual(stacked_reasons[:3],
 			["incompatible_finding", "watch_item_hit", "config_stale"])
+
+	def test_an_unverified_watch_hit_never_scores_but_still_bars(self):
+		"""The finding the structured field exists to prevent, at the scoring
+		surface: with the highlight list capped at 8, a paraphrased or
+		invented topic that scored 70 could displace a genuinely-scoring
+		tool. An ungrounded hit is flagged E-WATCH-HIT-UNGROUNDED and scores
+		nothing; a malformed `{}` is flagged and scores nothing; a hit in a
+		snapshot-less session is W-WATCH-UNCHECKED and scores nothing. All
+		three still bar pre-acceptance — holding a tool on an unverified
+		claim is fail-closed; awarding it prominence is not."""
+		cases = (
+			("ungrounded", {"topic": "a topic nobody ever stored"}, self.SNAPSHOT),
+			("malformed", {}, self.SNAPSHOT),
+			("unchecked", {"topic": "a stored topic"}, None),
+		)
+		for name, hit, session_files in cases:
+			with self.subTest(name):
+				tool = build_one(_cand("brew:h", "h", "brew", "1.0.0", "1.0.1"),
+					{"id": "brew:h", "links": [], "items": [_item("a",
+						severity="notable", local=_local("unclear", "none"),
+						watch_hit=hit)]},
+					session_files=session_files)
+				self.assertEqual(tool["watch_hit_item_ids"], [])
+				self.assertNotIn("watch_item_hit", assemble.score_tool(tool)[1])
+				self.assertEqual(tool["pre_accept_bars"], ["watch-hit"])
+				self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_a_structural_suggestion_scores_like_an_edit(self):
 		tool = self._tool([_item("a")], suggestions=[{"id": "brew:h:s", "kind": "structural",

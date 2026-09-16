@@ -246,6 +246,15 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	// every OTHER finding is a marker (listed under `markers`) and moves
 	// nothing. Pinned in contract/degradation.json.
 	"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
+	// The pre-acceptance bar (D2/E3), computed from the VALIDATOR'S view in
+	// finalize_tool — the same inputs the bucket's clause 2 read, never the
+	// assembled items — and carried for the page. Subset of
+	// ["elevated-risk", "reaches-item", "watch-hit"], emission order fixed.
+	"pre_accept_bars": [],
+	// Items whose watch_hit GROUNDED against the session snapshot (I-20).
+	// The 70-point highlight and the item badge read this, never the raw
+	// claim; the claim alone still bars pre-acceptance.
+	"watch_hit_item_ids": [],
 	// ── Items ─────────────────────────────────────────────────────────
 	// ONE array replaces headliners[]/relevancy[]/context[] and
 	// security.notable[]. Each element is one real change carrying TAGS (a

@@ -695,8 +695,9 @@ Order of evaluation (pinned as data in `contract/bucketing.json`, which
 2. `security_auto` — `has_security` **and** `security_only` **and**
    `impact == "none"` **and** `version_delta` not `major`/`unknown` **and** a
    runnable baseline **and** no pre-acceptance bar (D2/E3,
-   `items.pre_accept_bars`: elevated risk, a reaching item on a security
-   tool, or a watch hit — a barred tool falls through to `security_mixed`,
+   `items.pre_accept_bars`: elevated risk, a reaching security **item** —
+   one that itself carries security content, never merely any reaching item
+   on a security tool — or a watch hit — a barred tool falls through to `security_mixed`,
    where the card renders expanded, rather than sitting in the one bucket
    whose name means "no decision needed");
 3. `security_mixed` — `has_security`;
@@ -733,7 +734,9 @@ def apply_pre_accept(tool):
 			and tool["review_bucket"] != "attention"   # the needs-you list never starts accepted
 			and tool["risk_level"] == "low"            # D2 — the security_auto disjunct is gone
 			and not model.content_losing(tool)         # D1 — belt and braces
-			and not model.pre_accept_bars(tool))       # D2/E3 — the bucket clause's own bar
+			and not tool["pre_accept_bars"])           # D2/E3 — computed from the VALIDATOR'S
+	                                                   #   view in finalize_tool; a tool nobody
+	                                                   #   computed them for raises, never diverges
 ```
 
 The flag is written onto **every** suggestion, so no consumer has to
@@ -912,7 +915,7 @@ emission order, so the page's chips never reshuffle between runs.
 | Points | Reason code | Fires when |
 |---:|---|---|
 | 100 | `incompatible_finding` | any item **with a `local` block** at `incompatible` |
-| 70 | `watch_item_hit` | any item carrying a `watch_hit` — a stored watch item fired (I-20) |
+| 70 | `watch_item_hit` | a GROUNDED watch-item hit (`watch_hit_item_ids` non-empty) — an ungrounded, malformed or unchecked hit bars pre-acceptance but never scores (I-20) |
 | 60 | `config_stale` | `config_status.state == "needs_attention"` |
 | 45 | `warning_finding` | any item **with a `local` block** at `warning` |
 | 40 | `breaking_change` | any `breaking`-tagged item at `warning`/`incompatible` |
@@ -941,10 +944,14 @@ release-level break from an `incompatible` headliner.
 for a regex match on the literal phrase `Watch item hit:` in relevancy prose —
 a magic string `REDESIGN.md` §I4 retired outright, because a subagent that
 paraphrased it made the user's own standing concern silently worth nothing.
-The restored signal reads the `watch_hit` field on the item
-(`references/item-schema.md` §2.5), which the validator grounds against the
-session's watch-item snapshot (I-20) — so a paraphrase now raises
-`E-WATCH-HIT-UNGROUNDED` instead of silently costing 70 points. Restoring it
+The restored signal reads the validator's `watch_hit_item_ids` export — the
+hits that actually GROUNDED against the session's watch-item snapshot (I-20)
+— never the raw `watch_hit` claim: a paraphrased or invented topic raises
+`E-WATCH-HIT-UNGROUNDED` and scores nothing, where scoring the claim would
+have let it displace a genuinely-scoring tool from the capped highlight list
+— the same unvalidated-channel defect in a new container. The unverified
+claim still BARS pre-acceptance (`items.has_watch_hit`, fail-closed): holding
+a tool costs a click, prominence needs verification. Restoring the signal
 meant adding the field, never the regex, and 70 is the documented prior
 weight: re-weighing it is WP4's deferred question.
 

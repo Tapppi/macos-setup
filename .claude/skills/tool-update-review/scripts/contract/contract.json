@@ -189,12 +189,13 @@
 		"d2_routing": "clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles."
 	},
 	"pre_accept": {
-		"predicate": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not pre_accept_bars(tool)",
+		"predicate": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in finalize_tool and carried on the tool; assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
 		"bars": [
 			"elevated-risk",
 			"reaches-item",
 			"watch-hit"
-		]
+		],
+		"bars_source": "the validator's view — finalize_tool computes tool.pre_accept_bars from the same inputs the bucket's clause 2 read, and apply_pre_accept refuses (KeyError) a tool nobody computed them for rather than recomputing from assembled items"
 	},
 	"watch_hit": {
 		"authored_by": "the per-tool checker",
@@ -204,7 +205,8 @@
 		"not_a_sort_tier": true,
 		"highlight": {
 			"code": "watch_item_hit",
-			"points": 70
+			"points": 70,
+			"scored": "grounded hits only — the view's watch_hit_item_ids export. An ungrounded, malformed or unchecked hit bars pre-acceptance (fail-closed) but earns no prominence"
 		},
 		"distinct_from": "memory_proposals.watch_topic/watch_note, which PROPOSE a watch item on a suggestion; watch_hit says an existing one FIRED, on an item"
 	},

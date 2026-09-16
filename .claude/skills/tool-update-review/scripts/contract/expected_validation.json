@@ -781,6 +781,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [],
 			"degradation": {
@@ -975,6 +976,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [],
 			"degradation": {
@@ -1159,6 +1161,9 @@
 			"security_display_item_ids": [
 				"cask:codex#cve:CVE-2026-18408"
 			],
+			"watch_hit_item_ids": [
+				"cask:codex#cve:CVE-2026-18408"
+			],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [],
 			"degradation": {
@@ -1249,6 +1254,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"W-ATTENTION-NOSUG"
@@ -1590,6 +1596,7 @@
 			"security_display_item_ids": [
 				"brew:nonconforming#cve:CVE-26-1"
 			],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [
 				"brew:nonconforming:watch-no-reason",
 				"brew:nonconforming:method-no-payload"
@@ -1870,6 +1877,10 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [
+				"brew:watched#issue:watched%2Fwatched%23101",
+				"brew:watched#issue:watched%2Fwatched%23104"
+			],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"E-FIELD-MISSING",
@@ -1965,6 +1976,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"W-MEMBER-QUARANTINED"
@@ -2024,6 +2036,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"W-SHAPE-COERCED"
@@ -2122,6 +2135,7 @@
 			"security_display_item_ids": [
 				"brew:elevated#cve:CVE-2026-32001"
 			],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [],
 			"degradation": {
@@ -2208,6 +2222,7 @@
 				"runnable": true
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [
 				"E-RESEARCH-UNKNOWNKEY"
@@ -2258,6 +2273,7 @@
 				"runnable": false
 			},
 			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
 			"spec_violations": [],
 			"degradation": {

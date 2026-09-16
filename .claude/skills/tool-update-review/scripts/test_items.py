@@ -601,12 +601,30 @@ class BucketingFixtureTests(unittest.TestCase):
 				# baseline (or, for the non-baseline row, a suggestion whose id
 				# does not claim the baseline slot).
 				tool = dict(view, id="brew:x", review_bucket=bucket)
+				# As finalize_tool does: the bars are computed from the VIEW
+				# and carried — apply_pre_accept refuses a tool nobody
+				# computed them for (see test below).
+				tool["pre_accept_bars"] = model.pre_accept_bars(view)
 				sug_id = "brew:x:upgrade" if case.get("baseline", True) else "brew:x:sug-1"
 				sug = {"id": sug_id, "kind": "upgrade",
 					"auto_runnable": case["auto_runnable"]}
 				tool["suggestions"] = [sug]
 				assemble.apply_pre_accept(tool)
 				self.assertEqual(sug["pre_accept"], expect["pre_accept"], case["name"])
+
+	def test_apply_pre_accept_refuses_a_tool_with_no_computed_bars(self):
+		"""The divergence-raises half of the finding-6 fix: the bars are
+		computed once, in finalize_tool, from the validator's view. A caller
+		that skips that step gets a KeyError, never a silent recomputation
+		from assembled items — which can hold synthesized reaching security
+		items the bucket never saw."""
+		tool = {"id": "brew:x", "review_bucket": "routine", "risk_level": "low",
+			"quarantine": [], "validator_error": None, "spec_violations": [],
+			"items": [],
+			"suggestions": [{"id": "brew:x:upgrade", "kind": "upgrade",
+				"auto_runnable": True}]}
+		with self.assertRaises(KeyError):
+			assemble.apply_pre_accept(tool)
 
 
 if __name__ == "__main__":
