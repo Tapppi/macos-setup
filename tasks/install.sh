@@ -480,8 +480,11 @@ install_agent_skills_venv() {
 	# servers in that bundle bring their own browser, this one needs its own.
 	# `playwright install` is idempotent: it downloads only what is missing.
 	p3 "Installing Python Playwright and its Chromium for the browser bundle..."
-	uv pip install --python "${venv_python}" --quiet playwright
-	"${venv_dir}/bin/playwright" install chromium
+	if ! uv pip install --python "${venv_python}" --quiet playwright ||
+		! "${venv_dir}/bin/playwright" install chromium; then
+		p1 "Playwright install failed; the browser bundle's scripted mode will not work until it succeeds."
+		return 1
+	fi
 
 	p2 "Agent-skills venv ready at ${venv_dir}"
 }
@@ -577,7 +580,8 @@ install_claude_code() {
 	# the clone goes over SSH through the 1Password agent; a checkout that
 	# already exists is left exactly as it is, whatever branch it is on.
 	local skills_root="${HOME}/project/github/tapppi/skills"
-	if [[ ! -d "${skills_root}/.git" ]]; then
+	# .git is a directory in a clone and a file in a linked worktree.
+	if [[ ! -e "${skills_root}/.git" ]]; then
 		p3 "Cloning Tapppi/skills to ${skills_root}..."
 		mkdir -p "$(dirname "${skills_root}")"
 		git clone git@github.com:Tapppi/skills.git "${skills_root}" ||
