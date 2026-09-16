@@ -47,6 +47,11 @@ document = validate_items.validate_session(session_dir, roots)
 | `bucketing.json` | hand-written | the clause order of `compute_initial_bucket` and the `apply_pre_accept` predicate, as a truth table driven through both live functions (D1, D2, E3) |
 | `degradation.json` | hand-written | `content_losing()` / `compute_degradation()` over synthetic tool shapes, and the `degradation` block's own shape (D1) |
 | `stores.json` | hand-written | the on-disk layout of `watch-items.json` and `method-notes.json`, and the golden file state after one write of each (D4) |
+| `convergence.json` | yes, from `converge.contract()` | the WP3 output contract: the 11-op vocabulary with per-op preconditions and declared scope, the seven checks and their attestation surfaces, every applier code with its severity and phase, the degradation states, the label contract, the effect fields and their safety grading |
+| `converge.json` | hand-written | a complete convergence submission over `session/`'s corpus: nine of the eleven ops, a gated permissive move with its full record, a re-homed watch proposal, a restored tagged proposal, all seven attestations, the ledger, the corpus_effect — it must converge with zero critical findings, and `regenerate.py` refuses to regenerate the expected set if it stops doing so |
+| `expected_converge_view.json` | yes, from `session/` | the exact projection convergence reads — `converge.build_view()` over the fixture corpus, digest included |
+| `expected_converge_tables.json` | yes, from `session/` | the exact corpus-level tables — collisions, proposals with self-test verdicts, evidence findings, distributions |
+| `expected_converge_effect.json` | yes, from `converge.json` | both corpus digests plus the full derived effect: the diff computed without the edit list, the leave-one-out attribution, the per-tool convergence blocks with the judgement-sourced auto-update label, the recomputed corpus_effect, `convergence_status` |
 | `session/` | hand-written | a complete research corpus: three conforming tools (one carrying a grounded watch hit), one that violates nearly every invariant, one retired-schema entry, the two content-losing degradation routes, the elevated security-only route, a watch-hit tool with one grounded control and five invalid hits, its `watch-items.json` grounding snapshot, one unmatched entry, one non-array file, one brew-health finding |
 | `expected_validation.json` | yes, from `session/` | the exact `validation.json` that corpus must produce — every finding, every id, every derived flag, every bucket |
 
@@ -78,6 +83,37 @@ assert got == items.load_fixture("expected_validation.json")
 `test_items.py` asserts every fixture still agrees with the code, so a fixture
 cannot go stale — which is the only reason a published fixture is worth more
 than a paragraph.
+
+## The convergence contract (WP3)
+
+`converge.py` is the convergence stage's `items.py` and `apply_converge.py`
+its `validate_items.py`. What a sibling package (the report pass, the
+adherence review) imports and asserts:
+
+```python
+import converge, apply_converge
+
+converge.CONVERGE_VERSION        # assert EQUALITY, refuse on mismatch — same
+                                 #   rule as items.CONTRACT_VERSION, no shim
+converge.contract()              # the whole contract as data == convergence.json
+converge.build_corpus_pre(validation, collect, stores)
+converge.build_view(corpus_pre)  # THE projection — pure, digest-carrying
+converge.build_tables(corpus_pre)
+converge.derive_tool_state(view, topics)  # THE re-derivation, same functions
+                                 #   the validator ran — never a second copy
+apply_converge.apply_converge(corpus_pre, converge_json)  # phases 1–5, pure
+```
+
+The applier never applies the agent's edits on trust: preconditions are
+checked against `corpus.pre.json`, the diff between the corpora is derived
+without consulting the edit list, scope containment compares the two, every
+bucket move is attributed by leave-one-out replay, and the permissive
+direction is gated. A malformed or non-applying edit is **rejected and
+named** in `converge-effect.json` — never silently skipped. After five
+attempts the run degrades conservatively (`degraded_gate` forces
+`security_mixed`; `degraded_unapplied` ships the pre corpus verbatim) with a
+first-class `convergence_status` explanation. Prose:
+`references/convergence.md`.
 
 ## Memory proposals
 

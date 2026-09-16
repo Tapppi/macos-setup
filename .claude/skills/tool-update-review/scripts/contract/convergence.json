@@ -1,0 +1,440 @@
+{
+	"converge_version": 2,
+	"view_version": 1,
+	"max_attempts": 5,
+	"artifacts": {
+		"corpus.pre.json": "stage 3+prepare — the frozen corpus of record; immutable for the run",
+		"converge-view.json": "prepare — the projection convergence reads; pure function of corpus.pre.json",
+		"converge-tables.json": "prepare — corpus-level tables no single checker could compute",
+		"converge.json": "stage 4 — the agent's addressed, reasoned modification list",
+		"corpus.post.json": "stage 5 — written ONLY by the applier",
+		"converge-effect.json": "stage 5 — the derived record: diff, attribution, labels, convergence_status",
+		"converge-attempts.json": "stage 5 — the durable attempt counter the loop is enforced with"
+	},
+	"ops": {
+		"delete": {
+			"kinds": [
+				"item",
+				"suggestion",
+				"proposal"
+			],
+			"fields": null,
+			"precondition": "element",
+			"bucket_capable": true,
+			"cut": true,
+			"scope": "removal of target.id"
+		},
+		"merge": {
+			"kinds": [
+				"item"
+			],
+			"fields": null,
+			"precondition": "element",
+			"bucket_capable": true,
+			"cut": true,
+			"scope": "changed_fields on target.id; `after` is the WHOLE merged element"
+		},
+		"retag": {
+			"kinds": [
+				"item"
+			],
+			"fields": [
+				"tags"
+			],
+			"precondition": "field",
+			"bucket_capable": true,
+			"cut": true,
+			"scope": "tags on target.id"
+		},
+		"rerate": {
+			"kinds": [
+				"item"
+			],
+			"fields": [
+				"severity"
+			],
+			"precondition": "field",
+			"bucket_capable": true,
+			"cut": true,
+			"scope": "severity on target.id"
+		},
+		"redirect": {
+			"kinds": [
+				"item"
+			],
+			"fields": [
+				"local.direction",
+				"local.effect"
+			],
+			"precondition": "field",
+			"bucket_capable": true,
+			"cut": true,
+			"scope": "target.field on target.id"
+		},
+		"add": {
+			"kinds": [
+				"suggestion"
+			],
+			"fields": null,
+			"precondition": "none",
+			"bucket_capable": true,
+			"cut": false,
+			"scope": "creation of one MEMORY suggestion under target.tool_id"
+		},
+		"trim": {
+			"kinds": [
+				"item",
+				"suggestion",
+				"proposal"
+			],
+			"fields": "text",
+			"precondition": "field",
+			"bucket_capable": false,
+			"cut": false,
+			"scope": "target.field on target.id; after must be a token-subsequence shortening"
+		},
+		"reword": {
+			"kinds": [
+				"item",
+				"suggestion",
+				"proposal"
+			],
+			"fields": "text",
+			"precondition": "field",
+			"bucket_capable": false,
+			"cut": false,
+			"scope": "target.field on target.id"
+		},
+		"move_evidence": {
+			"kinds": [
+				"item"
+			],
+			"fields": [
+				"local.evidence"
+			],
+			"precondition": "field",
+			"bucket_capable": false,
+			"cut": false,
+			"scope": "local.evidence + local.citations on target.id"
+		},
+		"annotate": {
+			"kinds": [
+				"item",
+				"suggestion",
+				"proposal",
+				"tool"
+			],
+			"fields": null,
+			"precondition": "field",
+			"bucket_capable": false,
+			"cut": false,
+			"scope": "convergence_notes on target.id"
+		},
+		"flag": {
+			"kinds": [
+				"item",
+				"suggestion",
+				"proposal",
+				"tool"
+			],
+			"fields": null,
+			"precondition": "none",
+			"bucket_capable": false,
+			"cut": false,
+			"scope": "EMPTY — writes nothing to the corpus"
+		}
+	},
+	"bucket_capable_ops": [
+		"delete",
+		"merge",
+		"retag",
+		"rerate",
+		"redirect",
+		"add"
+	],
+	"cut_ops": [
+		"delete",
+		"merge",
+		"retag",
+		"rerate",
+		"redirect"
+	],
+	"item_text_fields": [
+		"title",
+		"body",
+		"local.statement"
+	],
+	"suggestion_text_fields": [
+		"title",
+		"rationale",
+		"description",
+		"diff_preview",
+		"watch_note",
+		"method_note",
+		"watch_topic",
+		"method_topic"
+	],
+	"immutable_element_fields": [
+		"id",
+		"id_stability"
+	],
+	"reason_confidence": [
+		"high",
+		"medium",
+		"low"
+	],
+	"claim_directions": [
+		"permissive",
+		"restrictive",
+		"lateral"
+	],
+	"bucket_restrictiveness": {
+		"attention": 3,
+		"security_mixed": 2,
+		"routine": 1,
+		"security_auto": 0
+	},
+	"gate_consequence_tokens": [
+		"security_auto",
+		"pre-accept",
+		"pre_accept",
+		"pre-accepted",
+		"auto-accept",
+		"auto-accepted",
+		"auto-update",
+		"auto_update"
+	],
+	"evidence_finding_codes": [
+		"E-EVID-MALFORMED",
+		"E-EVID-404",
+		"W-EVID-ROOT",
+		"E-REACHES-UNEVIDENCED"
+	],
+	"checks": {
+		"C1-evidence": {
+			"ops": [
+				"move_evidence",
+				"flag"
+			],
+			"attests": "scanned.tools/items/evidence_entries exact; findings == len(evidence_findings)"
+		},
+		"C2-tags-visibility": {
+			"ops": [
+				"retag",
+				"rerate",
+				"redirect",
+				"trim",
+				"reword",
+				"delete",
+				"merge",
+				"flag"
+			],
+			"attests": "scanned.items exact; clean + distinct edited items cover every item"
+		},
+		"C3-security-only": {
+			"ops": [
+				"retag",
+				"rerate",
+				"flag"
+			],
+			"attests": "security_only_tools enumerates EVERY security_only tool with its cve_count and a verdict"
+		},
+		"C4-notable-security": {
+			"ops": [
+				"redirect",
+				"rerate",
+				"flag"
+			],
+			"attests": "scanned.security_items/rating_unrated/direction_does_not_reach/anchor_duplicates exact"
+		},
+		"C5-auto-approval": {
+			"ops": [
+				"retag",
+				"rerate",
+				"redirect",
+				"flag"
+			],
+			"attests": "tools enumerates EVERY security_auto or pre-accept-eligible tool with deciding_input + verdict"
+		},
+		"C6-memory": {
+			"ops": [
+				"delete",
+				"add",
+				"flag"
+			],
+			"attests": "the ledger: every proposal in exactly one disposition; every tagged proposal reviewed in both directions; fired_this_run recomputed"
+		},
+		"C7-collisions": {
+			"ops": [
+				"delete",
+				"annotate",
+				"reword",
+				"trim",
+				"flag"
+			],
+			"attests": "clusters_inspected == len(file_collisions); every surviving suggestion id resolves"
+		}
+	},
+	"codes": {
+		"E-SUBMIT-SHAPE": {
+			"severity": "critical",
+			"phase": 1,
+			"meaning": "converge.json is not the contract's shape (object, edits[], checks[], ledger, corpus_effect)"
+		},
+		"E-SUBMIT-RUN": {
+			"severity": "critical",
+			"phase": 1,
+			"meaning": "run_id does not match the session"
+		},
+		"E-SUBMIT-VERSION": {
+			"severity": "critical",
+			"phase": 1,
+			"meaning": "converge_version or view_version does not match this contract"
+		},
+		"E-SUBMIT-DIGEST": {
+			"severity": "critical",
+			"phase": 1,
+			"meaning": "corpus_digest does not match the corpus about to be applied to"
+		},
+		"E-EDIT-TARGET": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "target.id does not resolve, or target.field is illegal for target.kind"
+		},
+		"E-EDIT-PRECOND": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "precondition.before != the current value of target.field"
+		},
+		"E-EDIT-QUOTE": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "quote absent on a cut, or not verbatim-contained in the addressed element"
+		},
+		"E-EDIT-OP": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "op/kind/field combination illegal; bucket_claim on a non-bucket-capable op or absent on a bucket-capable one; changed_fields absent on a merge; trim's after not a shortening; a malformed reason"
+		},
+		"E-EDIT-DEP": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "requires names an unknown or rejected edit — transitively closed"
+		},
+		"E-EDIT-DUP": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "two edits write the same (element, field) with no supersedes chain between them"
+		},
+		"E-EDIT-ID": {
+			"severity": "critical",
+			"phase": 2,
+			"meaning": "an add whose derived id collides with an existing id in that tool"
+		},
+		"E-APPLY-SCOPE": {
+			"severity": "critical",
+			"phase": 4,
+			"meaning": "the derived change set != the declared scope set"
+		},
+		"E-APPLY-SCHEMA": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "corpus_post fails validation where corpus_pre did not — a merge/add payload that is not a valid element"
+		},
+		"E-APPLY-INTERNAL": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "the applier's own re-derivation disagrees with the validator's recorded axes on corpus_pre — an applier bug, never the agent's"
+		},
+		"E-CHECK-CLOSURE": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "a check attestation is missing/duplicated, or checks[].edits != the set of edits naming that check"
+		},
+		"E-CHECK-ARITH": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "an attestation count != the recomputed count"
+		},
+		"E-CHECK-OP": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "an edit's op is outside its check's output vocabulary"
+		},
+		"E-GATE-UNATTRIBUTED": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "a permissive move with no attributable cause — the §3 defect exactly"
+		},
+		"E-GATE-UNDECLARED": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "an attributed edit's bucket_claim.moves_bucket is false"
+		},
+		"E-GATE-UNREASONED": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "an attributed edit's reason.body does not name the consequence"
+		},
+		"E-EFFECT-ARITH": {
+			"severity": "graded",
+			"phase": 5,
+			"meaning": "a corpus_effect number != recomputed — critical on tools_moved/pre_accept, a note otherwise"
+		},
+		"E-EFFECT-NARRATIVE": {
+			"severity": "critical",
+			"phase": 5,
+			"meaning": "corpus_effect.narrative missing, or it fails the -20% enumeration rule"
+		},
+		"W-EDIT-CLAIM": {
+			"severity": "note",
+			"phase": 5,
+			"meaning": "a bucket_claim disagrees with the computed truth in a non-gated direction"
+		},
+		"W-SUBMIT-ATTEMPT": {
+			"severity": "note",
+			"phase": 1,
+			"meaning": "the declared attempt number disagrees with the durable counter; the counter governs"
+		},
+		"W-EDIT-SCHEMA": {
+			"severity": "note",
+			"phase": 5,
+			"meaning": "a touched element carries a new warning-severity finding"
+		}
+	},
+	"degradation_states": [
+		"converged",
+		"degraded_gate",
+		"degraded_unapplied"
+	],
+	"forced_bucket": "security_mixed",
+	"moved_axes": [
+		"initial_review_bucket",
+		"initial_pre_accept",
+		"risk_level"
+	],
+	"effect_fields": [
+		"edits_by_op",
+		"items",
+		"severity_after",
+		"severity_at_warning_or_worse",
+		"tag_security_items",
+		"tools_moved",
+		"pre_accept"
+	],
+	"effect_safety_fields": [
+		"tools_moved",
+		"pre_accept"
+	],
+	"narrative_enumeration_pct": -20.0,
+	"label": {
+		"present_iff": "the tool's FINAL state is security_auto or initial_pre_accept is true, and the tool was not degraded-forced — absent otherwise, never null-filled",
+		"sources": [
+			"judgement",
+			"rule",
+			"judgement_unattributed"
+		],
+		"never_ships": "judgement_unattributed — under the gate and loop as specified a permissive move with no attributable cause is rejected up to five times and then forced conservative, which removes the label key entirely",
+		"headline_max_chars": 140
+	}
+}

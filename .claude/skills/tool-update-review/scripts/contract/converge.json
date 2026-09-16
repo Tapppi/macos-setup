@@ -1,0 +1,521 @@
+{
+	"run_id": "session",
+	"converge_version": 2,
+	"view_version": 1,
+	"corpus_digest": "sha256:804ec514b1c7e597f2bcfa4ad2dc7660cb7af5da477045da7480d5a53ea30e66",
+	"attempt": 1,
+	"checks": [
+		{
+			"check": "C1-evidence",
+			"scanned": {
+				"tools": 11,
+				"items": 24,
+				"evidence_entries": 11
+			},
+			"findings": 5,
+			"edits": [
+				"cv-001",
+				"cv-002"
+			],
+			"notes": "Five findings: one prose citation re-homed, one 404 path flagged; the unconfigured-root path, the config_status prose and the unevidenced reaches item are the validator's markers and need no corpus write."
+		},
+		{
+			"check": "C2-tags-visibility",
+			"scanned": {
+				"items": 24
+			},
+			"clean": 17,
+			"edits": [
+				"cv-003",
+				"cv-004",
+				"cv-005",
+				"cv-006",
+				"cv-007",
+				"cv-008",
+				"cv-013"
+			],
+			"notes": "Seven items edited, seventeen clean; the openssh cut is the one bucket-moving edit and carries the full record."
+		},
+		{
+			"check": "C3-security-only",
+			"security_only_tools": [
+				{
+					"tool_id": "brew:elevated",
+					"cve_count": 1,
+					"verdict": "Label correct: the one item is the CVE fix itself; elevated risk bars pre-acceptance so nothing auto-applies."
+				},
+				{
+					"tool_id": "brew:quarantined",
+					"cve_count": 1,
+					"verdict": "Label correct on the surviving content, and moot for auto-anything: quarantined content is content-losing, so the tool is held at attention/elevated regardless."
+				}
+			],
+			"edits": [
+				"cv-009"
+			],
+			"notes": "Two security_only tools this run, enumerated in full."
+		},
+		{
+			"check": "C4-notable-security",
+			"scanned": {
+				"security_items": 6,
+				"rating_unrated": 2,
+				"direction_does_not_reach": 3,
+				"anchor_duplicates": 0
+			},
+			"edits": [],
+			"notes": "Both unrated items are openssh release-notes entries presented as unrated, which is honest; no duplicate anchors to reconcile."
+		},
+		{
+			"check": "C5-auto-approval",
+			"tools": [
+				{
+					"tool_id": "brew:openssh",
+					"deciding_input": "risk_level",
+					"verdict": "Eligible at low risk with no bars; if the upgrade broke unattended, the mux use-after-free item in front of the reviewer would have said so. cv-003 moves it to security_auto and the label carries that reasoning."
+				}
+			],
+			"edits": [],
+			"notes": "One pre-accept-eligible tool before convergence; its move is cv-003's and gated."
+		},
+		{
+			"check": "C6-memory",
+			"edits": [
+				"cv-010",
+				"cv-011"
+			],
+			"notes": "Three proposals: one re-homed to a method note, one tagged proposal restored, one untagged note kept. Dispositions in the ledger."
+		},
+		{
+			"check": "C7-collisions",
+			"clusters_inspected": 0,
+			"resolved": [],
+			"flagged": 0,
+			"edits": [],
+			"notes": "No path carries two suggestions this run."
+		}
+	],
+	"edits": [
+		{
+			"edit_id": "cv-001",
+			"check": "C1-evidence",
+			"op": "move_evidence",
+			"target": {
+				"tool_id": "brew:nonconforming",
+				"kind": "item",
+				"id": "brew:nonconforming#slug:evidence-shapes",
+				"field": "local.evidence"
+			},
+			"precondition": {
+				"before": "CMake 4.4 release notes — \"the minimum is now 3.5\""
+			},
+			"after": {
+				"citation": {
+					"kind": "release_notes",
+					"text": "CMake 4.4 release notes — \"the minimum is now 3.5\""
+				}
+			},
+			"reason": {
+				"headline": "Prose citation filed as evidence; re-homed to citations[].",
+				"rule_ref": "references/item-schema.md §3"
+			}
+		},
+		{
+			"edit_id": "cv-002",
+			"check": "C1-evidence",
+			"op": "flag",
+			"target": {
+				"tool_id": "brew:nonconforming",
+				"kind": "item",
+				"id": "brew:nonconforming#slug:evidence-shapes",
+				"field": null
+			},
+			"reason": {
+				"headline": "dotfiles/config/bash/.path resolves nowhere; resolving it needs the repo tree, which is the validator's channel, not mine."
+			}
+		},
+		{
+			"edit_id": "cv-003",
+			"check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {
+				"tool_id": "brew:openssh",
+				"kind": "item",
+				"id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+				"field": null
+			},
+			"quote": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first.",
+			"bucket_claim": {
+				"moves_bucket": true,
+				"expected_from": "security_mixed",
+				"expected_to": "security_auto",
+				"direction": "permissive"
+			},
+			"reason": {
+				"headline": "Feature note on a security release — and the only item holding openssh out of security-only.",
+				"body": "A new -Z inspection flag is a reason to take the upgrade, not to review it; no reviewer who believed the opposite would hold the upgrade over it. Removing it makes the remaining items security-only, which moves openssh into security_auto and leaves its already-eligible upgrade pre-accepted — a 0-CVE release whose two security fixes both say they do not reach this machine. The fact survives in the release notes link.",
+				"rule_ref": "references/convergence.md §3.4",
+				"confidence": "high"
+			}
+		},
+		{
+			"edit_id": "cv-004",
+			"check": "C2-tags-visibility",
+			"op": "trim",
+			"target": {
+				"tool_id": "brew:openssh",
+				"kind": "item",
+				"id": "brew:openssh#release:10.5p1%2Fssh-mux-realloc-uaf",
+				"field": "local.statement"
+			},
+			"precondition": {
+				"before": "No ControlMaster is configured anywhere in these repos and no -R forwarding is set up, so the multiplexing path is never entered here."
+			},
+			"after": "No ControlMaster is configured and no -R forwarding is set up, so the multiplexing path is never entered here.",
+			"reason": {
+				"headline": "Same statement, five fewer words.",
+				"rule_ref": "references/research.md §Noise Floor"
+			}
+		},
+		{
+			"edit_id": "cv-005",
+			"check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"id": "brew:watched#issue:watched%2Fwatched%23102",
+				"field": "severity"
+			},
+			"precondition": {
+				"before": "notable"
+			},
+			"quote": "Watched change number 2",
+			"after": "info",
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "routine",
+				"expected_to": "routine",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "Claims notable with an unclear direction and no effect — detail, not a highlight.",
+				"body": "Its own local block says unclear/none: a reviewer who believed the opposite would still take the patch upgrade. It stays on the card as expandable detail.",
+				"rule_ref": "references/research.md §Noise Floor",
+				"confidence": "medium"
+			}
+		},
+		{
+			"edit_id": "cv-006",
+			"check": "C2-tags-visibility",
+			"op": "redirect",
+			"target": {
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"id": "brew:watched#issue:watched%2Fwatched%23103",
+				"field": "local.direction"
+			},
+			"precondition": {
+				"before": "unclear"
+			},
+			"quote": "Watched change number 3",
+			"after": "does_not_reach",
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "routine",
+				"expected_to": "routine",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "The statement itself says nothing here consumes this path — that is does_not_reach, not unclear.",
+				"body": "The item's own statement describes how change 3 lands and names no surface this machine exposes; unclear overstates it. The tool stays routine either way — the watch-hit bar on this tool is untouched.",
+				"rule_ref": "references/convergence.md §2 C2",
+				"confidence": "medium"
+			}
+		},
+		{
+			"edit_id": "cv-007",
+			"check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"id": "brew:watched#issue:watched%2Fwatched%23101",
+				"field": null
+			},
+			"quote": "Watched change number 1",
+			"after": {
+				"anchor": {
+					"kind": "issue",
+					"value": "watched/watched#101"
+				},
+				"title": "Watched change number 1",
+				"tags": [
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Upstream change 1 as the release notes state it",
+					"link_index": 0
+				},
+				"watch_hit": {
+					"topic": "credential format written back to the Keychain"
+				},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "How change 1 lands on this setup.",
+					"evidence": [],
+					"citations": []
+				},
+				"id": "brew:watched#issue:watched%2Fwatched%23101",
+				"id_stability": "anchored",
+				"body": "Change 4 in the same release touches the same Keychain record and adds nothing a reviewer would decide differently on; merged here."
+			},
+			"changed_fields": [
+				"body"
+			],
+			"requires": [
+				"cv-008"
+			],
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "routine",
+				"expected_to": "routine",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "Absorbs the duplicate Keychain-record item; the surviving item carries both.",
+				"body": "Items 1 and 4 answer the same stored watch topic about the same release; one card line is enough, and the merged body records what item 4 added. Nothing leaves the corpus — the deletion this requires is recorded beside it.",
+				"rule_ref": "references/research.md §Deduplicate Facts",
+				"confidence": "high",
+				"destination_id": "brew:watched#issue:watched%2Fwatched%23101"
+			}
+		},
+		{
+			"edit_id": "cv-008",
+			"check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"id": "brew:watched#issue:watched%2Fwatched%23104",
+				"field": null
+			},
+			"quote": "Watched change number 4",
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "routine",
+				"expected_to": "routine",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "Absorbed into the item that already answers the same watch topic.",
+				"body": "Same watch_hit topic, same release, no local block of its own; cv-007 merges its fact into item 1, which stays grounded, so the watch-hit bar and the highlight both survive. A reviewer reading the survivor decides identically.",
+				"rule_ref": "references/research.md §Deduplicate Facts",
+				"confidence": "high",
+				"destination_id": "brew:watched#issue:watched%2Fwatched%23101"
+			}
+		},
+		{
+			"edit_id": "cv-013",
+			"check": "C2-tags-visibility",
+			"op": "retag",
+			"target": {
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"id": "brew:watched#issue:watched%2Fwatched%23105",
+				"field": "tags"
+			},
+			"precondition": {
+				"before": [
+					"fix"
+				]
+			},
+			"quote": "Watched change number 5",
+			"after": [
+				"chore"
+			],
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "routine",
+				"expected_to": "routine",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "Cited change with no consequence for any reader here — chore, not fix.",
+				"body": "The item claims a fix but its own text describes no incorrect behaviour this setup could have seen; its malformed watch_hit claim is already reported by the validator. Re-tagging moves nothing: the tool is routine before and after.",
+				"rule_ref": "references/item-schema.md §2 tags",
+				"confidence": "medium"
+			}
+		},
+		{
+			"edit_id": "cv-009",
+			"check": "C3-security-only",
+			"op": "flag",
+			"target": {
+				"tool_id": "brew:elevated",
+				"kind": "tool",
+				"id": null,
+				"field": null
+			},
+			"reason": {
+				"headline": "security_only holds: the single item IS the CVE fix; elevated risk already bars pre-acceptance."
+			}
+		},
+		{
+			"edit_id": "cv-010",
+			"check": "C6-memory",
+			"op": "delete",
+			"target": {
+				"tool_id": "brew:nonconforming",
+				"kind": "proposal",
+				"id": "brew:nonconforming:watch-no-reason",
+				"field": null
+			},
+			"quote": "Flag any future release touching the Keychain record.",
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "attention",
+				"expected_to": "attention",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "Re-homed: no future changelog delta names a Keychain record — this is method knowledge, not a watch item.",
+				"body": "The proposal's own note watches for a change no release-notes delta would surface, which is the re-homing test, and its self-test tag names limb scope with a blank reason. The knowledge is kept: cv-011 files it as a per-tool method note, recorded in the ledger as rehomed.",
+				"rule_ref": "references/convergence.md §2 C6",
+				"confidence": "high",
+				"destination_id": "brew:nonconforming:method-credential-format"
+			}
+		},
+		{
+			"edit_id": "cv-011",
+			"check": "C6-memory",
+			"op": "add",
+			"target": {
+				"tool_id": "brew:nonconforming",
+				"kind": "suggestion",
+				"id": null,
+				"field": null
+			},
+			"requires": [
+				"cv-010"
+			],
+			"after": {
+				"id": "brew:nonconforming:method-credential-format",
+				"kind": "method-note",
+				"title": "Check the credential format against the Keychain record directly",
+				"method_topic": "the credential format this vendor writes back",
+				"method_note": "Release notes never mention the Keychain record this tool rewrites; verify the written format against the stored record directly rather than watching the changelog for it.",
+				"rationale": "Re-homed from brew:nonconforming:watch-no-reason by convergence: the concern is real but nothing in a future current→latest delta would surface it."
+			},
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "attention",
+				"expected_to": "attention",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "The re-homed method note carrying the cut watch proposal's knowledge.",
+				"body": "Memory proposals never force a decision, so brew:nonconforming stays where its findings put it; the ledger's rehomed_to_method_note row ties this note to the proposal it replaces.",
+				"rule_ref": "references/convergence.md §2 C6",
+				"confidence": "high"
+			}
+		}
+	],
+	"ledger": {
+		"watch_items": {
+			"existing": [
+				{
+					"tool_id": "cask:codex",
+					"topic": "cask quarantine after upgrade",
+					"fired_this_run": true,
+					"used_correctly": true,
+					"note": "The CVE item labels the hit and the validator grounds it; the claim matches the stored concern exactly."
+				},
+				{
+					"tool_id": "brew:watched",
+					"topic": "credential format written back to the Keychain",
+					"fired_this_run": true,
+					"used_correctly": true,
+					"note": "Two items labelled the hit; after cv-007/cv-008 the surviving item still carries it, so the highlight and the bar both stand."
+				}
+			],
+			"proposed_kept": [],
+			"proposed_cut": [],
+			"rehomed_to_method_note": [
+				{
+					"suggestion_id": "brew:nonconforming:watch-no-reason",
+					"new_note_id": "brew:nonconforming:method-credential-format",
+					"scope": "tool",
+					"reason": "Its own note watches for a change no future changelog delta would surface — the re-homing test, met verbatim; the self-test tag (limb scope, blank reason) is mooted by the re-home."
+				}
+			]
+		},
+		"method_notes_tool": {
+			"kept": [
+				{
+					"suggestion_id": "brew:attention:method-xdg-path",
+					"reason": "Untagged, payload complete, and it names a failure this run actually hit."
+				},
+				{
+					"suggestion_id": "brew:nonconforming:method-no-payload",
+					"restored": true,
+					"reason": "The tag names a limb outside the vocabulary, so the self-test never ran as specified — the tag is malformed, not the proposal. Kept for the payload the validator is already demanding (E-FIELD-MISSING stands against it)."
+				}
+			],
+			"cut": [],
+			"promoted_to_global": []
+		},
+		"method_notes_global": {
+			"kept": [],
+			"cut": [],
+			"demoted_to_tool": []
+		}
+	},
+	"corpus_effect": {
+		"edits_by_op": {
+			"add": 1,
+			"delete": 3,
+			"flag": 2,
+			"merge": 1,
+			"move_evidence": 1,
+			"redirect": 1,
+			"rerate": 1,
+			"retag": 1,
+			"trim": 1
+		},
+		"items": {
+			"before": 24,
+			"after": 22
+		},
+		"severity_after": {
+			"info": 8,
+			"notable": 8,
+			"warning": 4,
+			"incompatible": 1
+		},
+		"severity_at_warning_or_worse": {
+			"before": 5,
+			"after": 5,
+			"pct_change": 0.0
+		},
+		"tag_security_items": {
+			"before": 6,
+			"after": 6
+		},
+		"tools_moved": {
+			"permissive": [
+				"brew:openssh"
+			],
+			"restrictive": [],
+			"lateral": []
+		},
+		"pre_accept": {
+			"before": 1,
+			"after": 1
+		},
+		"narrative": "The one movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
+	}
+}

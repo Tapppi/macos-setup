@@ -1,0 +1,1488 @@
+{
+	"run_id": "session",
+	"generated_at": "2026-09-07T00:00:00Z",
+	"converge_version": 2,
+	"view_version": 1,
+	"corpus_digest": "sha256:804ec514b1c7e597f2bcfa4ad2dc7660cb7af5da477045da7480d5a53ea30e66",
+	"tools": [
+		{
+			"id": "brew:sops",
+			"source": "brew",
+			"name": "sops",
+			"current_version": "3.13.2",
+			"latest_version": "3.13.3",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": "warning",
+				"local_findings": 1
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2245"
+					},
+					"title": "3.13.3 fixes a wrong MAC computed when decrypting YAML sequences that contain a comment",
+					"tags": [
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Fix a bug introduced in 3.13.2 that computes a wrong MAC during decryption for sequences (YAML lists) that contain a comment (#2245)",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The defective binary is what runs here, so the upgrade is the fix rather than a change to step over. But nothing in these repos hands sops a file to decrypt: the sopsdiffer textconv driver is bound to no path, there is no .sops.yaml, no SOPS_* env var and no alias.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									6
+								]
+							},
+							{
+								"path": "dotfiles/config/git/config",
+								"lines": [
+									[
+										1,
+										2
+									]
+								],
+								"note": "diff \"sopsdiffer\" textconv"
+							},
+							{
+								"path": "dotfiles/config/git/config",
+								"lines": [
+									5
+								]
+							}
+						],
+						"citations": [
+							{
+								"kind": "command",
+								"text": "sops --version → 3.13.2",
+								"url": null
+							},
+							{
+								"kind": "command",
+								"text": "git check-attr diff -- Brewfile → \"diff: unspecified\"",
+								"url": null
+							},
+							{
+								"kind": "upstream_source",
+								"text": "getsops/sops compare v3.13.2...v3.13.3 — 13 non-dependency commits",
+								"url": "https://github.com/getsops/sops/compare/v3.13.2...v3.13.3"
+							}
+						]
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232245",
+					"id_stability": "anchored",
+					"has_body": true
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2253"
+					},
+					"title": "`sops completion` no longer emits a leading blank line before the shebang",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Fix `sops completion` emitting a leading newline before the shebang (#2253)",
+						"link_index": 0
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232253",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "getsops/sops#2239"
+					},
+					"title": "`ini` is now listed among the supported input/output types in the CLI help text",
+					"tags": [
+						"chore"
+					],
+					"severity": "info",
+					"change": {
+						"version": "3.13.3",
+						"citation": "Add `ini` to the list of supported types in the CLI help (#2239)",
+						"link_index": 0
+					},
+					"id": "brew:sops#issue:getsops%2Fsops%232239",
+					"id_stability": "anchored",
+					"has_body": false
+				}
+			],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:openssh",
+			"source": "brew",
+			"name": "openssh",
+			"current_version": "10.4p1",
+			"latest_version": "10.5p1",
+			"version_delta": "minor",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 4
+			},
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "minor",
+				"runnable": true
+			},
+			"initial_pre_accept": true,
+			"pre_accept_bars": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/ssh-mux-realloc-uaf"
+					},
+					"title": "ssh(1) use-after-free in the multiplexing client when a mux socket is torn down mid-request",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "10.5p1",
+						"citation": "ssh(1): fix a use-after-free in the multiplexing client",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "No ControlMaster is configured anywhere in these repos and no -R forwarding is set up, so the multiplexing path is never entered here.",
+						"evidence": [
+							{
+								"path": "dotfiles/config/1password/agent.toml",
+								"note": "the only ssh config this repo ships"
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": null,
+						"advisory_id": null,
+						"rating": "unknown",
+						"rating_basis": "unrated",
+						"exploited_in_wild": false
+					},
+					"id": "brew:openssh#release:10.5p1%2Fssh-mux-realloc-uaf",
+					"id_stability": "slug",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/restrict-covers-tunnel"
+					},
+					"title": "sshd(8) `restrict` in authorized_keys now also disables tunnel forwarding",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "10.5p1",
+						"citation": "sshd(8): the restrict keyword now includes tunnel forwarding",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "none",
+						"statement": "launchd runs Apple's sshd on this machine, not Homebrew's, so a change to Homebrew's sshd(8) does not reach the running service.",
+						"evidence": [],
+						"citations": [
+							{
+								"kind": "command",
+								"text": "launchctl print system/com.openssh.sshd → Apple's /usr/sbin/sshd",
+								"url": null
+							}
+						]
+					},
+					"security": {
+						"cve_id": null,
+						"advisory_id": null,
+						"rating": "unknown",
+						"rating_basis": "unrated",
+						"exploited_in_wild": false
+					},
+					"id": "brew:openssh#release:10.5p1%2Frestrict-covers-tunnel",
+					"id_stability": "slug",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/ssh-Z-key-order"
+					},
+					"title": "ssh(1) gains -Z, printing the order in which agent keys are offered",
+					"tags": [
+						"feature"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "10.5p1",
+						"citation": "ssh(1): add a -Z option to print the order of agent key offers",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first. -Z makes that inspectable rather than inferred.",
+						"evidence": [
+							{
+								"path": "dotfiles/config/1password/agent.toml",
+								"lines": [
+									[
+										1,
+										8
+									]
+								],
+								"note": "three vaults"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+					"id_stability": "slug",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/libcrypto-ecc-required"
+					},
+					"title": "The configure step now requires ECC and NISTP521 support in libcrypto",
+					"tags": [
+						"packaging"
+					],
+					"severity": "info",
+					"change": {
+						"version": "10.5p1",
+						"citation": "OpenSSL builds now require ECC support including NISTP521",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "Homebrew builds against its own OpenSSL, and nothing in these repos pins that formula, so whether the floor binds here is not decidable from the repos alone.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:openssh#release:10.5p1%2Flibcrypto-ecc-required",
+					"id_stability": "slug",
+					"has_body": false
+				}
+			],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "cask:codex",
+			"source": "cask",
+			"name": "codex",
+			"current_version": "0.46.0",
+			"latest_version": "0.47.0",
+			"version_delta": "major",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "needs_attention",
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "warning",
+				"local_findings": 2
+			},
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "major",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk",
+				"reaches-item",
+				"watch-hit"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-18408"
+					},
+					"title": "A cask upgrade re-quarantines the bundled native binding, so every invocation dies",
+					"tags": [
+						"security",
+						"packaging"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "0.47.0",
+						"citation": "The published archive is notarized but the bundled native module is not stapled",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The quarantine flag has to be re-cleared after every cask upgrade here; nothing in setup.sh does it, so the next upgrade breaks the binary until someone clears it by hand.",
+						"evidence": [
+							{
+								"path": "setup.sh",
+								"lines": [
+									[
+										7,
+										12
+									]
+								],
+								"note": "the dispatch that would carry a quarantine task"
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": "CVE-2026-18408",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"watch_hit": {
+						"topic": "cask quarantine after upgrade"
+					},
+					"id": "cask:codex#cve:CVE-2026-18408",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "openai/codex#4110"
+					},
+					"title": "`codex exec --full-auto` is removed; the flag now errors instead of running",
+					"tags": [
+						"breaking"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "0.47.0",
+						"citation": "Removed `codex exec --full-auto`; use `--sandbox danger-full-access`",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The Brewfile installs this cask, so the removed flag lands on the machine at the next upgrade whether or not anything invokes it today.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									10
+								]
+							}
+						],
+						"citations": []
+					},
+					"id": "cask:codex#issue:openai%2Fcodex%234110",
+					"id_stability": "anchored",
+					"has_body": true
+				}
+			],
+			"suggestions": [
+				{
+					"id": "cask:codex:add-quarantine-task",
+					"kind": "structural",
+					"title": "Add a `setup.sh quarantine` task so a plain cask upgrade can re-clear quarantine",
+					"structural": {
+						"op": "task_add",
+						"subjects": [
+							{
+								"type": "cask",
+								"name": "codex"
+							},
+							{
+								"type": "cask",
+								"name": "cursor-cli"
+							}
+						],
+						"manifest": null,
+						"from": null,
+						"to": {
+							"type": "task",
+							"name": "setup.sh:quarantine"
+						},
+						"anchor": {
+							"file": "setup.sh",
+							"after": "elif [[ \"${1}\" = \"herdr\" ]]"
+						}
+					},
+					"target_files": [
+						{
+							"path": "setup.sh",
+							"description": "add the quarantine dispatch branch"
+						}
+					],
+					"rationale": "Four casks need the quarantine flag cleared after an upgrade and none of them has a home for it today.",
+					"needs_sudo": false
+				}
+			],
+			"security_display_item_ids": [
+				"cask:codex#cve:CVE-2026-18408"
+			],
+			"watch_hit_item_ids": [
+				"cask:codex#cve:CVE-2026-18408"
+			],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:attention",
+			"source": "brew",
+			"name": "attention",
+			"current_version": "2.4.0",
+			"latest_version": "2.4.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "needs_attention",
+			"flags": {
+				"has_security": false,
+				"has_breaking": true,
+				"worst_severity": "notable",
+				"local_findings": 0
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"W-ATTENTION-NOSUG"
+				],
+				"quarantined": 0
+			},
+			"spec_violations": [
+				"W-ATTENTION-NOSUG"
+			],
+			"items": [
+				{
+					"anchor": {
+						"kind": "commit",
+						"value": "9f3c1de"
+					},
+					"title": "The default config path moves from ~/.attentionrc to $XDG_CONFIG_HOME/attention",
+					"tags": [
+						"breaking"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "2.4.1",
+						"citation": "attention now reads $XDG_CONFIG_HOME/attention/config; ~/.attentionrc is read only as a fallback",
+						"link_index": 0
+					},
+					"id": "brew:attention#commit:9f3c1de",
+					"id_stability": "anchored",
+					"has_body": false
+				}
+			],
+			"suggestions": [
+				{
+					"id": "brew:attention:upgrade",
+					"kind": "upgrade",
+					"title": "Upgrade attention 2.4.0 → 2.4.1",
+					"command": "brew upgrade attention",
+					"auto_runnable": true,
+					"needs_sudo": false
+				},
+				{
+					"id": "brew:attention:method-xdg-path",
+					"kind": "method-note",
+					"title": "Research attention's config path from the source, not the release notes",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"method_topic": "where attention's real config-path changes are announced",
+					"method_note": "attention moves its config path in ordinary commits and mentions it nowhere in the release body. Read the `config` package's diff across the range rather than the CHANGELOG, which said nothing about the 2.4.1 move.",
+					"rationale": "The 2.4.1 move was invisible in the release notes this review read first."
+				}
+			],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:nonconforming",
+			"source": "brew",
+			"name": "nonconforming",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "needs_attention",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "incompatible",
+				"local_findings": 3
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"E-ANCHOR-MALFORMED",
+					"E-CHANGE-UNCITED",
+					"E-CITE-EMPTY",
+					"E-CITE-KIND",
+					"E-CITE-URL",
+					"E-CVE-MALFORMED",
+					"E-ENUM-INVALID",
+					"E-EVID-404",
+					"E-EVID-MALFORMED",
+					"E-FIELD-MISSING",
+					"E-FIELD-TYPE",
+					"E-FLAG-DISAGREE",
+					"E-FLAG-FORBIDDEN",
+					"E-INTEL-BREWFILE",
+					"E-ITEM-DUP-ANCHOR",
+					"E-ITEM-EMPTY",
+					"E-LINK-INDEX",
+					"E-REACHES-UNEVIDENCED",
+					"E-SEC-BLOCK-MISSING",
+					"E-SEC-BLOCK-ORPHAN",
+					"E-SEC-RATING-UNBASED",
+					"E-SELFTEST-NOREASON",
+					"E-SEV-INCOMPAT-UNGROUNDED",
+					"E-SEV-WARNING-UNGROUNDED",
+					"E-STRUCT-PRECOND",
+					"E-TAG-NONE",
+					"E-TAG-UNKNOWN",
+					"W-EVID-ROOT",
+					"W-MEMBER-QUARANTINED",
+					"W-STRUCT-UNCHECKED",
+					"W-SUG-DUP-ID",
+					"W-TITLE-LONG"
+				],
+				"quarantined": 1
+			},
+			"spec_violations": [
+				"E-ANCHOR-MALFORMED",
+				"E-CHANGE-UNCITED",
+				"E-CITE-EMPTY",
+				"E-CITE-KIND",
+				"E-CITE-URL",
+				"E-CVE-MALFORMED",
+				"E-ENUM-INVALID",
+				"E-EVID-404",
+				"E-EVID-MALFORMED",
+				"E-FIELD-MISSING",
+				"E-FIELD-TYPE",
+				"E-FLAG-DISAGREE",
+				"E-FLAG-FORBIDDEN",
+				"E-INTEL-BREWFILE",
+				"E-ITEM-DUP-ANCHOR",
+				"E-ITEM-EMPTY",
+				"E-LINK-INDEX",
+				"E-REACHES-UNEVIDENCED",
+				"E-SEC-BLOCK-MISSING",
+				"E-SEC-BLOCK-ORPHAN",
+				"E-SEC-RATING-UNBASED",
+				"E-SELFTEST-NOREASON",
+				"E-SEV-INCOMPAT-UNGROUNDED",
+				"E-SEV-WARNING-UNGROUNDED",
+				"E-STRUCT-PRECOND",
+				"E-TAG-NONE",
+				"E-TAG-UNKNOWN",
+				"W-EVID-ROOT",
+				"W-MEMBER-QUARANTINED",
+				"W-STRUCT-UNCHECKED",
+				"W-SUG-DUP-ID",
+				"W-TITLE-LONG"
+			],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-26-1"
+					},
+					"title": "A title that is well past the glanceable bar, written as a paragraph rather than a headline, so that the reader has to parse a whole argument before learning what the change actually is, which is exactly the defect the split exists to catch",
+					"tags": [
+						"security"
+					],
+					"severity": "incompatible",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Something changed upstream"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "It does not land here.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:nonconforming#cve:CVE-26-1",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "#2245"
+					},
+					"title": "The first of two items that name one upstream issue",
+					"tags": [
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "1.0.1",
+						"citation": "",
+						"link_index": 7
+					},
+					"id": "brew:nonconforming#issue:%232245",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "#2245"
+					},
+					"title": "The second of two items that name one upstream issue",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "It lands here, but nothing is cited for the claim.",
+						"evidence": [],
+						"citations": [
+							{
+								"kind": "blogpost",
+								"text": "",
+								"url": "not a url"
+							}
+						]
+					},
+					"id": "brew:nonconforming#issue:%232245~2",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"slug": "evidence-shapes"
+					},
+					"title": "Three evidence entries, three different outcomes",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "One entry is prose, one resolves only under an unconfigured repo, one resolves nowhere.",
+						"evidence": [
+							"CMake 4.4 release notes — \"the minimum is now 3.5\"",
+							{
+								"path": "tieto/konehuone/sysmi/notes.md"
+							},
+							{
+								"path": "dotfiles/config/bash/.path"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:nonconforming#slug:evidence-shapes",
+					"id_stability": "slug",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "commit",
+						"value": "f2ff0b2a"
+					},
+					"title": "A security block on an item that is not tagged security",
+					"tags": [
+						"chore"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "A dependency bump with no behavioural note"
+					},
+					"security": {
+						"cve_id": "CVE-1",
+						"advisory_id": null,
+						"rating": "high",
+						"rating_basis": "unrated",
+						"exploited_in_wild": "yes"
+					},
+					"id": "brew:nonconforming#commit:f2ff0b2a",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"tags": [
+						"securty"
+					],
+					"severity": "critical",
+					"id": "brew:nonconforming#malformed:",
+					"id_stability": "slug",
+					"has_body": false
+				}
+			],
+			"suggestions": [
+				{
+					"id": "brew:nonconforming:upgrade",
+					"kind": "upgrade",
+					"title": "Upgrade nonconforming 1.0.0 → 1.0.1",
+					"command": "brew upgrade nonconforming",
+					"auto_runnable": true,
+					"needs_sudo": false
+				},
+				{
+					"id": "brew:nonconforming:no-block",
+					"kind": "structural",
+					"title": "A structural suggestion with no structural block",
+					"target_files": [],
+					"rationale": "The block is the reviewable artifact and it is absent."
+				},
+				{
+					"id": "brew:nonconforming:bad-kind",
+					"kind": "refactor",
+					"title": "A suggestion whose kind is outside the vocabulary",
+					"target_files": [
+						{
+							"path": "intel.Brewfile",
+							"description": "the Intel manifest is out of this tool"
+						}
+					],
+					"rationale": "Two findings in one suggestion."
+				},
+				{
+					"id": "brew:nonconforming:intel-manifest",
+					"kind": "structural",
+					"title": "A structural change against the manifest this tool does not look at",
+					"structural": {
+						"op": "manifest_move",
+						"subjects": [],
+						"manifest": "intel.Brewfile",
+						"from": {
+							"type": "formula",
+							"name": "sops"
+						},
+						"to": null,
+						"anchor": {
+							"section": "CORE"
+						}
+					},
+					"target_files": [],
+					"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in."
+				},
+				{
+					"id": "brew:nonconforming:move-to-its-own-section",
+					"kind": "structural",
+					"title": "Move sops into the section it is already in",
+					"structural": {
+						"op": "manifest_move",
+						"subjects": [
+							{
+								"type": "formula",
+								"name": "sops"
+							}
+						],
+						"manifest": "Brewfile",
+						"from": {
+							"type": "formula",
+							"name": "sops"
+						},
+						"to": null,
+						"anchor": {
+							"section": "CORE"
+						}
+					},
+					"target_files": [],
+					"rationale": "The precondition is that its current section differs from the target."
+				},
+				{
+					"id": "brew:nonconforming:redispatch-install",
+					"kind": "structural",
+					"title": "Add a `setup.sh install` task that setup.sh already dispatches",
+					"structural": {
+						"op": "task_add",
+						"subjects": [
+							{
+								"type": "formula",
+								"name": "nonconforming"
+							}
+						],
+						"manifest": null,
+						"from": null,
+						"to": {
+							"type": "task",
+							"name": "setup.sh:install"
+						},
+						"anchor": {
+							"file": "setup.sh"
+						}
+					},
+					"target_files": [],
+					"rationale": "The precondition is that the subcommand token is not already dispatched."
+				},
+				{
+					"id": "cask:codex:add-quarantine-task",
+					"kind": "edit",
+					"title": "A suggestion id already claimed by another tool",
+					"target_files": [],
+					"rationale": "A collision almost always means an id pattern was copied rather than derived."
+				},
+				{
+					"id": "brew:nonconforming:watch-no-reason",
+					"kind": "watch-item",
+					"title": "A watch item tagged by its own self-test with no reason given",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"watch_topic": "the credential format this vendor writes back",
+					"watch_note": "Flag any future release touching the Keychain record.",
+					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"self_test_failed": {
+						"limb": "scope",
+						"reason": "  "
+					}
+				},
+				{
+					"id": "brew:nonconforming:method-no-payload",
+					"kind": "method-note",
+					"title": "A method note carrying neither topic nor note",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"rationale": "The payload is what gets copied into the next run's context.",
+					"self_test_failed": {
+						"limb": "recited-the-rule",
+						"reason": "The limb name is outside the vocabulary."
+					}
+				},
+				{
+					"id": "brew:nonconforming:edit-with-a-self-test-tag",
+					"kind": "edit",
+					"title": "An action proposal wearing a memory proposal's self-test tag",
+					"target_files": [],
+					"rationale": "The tag is present iff the kind is a memory kind.",
+					"self_test_failed": {
+						"limb": "limb",
+						"reason": "An edit has no self-test to fail."
+					}
+				}
+			],
+			"security_display_item_ids": [
+				"brew:nonconforming#cve:CVE-26-1"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [
+				"brew:nonconforming:watch-no-reason",
+				"brew:nonconforming:method-no-payload"
+			]
+		},
+		{
+			"id": "brew:watched",
+			"source": "brew",
+			"name": "watched",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 5
+			},
+			"initial_review_bucket": "routine",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"watch-hit"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-FIELD-MISSING",
+					"E-FIELD-TYPE",
+					"E-WATCH-HIT-NOLOCAL",
+					"E-WATCH-HIT-UNGROUNDED",
+					"W-WATCH-HIT-UNRAISED"
+				],
+				"quarantined": 0
+			},
+			"spec_violations": [
+				"E-FIELD-MISSING",
+				"E-FIELD-TYPE",
+				"E-WATCH-HIT-NOLOCAL",
+				"E-WATCH-HIT-UNGROUNDED",
+				"W-WATCH-HIT-UNRAISED"
+			],
+			"items": [
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#101"
+					},
+					"title": "Watched change number 1",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 1 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "credential format written back to the Keychain"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 1 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23101",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#102"
+					},
+					"title": "Watched change number 2",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 2 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "a topic nobody ever stored"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 2 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23102",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#103"
+					},
+					"title": "Watched change number 3",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 3 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "cask quarantine after upgrade"
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 3 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23103",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#105"
+					},
+					"title": "Watched change number 5",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 5 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 5 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23105",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#106"
+					},
+					"title": "Watched change number 6",
+					"tags": [
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 6 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": "a bare string",
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "How change 6 lands on this setup.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23106",
+					"id_stability": "anchored",
+					"has_body": false
+				},
+				{
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#104"
+					},
+					"title": "Watched change number 4",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 4 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "credential format written back to the Keychain"
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23104",
+					"id_stability": "anchored",
+					"has_body": false
+				}
+			],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [
+				"brew:watched#issue:watched%2Fwatched%23101",
+				"brew:watched#issue:watched%2Fwatched%23104"
+			],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:quarantined",
+			"source": "brew",
+			"name": "quarantined",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "info",
+				"local_findings": 0
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"W-MEMBER-QUARANTINED"
+				],
+				"quarantined": 1
+			},
+			"spec_violations": [
+				"W-MEMBER-QUARANTINED"
+			],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-31001"
+					},
+					"title": "Fixes a heap overflow in the archive reader",
+					"tags": [
+						"security"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a heap overflow reachable through crafted archives",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-31001",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"id": "brew:quarantined#cve:CVE-2026-31001",
+					"id_stability": "anchored",
+					"has_body": false
+				}
+			],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:coerced",
+			"source": "brew",
+			"name": "coerced",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"degradation": {
+				"content_losing": [
+					"shape-coerced"
+				],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [
+				"W-SHAPE-COERCED"
+			],
+			"items": [],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:elevated",
+			"source": "brew",
+			"name": "elevated",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "warning",
+				"local_findings": 1
+			},
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk",
+				"reaches-item"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-32001"
+					},
+					"title": "Fixes a credential leak through the local socket, which this setup exposes",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a credential leak reachable through the local control socket",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The Brewfile installs this formula and the socket is enabled by default, so the fix lands on a surface this machine exposes.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									6
+								]
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": "CVE-2026-32001",
+						"advisory_id": null,
+						"rating": "high",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false
+					},
+					"id": "brew:elevated#cve:CVE-2026-32001",
+					"id_stability": "anchored",
+					"has_body": false
+				}
+			],
+			"suggestions": [],
+			"security_display_item_ids": [
+				"brew:elevated#cve:CVE-2026-32001"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew:legacy-shape",
+			"source": "brew",
+			"name": "legacy-shape",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"version_delta": "patch",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"config_status_state": "up_to_date",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content",
+					"unrecognized-research-key"
+				],
+				"markers": [],
+				"quarantined": 3
+			},
+			"spec_violations": [
+				"E-RESEARCH-UNKNOWNKEY"
+			],
+			"items": [],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		},
+		{
+			"id": "brew-health:path_note:gnubin",
+			"source": "brew-health",
+			"name": "GNU utils ahead of Apple's on PATH",
+			"current_version": null,
+			"latest_version": null,
+			"version_delta": "unknown",
+			"pinned": false,
+			"research_error": "no research entry for this candidate",
+			"validator_error": null,
+			"config_status_state": "unknown",
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"initial_review_bucket": "routine",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "unknown",
+				"runnable": false
+			},
+			"initial_pre_accept": false,
+			"pre_accept_bars": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			},
+			"spec_violations": [],
+			"items": [],
+			"suggestions": [],
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": []
+		}
+	]
+}

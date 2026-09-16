@@ -1,0 +1,148 @@
+{
+	"run_id": "session",
+	"file_collisions": [],
+	"subject_index": {
+		"cask:codex": [
+			"cask:codex:add-quarantine-task"
+		],
+		"cask:cursor-cli": [
+			"cask:codex:add-quarantine-task"
+		],
+		"formula:nonconforming": [
+			"brew:nonconforming:redispatch-install"
+		],
+		"formula:sops": [
+			"brew:nonconforming:move-to-its-own-section"
+		]
+	},
+	"subject_coverage_gaps": [],
+	"anchor_duplicates": [],
+	"proposals": {
+		"watch_item": [
+			{
+				"suggestion_id": "brew:nonconforming:watch-no-reason",
+				"tool_id": "brew:nonconforming",
+				"kind": "watch-item",
+				"payload": {
+					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"watch_note": "Flag any future release touching the Keychain record.",
+					"watch_topic": "the credential format this vendor writes back"
+				},
+				"self_test": {
+					"verdict": "fails",
+					"limb": "scope",
+					"reason": "  "
+				}
+			}
+		],
+		"method_note_tool": [
+			{
+				"suggestion_id": "brew:attention:method-xdg-path",
+				"tool_id": "brew:attention",
+				"kind": "method-note",
+				"payload": {
+					"method_note": "attention moves its config path in ordinary commits and mentions it nowhere in the release body. Read the `config` package's diff across the range rather than the CHANGELOG, which said nothing about the 2.4.1 move.",
+					"method_topic": "where attention's real config-path changes are announced",
+					"rationale": "The 2.4.1 move was invisible in the release notes this review read first."
+				},
+				"self_test": {
+					"verdict": "passes",
+					"limb": null,
+					"reason": null
+				}
+			},
+			{
+				"suggestion_id": "brew:nonconforming:method-no-payload",
+				"tool_id": "brew:nonconforming",
+				"kind": "method-note",
+				"payload": {
+					"method_note": null,
+					"method_topic": null,
+					"rationale": "The payload is what gets copied into the next run's context."
+				},
+				"self_test": {
+					"verdict": "fails",
+					"limb": "recited-the-rule",
+					"reason": "The limb name is outside the vocabulary."
+				}
+			}
+		],
+		"method_note_global": []
+	},
+	"proposal_topic_index": {
+		"where attention's real config-path changes are announced": [
+			"brew:attention"
+		]
+	},
+	"evidence_findings": [
+		{
+			"code": "E-EVID-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": null,
+			"field": "config_status.evidence",
+			"value": "the maintainer's mailing list post, June 2026",
+			"message": "not a path — evidence holds paths only; prose belongs in citations[]"
+		},
+		{
+			"code": "E-REACHES-UNEVIDENCED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#issue:%232245~2",
+			"field": "local.evidence",
+			"value": "",
+			"message": "direction \"reaches\" with no evidence — the claim that it lands here needs a path"
+		},
+		{
+			"code": "E-EVID-404",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "dotfiles/config/bash/.path",
+			"message": "well-formed path that resolves under no root"
+		},
+		{
+			"code": "E-EVID-MALFORMED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "CMake 4.4 release notes — \"the minimum is now 3.5\"",
+			"message": "not a path — evidence holds paths only; prose belongs in citations[]"
+		},
+		{
+			"code": "W-EVID-ROOT",
+			"severity": "warning",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#slug:evidence-shapes",
+			"field": "local.evidence",
+			"value": "tieto/konehuone/sysmi/notes.md",
+			"message": "resolves under \"tieto\", which is a real repo but not a configured root — a configuration finding about the run, not a checker defect"
+		}
+	],
+	"distributions": {
+		"items": 24,
+		"evidence_entries": 11,
+		"items_by_tag": {
+			"breaking": 2,
+			"chore": 2,
+			"feature": 1,
+			"fix": 14,
+			"packaging": 2,
+			"security": 6
+		},
+		"items_by_severity": {
+			"incompatible": 1,
+			"info": 8,
+			"notable": 10,
+			"warning": 4
+		},
+		"buckets": {
+			"attention": 6,
+			"routine": 2,
+			"security_mixed": 3
+		},
+		"pre_accepted": 1
+	}
+}

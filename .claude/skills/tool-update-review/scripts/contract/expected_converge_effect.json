@@ -1,0 +1,421 @@
+{
+	"corpus_pre_digest": "sha256:804ec514b1c7e597f2bcfa4ad2dc7660cb7af5da477045da7480d5a53ea30e66",
+	"corpus_post_digest": "sha256:da2161133f0451140f9e56632fcf11ab40f10cfbe51ea94bb293b12e5538f71a",
+	"effect": {
+		"run_id": "session",
+		"generated_at": "2026-09-07T00:00:00Z",
+		"attempt": 1,
+		"state": "converged",
+		"applied": [
+			"cv-001",
+			"cv-002",
+			"cv-003",
+			"cv-004",
+			"cv-005",
+			"cv-006",
+			"cv-008",
+			"cv-009",
+			"cv-010",
+			"cv-011",
+			"cv-013",
+			"cv-007"
+		],
+		"superseded": [],
+		"rejected": [],
+		"diff": [
+			{
+				"tool_id": "brew:nonconforming",
+				"kind": "item",
+				"element": "brew:nonconforming#slug:evidence-shapes",
+				"change": "field",
+				"field": "local.citations",
+				"before": [],
+				"after": [
+					{
+						"kind": "release_notes",
+						"text": "CMake 4.4 release notes — \"the minimum is now 3.5\"",
+						"url": null
+					}
+				],
+				"edit_ids": [
+					"cv-001"
+				]
+			},
+			{
+				"tool_id": "brew:nonconforming",
+				"kind": "item",
+				"element": "brew:nonconforming#slug:evidence-shapes",
+				"change": "field",
+				"field": "local.evidence",
+				"before": [
+					"CMake 4.4 release notes — \"the minimum is now 3.5\"",
+					{
+						"path": "tieto/konehuone/sysmi/notes.md"
+					},
+					{
+						"path": "dotfiles/config/bash/.path"
+					}
+				],
+				"after": [
+					{
+						"path": "tieto/konehuone/sysmi/notes.md"
+					},
+					{
+						"path": "dotfiles/config/bash/.path"
+					}
+				],
+				"edit_ids": [
+					"cv-001"
+				]
+			},
+			{
+				"tool_id": "brew:nonconforming",
+				"kind": "suggestion",
+				"element": "brew:nonconforming:method-credential-format",
+				"change": "created",
+				"before": null,
+				"after": {
+					"id": "brew:nonconforming:method-credential-format",
+					"kind": "method-note",
+					"title": "Check the credential format against the Keychain record directly",
+					"method_topic": "the credential format this vendor writes back",
+					"method_note": "Release notes never mention the Keychain record this tool rewrites; verify the written format against the stored record directly rather than watching the changelog for it.",
+					"rationale": "Re-homed from brew:nonconforming:watch-no-reason by convergence: the concern is real but nothing in a future current→latest delta would surface it."
+				},
+				"edit_ids": [
+					"cv-011"
+				]
+			},
+			{
+				"tool_id": "brew:nonconforming",
+				"kind": "suggestion",
+				"element": "brew:nonconforming:watch-no-reason",
+				"change": "removed",
+				"before": {
+					"id": "brew:nonconforming:watch-no-reason",
+					"kind": "watch-item",
+					"title": "A watch item tagged by its own self-test with no reason given",
+					"target_files": [],
+					"command": null,
+					"auto_runnable": false,
+					"watch_topic": "the credential format this vendor writes back",
+					"watch_note": "Flag any future release touching the Keychain record.",
+					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"self_test_failed": {
+						"limb": "scope",
+						"reason": "  "
+					}
+				},
+				"after": null,
+				"edit_ids": [
+					"cv-010"
+				]
+			},
+			{
+				"tool_id": "brew:openssh",
+				"kind": "item",
+				"element": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+				"change": "removed",
+				"before": {
+					"anchor": {
+						"kind": "release",
+						"value": "10.5p1/ssh-Z-key-order"
+					},
+					"title": "ssh(1) gains -Z, printing the order in which agent keys are offered",
+					"tags": [
+						"feature"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "10.5p1",
+						"citation": "ssh(1): add a -Z option to print the order of agent key offers",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first. -Z makes that inspectable rather than inferred.",
+						"evidence": [
+							{
+								"path": "dotfiles/config/1password/agent.toml",
+								"lines": [
+									[
+										1,
+										8
+									]
+								],
+								"note": "three vaults"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:openssh#release:10.5p1%2Fssh-Z-key-order",
+					"id_stability": "slug"
+				},
+				"after": null,
+				"edit_ids": [
+					"cv-003"
+				]
+			},
+			{
+				"tool_id": "brew:openssh",
+				"kind": "item",
+				"element": "brew:openssh#release:10.5p1%2Fssh-mux-realloc-uaf",
+				"change": "field",
+				"field": "local.statement",
+				"before": "No ControlMaster is configured anywhere in these repos and no -R forwarding is set up, so the multiplexing path is never entered here.",
+				"after": "No ControlMaster is configured and no -R forwarding is set up, so the multiplexing path is never entered here.",
+				"edit_ids": [
+					"cv-004"
+				]
+			},
+			{
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"element": "brew:watched#issue:watched%2Fwatched%23101",
+				"change": "field",
+				"field": "body",
+				"before": null,
+				"after": "Change 4 in the same release touches the same Keychain record and adds nothing a reviewer would decide differently on; merged here.",
+				"edit_ids": [
+					"cv-007"
+				]
+			},
+			{
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"element": "brew:watched#issue:watched%2Fwatched%23102",
+				"change": "field",
+				"field": "severity",
+				"before": "notable",
+				"after": "info",
+				"edit_ids": [
+					"cv-005"
+				]
+			},
+			{
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"element": "brew:watched#issue:watched%2Fwatched%23103",
+				"change": "field",
+				"field": "local.direction",
+				"before": "unclear",
+				"after": "does_not_reach",
+				"edit_ids": [
+					"cv-006"
+				]
+			},
+			{
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"element": "brew:watched#issue:watched%2Fwatched%23104",
+				"change": "removed",
+				"before": {
+					"anchor": {
+						"kind": "issue",
+						"value": "watched/watched#104"
+					},
+					"title": "Watched change number 4",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Upstream change 4 as the release notes state it",
+						"link_index": 0
+					},
+					"watch_hit": {
+						"topic": "credential format written back to the Keychain"
+					},
+					"id": "brew:watched#issue:watched%2Fwatched%23104",
+					"id_stability": "anchored"
+				},
+				"after": null,
+				"edit_ids": [
+					"cv-008"
+				]
+			},
+			{
+				"tool_id": "brew:watched",
+				"kind": "item",
+				"element": "brew:watched#issue:watched%2Fwatched%23105",
+				"change": "field",
+				"field": "tags",
+				"before": [
+					"fix"
+				],
+				"after": [
+					"chore"
+				],
+				"edit_ids": [
+					"cv-013"
+				]
+			}
+		],
+		"moved": {
+			"brew:openssh": {
+				"axes": {
+					"initial_review_bucket": {
+						"from": "security_mixed",
+						"to": "security_auto"
+					}
+				},
+				"direction": "permissive"
+			}
+		},
+		"attribution": {
+			"brew:openssh": {
+				"initial_review_bucket": {
+					"attributed_to": [
+						"cv-003"
+					],
+					"joint": false,
+					"unattributed": false
+				}
+			}
+		},
+		"tools": {
+			"brew:elevated": {
+				"touched": true,
+				"edit_ids": [
+					"cv-009"
+				]
+			},
+			"brew:nonconforming": {
+				"touched": true,
+				"edit_ids": [
+					"cv-001",
+					"cv-002",
+					"cv-010",
+					"cv-011"
+				]
+			},
+			"brew:openssh": {
+				"touched": true,
+				"edit_ids": [
+					"cv-003",
+					"cv-004"
+				],
+				"bucket": {
+					"from": "security_mixed",
+					"to": "security_auto",
+					"direction": "permissive",
+					"attributed_to": [
+						"cv-003"
+					],
+					"unattributed": false
+				},
+				"auto_update_label": {
+					"source": "judgement",
+					"headline": "Feature note on a security release — and the only item holding openssh out of security-only.",
+					"reasoning": "A new -Z inspection flag is a reason to take the upgrade, not to review it; no reviewer who believed the opposite would hold the upgrade over it. Removing it makes the remaining items security-only, which moves openssh into security_auto and leaves its already-eligible upgrade pre-accepted — a 0-CVE release whose two security fixes both say they do not reach this machine. The fact survives in the release notes link.",
+					"confidence": "high",
+					"edit_ids": [
+						"cv-003"
+					],
+					"quotes": [
+						{
+							"edit_id": "cv-003",
+							"text": "The 1Password agent here serves three vaults, so offer order is what decides which key a host sees first."
+						}
+					],
+					"counterweight": {
+						"cve_count": 0,
+						"worst_rating": "unknown",
+						"items_removed": 1,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:watched": {
+				"touched": true,
+				"edit_ids": [
+					"cv-005",
+					"cv-006",
+					"cv-007",
+					"cv-008",
+					"cv-013"
+				]
+			}
+		},
+		"corpus_effect": {
+			"edits_by_op": {
+				"add": 1,
+				"delete": 3,
+				"flag": 2,
+				"merge": 1,
+				"move_evidence": 1,
+				"redirect": 1,
+				"rerate": 1,
+				"retag": 1,
+				"trim": 1
+			},
+			"items": {
+				"before": 24,
+				"after": 22
+			},
+			"severity_after": {
+				"info": 8,
+				"notable": 8,
+				"warning": 4,
+				"incompatible": 1
+			},
+			"severity_at_warning_or_worse": {
+				"before": 5,
+				"after": 5,
+				"pct_change": 0.0
+			},
+			"tag_security_items": {
+				"before": 6,
+				"after": 6
+			},
+			"tools_moved": {
+				"permissive": [
+					"brew:openssh"
+				],
+				"restrictive": [],
+				"lateral": []
+			},
+			"pre_accept": {
+				"before": 1,
+				"after": 1
+			},
+			"narrative": "The one movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
+		},
+		"findings": [
+			{
+				"code": "W-EDIT-SCHEMA",
+				"critical": false,
+				"detail": "brew:watched#issue:watched%2Fwatched%23102 on brew:watched now carries W-WATCH-HIT-UNRAISED",
+				"edit_id": "cv-005",
+				"tool_id": "brew:watched"
+			},
+			{
+				"code": "FLAG",
+				"critical": false,
+				"edit_id": "cv-002",
+				"tool_id": "brew:nonconforming",
+				"detail": "dotfiles/config/bash/.path resolves nowhere; resolving it needs the repo tree, which is the validator's channel, not mine."
+			},
+			{
+				"code": "FLAG",
+				"critical": false,
+				"edit_id": "cv-009",
+				"tool_id": "brew:elevated",
+				"detail": "security_only holds: the single item IS the CVE fix; elevated risk already bars pre-acceptance."
+			}
+		],
+		"convergence_status": {
+			"attempts": 1,
+			"state": "converged",
+			"explanation": {
+				"headline": "Converged at attempt 1.",
+				"body": "All edits applied; every check attested; the gate passed.",
+				"attempt_log": []
+			},
+			"degraded_tools": [],
+			"standing_rejects": []
+		}
+	}
+}
