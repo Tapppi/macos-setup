@@ -184,11 +184,62 @@ rather than reconstructing them from memory. **Every research file is a JSON
 array**, regardless of tier — an individual-focus subagent writes a
 one-element array, a batch subagent writes one element per tool in its
 batch — so `assemble.py` parses every file in `research/` identically
-instead of branching on tier. Each array element is a partial Tool object
-per `references/schemas.md` §Report Object (`headliners`, typed `links`,
-`relevancy`, `context`, `release_inventory`, `suggestions`,
-`config_status`) plus its own `"id"` field (`{source}:{name}`, matching a
-collect.sh candidate) so assembly can match it back up.
+instead of branching on tier.
+
+**Each array element carries a closed set of top-level keys**
+(`items.RESEARCH_KEYS`, published in `contract/contract.json`). The
+validator reads exactly ten:
+
+- `id` — `{source}:{name}`, matching a collect.sh candidate, so assembly
+  can match the element back up. Required.
+- `items` — the findings array, one element per real change, per
+  `references/item-schema.md` §2. The substance of the file (below).
+- `links` — typed links (`references/schemas.md` §1.2): the canonical
+  changelog, release pages, official blog posts.
+- `config_status` — the re-verification verdict (§Config Status below).
+- `suggestions` — proposed edits, structural changes and memory proposals
+  (§Suggestion Kinds below).
+- `release_inventory` — which releases exist in the current→target range,
+  one `{version, link}` entry per release.
+- `vendor_silent_categories` — categories where the vendor's own notes for
+  this range are pure non-detail (§Don't Author "I Checked, Found
+  Nothing").
+- `flags` — optional assertions about your own items: `has_security`,
+  `has_breaking`, `worst_severity`, `local_findings`. The validator
+  recomputes every one and its value wins; a mismatch is
+  `E-FLAG-DISAGREE`, which says your items do not say what you think they
+  say.
+- `research_error` — your own statement that research failed for this
+  tool; it is then listed with versions only.
+- `cask_sudo_hint` — set `false` on a cask you verified installs without
+  admin rights; assembly otherwise assumes a cask's installer needs sudo.
+
+Five more — `name`, `source`, `current_version`, `latest_version`,
+`pinned` — are recognized and **ignored**: candidate identity a checker
+may echo back from its prompt, with `collect.json` authoritative for
+every one of them.
+
+**Anything else is rejected loudly.** A key this contract does not
+recognize is kept verbatim in the tool's `quarantine[]` and reported as
+`E-RESEARCH-UNKNOWNKEY`, and the tool is held for review with its upgrade
+no longer pre-accepted. Nothing is lost and nothing is silently accepted.
+In particular the retired shape — `headliners`, `relevancy`, `context`,
+`notable`, `cve_severities` — is **rejected**, not read: `items[]` and
+its eight tags are the single successor to all five. A checker carrying
+the old habit meets the correction here, not in a finding.
+
+`items[]` is per `references/item-schema.md` §2 — 28 fields, closed
+vocabularies. Each element is one real change carrying `tags` (a closed
+set of eight), one `severity`, an `anchor` the validator derives the id
+from, and the optional `change`/`local`/`security` blocks. The five
+validator-only flags — `security_only`, `impact`, `risk_level`,
+`review_bucket`, `pre_accept` — are **forbidden** on checker output,
+inside `flags` or at top level (`E-FLAG-FORBIDDEN`): a per-tool checker
+has no view of the corpus and does not decide them. An item that answers
+a stored watch item for its tool carries `watch_hit`
+(`references/item-schema.md` §2.5): an object whose `topic` is the
+verbatim topic string from `{{STANDING_NOTES}}` — see §Watch Items
+(Reading).
 
 ### `research-status.json` Group Updates
 
