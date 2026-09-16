@@ -912,6 +912,81 @@ class ImpactAndBucketTests(unittest.TestCase):
 		self.assertFalse(view["bucket_inputs"]["runnable"])
 		self.assertEqual(view["initial_review_bucket"], "security_mixed")
 
+	def test_the_runnable_guard_holds_where_the_version_guard_does_not(self):
+		"""The macos case above never isolates the `runnable` guard: a macos
+		source has version_delta "unknown", so the delta guard bars it first
+		and the clause survives losing `runnable` with that test still green.
+		A standalone CLI is the isolating shape — a real patch delta, low
+		risk, no bar — where `runnable` is the ONLY thing between a
+		security-only update and a bucket that claims "no decision needed"
+		about a command the skill cannot even run."""
+		research = {"id": "standalone:x", "links": [], "items": [_item(
+			tags=["security"], severity="notable",
+			security={"cve_id": "CVE-2026-18408", "rating": "high",
+				"rating_basis": "nvd", "exploited_in_wild": False})]}
+		view, _ = validate_one(research, candidate=_candidate(id="standalone:x",
+			source="standalone"))
+		# Every other input to the security_auto clause holds…
+		self.assertEqual(view["bucket_inputs"], {"has_security": True,
+			"security_only": True, "impact": "none", "version_delta": "patch",
+			"runnable": False})
+		self.assertEqual(view["risk_level"], "low")
+		self.assertEqual(model.pre_accept_bars(view), [])
+		# …so `runnable` alone decides.
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+
+	def test_the_version_delta_guard_is_not_left_to_risk_level_alone(self):
+		"""`compute_risk_level` elevates a major/unknown delta and the
+		elevated-risk bar then bars the clause — which makes the clause's own
+		delta guard *redundant today*, and that redundancy is the point: it
+		is the same belt-and-braces as `apply_pre_accept`'s D1 second call
+		site, so an edit to `compute_risk_level` cannot silently re-open
+		auto-approval of a major bump. A black-box test cannot see the guard
+		behind the bar, so this one asks the documented single implementation
+		directly, with the risk axis at "low" the way a future regression
+		would deliver it."""
+		def clause(delta):
+			view = {"source": "brew", "version_delta": delta, "items": [],
+				"suggestions": [], "spec_violations": [], "quarantine": [],
+				"validator_error": None, "risk_level": "low"}
+			return V.compute_initial_bucket(view, has_security=True,
+				security_only=True, impact="none", risk_level="low", runnable=True)
+		self.assertEqual(clause("patch"), "security_auto")
+		self.assertEqual(clause("major"), "security_mixed")
+		self.assertEqual(clause("unknown"), "security_mixed")
+
+	def test_local_enum_drift_is_reported_field_by_field(self):
+		"""One character of drift on `local.effect` ("risks") stops the item
+		counting toward impact, and one on `local.direction` ("reachs") stops
+		the reaches-item bar firing — drift both and a security item that
+		genuinely reaches this setup lands the tool in `security_auto`. The
+		E-ENUM-INVALID markers on these two fields are then the only trace,
+		and the per-code sweeps elsewhere in this suite are satisfied by
+		other fields — so the fields themselves are pinned here."""
+		security = {"cve_id": "CVE-2026-18408", "rating": "high",
+			"rating_basis": "nvd", "exploited_in_wild": False}
+
+		def drifted(direction, effect):
+			return validate_one({"id": "brew:x", "links": [], "items": [
+				_item(tags=["security"], severity="notable", security=security,
+					local={"direction": direction, "effect": effect,
+						"statement": "s", "evidence": [{"path": "Brewfile"}]})]})
+
+		def enum_fields(findings):
+			return [(f["field"], f["value"]) for f in findings.entries
+				if f["code"] == "E-ENUM-INVALID"]
+
+		_, findings = drifted("reaches", "risks")
+		self.assertEqual(enum_fields(findings), [("local.effect", "risks")])
+		_, findings = drifted("reachs", "risk")
+		self.assertEqual(enum_fields(findings), [("local.direction", "reachs")])
+		# The measured stake, not an endorsement: with both fields drifted the
+		# tool auto-accepts, and these two markers are all that says why.
+		view, findings = drifted("reachs", "risks")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+		self.assertEqual(enum_fields(findings),
+			[("local.direction", "reachs"), ("local.effect", "risks")])
+
 	def test_a_non_version_finding_source_short_circuits(self):
 		for source, flag in (("brew-health", True), ("skill-drift", True)):
 			with self.subTest(source):
