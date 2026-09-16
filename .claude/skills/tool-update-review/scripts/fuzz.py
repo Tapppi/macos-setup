@@ -23,19 +23,20 @@ constant exists, so this file cannot silently under-cover a widened set):
   2. retired/unknown research keys           (the E-RESEARCH-UNKNOWNKEY path)
   3. every top-level collect.json key
   4. the two whole documents
-  5. every key of an item                    (item-schema.md §2)
-  6. every key of `local`                    (§2.3)
-  7. every key of `security`                 (§2.4)
-  8. every key of `change`                   (§2.2)
-  9. `watch_hit.topic`, grounded and not     (§2.5, I-20)
- 10. every key of an edit suggestion         (schemas.md §1.2)
- 11. every key of a `structural` block       (item-schema.md §4)
- 12. every memory-proposal payload field     (items.MEMORY_PAYLOAD_FIELDS)
- 13. every key of `config_status`
- 14. every checker flag and forbidden flag   (items.CHECKER_FLAGS +
+  5. every key of an item                    (items.ITEM_FIELDS, top level)
+  6. every sub-key of `anchor`/`local`/`security`/`change`
+                                             (items.ITEM_FIELDS, dotted)
+  7. `watch_hit.*`, hostile AND grounded     (§2.5, I-20 — the stored topic
+                                              itself is among the shapes, so
+                                              the grounded branch runs)
+  8. every key of an edit suggestion         (schemas.md §1.2)
+  9. every key of a `structural` block       (item-schema.md §4)
+ 10. every memory-proposal payload field     (items.MEMORY_PAYLOAD_FIELDS)
+ 11. every key of `config_status`
+ 12. every checker flag and forbidden flag   (items.CHECKER_FLAGS +
                                               items.VALIDATOR_ONLY_FLAGS)
- 15. the watch-items.json session snapshot, at all three depths
- 16. a malformed member inside a brew_health/skill_drift findings block
+ 13. the watch-items.json session snapshot, at all three depths
+ 14. a malformed member inside a brew_health/skill_drift findings block
 
 Never narrow HOSTILE or a key list to make a case pass: an abort is a
 finding to fix in assemble.py/validate_items.py, not in this file.
@@ -57,13 +58,28 @@ COLLECT_KEYS = ["brew", "mise", "standalone", "macos", "brew_health", "skill_dri
 	"machine", "generated_at"]
 # 2 — the retired schema plus a key from nobody's schema: the quarantine path.
 UNKNOWN_KEYS = ["headliners", "relevancy", "context", "notable", "a_future_key"]
-# 5–8, 13 — the item model's containers (references/item-schema.md §2, §2.2–2.4;
-# no constant exports these, so they are spelled here with their sections).
-ITEM_KEYS = ["anchor", "title", "body", "tags", "severity", "change", "local",
-	"security", "watch_hit"]
-LOCAL_KEYS = ["direction", "effect", "statement", "evidence", "citations"]
-SECURITY_KEYS = ["cve_id", "advisory_id", "rating", "rating_basis", "exploited_in_wild"]
-CHANGE_KEYS = ["version", "citation", "link_index"]
+# 5–8, 13 — the item model's containers, DERIVED from items.ITEM_FIELDS (the
+# published field table) so a widened item schema cannot be silently
+# under-fuzzed. Includes the validator-assigned fields (id, id_stability):
+# a checker is not supposed to write them, which is exactly why a hostile
+# value there must cost nothing.
+def _item_fields(prefix=None):
+	names = [n for n, _type, _req, _note in model.ITEM_FIELDS]
+	if prefix is None:
+		return [n for n in names if "." not in n]
+	return [n.split(".", 1)[1] for n in names if n.startswith(prefix + ".")]
+
+
+ITEM_KEYS = _item_fields()
+ANCHOR_KEYS = _item_fields("anchor")
+LOCAL_KEYS = _item_fields("local")
+SECURITY_KEYS = _item_fields("security")
+CHANGE_KEYS = _item_fields("change")
+WATCH_HIT_KEYS = _item_fields("watch_hit")
+for _lst in (ITEM_KEYS, ANCHOR_KEYS, LOCAL_KEYS, SECURITY_KEYS, CHANGE_KEYS,
+		WATCH_HIT_KEYS):
+	assert _lst, "ITEM_FIELDS stopped exporting a fuzzed container"
+# config_status has no exporting constant; spelled with its section.
 CONFIG_STATUS_KEYS = ["state", "detail", "evidence", "citations"]
 # 10 — an edit/upgrade suggestion's read surface (references/schemas.md §1.2).
 SUGGESTION_KEYS = ["id", "kind", "title", "target_files", "rationale",
@@ -115,8 +131,8 @@ def research_with(entry_id, mutate):
 	return entries
 
 
-def run_key(label_fmt, entry_id, apply_shape, session_files=None):
-	for shape in HOSTILE:
+def run_key(label_fmt, entry_id, apply_shape, session_files=None, shapes=None):
+	for shape in (HOSTILE if shapes is None else shapes):
 		attempt(label_fmt.format(shape),
 			T.COLLECT, research_with(entry_id, lambda e: apply_shape(e, shape)),
 			session_files=session_files)
@@ -152,24 +168,33 @@ def main():
 		run_key("items[]." + key + "={!r}", "brew:openssh",
 			lambda e, s, key=key: set_item_key(e, key, s))
 
-	# 6–8 — the three sub-objects. The base item is well-formed, so the
+	# 6 — the four sub-objects. The base item is well-formed, so the
 	# container is a dict when the mutation reaches inside it.
 	def set_sub_key(e, container, key, shape):
 		for item in e["items"]:
 			item.setdefault(container, {})[key] = shape
-	for container, keys in (("local", LOCAL_KEYS), ("security", SECURITY_KEYS),
-			("change", CHANGE_KEYS)):
+	for container, keys in (("anchor", ANCHOR_KEYS), ("local", LOCAL_KEYS),
+			("security", SECURITY_KEYS), ("change", CHANGE_KEYS)):
 		for key in keys:
 			run_key("items[].{}.{}={{!r}}".format(container, key), "brew:openssh",
 				lambda e, s, container=container, key=key:
 					set_sub_key(e, container, key, s))
 
-	# 9 — watch_hit.topic, with a snapshot present so grounding actually runs.
-	run_key("items[].watch_hit.topic={!r}", "brew:openssh",
-		lambda e, s: set_sub_key(e, "watch_hit", "topic", s),
-		session_files={"watch-items.json": SNAPSHOT})
+	# 7 — watch_hit sub-keys, with a snapshot present so grounding actually
+	# runs — and not only hostile shapes: the stored topic itself (verbatim
+	# and whitespace-padded, both of which .strip() grounds) drives
+	# grounded_watch_hit()'s True branch, the positive path the
+	# watch_hit_item_ids export and the 70-point highlight read. HOSTILE
+	# alone never equals the stored topic, so without these the path is
+	# fuzzed only in its negative branch.
+	for key in WATCH_HIT_KEYS:
+		run_key("items[].watch_hit." + key + "={!r}", "brew:openssh",
+			lambda e, s, key=key: set_sub_key(e, "watch_hit", key, s),
+			session_files={"watch-items.json": SNAPSHOT},
+			shapes=HOSTILE + ["agent forwarding", " agent forwarding ",
+				"agent forwarding\n"])
 
-	# 10 — every key of the (edit-kind) suggestions the fixture carries.
+	# 8 — every key of the (edit-kind) suggestions the fixture carries.
 	def set_sug_key(e, key, shape):
 		for sug in e["suggestions"]:
 			sug[key] = shape
@@ -177,7 +202,7 @@ def main():
 		run_key("suggestions[]." + key + "={!r}", "brew:podman",
 			lambda e, s, key=key: set_sug_key(e, key, s))
 
-	# 11 — the structural block, on a synthesized structural suggestion.
+	# 9 — the structural block, on a synthesized structural suggestion.
 	def set_struct_key(e, key, shape):
 		sug = copy.deepcopy(STRUCTURAL_SUG)
 		sug["structural"][key] = shape
@@ -186,7 +211,7 @@ def main():
 		run_key("structural." + key + "={!r}", "brew:podman",
 			lambda e, s, key=key: set_struct_key(e, key, s))
 
-	# 12 — every memory payload field, derived from the model so a widened
+	# 10 — every memory payload field, derived from the model so a widened
 	# payload cannot be silently under-fuzzed, plus the self-test tag.
 	for kind in model.MEMORY_SUGGESTION_KINDS:
 		payload_keys = sorted(model.MEMORY_PAYLOAD_FIELDS[kind]) + ["self_test_failed"]
@@ -198,7 +223,7 @@ def main():
 			run_key("memory[{}].{}={{!r}}".format(kind, key), "brew:podman",
 				set_memory_key)
 
-	# 13 — config_status, added well-formed and then broken one key at a time.
+	# 11 — config_status, added well-formed and then broken one key at a time.
 	def set_config_key(e, key, shape):
 		e["config_status"] = {"state": "ok", "detail": "d", "evidence": [],
 			"citations": [], key: shape}
@@ -206,12 +231,12 @@ def main():
 		run_key("config_status." + key + "={!r}", "brew:openssh",
 			lambda e, s, key=key: set_config_key(e, key, s))
 
-	# 14 — the four flags a checker may emit and the five it may not.
+	# 12 — the four flags a checker may emit and the five it may not.
 	for key in model.CHECKER_FLAGS + model.VALIDATOR_ONLY_FLAGS:
 		run_key("flags." + key + "={!r}", "brew:openssh",
 			lambda e, s, key=key: e.__setitem__("flags", {key: s}))
 
-	# 15 — the watch-items snapshot: the whole file, one tool's entry list,
+	# 13 — the watch-items snapshot: the whole file, one tool's entry list,
 	# and one entry's topic.
 	for shape in HOSTILE:
 		attempt("watch-items.json={!r}".format(shape), T.COLLECT, T.RESEARCH,
@@ -222,7 +247,7 @@ def main():
 			T.RESEARCH,
 			session_files={"watch-items.json": {"brew:openssh": [{"topic": shape}]}})
 
-	# 16 — one malformed member INSIDE a findings block. A hostile value at
+	# 14 — one malformed member INSIDE a findings block. A hostile value at
 	# the block level never reaches read_findings_block's entry guards (a
 	# non-object block is ignored whole), so the member level is its own
 	# surface — this is where a bare string used to become an AttributeError
