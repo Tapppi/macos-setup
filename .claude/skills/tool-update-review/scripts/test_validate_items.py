@@ -24,7 +24,8 @@ Seven groups:
 7. **Degradation.** Same doctrine as `LoadResearchDegradationTests`: a
    research file is subagent output, so any member can be any shape, and one
    malformed entry must cost that entry — never the run. The fuzz baseline is
-   0 of 346 aborting cases and this group is how it stays there.
+   `scripts/fuzz.py`'s 0 aborting cases (1613 at this writing) and this group
+   is how it stays there.
 """
 import contextlib
 import copy
@@ -1584,8 +1585,9 @@ class DegradationTests(unittest.TestCase):
 		"machine", "generated_at"]
 
 	def test_the_whole_session_survives_every_hostile_shape_at_every_key(self):
-		"""The session-level twin of `scratch/spof/repro/fuzz.py`, which holds
-		`assemble.main()` at 0 of 346 aborting cases. Same matrix, same rule:
+		"""The session-level twin of `scripts/fuzz.py` (vendored from the
+		scratch repro), which holds `assemble.main()` at 0 aborting cases
+		across its matrix. Same matrix, same rule:
 		only a message-bearing NoCandidateSet is an acceptable stop, and only
 		for collect.json — nothing else may abort."""
 		aborted = []

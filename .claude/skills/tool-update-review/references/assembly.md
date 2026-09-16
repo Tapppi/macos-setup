@@ -201,8 +201,11 @@ cost that tool its slot and nothing else. Losing the whole report — and with i
 the 77 cards that are fine — over a ranking is the trade this pass exists to
 refuse.
 
-Fuzz-tested rather than asserted: `scratch/spof/repro/fuzz.py` holds
-`assemble.main()` at **0 of 346** hostile shapes aborting, and the validator's
+Fuzz-tested rather than asserted: `scripts/fuzz.py` (vendored; run
+`python3 scripts/fuzz.py`, exit 0 means no case aborts) holds
+`assemble.main()` at **0 aborting** across its hostile-shape matrix — 1613
+cases at this writing; the matrix derives from the published constants and
+grows with them — and the validator's
 session-level twin at **0 of 282**.
 
 ## Suggestion-ID Uniqueness
