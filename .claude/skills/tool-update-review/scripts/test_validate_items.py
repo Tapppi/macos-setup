@@ -1102,6 +1102,32 @@ class ImpactAndBucketTests(unittest.TestCase):
 		self.assertNotIn("local-enum-invalid", model.pre_accept_bars(view))
 		self.assertIn("E-FIELD-MISSING", {f["code"] for f in findings.entries})
 
+	def test_a_non_version_finding_source_short_circuits(self):
+		for source, flag in (("brew-health", True), ("skill-drift", True)):
+			with self.subTest(source):
+				candidate = _candidate(id=source + ":f", name="f", source=source,
+					current_version=None, latest_version=None, expected=flag)
+				view, _ = validate_one(None, candidate=candidate)
+				self.assertEqual(view["impact"], "none")
+				self.assertEqual(view["initial_review_bucket"], "routine")
+				self.assertEqual(view["risk_level"], "low")
+
+	def test_an_unexpected_finding_needs_attention(self):
+		candidate = _candidate(id="brew-health:f", name="f", source="brew-health",
+			current_version=None, latest_version=None, expected=False)
+		view, _ = validate_one(None, candidate=candidate)
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertEqual(view["risk_level"], "elevated")
+
+	def test_the_security_display_ids_are_carried_for_the_page(self):
+		view = self._view(items=[_item(tags=["security"], severity="warning",
+			security={"cve_id": None, "rating": "critical", "rating_basis": "vendor",
+				"exploited_in_wild": False},
+			local={"direction": "reaches", "effect": "risk", "statement": "s",
+				"evidence": [{"path": "Brewfile"}]})])
+		self.assertEqual(view["security_display_item_ids"], ["brew:x#issue:org%2Frepo%231"])
+
+
 
 # ── 6b. Memory proposals (REDESIGN.md L1, L7) ───────────────────────────────
 def _memory(kind="method-note", **kw):
