@@ -193,7 +193,7 @@ fine as your actual response.
 | `{{MACHINE_JSON}}` | The `machine` object from `collect.sh`'s output |
 | `{{REPO_CONTEXT_JSON}}` | The contents of `{session_dir}/repo_context.json` (`scripts/repo_context.sh`'s output) |
 | `{{HYPOTHESES}}` | Prior findings for this batch's tools, drawn mechanically by tool id — one block per tool that has any, in the form §Writing Hypotheses requires |
-| `{{STANDING_NOTES}}` | This batch's tools' entries from `watch-items.json` and `method-notes.json`, looked up by tool id — empty when they have none |
+| `{{STANDING_NOTES}}` | This batch's tools' entries from `watch-items.json` and `method-notes.json`, looked up by tool id — empty when they have none. Filling it also copies the same `watch-items.json` verbatim to `{session_dir}/watch-items.json` (one `cp`, no transformation — SKILL.md step 3), so the validator grounds `watch_hit` claims against exactly what the checkers were given |
 | `{{TOUCHPOINTS}}` | The word-boundary grep hits from tiering (`references/research.md` §Word-Boundary Grep Rule), one block per tool — **generated from the grep, never typed by hand** |
 
 ## Writing Hypotheses

@@ -152,6 +152,18 @@ Build each subagent's prompt by filling in
 `references/research-prompt-template.md` — a fixed skeleton so the
 boilerplate doesn't get retyped by hand and drift between runs.
 
+At the moment you fill `{{STANDING_NOTES}}`, snapshot the watch-item store
+into the session — one `cp`, no transformation:
+
+```sh
+cp "${XDG_STATE_HOME:-$HOME/.local/state}/tool-update-review/watch-items.json" \
+	{session_dir}/watch-items.json   # skip only if the store does not exist yet
+```
+
+The validator grounds every `watch_hit` against this snapshot, so it must
+be exactly what the checkers were given; without it every real hit
+degrades to `W-WATCH-UNCHECKED`.
+
 Group tools into tiers instead of one-subagent-per-tool: **individual-focus**
 (one subagent per tool with a real repo touchpoint — bespoke `tasks/*.sh`
 function, dotfiles config, Brewfile pin/comment), **batched-by-category**
