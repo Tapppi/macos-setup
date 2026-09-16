@@ -443,8 +443,12 @@ install_powershell_modules() {
 
 # Define Function =install_agent_skills_venv=
 # Creates a shared uv venv at ~/.local/share/agent-skills/venv/ used by
-# agent skills that need Python libraries (anthropics pdf/pptx/docx/xlsx etc.).
-# Per-skill dependencies are appended below as skills are adopted.
+# agent skills that need Python libraries. Its first users are the docx, pdf,
+# pptx and xlsx skills of Anthropic's document-skills plugin, which is
+# installed from Anthropic's own marketplace (document-skills@anthropic-
+# agent-skills in the tracked ~/.claude/settings.json) rather than vendored in
+# dotfiles, because their licence forbids redistribution. The deps are the same
+# either way. Per-skill dependencies are appended below as skills are adopted.
 install_agent_skills_venv() {
 	p2 "Setting up agent-skills uv venv..."
 
@@ -465,7 +469,7 @@ install_agent_skills_venv() {
 	# uv pip install --python is idempotent — safe to re-run.
 	# Add deps here as skills are adopted; document each one's purpose.
 	local venv_python="${venv_dir}/bin/python"
-	p3 "Installing Python deps for adopted anthropics doc skills..."
+	p3 "Installing Python deps for Anthropic's document-skills plugin (docx/pdf/pptx/xlsx)..."
 	uv pip install --python "${venv_python}" --quiet \
 		pypdf pdf2image pillow reportlab numpy \
 		defusedxml lxml \
@@ -519,8 +523,8 @@ install_claude_code() {
 	# a browser) for higher rate limits, writes the MCP server with an API
 	# key into ~/.claude.json, and installs its own skill
 	# (~/.claude/skills/context7-mcp/) and rule (~/.claude/rules/context7.md).
-	# Those files are ctx7-managed, not tracked in dotfiles —
-	# dotfiles/bootstrap.sh excludes the skill dir from its --delete mirror.
+	# Those files are ctx7-managed, not tracked in dotfiles; bootstrap leaves
+	# ~/.claude/skills/ alone.
 	# Guard on the API key so a keyless entry from the old automation is
 	# upgraded, but a completed setup is not re-run. Match both shapes ctx7
 	# writes: stdio transport with an `--api-key` arg (default) and http
@@ -539,10 +543,26 @@ install_claude_code() {
 	if ! claude mcp list 2>/dev/null | grep -q chrome-devtools; then
 		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
 	fi
-	# playwright: browser testing and UX automation (via official plugin).
-	# The catalog can be stale on a fresh machine, so refresh before install.
+	# Every plugin below is enabled in the tracked ~/.claude/settings.json,
+	# which enables but fetches nothing — the cache is materialised here.
+	# `marketplace add` is a no-op once a marketplace is registered, so each
+	# add is followed by an update or an existing machine keeps resolving
+	# against a stale catalog.
+	#
+	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
+	# (`codex login`). document-skills is Anthropic's docx/pdf/pptx/xlsx,
+	# installed rather than vendored because their licence forbids it.
 	claude plugin marketplace update claude-plugins-official
-	claude plugin install playwright@claude-plugins-official
+	claude plugin install superpowers@claude-plugins-official
+	claude plugin install duckdb-skills@claude-plugins-official
+
+	claude plugin marketplace add openai/codex-plugin-cc
+	claude plugin marketplace update openai-codex
+	claude plugin install codex@openai-codex
+
+	claude plugin marketplace add anthropics/skills
+	claude plugin marketplace update anthropic-agent-skills
+	claude plugin install document-skills@anthropic-agent-skills
 
 	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).

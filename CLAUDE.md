@@ -31,7 +31,7 @@ bash hooks/install.sh
   (`p1`/`p2`/`p3` for colored output, `ask`/`ask2`/`run` for AppleScript dialogs) and the sudo
   keep-alive pattern.
 - **`tasks/init.sh`** — System init: hostname, permissions, macOS updates, guest account, SSH/1Password setup, new account creation.
-- **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins, Claude Code MCP servers/plugins. context7 is set up via `npx ctx7 setup --claude` (OAuth login for higher rate limits; writes the API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill/rule under `~/.claude/` that `dotfiles/bootstrap.sh` excludes from its `--delete` mirror).
+- **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins, Claude Code MCP servers/plugins. context7 is set up via `npx ctx7 setup --claude` (OAuth login for higher rate limits; writes the API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill/rule under `~/.claude/` that dotfiles does not own; bootstrap leaves `~/.claude/skills/` alone and has no mirror for it).
 - **Cursor CLI (`cursor-agent`)** — Set up by `install_cursor_agent()` in `tasks/install.sh`, which
   only clears the cask quarantine; all config is dotfiles-managed. `cursor-agent` reads much of the
   Claude Code setup natively (repo `CLAUDE.md`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`,
@@ -46,9 +46,9 @@ bash hooks/install.sh
   split (`cli-config.json` is XDG-resolved, everything else is hardcoded to `~/.cursor/`).
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup. Does not apply macOS system defaults (use `./setup.sh macos` separately).
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
-- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own bundles published through a marketplace (e.g. `gke-basics@tapppi-skills`, see `dotfiles/config/agent-skills/.claude-plugin/marketplace.json`) get per-project scoping; any local marketplace found under `~/.config/agent-skills/` is auto-registered so its plugins resolve by name; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Idempotent; never auto-run.
+- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own bundles published through a marketplace (e.g. `browser@tapppi-skills`, see `dotfiles/config/agent-skills/.claude-plugin/marketplace.json`) get per-project scoping; only the root `tapppi-skills` marketplace at `~/.config/agent-skills/` is registered; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Idempotent; never auto-run.
 
-  It no longer links raw skills into repos — see *Where skills live* below. A leftover `skills` block in a manifest warns and is ignored.
+  It does not link skills into repos — see *Where skills live* below.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
 - **`dotfiles/`** — **Git submodule** (`git@github.com:tapppi/dotfiles.git`). Has two sync dirs:
   `home/` rsynced to `~/` (non-XDG files: `.claude/`, `.cursor/`, etc.) and
@@ -79,43 +79,16 @@ any other automation.
 destination (e.g., `cp dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.
 
-### Where Skills Live
+### Where skills live
 
-A skill belongs to the repo that uses it, committed, in this shape:
+A skill belongs to the repo that uses it, committed at
+`<repo>/.agents/skills/<bundle>/` with a committed *relative* symlink at
+`<repo>/.claude/skills/<bundle>`. Both paths are needed: Claude Code reads only
+`.claude/skills`, Codex only `.agents/skills`, Cursor and OpenCode both.
 
-```text
-<repo>/.agents/skills/<bundle>/          # canonical, a real directory
-        .claude-plugin/plugin.json       # one manifest; Claude Code AND Codex read it
-        skills/<name>/SKILL.md           # required layout
-        [agents/ hooks/ .mcp.json]       # optional, additive
-<repo>/.claude/skills/<bundle> -> ../../.agents/skills/<bundle>   # relative, committed
-```
-
-Both paths are needed because no single one is universal: Claude Code reads
-only `.claude/skills`, Codex reads only `.agents/skills`, and Cursor and
-OpenCode read both. Claude Code loads a directory containing `.claude-plugin/`
-as a zero-install `<bundle>@skills-dir` plugin — no marketplace, no
-`enabledPlugins` entry, discovered in place, so edits on a branch are live.
-
-**The symlink must be relative, and it must be committed.** That is the whole
-reason worktrees work without provisioning: git carries the symlink, and a
-relative target resolves inside whichever worktree reads it. The retired
-`projects.sh` route wrote *absolute* symlinks into `~/.config/agent-skills/`,
-which pinned every worktree to one machine-global copy — the bug this shape
-exists to avoid.
-
-A plain skill (`.agents/skills/<name>/SKILL.md`, no `.claude-plugin/`) is also
-fine. The only difference is namespacing: a bundle's skills appear as
-`<bundle>:<skill>`, a plain skill is unnamespaced. Prefer a bundle for
-anything shared, versioned, or carrying hooks/agents/MCP.
-
-A bundle's `SKILL.md` must sit at `skills/<name>/SKILL.md`. One at the bundle
-root loads in Claude Code but is invisible to Codex — a silent, one-harness
-failure.
-
-Third-party marketplace plugins (`frontend-design@claude-plugins-official`,
-`superpowers`, `duckdb-skills`) cannot be made zero-setup; their install stays
-machine-local via `tasks/projects.sh`.
+**[docs/skills.md](docs/skills.md)** has the rest — the three routes capability
+arrives by, the bundle layout, why the symlink is relative, and the workspace
+trust requirement.
 
 ### Git Identity and Attribution
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no agent signatures).
@@ -220,6 +193,9 @@ Do not "fix" a missing key by copying it into `dotfiles/home/`. That means
 tracking a path and payload the tool owns and rewrites between versions, which
 goes stale silently on the next upgrade. Re-run the writing command instead —
 `./setup.sh herdr` for herdr.
+
+`~/.claude/skills/` and `~/.claude/hooks/` are written by the tools that own
+them, not by dotfiles, and bootstrap leaves both alone.
 
 ### XDG Base Directory
 `XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`. Tools that support XDG read
