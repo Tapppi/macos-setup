@@ -698,6 +698,100 @@ class StructuralTests(unittest.TestCase):
 			"from": {"type": "formula", "name": "sops"},
 			"to": {"type": "runtime", "name": "mise:sops"}})), [])
 
+	def test_manifest_add_reports_a_missing_anchor_section_on_its_own(self):
+		"""The anchor-section limb, isolated. Both cases of the both-limbs
+		test above use a real section, so that limb deleted green inside a
+		test literally named for it: its first case already fails on the
+		to-is-present limb, its second passes everything. Here `to` is absent
+		(first limb quiet) and the section is not the manifest's — the second
+		limb alone must speak."""
+		self.assertEqual(codes(self._sug({
+			"op": "manifest_add", "subjects": [{"type": "formula", "name": "ripgrep"}],
+			"manifest": "Brewfile", "to": {"type": "formula", "name": "ripgrep"},
+			"anchor": {"section": "NO SUCH SECTION"}})), ["E-STRUCT-PRECOND"])
+
+	def test_manifest_replace_checks_both_limbs(self):
+		"""manifest_replace had zero coverage — of the nine structural ops,
+		seven had any precondition exercised before this test and
+		test_task_change_reads_the_anchor_file below (this op and task_change
+		had none)."""
+		clean = {"op": "manifest_replace",
+			"subjects": [{"type": "formula", "name": "sops"}],
+			"manifest": "Brewfile", "from": {"type": "formula", "name": "sops"},
+			"to": {"type": "formula", "name": "ripgrep"}}
+		self.assertEqual(codes(self._sug(clean)), [])
+		# from must resolve…
+		self.assertEqual(codes(self._sug(dict(clean,
+			**{"from": {"type": "formula", "name": "ripgrep"},
+				"to": {"type": "formula", "name": "fd"}}))), ["E-STRUCT-PRECOND"])
+		# …and to must not already be there.
+		self.assertEqual(codes(self._sug(dict(clean,
+			to={"type": "formula", "name": "openssh"}))), ["E-STRUCT-PRECOND"])
+
+	def test_manifest_move_requires_the_entry_it_moves(self):
+		"""The op's first limb — its section limbs were covered, this one
+		deleted green."""
+		self.assertEqual(codes(self._sug({
+			"op": "manifest_move", "subjects": [{"type": "formula", "name": "ripgrep"}],
+			"manifest": "Brewfile", "from": {"type": "formula", "name": "ripgrep"},
+			"anchor": {"section": "CORE"}})), ["E-STRUCT-PRECOND"])
+
+	def test_tap_ops_refuse_a_well_formed_ref_of_the_wrong_type(self):
+		"""MALFORMED_REFS covers a ref with no shape at all; this is the other
+		case — a perfectly well-formed Ref whose type just is not "tap"."""
+		self.assertEqual(codes(self._sug({
+			"op": "tap_add", "subjects": [{"type": "tap", "name": "acme/tools"}],
+			"manifest": "Brewfile", "to": {"type": "formula", "name": "sops"}})),
+			["E-STRUCT-PRECOND"])
+		self.assertEqual(codes(self._sug({
+			"op": "tap_remove", "subjects": [{"type": "tap", "name": "slp/krun"}],
+			"manifest": "Brewfile", "from": {"type": "formula", "name": "sops"}})),
+			["E-STRUCT-PRECOND"])
+
+	def test_tap_remove_requires_the_tap_to_be_manifested(self):
+		"""tap_remove's other limb: only its clean pass was ever exercised, so
+		the not-in-manifest fail deleted green."""
+		self.assertEqual(codes(self._sug({
+			"op": "tap_remove", "subjects": [{"type": "tap", "name": "acme/tools"}],
+			"manifest": "Brewfile", "from": {"type": "tap", "name": "acme/tools"}})),
+			["E-STRUCT-PRECOND"])
+
+	def test_install_method_change_requires_the_current_mechanism_to_resolve(self):
+		"""The "does not resolve in its current mechanism" limb — the distinct
+		-types test's clean case runs it passing, so its fail deleted green."""
+		self.assertEqual(codes(self._sug({
+			"op": "install_method_change",
+			"subjects": [{"type": "formula", "name": "ripgrep"}],
+			"from": {"type": "formula", "name": "ripgrep"},
+			"to": {"type": "runtime", "name": "mise:ripgrep"}})), ["E-STRUCT-PRECOND"])
+
+	def test_install_method_change_from_an_unreadable_manifest_is_unchecked(self):
+		"""install_method_change is not a manifest op (`manifest` is not among
+		its required fields), so the shared unreadable-manifest guard at the
+		top of _check_preconditions never covers it — it has its own limb,
+		which deleted green. Same doctrine as the manifest_remove case above:
+		unchecked, loudly, never silently satisfied."""
+		with tempfile.TemporaryDirectory() as td:
+			self.assertEqual(codes(self._sug({
+				"op": "install_method_change",
+				"subjects": [{"type": "formula", "name": "sops"}],
+				"from": {"type": "formula", "name": "sops"},
+				"to": {"type": "runtime", "name": "mise:sops"}}),
+				manifest_root=td), ["W-STRUCT-UNCHECKED"])
+
+	def test_task_change_reads_the_anchor_file(self):
+		"""The ninth op, previously zero-covered. Its one precondition is that
+		the anchored file exists; note task_change does NOT verify the token
+		is currently dispatched — only task_add reads the token list."""
+		clean = {"op": "task_change",
+			"subjects": [{"type": "task", "name": "setup.sh:install"}],
+			"manifest": None, "from": None,
+			"to": {"type": "task", "name": "setup.sh:install"},
+			"anchor": {"file": "setup.sh"}}
+		self.assertEqual(codes(self._sug(clean)), [])
+		self.assertEqual(codes(self._sug(dict(clean,
+			anchor={"file": "tasks/nope.sh"}))), ["E-STRUCT-PRECOND"])
+
 	def test_a_missing_required_field_is_named_before_a_precondition_is_claimed(self):
 		got = codes(self._sug({"op": "manifest_move",
 			"subjects": [{"type": "formula", "name": "sops"}], "manifest": "Brewfile",
