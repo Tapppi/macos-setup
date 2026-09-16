@@ -1739,9 +1739,10 @@ def _check_flags(research, view, findings, tool_id):
 # ── the watch-item snapshot (I-20) ──────────────────────────────────────────
 def _load_watch_snapshot(path, findings: Findings):
 	"""The per-session copy of the machine-global watch-item store — the
-	orchestrating session writes it at step 2, at the moment it fills
-	{{STANDING_NOTES}}, so grounding checks a hit against the evidence the
-	claim was made from rather than against a store that may have moved since.
+	orchestrating session writes it at step 3 ("Research each tool"), at the
+	moment it fills {{STANDING_NOTES}}, so grounding checks a hit against the
+	evidence the claim was made from rather than against a store that may have
+	moved since.
 
 	Absent is legal and costs nothing but the check: every hit then raises
 	W-WATCH-UNCHECKED and is kept. Unreadable or wrong-typed is the same case
