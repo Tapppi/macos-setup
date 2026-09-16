@@ -32,6 +32,9 @@ import unittest
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 WRITE_STATUS = os.path.join(SCRIPT_DIR, "write_status.py")
 
+sys.path.insert(0, SCRIPT_DIR)
+import items as model  # noqa: E402
+
 
 def _suggestion(sid, target_files):
 	return {"id": sid, "kind": "edit", "title": "Pin azcopy", "target_files": target_files,
@@ -59,7 +62,8 @@ class InitTargetFileDriftTests(unittest.TestCase):
 		"""Run the real `write_status.py init`; return (status, stderr)."""
 		with tempfile.TemporaryDirectory(prefix="write-status-test-") as session:
 			report = {
-				"schema_version": 1, "report_id": "tool-update-review-20260822T113344Z",
+				"schema_version": 1, "contract_version": model.CONTRACT_VERSION,
+				"report_id": "tool-update-review-20260822T113344Z",
 				"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "summary": {},
 				"repo_context": {}, "highlights": [],
 				"tools": [{
@@ -157,7 +161,8 @@ class PinCheckGateTests(unittest.TestCase):
 		tmp = tempfile.mkdtemp(prefix="write-status-pin-test-")
 		self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
 		report = {
-			"schema_version": 1, "report_id": "tool-update-review-20260907T000000Z",
+			"schema_version": 1, "contract_version": model.CONTRACT_VERSION,
+			"report_id": "tool-update-review-20260907T000000Z",
 			"generated_at": "2026-09-07T00:00:00Z", "machine": {}, "summary": {},
 			"repo_context": {}, "highlights": [], "tools": [tool],
 		}
@@ -308,6 +313,64 @@ class PinCheckGateTests(unittest.TestCase):
 		for state in ("running", "failed"):
 			p = self._set_action(session, sid, state)
 			self.assertEqual(p.returncode, 0, (state, p.stderr))
+
+
+# ── init's contract_version equality gate (references/schemas.md §1.1) ─────
+# `init` does not display report.json, it synthesizes the whole action list
+# from it. A report written against a different contract therefore does not
+# fail visibly — it produces a plausible action list derived from fields that
+# no longer mean what this code thinks they mean. §I9 rules out a shim, so the
+# only correct answer is a refusal, and a refusal nobody tested is a refusal
+# nobody has.
+class InitContractVersionGateTests(unittest.TestCase):
+	def _init(self, contract_version, omit=False):
+		"""Run `init` against a report carrying (or missing)
+		`contract_version`; return (returncode, stderr, session_dir)."""
+		session = tempfile.mkdtemp(prefix="write-status-cv-test-")
+		self.addCleanup(shutil.rmtree, session, ignore_errors=True)
+		report = {
+			"schema_version": 2, "report_id": "tool-update-review-20260917T000000Z",
+			"generated_at": "2026-09-17T00:00:00Z", "machine": {}, "summary": {},
+			"repo_context": {}, "highlights": [],
+			"tools": [{"id": "brew:azcopy", "name": "azcopy", "source": "brew",
+				"suggestions": [_suggestion("brew:azcopy:upgrade", [])]}],
+		}
+		if not omit:
+			report["contract_version"] = contract_version
+		feedback = {"report_id": report["report_id"], "tool_comments": {},
+			"decisions": {"brew:azcopy:upgrade": {"decision": "accept"}}}
+		for name, obj in (("report.json", report), ("feedback.json", feedback)):
+			with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+				json.dump(obj, fh)
+		p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+			capture_output=True, text=True, timeout=60)
+		return p.returncode, p.stderr, session
+
+	def test_the_current_contract_version_is_accepted(self):
+		rc, stderr, session = self._init(model.CONTRACT_VERSION)
+		self.assertEqual(rc, 0, stderr)
+		self.assertTrue(os.path.exists(os.path.join(session, "status.json")))
+
+	def test_a_mismatched_contract_version_is_refused_and_writes_nothing(self):
+		for label, value, omit in (
+			("one below", model.CONTRACT_VERSION - 1, False),
+			("one above", model.CONTRACT_VERSION + 1, False),
+			("a string of the right number", str(model.CONTRACT_VERSION), False),
+			("null", None, False),
+			("absent entirely", None, True),
+		):
+			with self.subTest(label):
+				rc, stderr, session = self._init(value, omit=omit)
+				self.assertNotEqual(rc, 0, label)
+				self.assertIn("contract_version", stderr)
+				# No half-written status.json: an apply pass that read one
+				# would be running off exactly the shape this gate refused.
+				self.assertFalse(os.path.exists(os.path.join(session, "status.json")), label)
+
+	def test_the_refusal_names_the_remedy_not_just_the_mismatch(self):
+		_, stderr, _ = self._init(1)
+		self.assertIn(str(model.CONTRACT_VERSION), stderr)
+		self.assertIn("Re-run the review", stderr)
 
 
 if __name__ == "__main__":

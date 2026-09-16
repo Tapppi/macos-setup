@@ -47,6 +47,9 @@ from datetime import datetime, timezone
 # below must ask the same question check_pin.py's own --source choices ask,
 # from the same single set, not a second hand-typed list that can drift.
 import assemble
+# For CONTRACT_VERSION — `init`'s equality gate reads the one published
+# contract rather than re-typing the number.
+import items
 
 
 def now_iso() -> str:
@@ -93,6 +96,25 @@ def cmd_init(args):
 	report = load_json(os.path.join(session_dir, "report.json"))
 	if feedback is None or report is None:
 		print("Error: feedback.json and report.json must both exist first", file=sys.stderr)
+		sys.exit(1)
+
+	# ── contract_version equality gate (references/schemas.md §1.1; §I9) ──
+	# The same exact-equality rule render.py applies to schema_version, for
+	# the same reason and with no shim: `init` does not read report.json to
+	# display it, it *synthesizes the action list* from it — every suggestion
+	# id, every accept, every target_files path that decides which repos get
+	# a commit action. Read a report written against a different contract and
+	# the failure is not a visibly broken page, it is an apply pass driving a
+	# plausible-looking action list derived from fields that no longer mean
+	# what this code thinks they mean. An old report is re-read by checking
+	# out the pipeline that wrote it.
+	if report.get("contract_version") != items.CONTRACT_VERSION:
+		print(
+			f"Error: report.json contract_version must be {items.CONTRACT_VERSION}, got "
+			f"{report.get('contract_version')!r} — refusing to synthesize actions from an "
+			f"unknown report shape (references/schemas.md §1.1; no migration shim exists, "
+			f"REDESIGN.md §I9). Re-run the review, or check out the pipeline this report "
+			f"was written with.", file=sys.stderr)
 		sys.exit(1)
 
 	suggestions_by_id = {
