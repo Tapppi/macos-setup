@@ -1168,6 +1168,11 @@
 		.cmd:hover { border-color: var(--base00); }
 		.cmd.copied { border-color: var(--cyan); color: var(--cyan); }
 
+		/* The deep-link tail spacer (see its comment in the markup). Height
+		 * is the room a last-tool jump needs: viewport minus the sticky
+		 * shell, so `top - sticky-h` is always a reachable scroll offset. */
+		#tail-spacer { height: calc(100vh - var(--sticky-h)); }
+
 		/* ── Back-to-overview pill ──────────────────────────────────────── */
 		#backpill {
 			position: fixed;
@@ -2746,6 +2751,15 @@
 			<label for="overall-comment">Overall comment (optional)</label>
 			<textarea id="overall-comment" placeholder="Any overall thoughts, context, or instructions for the session…"></textarea>
 		</div>
+
+		<!-- One-viewport tail spacer (REDESIGN §J bug 1). scrollIntoView
+		     clamps at max scroll, so without scroll room below the list a
+		     deep link into any tool near the document end lands short —
+		     measured up to 577.98px at a 1400px viewport, scrollY exactly
+		     maxScroll. The spacer guarantees every section's top can reach
+		     the sticky bar; measured residual error 0.47px (sub-pixel
+		     layout rounding). Inert and unannounced. -->
+		<div id="tail-spacer" aria-hidden="true"></div>
 	</main>
 
 	<!-- ── Back-to-overview pill (visible only after a jump) ───────────── -->
@@ -3756,6 +3770,7 @@
 			if (tools.length === 0) {
 				document.getElementById('filter-bar').style.display = 'none';
 				document.getElementById('overall-section').style.display = 'none';
+				document.getElementById('tail-spacer').style.display = 'none';
 				listEl.innerHTML = `
 			<div id="empty-state">
 				<div class="es-icon">🎉</div>

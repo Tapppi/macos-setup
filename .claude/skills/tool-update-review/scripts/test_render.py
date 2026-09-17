@@ -570,5 +570,41 @@ class KeyboardReachabilityTests(PageDriveRunner):
 		self.assertNotEqual(out["tabIndex"], "0")
 
 
+
+class DeepLinkLandingTests(PageDriveRunner):
+	"""REDESIGN §J bug 1, measured at 577.98px: scrollIntoView clamps at max
+	scroll, so a deep link into a tool near the document end landed short
+	and read as broken. The one-viewport tail spacer makes every section's
+	top a reachable scroll offset; the prototype measured the residual at
+	0.47px. Driven: jump to the LAST tool and measure where it landed."""
+
+	def _many_tools(self, n=24):
+		return [page_tool(f"brew:tool{i:02d}", f"tool{i:02d}", "1.0", "1.1",
+			"routine") for i in range(n)]
+
+	def test_a_jump_to_the_last_tool_lands_at_the_sticky_bar(self):
+		out = self.drive(page_report(self._many_tools()), """
+		const sections = document.querySelectorAll('#tool-list .tool-section');
+		const last = sections[sections.length - 1];
+		jumpToTool(last.dataset.toolId);
+		const stickyH = parseFloat(getComputedStyle(document.documentElement)
+			.getPropertyValue('--sticky-h'));
+		const top = last.getBoundingClientRect().top;
+		log('toolId=' + last.dataset.toolId);
+		log('error=' + Math.abs(top - (stickyH + 8)).toFixed(2));
+		log('atMax=' + (Math.ceil(window.scrollY) >=
+			document.documentElement.scrollHeight - window.innerHeight - 1));
+""", budget=8000)
+		self.assertLessEqual(float(out["error"]), 2.0,
+			"deep link landed %spx off the sticky bar" % out["error"])
+
+	def test_the_spacer_exists_only_when_there_are_tools(self):
+		out = self.drive(page_report([]), """
+		const spacer = document.getElementById('tail-spacer');
+		log('spacerHidden=' + (spacer.offsetParent === null));
+""")
+		self.assertEqual(out["spacerHidden"], "true")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)
