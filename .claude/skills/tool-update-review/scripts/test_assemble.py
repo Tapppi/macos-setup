@@ -2000,5 +2000,250 @@ class GuardedBuildAndHighlightTests(unittest.TestCase):
 		self.assertIn("brew:crash-object", err.getvalue())
 
 
+
+
+# ── 9. Convergence consumption (criterion 12's renderer half) ───────────────
+# load_convergence() is exercised through main(), the way the merge actually
+# runs: the session dir carries corpus.pre.json / corpus.post.json /
+# converge-effect.json (+ converge.json), and the report that comes out is
+# asserted to render the POST corpus with the per-tool blocks and the
+# report-level record attached. The corpora are built by the real
+# `converge.build_corpus_pre` over the real validator document, so these
+# fixtures cannot drift from the shapes the applier writes.
+class ConvergenceMergeTests(unittest.TestCase):
+	SESSION_BASENAME = "tool-update-review-20260822T113344Z"
+
+	def _collect_and_research(self):
+		collect = {"generated_at": "2026-08-22T11:33:44Z", "machine": {},
+			"brew": [_cand("brew:cm", "cm", "brew", "1.0.0", "1.0.1")]}
+		research = [{"id": "brew:cm", "links": [], "items": [
+			_item("cve", tags=["security"], severity="notable",
+				title="Fixes CVE-2026-11111 in the parser",
+				security=_sec("CVE-2026-11111", "high", "vendor")),
+			_item("feat", tags=["feature"], severity="notable",
+				title="Adds a new inspection flag"),
+		]}]
+		return collect, research
+
+	def _build_corpora(self, collect, research):
+		"""The real validator + the real corpus composer over an identical
+		scratch session, so corpus.pre is exactly what --prepare writes."""
+		import copy
+
+		import converge as contract
+		import validate_items
+		with tempfile.TemporaryDirectory() as tmp:
+			session = os.path.join(tmp, self.SESSION_BASENAME)
+			os.makedirs(os.path.join(session, "research"))
+			with open(os.path.join(session, "collect.json"), "w", encoding="utf-8") as fh:
+				json.dump(collect, fh)
+			with open(os.path.join(session, "research", "01-all.json"), "w",
+					encoding="utf-8") as fh:
+				json.dump(research, fh)
+			validation = validate_items.validate_session(session, [tmp], manifest_root=tmp)
+		corpus_pre = contract.build_corpus_pre(validation, collect,
+			{"watch_items": None, "method_notes": None})
+		corpus_post = copy.deepcopy(corpus_pre)
+		return corpus_pre, corpus_post
+
+	def _delete_feature_item(self, corpus_post):
+		"""The libpq shape: convergence removes the one non-security item, the
+		re-derivation moves the tool security_mixed → security_auto."""
+		import converge as contract
+		view = corpus_post["tools"][0]
+		view["items"] = [i for i in view["items"] if "feature" not in (i.get("tags") or [])]
+		contract.derive_tool_state(view, None)
+		view["pre_accept_bars"] = model.pre_accept_bars(view)
+		view["initial_pre_accept"] = contract.initial_pre_accept(view)
+		return view
+
+	def _effect(self, corpus_pre, corpus_post, **over):
+		pre_v, post_v = corpus_pre["tools"][0], corpus_post["tools"][0]
+		moved = {}
+		if pre_v["initial_review_bucket"] != post_v["initial_review_bucket"]:
+			moved["brew:cm"] = {"axes": {"initial_review_bucket": {
+				"from": pre_v["initial_review_bucket"],
+				"to": post_v["initial_review_bucket"]}},
+				"direction": "permissive"}
+		effect = {
+			"run_id": corpus_pre["run_id"],
+			"generated_at": "2026-08-22T11:33:44Z",
+			"attempt": 1,
+			"state": "converged",
+			"applied": ["cv-001"],
+			"superseded": [],
+			"rejected": [],
+			"diff": [],
+			"moved": moved,
+			"attribution": {"brew:cm": {"initial_review_bucket": {
+				"attributed_to": ["cv-001"], "joint": False, "unattributed": False}}},
+			"tools": {"brew:cm": {
+				"touched": True, "edit_ids": ["cv-001"],
+				"bucket": {"from": pre_v["initial_review_bucket"],
+					"to": post_v["initial_review_bucket"],
+					"direction": "permissive", "attributed_to": ["cv-001"],
+					"unattributed": False},
+				"auto_update_label": {
+					"source": "judgement",
+					"headline": "Feature note removed - the rest is security-only.",
+					"reasoning": "The flag is a reason to take the upgrade, not to review it.",
+					"confidence": "high", "edit_ids": ["cv-001"],
+					"quotes": [{"edit_id": "cv-001", "text": "Adds a new inspection flag"}],
+					"counterweight": {"cve_count": 1, "worst_rating": "high",
+						"items_removed": 1, "items_retagged": 0},
+				},
+			}},
+			"corpus_effect": {},
+			"findings": [{"code": "W-EDIT-SCHEMA", "critical": False,
+				"detail": "note for the report", "edit_id": "cv-001", "tool_id": "brew:cm"}],
+			"convergence_status": {"attempts": 1, "state": "converged",
+				"explanation": {"headline": "Converged at attempt 1.",
+					"body": "All edits applied.", "attempt_log": []},
+				"degraded_tools": [], "standing_rejects": []},
+		}
+		effect.update(over)
+		return effect
+
+	def _converge_json(self):
+		return {"edits": [
+			{"edit_id": "cv-001", "op": "delete",
+				"target": {"tool_id": "brew:cm", "kind": "item"}},
+			{"edit_id": "cv-002", "op": "flag", "check": "C4-notable-security",
+				"target": {"tool_id": "brew:cm", "kind": "tool"},
+				"reason": {"headline": "Rating basis is vendor prose",
+					"body": "The high rating quotes the vendor, not an advisory."}},
+		]}
+
+	def test_a_session_with_no_artefacts_reports_not_run(self):
+		collect, research = self._collect_and_research()
+		report, _ = assemble_session(collect, research)
+		self.assertEqual(report["convergence"], {"state": "not_run"})
+		self.assertNotIn("convergence", report["tools"][0])
+
+	def test_a_converged_session_renders_the_post_corpus_with_the_blocks(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self.assertEqual(corpus_pre["tools"][0]["initial_review_bucket"], "security_mixed")
+		self._delete_feature_item(corpus_post)
+		self.assertEqual(corpus_post["tools"][0]["initial_review_bucket"], "security_auto")
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		tool = report["tools"][0]
+		# The report renders the POST corpus: the deleted item is gone and
+		# the re-derived bucket is the one that ships.
+		self.assertEqual(len(tool["items"]), 1)
+		self.assertEqual(tool["review_bucket"], "security_auto")
+		# The per-tool block rides on the tool, whole.
+		self.assertEqual(tool["convergence"]["bucket"]["to"], "security_auto")
+		self.assertEqual(tool["convergence"]["auto_update_label"]["source"], "judgement")
+		self.assertEqual(
+			tool["convergence"]["auto_update_label"]["quotes"][0]["text"],
+			"Adds a new inspection flag")
+		# The report-level record: state, the first-class explanation, the
+		# flags (from converge.json) and the findings — and NOT the per-tool
+		# map, which lives on the tools.
+		conv = report["convergence"]
+		self.assertEqual(conv["state"], "converged")
+		self.assertEqual(conv["status"]["explanation"]["headline"], "Converged at attempt 1.")
+		self.assertEqual([f["edit_id"] for f in conv["flags"]], ["cv-002"])
+		self.assertEqual(conv["findings"][0]["code"], "W-EDIT-SCHEMA")
+		self.assertNotIn("tools", conv)
+		self.assertIn("brew:cm", conv["moved"])
+
+	def test_a_half_present_artefact_set_is_loud_and_renders_pre(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		for present in ("corpus.post.json", "converge-effect.json"):
+			with self.subTest(present):
+				files = {present: corpus_post if present.startswith("corpus")
+					else effect}
+				report, _ = assemble_session(collect, research, session_files=files)
+				self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+				self.assertIn("absent", report["convergence"]["detail"])
+				# PRE corpus: both items still render, bucket unmoved.
+				self.assertEqual(len(report["tools"][0]["items"]), 2)
+				self.assertEqual(report["tools"][0]["review_bucket"], "security_mixed")
+				self.assertIn("convergence artefacts are inconsistent", report["_log"])
+
+	def test_a_moved_bucket_the_corpora_do_not_show_is_inconsistent(self):
+		"""The comparison half: an effect whose declared move the corpora
+		contradict must not be trusted — these are not the files the record
+		was derived from."""
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		# corpus_post NOT mutated: both corpora still say security_mixed,
+		# while the effect claims a move to security_auto.
+		effect = self._effect(corpus_pre, corpus_post)
+		effect["moved"] = {"brew:cm": {"axes": {"initial_review_bucket": {
+			"from": "security_mixed", "to": "security_auto"}},
+			"direction": "permissive"}}
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("brew:cm", report["convergence"]["detail"])
+
+	def test_a_run_id_mismatch_is_inconsistent(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post, run_id="some-other-session")
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("run_id", report["convergence"]["detail"])
+
+	def test_a_forced_conservative_tool_never_pre_accepts(self):
+		"""degraded_gate: the applier forced the tool to security_mixed with
+		forced_pre_accept False. Assembly's own predicate would re-accept a
+		low-risk security_mixed tool, so the forced record must bar it."""
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		view = self._delete_feature_item(corpus_post)
+		forced = {"forced_bucket": "security_mixed", "forced_pre_accept": False,
+			"would_have_been": "security_auto", "code": "E-GATE-UNATTRIBUTED"}
+		view["initial_review_bucket"] = "security_mixed"
+		view["initial_pre_accept"] = False
+		view["forced_conservative"] = forced
+		effect = self._effect(corpus_pre, corpus_post, state="degraded_gate")
+		effect["moved"] = {}
+		effect["tools"] = {"brew:cm": {"touched": True, "edit_ids": ["cv-001"],
+			"forced": forced}}
+		effect["convergence_status"] = {"attempts": 5, "state": "degraded_gate",
+			"explanation": {"headline": "1 tool(s) forced to security_mixed.",
+				"body": "gate failed", "attempt_log": []},
+			"degraded_tools": [dict(forced, tool_id="brew:cm")],
+			"standing_rejects": []}
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		tool = report["tools"][0]
+		self.assertEqual(tool["review_bucket"], "security_mixed")
+		self.assertEqual(tool["risk_level"], "low")
+		self.assertEqual(tool["pre_accept_bars"], [])
+		# The exact predicate that would otherwise re-accept it…
+		baseline = assemble.baseline_upgrade(tool)
+		self.assertTrue(baseline.get("auto_runnable"))
+		# …is barred by the forced record.
+		self.assertFalse(baseline["pre_accept"])
+		self.assertEqual(tool["convergence"]["forced"]["would_have_been"], "security_auto")
+		# The unforced twin — same corpus, no forced record — pre-accepts,
+		# so this test fails if the new conjunct is deleted rather than
+		# passing vacuously.
+		del view["forced_conservative"]
+		effect2 = self._effect(corpus_pre, corpus_post, state="converged")
+		effect2["moved"] = {}
+		effect2["tools"] = {}
+		report2, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect2, "converge.json": self._converge_json()})
+		self.assertTrue(assemble.baseline_upgrade(report2["tools"][0])["pre_accept"])
+
+
 if __name__ == "__main__":
 	unittest.main()

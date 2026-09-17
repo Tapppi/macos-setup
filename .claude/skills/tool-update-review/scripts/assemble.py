@@ -741,7 +741,13 @@ def apply_pre_accept(tool: dict) -> None:
 			# be the two-layers-two-stories divergence the shared predicate
 			# exists to prevent. A tool nobody computed the bars for raises
 			# KeyError rather than silently diverging.
-			and not tool["pre_accept_bars"])
+			and not tool["pre_accept_bars"]
+			# A degraded-gate run forced this tool out of the auto set
+			# (references/convergence.md §6). "forced_pre_accept: False" is
+			# part of that record, and assembly's own predicate must not
+			# quietly re-accept what the gate just held: a forced tool is
+			# security_mixed at low risk, which every conjunct above passes.
+			and not tool.get("forced_conservative"))
 
 
 def finalize_tool(tool: dict, view: dict) -> None:
@@ -804,6 +810,160 @@ def as_item_list(value, tool_id: str, field: str, member_type=dict) -> list:
 			note(f"warning: {tool_id}: {field} entry was {type(entry).__name__}, "
 				f"not {member_type.__name__} — dropping it: {entry!r}")
 	return kept
+
+
+# ── convergence consumption (criterion 12's renderer half) ──────────────────
+# Stage 3½/4 (references/convergence.md) writes three artefacts into the
+# session dir: the frozen `corpus.pre.json`, the applier's `corpus.post.json`,
+# and `converge-effect.json` — the derived record of every difference between
+# the two, with per-tool blocks and the first-class `convergence_status`.
+# Assembly is where they reach report.json: the report renders the CONVERGED
+# corpus (post views), each touched tool carries its `convergence` block
+# (bucket move, attribution, the auto-update label), and the report-level
+# `convergence` object carries the status, the moved map and the flag edits.
+# The comparison that makes convergence checkable rather than asserted is the
+# applier's; what assembly adds is a consistency check that the three
+# artefacts describe one run and one corpus, so a mixed-up session dir cannot
+# silently render half of one run against half of another.
+def _read_session_json(session_dir: str, name: str):
+	"""(document, None) or (None, reason). Absent is a reason too — the
+	caller distinguishes 'never written' from 'unreadable' explicitly,
+	because collapsing those two states is a defect class this project has
+	already paid for."""
+	path = os.path.join(session_dir, name)
+	if not os.path.exists(path):
+		return None, "absent"
+	try:
+		with open(path, "r", encoding="utf-8") as fh:
+			document = json.load(fh)
+	except Exception as exc:
+		return None, f"unreadable ({type(exc).__name__}: {exc})"
+	if not isinstance(document, dict):
+		return None, f"not a JSON object ({type(document).__name__})"
+	return document, None
+
+
+def _flag_edits(session_dir: str) -> list:
+	"""The `op: "flag"` edits out of the accepted converge.json — findings
+	convergence recorded for the human without changing anything. They feed
+	the Report notes band. Tolerant: an unreadable converge.json costs the
+	flags and says so, never the merge."""
+	converge_doc, problem = _read_session_json(session_dir, "converge.json")
+	if converge_doc is None:
+		if problem != "absent":
+			note(f"warning: converge.json is {problem} — convergence flags will "
+				f"not appear in the report")
+		return []
+	flags = []
+	for edit in converge_doc.get("edits") or []:
+		if not isinstance(edit, dict) or edit.get("op") != "flag":
+			continue
+		target = edit.get("target") if isinstance(edit.get("target"), dict) else {}
+		reason = edit.get("reason") if isinstance(edit.get("reason"), dict) else {}
+		flags.append({
+			"edit_id": edit.get("edit_id"),
+			"check": edit.get("check"),
+			"tool_id": target.get("tool_id"),
+			"headline": reason.get("headline"),
+			"body": reason.get("body"),
+		})
+	return flags
+
+
+def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
+	"""→ (convergence_summary, views_by_id) — the report-level `convergence`
+	object and the views the tools are built from.
+
+	Three outcomes, all explicit in the summary's `state`:
+	  * the effect's own state (`converged` / `degraded_gate` /
+	    `degraded_unapplied`) — artefacts present and mutually consistent;
+	    the POST views replace the fresh validation views, so the report
+	    renders the corpus convergence actually produced.
+	  * `not_run` — neither corpus.post.json nor converge-effect.json
+	    exists. The report renders the pre-convergence corpus and says so.
+	  * `artefacts_inconsistent` — the artefacts exist but do not describe
+	    one run over one corpus (one of the pair missing, unreadable, run
+	    ids disagreeing, or a moved bucket the corpora do not show). The
+	    report renders the PRE corpus — the conservative side — and the
+	    state is loud on the page, never a silent fall-through."""
+	effect, effect_problem = _read_session_json(session_dir, "converge-effect.json")
+	post, post_problem = _read_session_json(session_dir, "corpus.post.json")
+	if effect is None and post is None \
+			and effect_problem == "absent" and post_problem == "absent":
+		return {"state": "not_run"}, views_by_id
+
+	def inconsistent(detail: str) -> tuple:
+		note(f"warning: convergence artefacts are inconsistent — {detail}; "
+			f"the report renders the PRE-convergence corpus")
+		return {"state": "artefacts_inconsistent", "detail": detail}, views_by_id
+
+	if effect is None:
+		return inconsistent(f"converge-effect.json is {effect_problem} while "
+			f"corpus.post.json exists")
+	if post is None:
+		return inconsistent(f"corpus.post.json is {post_problem} while "
+			f"converge-effect.json exists")
+	pre, pre_problem = _read_session_json(session_dir, "corpus.pre.json")
+	if pre is None:
+		return inconsistent(f"corpus.pre.json is {pre_problem} — nothing to "
+			f"check the post corpus against")
+
+	# One run: the applier stamps corpus_pre's run_id into the effect, and
+	# build_corpus_pre copies it into both corpora.
+	run_ids = {("effect", effect.get("run_id")), ("pre", pre.get("run_id")),
+		("post", post.get("run_id"))}
+	if len({rid for _, rid in run_ids}) != 1:
+		return inconsistent("run_id disagrees across the artefacts: "
+			+ ", ".join(f"{name}={rid!r}" for name, rid in sorted(run_ids)))
+
+	pre_views = {v.get("id"): v for v in pre.get("tools") or [] if isinstance(v, dict)}
+	post_views = {v.get("id"): v for v in post.get("tools") or [] if isinstance(v, dict)}
+	if set(pre_views) != set(post_views):
+		return inconsistent("corpus.pre and corpus.post carry different tool sets")
+
+	# Every moved bucket the effect declares must be visible in the corpora
+	# themselves — the from/to on the record against the two views. This is
+	# the cheap half of criterion 12's comparison: the applier derived the
+	# record from the corpora, so a disagreement means these files are not
+	# the pair that record was derived from.
+	moved = effect.get("moved") if isinstance(effect.get("moved"), dict) else {}
+	for tool_id, record in moved.items():
+		axes = record.get("axes") if isinstance(record, dict) else None
+		bucket = (axes or {}).get("initial_review_bucket")
+		if not bucket:
+			continue
+		pre_v, post_v = pre_views.get(tool_id), post_views.get(tool_id)
+		if pre_v is None or post_v is None:
+			return inconsistent(f"effect names moved tool {tool_id!r} that a corpus lacks")
+		if pre_v.get("initial_review_bucket") != bucket.get("from") \
+				or post_v.get("initial_review_bucket") != bucket.get("to"):
+			return inconsistent(
+				f"{tool_id}: effect says bucket {bucket.get('from')!r} → "
+				f"{bucket.get('to')!r} but the corpora say "
+				f"{pre_v.get('initial_review_bucket')!r} → "
+				f"{post_v.get('initial_review_bucket')!r}")
+
+	status = effect.get("convergence_status")
+	summary = {
+		"state": effect.get("state"),
+		"attempt": effect.get("attempt"),
+		# The first-class explanation (criterion 13) — headline, body,
+		# attempt log, degraded tools, standing rejects. Passed through
+		# whole: trimming it here is exactly the swallowing it forbids.
+		"status": status if isinstance(status, dict) else None,
+		"moved": moved,
+		"findings": list(effect.get("findings") or []),
+		"flags": _flag_edits(session_dir),
+		"applied_count": len(effect.get("applied") or []),
+		"rejected_count": len(effect.get("rejected") or []),
+		"tools": effect.get("tools") if isinstance(effect.get("tools"), dict) else {},
+	}
+	# The report renders what convergence shipped: the post views, which
+	# carry the edited items, the re-derived axes, and (on a degraded run)
+	# the forced conservative buckets.
+	merged_views = dict(views_by_id)
+	merged_views.update(post_views)
+	return summary, merged_views
 
 
 # ── main assembly ───────────────────────────────────────────────────────────
@@ -1022,6 +1182,12 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 		# unvalidated channel). The raw claim is on the items and bars
 		# pre-acceptance; prominence needs verification.
 		"watch_hit_item_ids": list(view.get("watch_hit_item_ids") or []),
+		# Set by the applier on a degraded-gate run (references/convergence.md
+		# §6): the tool was FORCED to the conservative bucket, and its
+		# pre-acceptance must be barred here too — assembly's own predicate
+		# would otherwise re-accept a low-risk security_mixed tool the gate
+		# just took out of the auto set.
+		"forced_conservative": view.get("forced_conservative"),
 		"links": list(view.get("links") or []),
 		"config_status": view.get("config_status") or {"state": "unknown", "detail": "", "evidence": []},
 		"vendor_silent_categories": list(view.get("vendor_silent_categories") or []),
@@ -1714,6 +1880,12 @@ def main():
 		sys.exit(1)
 	views_by_id = {v["id"]: v for v in document["tools"]}
 
+	# Criterion 12's renderer half: when convergence ran, the report renders
+	# the POST corpus and carries the convergence record; when it did not,
+	# the report says so rather than leaving the reader to infer it from an
+	# absence. validation.json below stays the stage-3 record either way.
+	convergence, views_by_id = load_convergence(session_dir, views_by_id)
+
 	repo_context_path = os.path.join(session_dir, "repo_context.json")
 	try:
 		with open(repo_context_path, "r", encoding="utf-8") as fh:
@@ -1742,9 +1914,19 @@ def main():
 	)
 
 	tools = []
+	convergence_tools = convergence.get("tools") or {}
 	for candidate in candidates:
 		tool = build_tool_guarded(candidate, research_by_id, views_by_id)
 		if tool is not None:
+			# The per-tool convergence block (references/convergence.md §9):
+			# bucket move with attribution, the auto-update label with its
+			# quotes and counterweight, or the forced-conservative record.
+			# Attached only where the effect wrote one — an untouched tool
+			# carries no block, and the page reads absence as "convergence
+			# had nothing to say here", which is what it means.
+			block = convergence_tools.get(tool["id"])
+			if isinstance(block, dict):
+				tool["convergence"] = block
 			tools.append(tool)
 
 	# Suggestion-id uniqueness — global, not just within one tool. A collision
@@ -1844,6 +2026,11 @@ def main():
 			"security": summarize_security(tools),
 		},
 		"repo_context": repo_context,
+		# Criterion 12/13: the run's convergence record — state, attempt,
+		# the first-class explanation, the moved map, the flag edits and
+		# the applier findings. The per-tool blocks live on each tool's own
+		# `convergence` key rather than being duplicated here.
+		"convergence": {k: v for k, v in convergence.items() if k != "tools"},
 		"highlights": highlights,
 		"tools": tools,
 	}

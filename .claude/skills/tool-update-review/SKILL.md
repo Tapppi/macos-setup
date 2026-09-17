@@ -251,9 +251,10 @@ conservatively (`degraded_gate` / `degraded_unapplied`) with a first-class
 `convergence_status` explanation instead of dying. It writes
 `corpus.post.json` and `converge-effect.json` beside the untouched
 `corpus.pre.json`, so the work is checkable by comparison rather than
-asserted. (Step 4's report still renders the pre-convergence corpus until the
-report pass wires `corpus.post.json` / `converge-effect.json` through — the
-artefacts and their shapes are final.)
+asserted. Step 4's assembly consumes them when they exist: the report renders
+the post-convergence corpus, each touched tool carries its `convergence`
+block, and `report.convergence` carries the run's `convergence_status`
+(`references/assembly.md` §Consuming Convergence).
 
 ### 4. Assemble and render
 

@@ -208,6 +208,62 @@ cases at this writing; the matrix derives from the published constants and
 grows with them — and the validator's
 session-level twin at **0 of 282**.
 
+## Consuming Convergence (Criterion 12)
+
+When stage 3½/4 ran, the session dir carries three artefacts
+(`references/convergence.md` §1): the frozen `corpus.pre.json`, the applier's
+`corpus.post.json`, and `converge-effect.json` — the derived record of every
+difference between the two. Assembly is where they reach `report.json`
+(`load_convergence()`), and the rule is the one-line contract's last clause:
+**the renderer receives both**, so convergence's work is verifiable by
+comparing the corpora rather than asserted by the agent.
+
+What the merge does, in order:
+
+1. **Reads all three artefacts, distinguishing absent from unreadable.**
+   `_read_session_json()` returns the reason, and the two states are never
+   collapsed — an absent pair means convergence did not run; a half-present
+   or unreadable set means something is wrong and must say so.
+2. **Checks the three describe one run over one corpus**: `run_id`
+   triple-equality, identical tool-id sets between the corpora, and every
+   bucket move the effect declares visible in the corpora themselves
+   (`initial_review_bucket` from/to against the pre and post views). This is
+   deliberately the *cheap* half of the comparison — the applier already
+   derived the record from these files; assembly verifies these are the
+   files it derived it from, so a mixed-up session dir cannot render half of
+   one run against half of another.
+3. **Builds the report from the POST views.** The report renders the corpus
+   convergence shipped: edited items, re-derived axes, appended memory
+   suggestions, and — on a `degraded_gate` run — the forced conservative
+   buckets. `validation.json` and `report.validation` stay the stage-3
+   record either way.
+4. **Attaches the per-tool `convergence` block** (`references/convergence.md`
+   §9) to each Tool the effect wrote one for: `touched`, `edit_ids`, the
+   `bucket` move with leave-one-out attribution, `pre_accept` transitions,
+   the `auto_update_label` (source `judgement` or `rule`, with quotes and
+   counterweight), or the `forced` record. Absence means convergence had
+   nothing to say about that tool.
+5. **Writes the report-level `convergence` object**: `state`, `attempt`, the
+   whole `convergence_status` (criterion 13's first-class explanation —
+   passed through untrimmed), the `moved` map, the applier `findings`, the
+   `op: "flag"` edits read from `converge.json` (they feed the page's Report
+   notes band), and the applied/rejected counts.
+
+Three states the report-level object can carry beyond the effect's own:
+
+| `state` | When | Views used |
+|---|---|---|
+| `converged` / `degraded_gate` / `degraded_unapplied` | artefacts present and consistent | **post** |
+| `not_run` | neither `corpus.post.json` nor `converge-effect.json` exists | pre |
+| `artefacts_inconsistent` | artefacts exist but fail step 2, with `detail` naming the failure | pre (the conservative side), plus a loud `assemble.log` note |
+
+**A forced-conservative tool never pre-accepts.** The applier writes
+`forced_conservative` onto the post view; `_tool_base()` carries it and
+`apply_pre_accept()` bars on it, because assembly's own predicate —
+baseline, runnable, bucket ≠ attention, low risk, no bars — is exactly what
+a forced `security_mixed`-at-low-risk tool would otherwise pass, quietly
+re-accepting the tool the gate just held.
+
 ## Suggestion-ID Uniqueness
 Suggestion ids must be unique **globally across the whole report**, not just
 within one tool's `suggestions[]` — a collision almost always means a
