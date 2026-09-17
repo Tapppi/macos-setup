@@ -12,6 +12,9 @@ import os
 import shutil
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import items  # noqa: E402
+
 
 def main():
 	if len(sys.argv) < 2:
@@ -47,6 +50,24 @@ def main():
 	if report.get("schema_version") != 2:
 		print(
 			f"Error: schema_version must be 2, got {report.get('schema_version')!r}",
+			file=sys.stderr,
+		)
+		sys.exit(1)
+
+	# ── Validate contract_version (references/schemas.md §1.1; REDESIGN §I9) ──
+	# The same exact-equality gate write_status.py init applies, for the same
+	# reason and with no shim: the template renders enum values, id formats
+	# and derived-field shapes this contract pins. A report written against
+	# another contract would not fail visibly — it would render a plausible
+	# page whose fields no longer mean what the template thinks they mean,
+	# and a human would click Accept on it. An old report is re-read by
+	# checking out the pipeline that wrote it.
+	if report.get("contract_version") != items.CONTRACT_VERSION:
+		print(
+			f"Error: report.json contract_version must be {items.CONTRACT_VERSION}, got "
+			f"{report.get('contract_version')!r} — refusing to render a report written "
+			f"against another contract (no migration shim exists, REDESIGN.md §I9). "
+			f"Re-run the review, or check out the pipeline this report was written with.",
 			file=sys.stderr,
 		)
 		sys.exit(1)

@@ -43,12 +43,16 @@ SERVER_PY = os.path.join(SCRIPT_DIR, "server.py")
 TEMPLATE = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "assets",
 	"report-template.html"))
 
+sys.path.insert(0, SCRIPT_DIR)
+import items  # noqa: E402
+
 
 def minimal_report(**over):
 	"""The smallest report render.py accepts. Everything else in report.json
 	is the template's business, read at page runtime, not render time."""
 	report = {
 		"schema_version": 2,
+		"contract_version": items.CONTRACT_VERSION,
 		"report_id": "tool-update-review-20260916T000000Z",
 		"generated_at": "2026-09-16T00:00:00Z",
 		"tools": [],
@@ -205,6 +209,31 @@ class RenderRefusalTests(RenderRunner):
 					report["schema_version"] = version
 				p = self.refuse(report)
 				self.assertIn("schema_version must be 2", p.stderr)
+
+	def test_a_foreign_contract_version_is_refused_by_value(self):
+		"""Same exact-equality gate as schema_version, same shape, same exit
+		code (deferred from pass 1; REDESIGN §I9 — no shim). A string spelling
+		of the right number is still a refusal: equality, not coercion."""
+		for version in (items.CONTRACT_VERSION - 1, items.CONTRACT_VERSION + 1,
+				None, str(items.CONTRACT_VERSION)):
+			with self.subTest(repr(version)):
+				report = minimal_report()
+				if version is None:
+					del report["contract_version"]
+				else:
+					report["contract_version"] = version
+				p = self.refuse(report)
+				self.assertIn(
+					f"contract_version must be {items.CONTRACT_VERSION}", p.stderr)
+				self.assertNotIn("Traceback", p.stderr)
+
+	def test_the_contract_gate_sits_after_the_schema_gate(self):
+		"""A schema-1 report with a foreign contract names the schema first —
+		the older, broader refusal — so the message a user acts on is the one
+		that explains the page they cannot have."""
+		report = minimal_report(schema_version=1, contract_version=999)
+		p = self.refuse(report)
+		self.assertIn("schema_version must be 2", p.stderr)
 
 	def test_a_duplicate_suggestion_id_across_tools_is_refused_naming_both(self):
 		report = minimal_report(tools=[
