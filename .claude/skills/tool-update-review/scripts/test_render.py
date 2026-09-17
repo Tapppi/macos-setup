@@ -606,5 +606,91 @@ class DeepLinkLandingTests(PageDriveRunner):
 		self.assertEqual(out["spacerHidden"], "true")
 
 
+
+class SuggestionCardBodyTests(PageDriveRunner):
+	"""Three card-body defects, all measured (REVIEW §3.4): the method-note
+	kind fell through to renderDiff(undefined) and rendered an EMPTY body;
+	self_test_failed {limb, reason} rendered for neither memory kind; a
+	bare-string target_files entry rendered a zero-width empty chip."""
+
+	def _tool_with_suggestions(self, extra_suggestions):
+		tool = page_tool("brew:memo", "memo", "1.0", "1.1", "attention",
+			sev_item="warning")
+		tool["suggestions"].extend(extra_suggestions)
+		return page_report([tool])
+
+	def test_a_method_note_card_renders_topic_note_rationale_and_self_test(self):
+		out = self.drive(self._tool_with_suggestions([{
+			"id": "brew:memo:method-changelog", "kind": "method-note",
+			"title": "Method note: where the changelog lives",
+			"target_files": [], "command": None, "auto_runnable": False,
+			"rationale": "The release page lied on 1.0.",
+			"method_topic": "where the real changelog lives",
+			"method_note": "Read CHANGES.rst on the tag, not the release page.",
+			"self_test_failed": {"limb": "unwitnessed",
+				"reason": "predicts a failure rather than naming one"},
+		}]), """
+		key('2');
+		const card = document.querySelector('[data-suggestion-id="brew:memo:method-changelog"]');
+		const body = card.querySelector('.method-note-body');
+		log('bodyExists=' + !!body);
+		log('bodyVisible=' + (body && body.offsetParent !== null));
+		log('topic=' + body.querySelector('.watch-item-topic').textContent.trim());
+		log('hasNote=' + body.textContent.includes('Read CHANGES.rst on the tag'));
+		log('hasRationale=' + body.textContent.includes('The release page lied on 1.0.'));
+		const st = card.querySelector('.self-test-note');
+		log('selfTest=' + (st ? st.textContent.trim() : 'none'));
+		log('selfTestVisible=' + (st && st.offsetParent !== null));
+""")
+		self.assertEqual(out["bodyExists"], "true")
+		self.assertEqual(out["bodyVisible"], "true")
+		self.assertIn("where the real changelog lives", out["topic"])
+		self.assertEqual(out["hasNote"], "true")
+		self.assertEqual(out["hasRationale"], "true")
+		self.assertIn("unwitnessed", out["selfTest"])
+		self.assertIn("predicts a failure", out["selfTest"])
+		self.assertEqual(out["selfTestVisible"], "true")
+
+	def test_a_watch_item_card_renders_its_self_test_tag_too(self):
+		out = self.drive(self._tool_with_suggestions([{
+			"id": "brew:memo:watch-quarantine", "kind": "watch-item",
+			"title": "Watch: quarantine returns", "target_files": [],
+			"command": None, "auto_runnable": False, "rationale": "bit us before",
+			"watch_topic": "cask quarantine after upgrade",
+			"watch_note": "Check xattr after every upgrade.",
+			"self_test_failed": {"limb": "scope",
+				"reason": "config_status.detail already re-verifies this"},
+		}]), """
+		key('2');
+		const card = document.querySelector('[data-suggestion-id="brew:memo:watch-quarantine"]');
+		const st = card.querySelector('.self-test-note');
+		log('selfTest=' + (st ? st.textContent.trim() : 'none'));
+		log('topicShown=' + card.textContent.includes('cask quarantine after upgrade'));
+""")
+		self.assertIn("scope", out["selfTest"])
+		self.assertIn("already re-verifies", out["selfTest"])
+		self.assertEqual(out["topicShown"], "true")
+
+	def test_a_bare_string_target_file_renders_its_path(self):
+		out = self.drive(self._tool_with_suggestions([{
+			"id": "brew:memo:edit-1", "kind": "edit",
+			"title": "Edit the Brewfile",
+			"target_files": ["Brewfile", {"path": "dotfiles/.functions",
+				"description": "shell helpers"}, 7],
+			"command": None, "auto_runnable": False, "rationale": "r",
+			"diff_preview": "-a\n+b",
+		}]), """
+		key('2');
+		const card = document.querySelector('[data-suggestion-id="brew:memo:edit-1"]');
+		const chips = Array.from(card.querySelectorAll('.target-path'))
+			.map(c => c.textContent.trim());
+		log('chips=' + chips.join('|'));
+		log('emptyChips=' + chips.filter(c => !c).length);
+""")
+		self.assertEqual(out["chips"], "Brewfile|dotfiles/.functions|7")
+		self.assertEqual(out["emptyChips"], "0",
+			"a target_files entry must never render as an empty chip")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)

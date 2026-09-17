@@ -1880,6 +1880,52 @@
 			white-space: pre-wrap;
 		}
 
+		/* ── Method-note proposal body (kind: "method-note", references/schemas.md §1.7b) ──
+		 * Same shape as the watch-item body — the two memory kinds are
+		 * siblings, not a parallel system — with the one distinction carried
+		 * by the rail: --violet, a palette hue no other card body uses. */
+		.method-note-body {
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-left: 3px solid var(--violet);
+			border-radius: 3px;
+			padding: 8px 10px;
+			margin-bottom: 10px;
+		}
+
+		.method-note-body .watch-item-topic { margin-bottom: 4px; }
+
+		/* The store line under a memory body: where this entry lives and
+		 * which action owns it now (render wrote method notes already;
+		 * a watch item is written at apply on accept). */
+		.note-store-line {
+			font-size: 11px;
+			color: var(--base01);
+			margin-top: 6px;
+		}
+
+		/* ── self_test_failed (references/schemas.md §1.7c) ────────────────
+		 * The agent's own admission that its proposal failed a limb of the
+		 * self-test — written anyway per §L7, reviewed by convergence, and
+		 * rendered HERE because a kept-but-tagged proposal is exactly the
+		 * one the human should read twice. Warning treatment, not error:
+		 * the tag is honesty, not breakage. */
+		.self-test-note {
+			margin: 6px 0 10px;
+			padding: 6px 9px;
+			border: 1px solid rgba(181,137,0,0.5);
+			border-left: 3px solid var(--yellow);
+			border-radius: 3px;
+			font-size: 12px;
+			color: var(--base1);
+		}
+
+		.self-test-note .limb {
+			font-family: var(--mono);
+			font-size: 11px;
+			color: var(--yellow);
+		}
+
 		/* ── Decision buttons ───────────────────────────────────────────── */
 		.card-actions {
 			display: flex;
@@ -3149,6 +3195,21 @@
 			return html;
 		}
 
+		/* ── self_test_failed {limb, reason} (references/schemas.md §1.7c) —
+		 * present on either memory kind when the agent's own pre-proposal
+		 * self-test failed and the proposal was written anyway (§L7: the tag
+		 * never removes). Convergence reviewed it; the human still sees it,
+		 * because a kept-but-tagged note is the likeliest to be wrong. Never
+		 * rendered before this function existed — the {limb, reason} reached
+		 * the embedded JSON and stopped. */
+		function selfTestHtml(sug) {
+			const st = sug.self_test_failed;
+			if (!st || typeof st !== 'object') return '';
+			const limb = typeof st.limb === 'string' ? st.limb : 'unknown-limb';
+			const reason = typeof st.reason === 'string' ? st.reason : '';
+			return `<div class="self-test-note">⚠ self-test failed — <span class="limb">${esc(limb)}</span>${reason ? `: ${esc(reason)}` : ''}</div>`;
+		}
+
 		/* ── Render: body of a kind:"watch-item" card (references/schemas.md §1.7) —
 		 * a proposed standing concern, no diff/command: just the topic/note
 		 * that would be written to watch-items.json on accept. */
@@ -3156,7 +3217,26 @@
 			return `<div class="watch-item-body">
 				<div class="watch-item-topic">👁 ${esc(sug.watch_topic || '')}</div>
 				<div class="watch-item-note">${esc(sug.watch_note || '')}</div>
-			</div>`;
+			</div>${selfTestHtml(sug)}`;
+		}
+
+		/* ── Render: body of a kind:"method-note" card (references/schemas.md §1.7b) —
+		 * the watch item's sibling: how to research this tool correctly next
+		 * time. Previously this kind fell through to renderDiff(undefined)
+		 * and rendered an EMPTY card body — topic, note and rationale all
+		 * unreachable anywhere on the page. The store line states the
+		 * render-persist contract (criterion 18): the note is already in
+		 * method-notes.json; Reject withdraws it at apply. */
+		function renderMethodNoteBody(sug) {
+			const rationale = typeof sug.rationale === 'string' && sug.rationale.trim()
+				? `<div class="watch-item-note" style="margin-top:4px"><em>Why the ordinary path fails:</em> ${esc(sug.rationale.trim())}</div>`
+				: '';
+			return `<div class="method-note-body">
+				<div class="watch-item-topic">📝 ${esc(sug.method_topic || '')}</div>
+				<div class="watch-item-note">${esc(sug.method_note || '')}</div>
+				${rationale}
+				<div class="note-store-line">In the method-note store — persisted at render. Reject to withdraw it; a comment attaches modification instructions.</div>
+			</div>${selfTestHtml(sug)}`;
 		}
 
 		/* ── Render: one suggestion card ─────────────────────────────────
@@ -3190,9 +3270,24 @@
 			const initialDecision = (!followup && sug.pre_accept === true) ? 'accept' : '';
 			const stateLabel = { accept: 'ACCEPTED', reject: 'REJECTED', discuss: 'DISCUSS' }[initialDecision] || '';
 
-			const targets = (sug.target_files || []).map(f =>
-				`<span class="target-path" title="${esc(f.description || '')}">${esc(f.path)}</span>`
-			);
+			/* target_files members are {path, description} objects, but the
+			 * validator and write_status.py both accept the bare-string
+			 * shape — the page rendered it as a zero-width empty chip
+			 * (title="" and no text) while apply synthesized real commit
+			 * actions from it. Branch on type like evidenceLabel(): a
+			 * string is a path; anything else renders as its own text
+			 * rather than vanishing. */
+			const targets = (sug.target_files || []).map(f => {
+				if (typeof f === 'string') {
+					return `<span class="target-path">${esc(f)}</span>`;
+				}
+				if (f && typeof f === 'object' && typeof f.path === 'string') {
+					return `<span class="target-path" title="${esc(f.description || '')}">${esc(f.path)}</span>`;
+				}
+				let raw;
+				try { raw = JSON.stringify(f); } catch (_) { raw = String(f); }
+				return `<span class="target-path">${esc(raw)}</span>`;
+			});
 			const targetsHtml = targets.length
 				? `<div class="card-targets"><span class="target-label">Files:</span> ${targets.join(' ')}</div>`
 				: '';
@@ -3205,6 +3300,8 @@
 				? renderUpgradeBody(sug)
 				: kind === 'watch-item'
 				? renderWatchItemBody(sug)
+				: kind === 'method-note'
+				? renderMethodNoteBody(sug)
 				: renderDiff(sug.diff_preview);
 
 			// A followup card (#27) gets a turn-thread mount point instead of
