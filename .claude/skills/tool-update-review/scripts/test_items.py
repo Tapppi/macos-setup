@@ -480,13 +480,42 @@ class ContractMirrorTests(unittest.TestCase):
 		self.assertEqual(fixture["content_losing_codes"], block["content_losing_codes"])
 
 	def test_stores_json_mirrors_the_contract_block(self):
-		"""Iterating the block's own keys, never a hardcoded pair: a store
-		added to one side and not the other is exactly the drift a mirror
-		test exists to catch, and a literal list cannot see it."""
+		"""**Set equality, both directions**: every store in `MEMORY_STORES`
+		appears in `stores.json` and every store in `stores.json` appears in
+		`MEMORY_STORES`.
+
+		A subset assertion here checked only the first direction, while this
+		docstring claimed both — and the direction it left unchecked is the
+		one that actually drifts. `stores.json` is the file a later pass edits
+		when it pins a layout ahead of the code that will implement it; that is
+		how this store set grew in the first place. A block landing there and
+		never in `MEMORY_STORES` is the likelier mistake, not the rarer one.
+
+		A store is identified **structurally** — an object carrying `path` —
+		rather than by subtracting a list of prose key names. A list of names
+		to ignore is one more thing to keep in sync with the file, it makes
+		every new prose key a spurious failure, and the day someone quiets
+		that failure by appending a *store* name to it, this test stops
+		checking that store without saying so. The one gap a structural rule
+		leaves — a dict that is neither prose nor a store — is closed by
+		requiring everything else in the file to be a string.
+
+		Within a store the check is deliberately one-directional: every key
+		the contract publishes must match the fixture, and the fixture may
+		carry more (`after_one_write`, `after_one_global_write` are golden
+		states that exist to be driven against the live writers, and the
+		contract does not publish them)."""
 		fixture = model.load_fixture("stores.json")
 		block = model.contract()["memory_stores"]
-		self.assertTrue(set(block) <= set(fixture),
-			f"stores.json is missing {sorted(set(block) - set(fixture))}")
+		fixture_stores = {name for name, value in fixture.items()
+			if isinstance(value, dict) and "path" in value}
+		for name, value in fixture.items():
+			if name not in fixture_stores:
+				self.assertIsInstance(value, str,
+					f"stores.json key {name!r} is neither prose nor a store block "
+					f"(an object carrying \"path\") — it would sit in the gap "
+					f"between the two rules and be checked by neither")
+		self.assertEqual(fixture_stores, set(block))
 		for name, store in block.items():
 			with self.subTest(name):
 				for key, value in store.items():
