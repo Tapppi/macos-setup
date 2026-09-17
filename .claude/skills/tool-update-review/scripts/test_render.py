@@ -502,5 +502,73 @@ class WrongToolDecisionTests(PageDriveRunner):
 		self.assertEqual(out["hiddenNext"], "false")
 
 
+
+class KeyboardReachabilityTests(PageDriveRunner):
+	"""Per-item detail was keyboard-unreachable: a bare <div> with an inline
+	onclick, no tabindex, no role, no key handler — 140 Tab presses and 32
+	distinct keys expanded zero items, and 45 of 47 gated blocks appear
+	nowhere else. `.tool-header` advertised role="button" with no tabindex —
+	an ARIA contract that could not be honoured. These drive FOCUS + Enter /
+	Space against the rendered page, not the markup."""
+
+	def test_an_item_title_is_focusable_and_enter_reveals_the_detail(self):
+		out = self.drive(page_report(six_tools()), """
+		key('2');
+		const title = document.querySelector('.content-item-title.has-expand');
+		log('focusable=' + (title.tabIndex >= 0));
+		log('role=' + title.getAttribute('role'));
+		title.focus();
+		log('focused=' + (document.activeElement === title));
+		title.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+		const item = title.closest('.content-item');
+		log('expanded=' + item.dataset.expanded);
+		log('aria=' + title.getAttribute('aria-expanded'));
+		const statement = item.querySelector('.item-statement');
+		log('detailVisible=' + (statement && statement.offsetParent !== null));
+		title.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', bubbles: true}));
+		log('collapsedAgain=' + item.dataset.expanded);
+""")
+		self.assertEqual(out["focusable"], "true")
+		self.assertEqual(out["role"], "button")
+		self.assertEqual(out["focused"], "true")
+		self.assertEqual(out["expanded"], "1")
+		self.assertEqual(out["aria"], "true")
+		self.assertEqual(out["detailVisible"], "true",
+			"the gated detail block must be visible after Enter")
+		self.assertEqual(out["collapsedAgain"], "0")
+
+	def test_the_tool_header_honours_its_advertised_button_role(self):
+		out = self.drive(page_report(six_tools()), """
+		key('2');
+		const header = document.querySelector('#tool-list .tool-section:not(.collapsed) .tool-header');
+		log('focusable=' + (header.tabIndex >= 0));
+		header.focus();
+		log('focused=' + (document.activeElement === header));
+		header.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+		log('collapsed=' + header.closest('.tool-section').classList.contains('collapsed'));
+		log('aria=' + header.getAttribute('aria-expanded'));
+""")
+		self.assertEqual(out["focusable"], "true")
+		self.assertEqual(out["focused"], "true")
+		self.assertEqual(out["collapsed"], "true")
+		self.assertEqual(out["aria"], "false")
+
+	def test_an_item_with_nothing_to_expand_advertises_no_control(self):
+		"""The other half of the contract: no detail, no role, no tab stop —
+		a focusable no-op control is as dishonest as an unreachable one."""
+		tools = [page_tool("brew:bare", "bare", "1.0", "1.1", "routine")]
+		del tools[0]["items"][0]["local"]
+		out = self.drive(page_report(tools), """
+		key('2');
+		const title = document.querySelector('.content-item-title');
+		log('hasExpand=' + title.classList.contains('has-expand'));
+		log('tabIndex=' + title.tabIndex);
+		log('role=' + (title.getAttribute('role') || 'none'));
+""")
+		self.assertEqual(out["hasExpand"], "false")
+		self.assertEqual(out["role"], "none")
+		self.assertNotEqual(out["tabIndex"], "0")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)

@@ -1478,6 +1478,9 @@
 		}
 
 		.content-item-title.has-expand { cursor: pointer; }
+		.content-item-title.has-expand:focus-visible,
+		.changelog-entry-title:focus-visible,
+		.tool-header:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 
 		.content-item-expand {
 			margin-left: 6px;
@@ -3484,9 +3487,16 @@
 			 * data-expanded="1" with no way to ever set it. */
 			const hasExtra = !!(body || statement || evidence.length || citations.length
 				|| motivating || extraTags.length || link);
+			/* The expandable title is a real keyboard target: focusable,
+			 * announced as a button, toggled by the delegated Enter/Space
+			 * handler below. Measured before this: 140 Tab presses and 32
+			 * distinct keys expanded zero items, while 45 of 47 detail
+			 * blocks appeared nowhere else on the page. An item with
+			 * nothing to expand advertises nothing — no role, no tabindex,
+			 * no control. */
 			return `
 			<div class="content-item sev-${severity}" id="${id}" data-expanded="0">
-				<div class="content-item-title${hasExtra ? ' has-expand' : ''}" ${hasExtra ? `onclick="toggleContentItem('${id}')"` : ''}>
+				<div class="content-item-title${hasExtra ? ' has-expand' : ''}"${hasExtra ? ` data-toggle-item="${id}" role="button" tabindex="0" aria-expanded="false"` : ''}>
 					<span class="content-item-icon">${SEV_ICON[severity]}</span>${esc(item.title || '')}
 					${hasExtra ? `<span class="content-item-expand">▸ more</span>` : ''}
 				</div>
@@ -3507,6 +3517,8 @@
 			el.dataset.expanded = expanded ? '0' : '1';
 			const label = el.querySelector('.content-item-expand');
 			if (label) label.textContent = expanded ? '▸ more' : '▾ less';
+			const title = el.querySelector('.content-item-title[role="button"]');
+			if (title) title.setAttribute('aria-expanded', String(!expanded));
 		}
 
 		function renderContentGroups(tool) {
@@ -3698,7 +3710,7 @@
 			data-sec="${sec.has_security ? '1' : '0'}"
 			tabindex="0"
 		>
-			<div class="tool-header" role="button" aria-expanded="false">
+			<div class="tool-header" role="button" tabindex="0" aria-expanded="false">
 				<span class="tool-name">${esc(tool.name)}</span>
 				${deltaHtml}
 				<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
@@ -5116,6 +5128,20 @@
 				return;
 			}
 
+			/* Per-item detail and changelog-entry disclosures — delegated,
+			 * like every other disclosure on the page, so the same branch
+			 * serves the click and the Enter/Space handler below. */
+			const itemTitle = e.target.closest('[data-toggle-item]');
+			if (itemTitle) {
+				toggleContentItem(itemTitle.dataset.toggleItem);
+				return;
+			}
+			const changelogTitle = e.target.closest('[data-toggle-changelog]');
+			if (changelogTitle) {
+				toggleChangelogEntry(changelogTitle.dataset.toggleChangelog);
+				return;
+			}
+
 			/* Copyable remediation command in the health band. Copies
 			 * without clobbering the chip's own text. */
 			const cmdChip = e.target.closest('.cmd[data-copy-text]');
@@ -5728,6 +5754,30 @@
 			document.getElementById('help-overlay').classList.remove('visible');
 		});
 
+		/* Enter/Space on the page's role="button" DIVs — the tool header,
+		 * the expandable item title, the changelog entry. A native <button>
+		 * would bring this for free but resets typography and display; a
+		 * role without the key handling is an advertised contract the page
+		 * cannot honour, which is exactly what the audit measured (140 Tab
+		 * presses, zero items expanded). Space activates AND must not
+		 * scroll, hence the preventDefault on both keys. */
+		document.addEventListener('keydown', e => {
+			if (e.key !== 'Enter' && e.key !== ' ') return;
+			if (e.ctrlKey || e.metaKey || e.altKey) return;
+			const t = e.target;
+			if (!(t instanceof Element)) return;
+			if (t.matches('[data-toggle-item]')) {
+				toggleContentItem(t.dataset.toggleItem);
+			} else if (t.matches('[data-toggle-changelog]')) {
+				toggleChangelogEntry(t.dataset.toggleChangelog);
+			} else if (t.matches('.tool-header[role="button"]')) {
+				toggleCollapse(t.closest('.tool-section'));
+			} else {
+				return;
+			}
+			e.preventDefault();
+		});
+
 		/* ── Results view state ──────────────────────────────────────────── */
 		let resultsActive = false;
 		let pollTimer = null;
@@ -6317,7 +6367,7 @@
 				const id = 'changelog-' + i;
 				return `
 			<div class="changelog-entry" id="${id}" data-expanded="0">
-				<div class="changelog-entry-title" onclick="toggleChangelogEntry('${id}')">${esc(title)}${detail ? ' <span class="content-item-expand">▸ show</span>' : ''}</div>
+				<div class="changelog-entry-title" data-toggle-changelog="${id}" role="button" tabindex="0" aria-expanded="false">${esc(title)}${detail ? ' <span class="content-item-expand">▸ show</span>' : ''}</div>
 				${detail ? `<div class="changelog-entry-body">${renderMarkdown(detail)}</div>` : ''}
 			</div>`;
 			}).join('');
@@ -6330,6 +6380,8 @@
 			el.dataset.expanded = expanded ? '0' : '1';
 			const label = el.querySelector('.content-item-expand');
 			if (label) label.textContent = expanded ? '▸ show' : '▾ hide';
+			const title = el.querySelector('.changelog-entry-title');
+			if (title) title.setAttribute('aria-expanded', String(!expanded));
 		}
 
 		/* ── Tab status text ─────────────────────────────────────────────── */
