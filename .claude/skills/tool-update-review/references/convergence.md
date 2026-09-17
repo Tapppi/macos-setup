@@ -200,11 +200,13 @@ watch item for a tool in the run gets an `existing` row with
 `fired_this_run` (the applier recomputes it against the grounded hits) and
 `used_correctly` — a hit claimed with no item behind it, or a plain match
 with no hit labelled, is a `flag`. `converge-tables.json.store_state` says
-whether each store was actually snapshotted into the session: **absent and
-present-but-empty are different facts** — the same distinction watch-hit
-grounding draws between "never checked" and "checked, no match" — and an
-absent store ships a `W-STORE-UNCHECKED` report note rather than passing
-as an empty one.
+what each store's snapshot actually is — `present`, `absent`, or
+`unreadable`: **absent, present-but-empty and present-but-unreadable are
+three different facts** — the same distinction watch-hit grounding draws
+between "never checked" and "checked, no match" — and the non-present
+states each ship a `W-STORE-UNCHECKED` report note carrying their own
+remedy (copy the snapshot vs fix the copied file) rather than passing as
+an empty store.
 
 **C7 — cross-tool collisions** (`delete`, `annotate`, `reword`, `trim`,
 `flag`). Per `file_collisions` cluster: are these one change or several —

@@ -168,6 +168,36 @@ GATE_CONSEQUENCE_TOKENS = (
 	"auto-accept", "auto-accepted", "auto-update", "auto_update",
 )
 
+# A store snapshot the session HOLDS but the applier cannot READ is a
+# different fact from one that was never taken — the operator's remedy is
+# "fix the copied file", not "go and copy it". The applier is a pure
+# function of corpus.pre.json, so the distinction must ride in the corpus;
+# it rides as a reserved entry INSIDE the store value (absent stays None)
+# so the absent case's corpus — and every pinned digest — is byte-identical
+# to before the distinction existed. The key cannot collide with a real
+# entry: store keys are tool ids, which always contain a colon, or the
+# reserved "global" section.
+STORE_UNREADABLE_KEY = "__store_unreadable__"
+STORE_STATES = ("present", "absent", "unreadable")
+
+
+def store_status(stores, name) -> str:
+	"""present | absent | unreadable, for one store in corpus.pre's block."""
+	value = (stores or {}).get(name)
+	if not isinstance(value, dict):
+		return "absent"
+	if STORE_UNREADABLE_KEY in value:
+		return "unreadable"
+	return "present"
+
+
+def store_entries(stores, name):
+	"""The store's entries dict, or None when there is nothing readable —
+	an unreadable snapshot grounds nothing, exactly as the validator's own
+	load treats it (E-RESEARCH-UNREADABLE, then None)."""
+	return (stores or {}).get(name) if store_status(stores, name) == "present" 		else None
+
+
 # The finding codes that constitute C1's deterministic input. Includes
 # E-REACHES-UNEVIDENCED so C1's step-4 population (a claimed live risk with
 # no path behind it) is a subset of the table and the attestation's
@@ -343,7 +373,7 @@ def watch_topics_for(corpus_pre, tool_id):
 	"""The stored watch-item topic set for one tool, from the snapshot pinned
 	into corpus.pre — same semantics as the validator's `_watch_topics_for`:
 	exact string match after .strip(), per tool, None when no snapshot."""
-	snapshot = (corpus_pre.get("stores") or {}).get("watch_items")
+	snapshot = store_entries(corpus_pre.get("stores"), "watch_items")
 	if not isinstance(snapshot, dict):
 		return None
 	entries = snapshot.get(tool_id)
@@ -686,8 +716,7 @@ def build_tables(corpus_pre) -> dict:
 	# which one they are running under; `verify_c6` turns "absent" into a
 	# W-STORE-UNCHECKED report note.
 	stores = corpus_pre.get("stores") or {}
-	store_state = {
-		name: ("present" if isinstance(stores.get(name), dict) else "absent")
+	store_state = {name: store_status(stores, name)
 		for name in ("watch_items", "method_notes")}
 
 	return {

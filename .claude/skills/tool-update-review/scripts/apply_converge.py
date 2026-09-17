@@ -1060,14 +1060,23 @@ def verify_c6(entry, corpus_pre, tables, findings, ledger):
 	# nothing writing their input.
 	stores = corpus_pre.get("stores") or {}
 	for store_name in ("watch_items", "method_notes"):
-		if not isinstance(stores.get(store_name), dict):
+		status = contract.store_status(stores, store_name)
+		if status == "absent":
 			findings.append(_finding("W-STORE-UNCHECKED",
 				"the {} store was never snapshotted into this session — C6's "
 				"store-dependent checks ran against nothing, not against an "
 				"empty store".format(store_name.replace("_", "-"))))
+		elif status == "unreadable":
+			# The opposite remedy from absent: the operator DID copy the
+			# snapshot; the copy cannot be read. Say so, or the note sends
+			# them to re-copy a file that needs fixing.
+			findings.append(_finding("W-STORE-UNCHECKED",
+				"the {} store WAS snapshotted into this session but cannot be "
+				"read ({}) — fix the copied file; C6's store-dependent checks "
+				"ran against nothing".format(store_name.replace("_", "-"),
+					stores[store_name].get(contract.STORE_UNREADABLE_KEY))))
 	# the existing store, per tool in the run
-	snapshot = stores.get("watch_items")
-	snapshot = snapshot if isinstance(snapshot, dict) else {}
+	snapshot = contract.store_entries(stores, "watch_items") or {}
 	run_tools = {v.get("id") for v in corpus_pre.get("tools") or []}
 	hits = {}
 	for view in corpus_pre.get("tools") or []:
@@ -1749,7 +1758,7 @@ def _degrade_unapplied(corpus_pre, converge, attempt, findings, attempt_log):
 	status = _status("degraded_unapplied", attempt, attempt_log,
 		"Convergence did not converge in {} attempts; nothing was applied.".format(
 			attempt),
-		"The final submission failed at the submission level ({}). corpus.post.json "
+		"Nothing in the final submission could be applied ({}). corpus.post.json "
 		"is corpus.pre.json verbatim, the report renders the pre-convergence "
 		"corpus, and every rejected edit is listed with its code.".format(
 			", ".join(codes)),
@@ -1777,13 +1786,20 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 	option — the one place in the design a bucket is written rather than
 	derived, written by the applier, recorded as forced."""
 	corpus_post = result["corpus_post"]
-	if not result["applied"] and result["critical"]:
-		# Nothing survived AND something is wrong — §3.4d row 2. The guard
-		# is on the findings, not on `applied` being empty: a run that
-		# legitimately proposes no edits has converged, and reporting it
-		# degraded with an empty code list would discredit the degradation
-		# channel the first time a user met it.
-		submission = [f for f in result["critical"]]
+	if not result["applied"] and (result["critical"] or result["rejected"]):
+		# Nothing survived AND something is wrong — §3.4d row 2. The two
+		# populations are NOT the same set and both must be consulted: a
+		# precheck rejection carries a critical finding, but an edit the
+		# terminal loop excluded for E-APPLY-SCOPE/SCHEMA lives only in
+		# `rejected` — its finding disappeared with the re-run that excluded
+		# it. Keying off `critical` alone reported "converged" on a run
+		# where nothing applied and everything was wrong. A run that
+		# legitimately proposes no edits (all three collections empty) has
+		# converged; see TerminalStateMatrixTests for the pinned matrix.
+		seen = {(f.get("edit_id"), f.get("code")) for f in result["critical"]}
+		submission = list(result["critical"]) + [
+			r for r in result["rejected"]
+			if (r.get("edit_id"), r.get("code")) not in seen]
 		return _degrade_unapplied(corpus_pre, converge, attempt, submission,
 			attempt_log)
 	forced = {}
@@ -1931,6 +1947,28 @@ def _attempt_log_entries(log):
 		"state": entry.get("state")} for entry in log["attempts"]]
 
 
+def _load_store(path):
+	"""One memory-store snapshot, in the three states the corpus keeps
+	apart: a readable object (present), no file (absent, None), or a file
+	that exists but cannot be read as a store — the sentinel, so C6's note
+	can send the operator to fix the copied file rather than to re-copy it.
+	Mirrors `validate_items._load_watch_snapshot`'s shape (which raises
+	E-RESEARCH-UNREADABLE into the validation findings before returning
+	None); this is the store-status half of that same distinction."""
+	if not os.path.exists(path):
+		return None
+	try:
+		snapshot = _read_json(path)
+	except Exception as exc:  # same width as _load_watch_snapshot, same reasons
+		return {contract.STORE_UNREADABLE_KEY: "{}: {}".format(
+			type(exc).__name__, exc)}
+	if not isinstance(snapshot, dict):
+		return {contract.STORE_UNREADABLE_KEY:
+			"the file is {}, not an object keyed by tool id".format(
+				type(snapshot).__name__)}
+	return snapshot
+
+
 def _prepare(session_dir, args):
 	pre_path = os.path.join(session_dir, "corpus.pre.json")
 	if os.path.exists(pre_path) and not args.force:
@@ -1950,19 +1988,10 @@ def _prepare(session_dir, args):
 		print("Error: {}".format(exc), file=sys.stderr)
 		return 4
 	collect = _read_json(os.path.join(session_dir, "collect.json"))
-	throwaway = validate_items.Findings()
 	stores = {
-		"watch_items": validate_items._load_watch_snapshot(
-			os.path.join(session_dir, "watch-items.json"), throwaway),
-		"method_notes": None,
+		"watch_items": _load_store(os.path.join(session_dir, "watch-items.json")),
+		"method_notes": _load_store(os.path.join(session_dir, "method-notes.json")),
 	}
-	notes_path = os.path.join(session_dir, "method-notes.json")
-	if os.path.exists(notes_path):
-		try:
-			snapshot = _read_json(notes_path)
-			stores["method_notes"] = snapshot if isinstance(snapshot, dict) else None
-		except Exception:
-			stores["method_notes"] = None
 	corpus_pre = contract.build_corpus_pre(validation, collect, stores)
 	_write_json(pre_path, corpus_pre)
 	_write_json(os.path.join(session_dir, "converge-view.json"),

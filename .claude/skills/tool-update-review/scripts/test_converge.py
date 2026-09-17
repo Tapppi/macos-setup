@@ -694,6 +694,8 @@ class PrecheckTests(unittest.TestCase):
 			post_ids = [i["id"] for i in
 				result["corpus_post"]["tools"][0]["items"]]
 			self.assertIn(item2["id"], post_ids)  # the sibling SURVIVES
+			self.assertEqual(result["state"],
+				"degraded_unapplied" if terminal else "rejected")
 
 	def test_merge_duplicate_changed_fields_is_coded_not_self_conflict(self):
 		"""Review finding 4 — a duplicated path must come back as its own
@@ -1098,6 +1100,30 @@ class GateAndAttributionTests(unittest.TestCase):
 		self.assertEqual(C.build_tables(present)["store_state"],
 			{"watch_items": "present", "method_notes": "present"})
 
+	def test_unreadable_store_is_diagnosed_as_unreadable(self):
+		"""Review round 2, finding 2 — a snapshot the operator DID copy but
+		the applier cannot read must not be diagnosed as never-copied: the
+		remedies are opposites."""
+		pre = build_pre([make_view("brew:t", [make_item("brew:t", 9)])],
+			watch_store={})
+		pre["stores"]["method_notes"] = {
+			C.STORE_UNREADABLE_KEY: "JSONDecodeError: bad"}
+		result = run(pre, make_submission(pre, []))
+		self.assertEqual(result["state"], "converged")  # still only a note
+		notes = [f["detail"] for f in result["notes"]
+			if f["code"] == "W-STORE-UNCHECKED"]
+		self.assertEqual(len(notes), 1)
+		self.assertIn("cannot be read", notes[0])
+		self.assertIn("JSONDecodeError: bad", notes[0])
+		self.assertNotIn("never snapshotted", notes[0])
+		self.assertEqual(C.build_tables(pre)["store_state"],
+			{"watch_items": "present", "method_notes": "unreadable"})
+		# an unreadable watch store grounds nothing — same as the
+		# validator's own E-RESEARCH-UNREADABLE-then-None
+		self.assertIsNone(C.watch_topics_for(
+			{"stores": {"watch_items": {C.STORE_UNREADABLE_KEY: "x"}}},
+			"brew:t"))
+
 	def test_fixture_session_flags_only_the_missing_method_store(self):
 		"""The pinned session snapshots watch-items.json and nothing writes
 		method-notes.json — the effect must say so, once."""
@@ -1398,6 +1424,109 @@ class TerminalDegradationTests(unittest.TestCase):
 		self.assertEqual(merged.get("severity"), "notable")
 
 
+class TerminalStateMatrixTests(unittest.TestCase):
+	"""The pinned population matrix for attempt 5 (§3.4d). The review round
+	proved reasoning about one collection from a single example is how a
+	degradation path regresses: `critical` and `rejected` are NOT the same
+	set — a precheck rejection carries a finding, an edit the terminal loop
+	excluded for E-APPLY-SCOPE/SCHEMA lives only in `rejected`. Every row
+	here is asserted through the pure function.
+
+	| applied | rejected | critical | gate | state |
+	|---|---|---|---|---|
+	| []  | []  | []  | -   | converged            |
+	| []  | ≠[] | []  | -   | degraded_unapplied   |
+	| []  | ≠[] | ≠[] | -   | degraded_unapplied   |
+	| ≠[] | ≠[] | any | no  | converged (standing) |
+	| ≠[] | any | any | yes | degraded_gate        |
+	"""
+
+	def _scope_violating_merge(self, pre, item):
+		after = copy.deepcopy(item)
+		after["body"] = "New body."
+		after["severity"] = "info"  # undeclared → E-APPLY-SCOPE → excluded
+		return {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "merge",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": item["id"], "field": None},
+			"quote": "body to quote", "after": after,
+			"changed_fields": ["body"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+
+	def test_all_empty_converges(self):
+		pre = fixture_pre()
+		result = run(pre, make_submission(pre, []), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "converged")
+
+	def test_excluded_only_degrades_unapplied(self):
+		"""THE regression (review round 2, finding 1): nothing survived and
+		the only record is in `rejected` — the state must be
+		degraded_unapplied, never a convergence report."""
+		item = make_item("brew:t", 1, body="The body to quote from at length.",
+			local=plain_local())
+		pre = build_pre([make_view("brew:t", [item])])
+		submission = make_submission(pre,
+			[self._scope_violating_merge(pre, item)])
+		result = run(pre, submission, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_unapplied")
+		self.assertEqual(result["applied"], [])
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["state"], "degraded_unapplied")
+		self.assertEqual(
+			[(r["edit_id"], r["code"]) for r in status["standing_rejects"]],
+			[("cv-001", "E-APPLY-SCOPE")])
+		self.assertIn("Nothing in the final submission could be applied",
+			status["explanation"]["body"])
+		self.assertEqual(result["corpus_post"], pre)
+
+	def test_precheck_rejected_all_degrades_unapplied(self):
+		item = make_item("brew:t", 1, local=plain_local(
+			statement="A statement long enough to quote from."))
+		pre = build_pre([make_view("brew:t", [item])])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility",
+			"op": "delete",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": "brew:t#issue:nothing", "field": None},
+			"quote": "A statement long enough to quote from.",
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]), terminal=True,
+			attempt=5)
+		self.assertEqual(result["state"], "degraded_unapplied")
+		# the record dedups: the precheck rejection appears once, not once
+		# per population it lives in
+		self.assertEqual(
+			[r["edit_id"] for r in result["effect"]["convergence_status"]
+				["standing_rejects"]],
+			["cv-001"])
+
+	def test_partial_apply_with_rejects_converges_standing(self):
+		item = make_item("brew:t", 1, body="The body to quote from at length.",
+			local=plain_local())
+		other = make_item("brew:t", 2)
+		pre = build_pre([make_view("brew:t", [item, other])])
+		good = {"edit_id": "cv-002", "check": "C2-tags-visibility",
+			"op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item",
+				"id": other["id"], "field": "severity"},
+			"precondition": {"before": "notable"},
+			"quote": other["title"], "after": "info",
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		submission = make_submission(pre,
+			[self._scope_violating_merge(pre, item), good])
+		result = run(pre, submission, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "converged")
+		self.assertEqual(result["applied"], ["cv-002"])
+		self.assertTrue(result["effect"]["convergence_status"]
+			["standing_rejects"])
+
+	def test_gate_failure_degrades_gate(self):
+		view, blocker = _auto_tool()
+		pre = build_pre([view])
+		result = run(pre, make_submission(pre,
+			[_gate_delete(blocker, reasoned=False)]), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+
+
 class LoopCliTests(unittest.TestCase):
 	"""The durable counter, the artefacts, and the refusals — through main()."""
 
@@ -1447,6 +1576,32 @@ class LoopCliTests(unittest.TestCase):
 			# immutable for the run: a second prepare refuses without --force
 			self.assertEqual(apply_converge.main(argv), 4)
 			self.assertEqual(apply_converge.main(argv + ["--force"]), 0)
+
+	def test_prepare_pins_an_unreadable_store_as_unreadable(self):
+		"""The CLI half of the three-state distinction: a corrupt
+		method-notes.json reaches corpus.pre as the sentinel, and the
+		written tables say `unreadable`, not `absent`."""
+		session_src, roots, _ = validate_items.fixture_session()
+		prepare_dir = os.path.join(self.tmp, "prepare-unreadable")
+		shutil.copytree(session_src, prepare_dir)
+		with open(os.path.join(prepare_dir, "method-notes.json"), "w",
+				encoding="utf-8") as fh:
+			fh.write("{corrupt")
+		argv = ["--session", prepare_dir, "--prepare",
+			"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+			"--systems-root", roots[2]]
+		with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+			self.assertEqual(apply_converge.main(argv), 0)
+		with open(os.path.join(prepare_dir, "corpus.pre.json"),
+				encoding="utf-8") as fh:
+			corpus = json.load(fh)
+		self.assertIn(C.STORE_UNREADABLE_KEY,
+			corpus["stores"]["method_notes"])
+		with open(os.path.join(prepare_dir, "converge-tables.json"),
+				encoding="utf-8") as fh:
+			tables = json.load(fh)
+		self.assertEqual(tables["store_state"],
+			{"watch_items": "present", "method_notes": "unreadable"})
 
 	def test_check_writes_nothing_and_counts_no_attempt(self):
 		submission = make_submission(self.pre, [])
