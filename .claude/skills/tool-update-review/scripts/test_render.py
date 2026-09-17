@@ -262,5 +262,245 @@ class RenderRefusalTests(RenderRunner):
 		self.assertFalse(os.path.exists(os.path.join(report_dir, "index.html")))
 
 
+
+
+# ══ Driving the rendered page ═══════════════════════════════════════════════
+# The defects this file pins from here down are BEHAVIOURS of the template's
+# JavaScript against a real DOM — a ring on one tool and the decision landing
+# on another, an item unreachable without a mouse, a deep link stranded short
+# of its target. Reading the markup cannot pin any of them (the wrong-tool
+# write shipped twice with plausible markup), so these tests render a fixture
+# report, append a driver script, load the page in HEADLESS CHROME, dispatch
+# real KeyboardEvents at it, and assert on what the page then says about
+# itself. If no Chrome/Chromium binary is present the class skips loudly —
+# the refusal/escape tests above still run everywhere.
+CHROME_CANDIDATES = [
+	os.environ.get("TOOL_UPDATE_REVIEW_CHROME") or "",
+	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+	"/Applications/Chromium.app/Contents/MacOS/Chromium",
+]
+
+
+def find_chrome():
+	for path in CHROME_CANDIDATES:
+		if path and os.path.exists(path):
+			return path
+	for name in ("chromium", "google-chrome", "chrome"):
+		found = __import__("shutil").which(name)
+		if found:
+			return found
+	return None
+
+
+CHROME = find_chrome()
+
+
+def page_tool(tid, name, cur, lat, bucket, sev_item="info", tags=("fix",),
+		delta="minor", pre=False, **over):
+	"""One schema-2 Tool in the shape assemble.py emits — the smallest one
+	the template renders a full section for."""
+	item = {
+		"id": f"{tid}#release:{lat}/one", "title": f"{name} change one",
+		"tags": list(tags), "severity": sev_item,
+		"local": {"direction": "unclear", "effect": "none",
+			"statement": f"What this means for {name} here.",
+			"evidence": [], "citations": []},
+	}
+	tool = {
+		"id": tid, "name": name, "source": "brew", "pinned": False,
+		"current_version": cur, "latest_version": lat, "research_error": None,
+		"items": [item], "quarantine": [], "spec_violations": [],
+		"validator_error": None,
+		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
+		"watch_hit_item_ids": [], "links": [],
+		"config_status": {"state": "unknown", "detail": "", "evidence": []},
+		"vendor_silent_categories": [], "release_inventory": [],
+		"suggestions": [{
+			"id": f"{tid}:upgrade", "kind": "upgrade",
+			"title": f"Upgrade {name} {cur} -> {lat}", "target_files": [],
+			"command": f"brew upgrade {name}", "auto_runnable": True,
+			"needs_sudo": False, "rationale": "r", "motivating_link": None,
+			"diff_preview": None, "pre_accept": pre,
+		}],
+		"version_delta": delta, "version_scheme": "semver",
+		"version_delta_note": "",
+		"security": {"cve_ids": [], "cve_count": 0, "cve_claimed_count": None,
+			"has_security": False, "security_only": False, "impact": "unknown",
+			"severity_counts": None, "display_item_ids": []},
+		"risk_level": "low", "review_bucket": bucket,
+		"bucket_inputs": {"has_security": False, "security_only": False,
+			"impact": "unknown", "version_delta": delta, "runnable": True},
+		"pre_accept_bars": [],
+	}
+	tool.update(over)
+	return tool
+
+
+def page_report(tools, **over):
+	report = minimal_report(tools=tools)
+	report["machine"] = {"hostname": "h", "arch": "arm64", "os": "macOS"}
+	report["validation"] = {"clean": True, "counts": {}, "orphans": [], "unmatched": []}
+	report["summary"] = {
+		"total_outdated": len(tools), "incompatible_count": 0, "warning_count": 0,
+		"suggestions_count": sum(len(t["suggestions"]) for t in tools),
+		"health_count": 0, "skill_drift_count": 0,
+		"by_delta": None, "by_bucket": None, "security": None,
+	}
+	report["repo_context"] = {}
+	report["convergence"] = {"state": "not_run"}
+	report["highlights"] = []
+	report.update(over)
+	return report
+
+
+def six_tools():
+	"""The wrong-tool fixture: six tools whose default 'needs-decision'
+	order (severity, then name) differs from name order, so a re-sort
+	visibly reorders, and whose deltas differ so a filter visibly hides."""
+	tools = [
+		page_tool("brew:alpha", "alpha", "1.0", "1.1", "attention", sev_item="warning"),
+		page_tool("brew:bravo", "bravo", "2.0", "2.1", "routine", delta="major"),
+		page_tool("brew:charlie", "charlie", "3.0", "3.2", "attention", sev_item="warning"),
+		page_tool("brew:delta-tool", "delta-tool", "4.0", "4.1", "routine", delta="major"),
+		page_tool("brew:echo", "echo", "5.0", "5.5", "attention", sev_item="notable"),
+		page_tool("brew:foxtrot", "foxtrot", "6.0", "6.1", "routine"),
+	]
+	return tools
+
+
+DRIVER_TEMPLATE = """
+<script>
+(function () {
+	const out = document.createElement('pre');
+	out.id = 'test-out';
+	document.body.appendChild(out);
+	function log(s) { out.textContent += s + '\\n'; }
+	function key(k) {
+		document.dispatchEvent(new KeyboardEvent('keydown', {key: k, bubbles: true}));
+	}
+	function accepted() {
+		const ids = [];
+		document.querySelectorAll('#main .suggestion-card').forEach(c => {
+			if (c.dataset.decision === 'accept') ids.push(c.dataset.suggestionId);
+		});
+		return ids.join(',');
+	}
+	function ring() {
+		const el = document.querySelector('#main [data-focused], #panel-overview [data-focused]');
+		return el ? (el.dataset.toolId || el.dataset.tool || el.id || 'ringed') : 'none';
+	}
+	let tries = 0;
+	const t = setInterval(() => {
+		tries++;
+		if (!document.querySelector('#tool-list .tool-section') &&
+			!document.querySelector('#tool-list #empty-state')) {
+			if (tries > 200) { log('FAIL: page never rendered'); log('DONE'); clearInterval(t); }
+			return;
+		}
+		clearInterval(t);
+		try { scenario(); } catch (e) { log('ERROR: ' + e.message); }
+		log('DONE');
+	}, 20);
+	function scenario() {
+%s
+	}
+})();
+</script>
+"""
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium binary found — page-drive "
+	"tests skipped (set TOOL_UPDATE_REVIEW_CHROME to point at one)")
+class PageDriveRunner(RenderRunner):
+	"""render → append driver → headless Chrome → read back #test-out."""
+
+	def drive(self, report, scenario_js, budget=6000):
+		p, report_dir = self.render(report)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		page_path = os.path.join(report_dir, "index.html")
+		with open(page_path, encoding="utf-8") as fh:
+			html = fh.read()
+		driven = html.replace("</body>", (DRIVER_TEMPLATE % scenario_js) + "</body>")
+		driven_path = os.path.join(report_dir, "driven.html")
+		with open(driven_path, "w", encoding="utf-8") as fh:
+			fh.write(driven)
+		proc = subprocess.run([CHROME, "--headless=new", "--disable-gpu",
+			"--force-prefers-reduced-motion", "--window-size=1400,900",
+			"--virtual-time-budget=%d" % budget, "--dump-dom", driven_path],
+			capture_output=True, text=True, timeout=180)
+		import re as _re
+		m = _re.search(r'<pre id="test-out">(.*?)</pre>', proc.stdout, _re.S)
+		self.assertIsNotNone(m, "driver output not found in dumped DOM:\n"
+			+ proc.stdout[-1500:] + proc.stderr[-1500:])
+		text = m.group(1)
+		self.assertIn("DONE", text, text)
+		self.assertNotIn("ERROR:", text, text)
+		self.assertNotIn("FAIL:", text, text)
+		lines = {}
+		for line in text.splitlines():
+			if "=" in line:
+				k, _, v = line.partition("=")
+				lines[k] = v
+		return lines
+
+
+class WrongToolDecisionTests(PageDriveRunner):
+	"""The most serious defect of the pass: `a`/`r`/`c` wrote the decision to
+	a different tool than the one ringed. Reproduced twice with trusted input
+	(REVIEW-2026-09-16 §3.4): a re-sort with no re-render left focusedIdx
+	pointing at a stale position, and the keystroke's decision entered the
+	/feedback payload for a tool the user never looked at. Both recorded
+	modes are pinned here BY DRIVING KEYS at the rendered page."""
+
+	def test_a_keystroke_decides_the_ringed_tool_across_a_resort(self):
+		"""Mode 2 (1password-cli/brew:cmake): ring a tool, re-sort the list
+		(applyFilters reorders the DOM in place), press `a` — the decision
+		must land on the ringed tool. Before the fix this accepted
+		brew:charlie:upgrade with the ring on brew:echo."""
+		out = self.drive(page_report(six_tools()), """
+		key('2');
+		key('j'); key('j'); key('j');
+		const r = document.querySelector('#main [data-focused]');
+		log('ringed=' + (r ? r.dataset.toolId : 'none'));
+		document.getElementById('filter-sort').value = 'name';
+		applyFilters();
+		key('a');
+		log('accepted=' + accepted());
+		log('ringedAfter=' + ring());
+""")
+		self.assertEqual(out["ringed"], "brew:echo")
+		self.assertEqual(out["accepted"], "brew:echo:upgrade",
+			"the decision landed on a different tool than the ringed one")
+		self.assertEqual(out["ringedAfter"], "brew:echo")
+
+	def test_a_keystroke_after_a_filter_hides_the_ring_decides_nothing(self):
+		"""Mode 1 (brew:azcopy/cask:gcloud-cli): an Overview tile filters the
+		list and hides the ringed tool. The keystroke must decide NOTHING —
+		not whatever now sits at the stale index — and the ring must be
+		gone rather than pointing at a hidden card."""
+		out = self.drive(page_report(six_tools()), """
+		key('2');
+		key('j'); key('j'); key('j');
+		const r = document.querySelector('#main [data-focused]');
+		log('ringed=' + (r ? r.dataset.toolId : 'none'));
+		runOverviewAction('filter-delta', 'major');   // a real tile action
+		key('2');
+		key('a');
+		log('accepted=' + accepted());
+		log('ringedAfter=' + ring());
+		key('j');                                     // recovery: j starts from the top
+		const r2 = document.querySelector('#main [data-focused]');
+		log('ringedNext=' + (r2 ? r2.dataset.toolId : 'none'));
+		log('hiddenNext=' + (r2 ? r2.hasAttribute('data-hidden') : 'n/a'));
+""")
+		self.assertEqual(out["ringed"], "brew:echo")
+		self.assertEqual(out["accepted"], "",
+			"a hidden ring must not resolve to a decision on another tool")
+		self.assertEqual(out["ringedAfter"], "none")
+		# And navigation recovers onto a VISIBLE card.
+		self.assertIn(out["ringedNext"], ("brew:bravo", "brew:delta-tool"))
+		self.assertEqual(out["hiddenNext"], "false")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)

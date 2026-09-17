@@ -5470,6 +5470,24 @@
 			/* Re-order DOM: visible sorted, then hidden */
 			[...visible, ...hidden].forEach(s => listEl.appendChild(s));
 
+			/* The focus ring survives a re-sort by IDENTITY, never by
+			 * position. This function reorders and hides with no re-render,
+			 * so the stored index into the visible list silently changes
+			 * meaning here — which is how `a` accepted brew:cmake while the
+			 * ring sat on 1password-cli. Remap the index onto the ringed
+			 * element; a ring the filter just hid is removed outright, so no
+			 * keystroke can resolve it (focusedItem() enforces the same rule
+			 * at press time — this keeps the two in step between presses). */
+			const ringed = listEl.querySelector('[data-focused]');
+			if (ringed) {
+				if (ringed.hasAttribute('data-hidden')) {
+					ringed.removeAttribute('data-focused');
+					focusedIdx.tools = -1;
+				} else {
+					focusedIdx.tools = visible.indexOf(ringed);
+				}
+			}
+
 			/* Filter-state visibility. Because the bar now lives inside the
 			 * All-tools panel rather than above every panel, "reachable" is
 			 * one click rather than zero — so the hidden count, the tab
@@ -5521,27 +5539,53 @@
 				});
 		}
 
+		/* A focus item must actually be on screen to take the ring — a card
+		 * parked in a collapsed container, a hidden overflow or an inactive
+		 * panel can never receive a keystroke's decision. Belt to the
+		 * per-list filters (data-hidden, OVERFLOW_SEL): those name the two
+		 * known hiding places; this names the property they share. Only
+		 * meaningful for the ACTIVE tab's list — an inactive panel is
+		 * display:none and would empty the list wholesale, which is why
+		 * getVisibleSections() itself (used by collapse machinery on hidden
+		 * panels too) does not carry it. */
+		function onScreen(el) {
+			return !!(el.offsetParent || el.getClientRects().length);
+		}
+
 		function focusItems() {
-			return activeTab === 'overview' ? getOverviewCards() : getVisibleSections();
+			const items = activeTab === 'overview' ? getOverviewCards() : getVisibleSections();
+			return items.filter(onScreen);
 		}
 
 		/* The item a/r/c and g act on. focusedIdx is a position in a list the
-		 * page can rebuild underneath it — revealOverflow() is the one place
-		 * that does, and it remaps the index itself, but an index is a cache
-		 * of the ring and the ring is what the user is looking at. Resolve
-		 * the rendered [data-focused] first and resync the index from it, so
-		 * j/k also continue from the ring; fall back to the index only when
-		 * nothing is ringed (Overview cards are the only focus items that
-		 * can be re-ordered without a re-render, so only they need this). */
+		 * page can rebuild underneath it — revealOverflow() re-splices the
+		 * Overview list, and applyFilters() re-sorts and hides the tools
+		 * list with no re-render — so an index is only ever a cache of the
+		 * ring, and the ring is what the user is looking at. Resolve the
+		 * rendered [data-focused] first, ON EVERY TAB, and resync the index
+		 * from it; a ring that is no longer in the on-screen list is REMOVED
+		 * and resolves to null, never silently swapped for whatever now sits
+		 * at the stale index. That swap is the recorded defect: a ring on
+		 * brew:azcopy while `a` accepted cask:gcloud-cli, and the wrong
+		 * decision then entered the /feedback payload. */
 		function focusedItem() {
 			const items = focusItems();
-			if (activeTab === 'overview') {
-				const ring = document.querySelector('#panel-overview [data-focused]');
-				const i = ring ? items.indexOf(ring) : -1;
+			const panelSel = activeTab === 'overview' ? '#panel-overview' : '#main';
+			const ring = document.querySelector(panelSel + ' [data-focused]');
+			if (ring) {
+				const i = items.indexOf(ring);
 				if (i !== -1) {
-					focusedIdx.overview = i;
+					focusedIdx[activeTab] = i;
 					return ring;
 				}
+				/* The ringed element left the screen (a filter hid it, a
+				 * list re-collapsed). Acting on "the focused item" now has
+				 * no honest answer, so there is none — the next j/k starts
+				 * from the top rather than from a position into a list the
+				 * user never saw. */
+				ring.removeAttribute('data-focused');
+				focusedIdx[activeTab] = -1;
+				return null;
 			}
 			return items[focusedIdx[activeTab]] || null;
 		}
@@ -5631,7 +5675,11 @@
 			if (resultsActive) return; /* results view handles its own keys */
 
 			switch (e.key) {
+				/* j/k resync the index from the ring first (focusedItem()),
+				 * so a step after a re-sort continues from the card the user
+				 * is looking at rather than from a stale position. */
 				case 'j': {
+					focusedItem();
 					const items = focusItems();
 					const cur = focusedIdx[activeTab];
 					focusSection(cur + 1 < items.length ? cur + 1 : 0);
@@ -5639,6 +5687,7 @@
 					break;
 				}
 				case 'k': {
+					focusedItem();
 					const items = focusItems();
 					const cur = focusedIdx[activeTab];
 					focusSection(cur - 1 >= 0 ? cur - 1 : items.length - 1);
