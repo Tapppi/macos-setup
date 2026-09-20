@@ -5,8 +5,9 @@ from `CLAUDE.md` and `AGENTS.md` rather than inlined in them — they are loaded
 into every session, and this is reference material, not a standing rule.
 
 The live configuration is the source of truth for *what is currently enabled*;
-this file describes the shape, not the inventory. For the vendored skills tree
-itself, see `dotfiles/config/agent-skills/README.md`.
+this file describes the shape, not the inventory. For the shared bundles
+themselves, see the `Tapppi/skills` repo (`~/project/github/tapppi/skills`), which
+publishes them as the `tapppi-skills` marketplace.
 
 A skill reaches a repo by exactly three routes:
 
