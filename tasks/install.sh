@@ -309,7 +309,7 @@ install_brew() {
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"
 
-	# op/codex run their binary at install to build completions. A quarantined
+	# op runs its binary at install to build completions. A quarantined
 	# binary's first exec needs Gatekeeper's consent dialog, which renders on the
 	# local console — on a headless/remote box nobody can click it, so the exec
 	# stays suspended forever (it's the dialog, not the network). Cap the bundle
@@ -319,12 +319,13 @@ install_brew() {
 
 	# Homebrew 6.0 dropped --no-quarantine, so casks are always quarantined.
 	# Clearing it post-install kills the first-launch "unverified app" popup for
-	# GUI apps (and re-assessment for the op/codex CLIs). It can NOT stop the
-	# quarantine popups/hangs during install itself (op/codex above) — those fire
+	# GUI apps (and re-assessment for the op CLI). It can NOT stop the
+	# quarantine popups/hangs during install itself (op above) — those fire
 	# mid-bundle, before this runs, and have no fix now (accept them, or move off).
+	# codex used to be on this list; it now comes from tapppi/systems (nix), where
+	# store binaries carry no quarantine.
 	xattr -dr com.apple.quarantine /Applications/*.app 2>/dev/null || true
 	clear_cask_quarantine 1password-cli
-	clear_cask_quarantine codex
 
 	# Bust cached kubectl completions so they regenerate on next shell startup
 	# (completions are lazily cached in .bash_profile; stale after a kubectl upgrade)
