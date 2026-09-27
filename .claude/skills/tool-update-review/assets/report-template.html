@@ -813,6 +813,166 @@
 			white-space: nowrap;
 		}
 
+		/* ── The judgement panel (report-page.md §3) ────────────────────────
+		 * A tool that convergence's JUDGEMENT moved to auto-update leaves the
+		 * collapsed auto strip and gets an always-visible row here — the
+		 * label is structural before it is visual, because a badge inside a
+		 * closed container is never seen, which is how brew:libpq reached
+		 * security_auto with 10 CVEs and nobody looked. --yellow +
+		 * --tint-yellow: the page's existing "decide this" treatment (tile
+		 * 6, security_mixed), so the panel is the colour of the state it
+		 * reports. No new hue. */
+		.jpanel {
+			border: 1px solid rgba(181,137,0,0.45);
+			border-left: 3px solid var(--yellow);
+			border-radius: 6px;
+			background: linear-gradient(var(--tint-yellow), var(--tint-yellow)), var(--base02);
+			margin-bottom: 14px;
+		}
+
+		.jpanel-head {
+			display: flex;
+			align-items: baseline;
+			gap: 10px;
+			flex-wrap: wrap;
+			padding: 9px 13px;
+			border-bottom: 1px solid var(--hair);
+		}
+
+		.jpanel-head h3 { font-size: 13px; color: var(--base2); font-weight: 600; }
+		.jpanel-head .sub { font-size: 12px; color: var(--base00); font-family: var(--mono); }
+		.jpanel-foot { padding: 7px 13px; font-size: 12px; color: var(--base00); border-top: 1px solid var(--hair); }
+
+		.jrow {
+			padding: 10px 13px;
+			border-bottom: 1px solid var(--hair);
+		}
+
+		.jrow:last-child { border-bottom: none; }
+		.jrow[data-focused] { outline: 2px solid var(--blue); outline-offset: -2px; }
+
+		/* Line 1: identity, CVE count, the decision control (accept already
+		 * on — the page must not lie about state; the affordance is Reject). */
+		.jrow .l1 {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			flex-wrap: wrap;
+		}
+
+		.jrow .l1 .flag { color: var(--yellow); }
+		.jrow .l1 .nm { color: var(--base2); font-weight: 600; font-size: 14px; }
+		.jrow .l1 .spacer { flex: 1; }
+
+		/* Line 2: the claim in the agent's own words (≤140 chars by
+		 * contract). --base1 on the yellow tint measured 5.03:1. */
+		.jrow .l2 { margin-top: 5px; font-size: 13px; color: var(--base1); }
+
+		/* Line 3: what was CUT — the line that would have caught libpq.
+		 * The reader sees the removed sentence and asks whether it would
+		 * have changed their mind. */
+		.jrow .l3 {
+			margin-top: 4px;
+			padding-left: 9px;
+			border-left: 2px solid var(--base01);
+			font-size: 12.5px;
+			color: var(--base0);
+		}
+
+		.jrow .l3 .cut {
+			font-family: var(--mono);
+			font-size: 10px;
+			letter-spacing: 0.06em;
+			color: var(--base01);
+			margin-right: 6px;
+		}
+
+		/* Line 4: the move and the whole counterweight — the deterministic
+		 * case against the label, so both sides show without the renderer
+		 * computing anything. */
+		.jrow .l4 {
+			margin-top: 5px;
+			display: flex;
+			gap: 6px 14px;
+			flex-wrap: wrap;
+			align-items: baseline;
+			font-family: var(--mono);
+			font-size: 11.5px;
+			color: var(--base00);
+		}
+
+		.jrow .l4 .move b { color: var(--base1); font-weight: 600; }
+		.jrow .l4 .against { color: var(--red-text); }
+		.jrow .l4 .spacer { flex: 1; }
+
+		/* The reasoning: verbatim, unbounded, behind an expansion — never
+		 * truncated, never rewritten. */
+		.jrow .reason { display: none; margin-top: 8px; font-size: 12.5px; color: var(--base1); max-width: 78ch; white-space: pre-wrap; }
+		.jrow[data-open="1"] .reason { display: block; }
+		.jrow .reason-foot { margin-top: 4px; font-family: var(--mono); font-size: 11px; color: var(--base01); }
+		.jrow .more { font-size: 11.5px; color: var(--blue); }
+
+		/* judgement_unattributed: a permissive move nobody can attribute is
+		 * the §3 defect itself — the one thing on the page that should
+		 * look like an error. */
+		.jrow[data-unattributed="1"] { background: var(--tint-red); }
+		.jrow[data-unattributed="1"] .l1 .flag,
+		.jrow[data-unattributed="1"] .l2 { color: var(--red-text); }
+
+		/* Inline labels on the tool card and header. */
+		.judge-badge {
+			font-family: var(--mono);
+			font-size: 10px;
+			letter-spacing: 0.04em;
+			color: var(--base1);
+			border: 1px solid rgba(181,137,0,0.6);
+			border-radius: 3px;
+			padding: 0 6px;
+			white-space: nowrap;
+		}
+
+		.judge-badge.rule { border-color: var(--base01); color: var(--base00); }
+		.judge-badge.forced { border-color: rgba(220,50,47,0.6); color: var(--red-text); }
+
+		.judge-line {
+			margin-bottom: 10px;
+			padding: 6px 10px;
+			border-left: 3px solid var(--yellow);
+			border-radius: 3px;
+			background: var(--tint-yellow);
+			font-size: 12px;
+			color: var(--base1);
+		}
+
+		.judge-line.forced { border-left-color: var(--red); background: var(--tint-red); }
+
+		/* ── Convergence degraded (criterion 13) — first-class, never a
+		 * report note. Yellow for degraded_gate (the affected tools were
+		 * FORCED conservative — the safe failure, one card each); red for
+		 * degraded_unapplied and for an inconsistent artefact set, where
+		 * the report renders a corpus convergence did not produce. */
+		.degraded-strip {
+			border: 1px solid rgba(181,137,0,0.5);
+			border-left: 4px solid var(--yellow);
+			border-radius: 5px;
+			background: linear-gradient(var(--tint-yellow), var(--tint-yellow)), var(--base02);
+			padding: 10px 14px;
+			margin: 0 0 22px;
+			font-size: 13px;
+			color: var(--base1);
+		}
+
+		.degraded-strip[data-tone="red"] {
+			border-color: rgba(220,50,47,0.5);
+			border-left-color: var(--red);
+			background: linear-gradient(var(--tint-red), var(--tint-red)), var(--base02);
+		}
+
+		.degraded-strip .h { color: var(--base2); font-weight: 600; font-size: 14px; }
+		.degraded-strip[data-tone="red"] .h { color: var(--red-text); }
+		.degraded-strip .b { margin-top: 4px; max-width: 90ch; }
+		.degraded-strip .m { margin-top: 6px; font-family: var(--mono); font-size: 11.5px; color: var(--base00); display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: center; }
+
 		/* ── Security group (b): security + other changes, side by side ──── */
 		.mixcard {
 			border: 1px solid var(--hair);
@@ -2792,6 +2952,7 @@
 		 * failure mode (content unreachable for the rest of the page's life)
 		 * if it were left out. */
 		#panel-overview.report-frozen .secdetail-head,
+		#panel-overview.report-frozen .jrow .more,
 		#panel-overview.report-frozen .deltabar span {
 			pointer-events: auto;
 		}
@@ -4218,6 +4379,7 @@
 				${deltaBadgeHtml}
 				${cveBadgeHtml(sec)}
 				${pinnedHtml}
+				${renderJudgeBadge(tool)}
 				${renderRiskBadge(tool)}
 				${renderSpecBadge(tool)}
 				${renderConfigStatusBadge(tool)}
@@ -4225,6 +4387,7 @@
 				<span class="collapse-icon">▼</span>
 			</div>
 			<div class="tool-body">
+				${renderJudgeLine(tool)}
 				${renderDegradationStrip(tool)}
 				${renderWatchState(tool)}
 				${renderToolWhy(tool)}
@@ -4533,6 +4696,170 @@
 			return `across ${SEC.tools_with_security} tools`;
 		}
 
+		/* ── Convergence's per-tool record (references/convergence.md §9) ──
+		 * `auto_update_label` is present iff the tool's final state is
+		 * security_auto or pre-accepted; `source` says which path put it
+		 * there. `forced` is the degraded-gate record. The page reads these
+		 * blocks and never re-derives them. */
+		function convergenceOf(tool) {
+			return (tool.convergence && typeof tool.convergence === 'object') ? tool.convergence : null;
+		}
+
+		function labelOf(tool) {
+			const c = convergenceOf(tool);
+			const l = c && c.auto_update_label;
+			return (l && typeof l === 'object' && typeof l.source === 'string') ? l : null;
+		}
+
+		const JUDGED_SOURCES = ['judgement', 'judgement_unattributed'];
+
+		function isJudged(tool) {
+			const l = labelOf(tool);
+			return !!(l && JUDGED_SOURCES.includes(l.source));
+		}
+
+		function forcedOf(tool) {
+			const c = convergenceOf(tool);
+			return (c && c.forced && typeof c.forced === 'object') ? c.forced : null;
+		}
+
+		function counterweightText(cw) {
+			if (!cw || typeof cw !== 'object') return '';
+			const parts = [];
+			if (isCount(cw.cve_count)) parts.push(`${cw.cve_count} CVE${cw.cve_count === 1 ? '' : 's'}`);
+			if (typeof cw.worst_rating === 'string') parts.push(`worst ${cw.worst_rating}`);
+			if (isCount(cw.items_removed)) parts.push(`${cw.items_removed} item${cw.items_removed === 1 ? '' : 's'} removed`);
+			if (isCount(cw.items_retagged) && cw.items_retagged) parts.push(`${cw.items_retagged} re-rated`);
+			return parts.join(' · ');
+		}
+
+		/* ── The judgement panel (report-page.md §3) ──────────────────────
+		 * Four lines per row, each earning its pixels: identity + CVE count
+		 * + the mirror (accept already ON); the headline; the verbatim
+		 * quote of what was cut; bucket from → to beside the whole
+		 * counterweight. Reasoning, confidence and edit ids sit behind
+		 * `full reasoning →`. Never capped, never paginated: a run that
+		 * produces thirty of these has a problem the page should make loud
+		 * rather than tidy. */
+		function judgementRowHtml(tool) {
+			const label = labelOf(tool);
+			const c = convergenceOf(tool) || {};
+			const sec = toolSecurity(tool);
+			const sug = baselineSuggestion(tool);
+			const unattributed = label.source === 'judgement_unattributed';
+			const headline = unattributed
+				? 'moved to auto-update, cause not attributable'
+				: (typeof label.headline === 'string' ? label.headline : '');
+			const quotes = Array.isArray(label.quotes)
+				? label.quotes.filter(q => q && typeof q === 'object' && typeof q.text === 'string') : [];
+			const bucket = (c.bucket && typeof c.bucket === 'object') ? c.bucket : null;
+			const move = bucket
+				? `<span class="move">${esc(bucket.from || '?')} → <b>${esc(bucket.to || '?')}</b></span>`
+				: `<span class="move"><b>${esc(reviewBucket(tool))}</b> · pre-accepted</span>`;
+			const against = counterweightText(label.counterweight);
+			const editIds = Array.isArray(label.edit_ids) ? label.edit_ids.filter(x => typeof x === 'string') : [];
+			const reasoning = typeof label.reasoning === 'string' ? label.reasoning : '';
+			const moreQuotes = quotes.slice(1).map(q => `CUT “${esc(q.text)}”`).join('\n');
+			return `<article class="jrow" data-tool="${esc(tool.id)}" data-judgement="1" data-open="0" data-unattributed="${unattributed ? '1' : '0'}" tabindex="-1">
+				<div class="l1">
+					<span class="flag" title="Auto-update by convergence judgement">⚑</span>
+					<span class="nm">${esc(tool.name)}</span>
+					${versionsHtml(tool, 'vd')}
+					<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
+					${cveBadgeHtml(sec)}
+					<span class="spacer"></span>
+					${sug ? mirrorHtml(sug.id) : ''}
+					${sug ? sudoChipHtml(sug) : ''}
+				</div>
+				<div class="l2">${esc(headline)}</div>
+				${quotes.slice(0, 1).map(q => `<div class="l3"><span class="cut">CUT</span>“${esc(q.text)}”</div>`).join('')}
+				<div class="l4">
+					${move}
+					${against ? `<span class="against">against: ${esc(against)}</span>` : ''}
+					<span class="spacer"></span>
+					${reasoning ? `<button type="button" class="more" data-toggle-reason>full reasoning →</button>` : ''}
+					${jumpHtml(tool.id, 'open card →')}
+				</div>
+				${reasoning ? `<div class="reason">${esc(reasoning)}${moreQuotes ? '\n\n' + moreQuotes : ''}<div class="reason-foot">confidence ${esc(label.confidence || 'unknown')}${editIds.length ? ` · ${esc(editIds.join(', '))} in converge.json` : ''}</div></div>` : ''}
+			</article>`;
+		}
+
+		function renderJudgementPanel(tools) {
+			const judged = tools.filter(isJudged);
+			if (!judged.length) return '';
+			return `<section class="ovsection" id="judgement-section">
+				<h2>Auto-update by judgement <span class="sub">${judged.length} tool${judged.length === 1 ? '' : 's'} moved by convergence · already accepted</span></h2>
+				<div class="jpanel" id="jpanel">
+					<div class="jpanel-head">
+						<h3>⚑ Convergence moved these to auto-update</h3>
+						<span class="sub">the claim, what was cut, and the case against it</span>
+					</div>
+					${judged.map(judgementRowHtml).join('')}
+					<div class="jpanel-foot">These are already accepted. Reject one to take it back for a full read.</div>
+				</div>
+			</section>`;
+		}
+
+		/* The tool card's own copies of the label, so a reader arriving by
+		 * deep link sees it too (report-page.md §2.2). */
+		function renderJudgeBadge(tool) {
+			const forced = forcedOf(tool);
+			if (forced) return `<span class="judge-badge forced" title="Forced to ${esc(forced.forced_bucket || 'security_mixed')} at attempt 5 — would have been ${esc(forced.would_have_been || '?')}">forced conservative</span>`;
+			const label = labelOf(tool);
+			if (!label) return '';
+			if (JUDGED_SOURCES.includes(label.source)) {
+				return `<span class="judge-badge" title="${esc(label.headline || '')}">⚑ auto by judgement</span>`;
+			}
+			return `<span class="judge-badge rule" title="${esc(label.headline || '')}">auto by rule</span>`;
+		}
+
+		function jumpHtmlOverview(anchorId, label) {
+			return `<button type="button" class="jump" data-act="scroll" data-arg="${esc(anchorId)}">${esc(label)}</button>`;
+		}
+
+		function renderJudgeLine(tool) {
+			const forced = forcedOf(tool);
+			if (forced) {
+				return `<div class="judge-line forced">Convergence could not justify this tool's move to auto-update after five attempts (${esc(forced.code || '')}); it was forced to <b>${esc(forced.forced_bucket || 'security_mixed')}</b> instead of <b>${esc(forced.would_have_been || '?')}</b> and starts undecided. ${jumpHtmlOverview('degraded-strip', 'see the convergence status →')}</div>`;
+			}
+			if (!isJudged(tool)) return '';
+			const label = labelOf(tool);
+			return `<div class="judge-line">⚑ Auto-update by convergence judgement — ${esc(label.headline || '')} ${jumpHtmlOverview('judgement-section', 'review in the judgement panel →')}</div>`;
+		}
+
+		/* ── Convergence degraded — criterion 13's first-class explanation.
+		 * Rendered at the top of the Overview, under the lede: the
+		 * headline and body verbatim, the attempt log, the forced tools as
+		 * jumps, the standing rejects count. Also the one loud case the
+		 * merge itself raises: artefacts that do not describe one run. */
+		function renderDegradedStrip() {
+			const conv = (REPORT.convergence && typeof REPORT.convergence === 'object') ? REPORT.convergence : {};
+			if (conv.state === 'artefacts_inconsistent') {
+				return `<div class="degraded-strip" data-tone="red" id="degraded-strip">
+					<div class="h">Convergence artefacts do not describe one run — this report renders the pre-convergence corpus</div>
+					<div class="b">${esc(conv.detail || '')} Every cut convergence made is absent here, and every tool it moved is in its deterministic bucket.</div>
+				</div>`;
+			}
+			if (conv.state !== 'degraded_gate' && conv.state !== 'degraded_unapplied') return '';
+			const status = (conv.status && typeof conv.status === 'object') ? conv.status : {};
+			const ex = (status.explanation && typeof status.explanation === 'object') ? status.explanation : {};
+			const tone = conv.state === 'degraded_unapplied' ? 'red' : 'yellow';
+			const degraded = Array.isArray(status.degraded_tools) ? status.degraded_tools.filter(d => d && typeof d === 'object') : [];
+			const log = Array.isArray(ex.attempt_log) ? ex.attempt_log.filter(a => a && typeof a === 'object') : [];
+			const rejects = Array.isArray(status.standing_rejects) ? status.standing_rejects.length : 0;
+			const attempts = isCount(status.attempts) ? status.attempts : (isCount(conv.attempt) ? conv.attempt : null);
+			return `<div class="degraded-strip" data-tone="${tone}" id="degraded-strip">
+				<div class="h">Convergence degraded (${esc(conv.state)}) — ${esc(ex.headline || '')}</div>
+				<div class="b">${esc(ex.body || '')}</div>
+				<div class="m">
+					${attempts !== null ? `<span>${attempts} attempt${attempts === 1 ? '' : 's'}</span>` : ''}
+					${log.length ? `<span>log: ${esc(log.map(a => `#${a.attempt} ${a.state}${a.codes && Object.keys(a.codes).length ? ' (' + Object.keys(a.codes).join(', ') + ')' : ''}`).join(' · '))}</span>` : ''}
+					${rejects ? `<span>${rejects} standing reject${rejects === 1 ? '' : 's'}</span>` : ''}
+					${degraded.map(d => jumpHtml(d.tool_id, `${(toolById(d.tool_id) || {}).name || d.tool_id}: forced ${d.forced_bucket || 'security_mixed'} (would have been ${d.would_have_been || '?'}) →`)).join('')}
+				</div>
+			</div>`;
+		}
+
 		/* ── Security group (a): the collapsed auto-approved strip ───────── */
 		function autoStripHtml(auto) {
 			if (!auto.length) return '';
@@ -4542,7 +4869,9 @@
 				const toggle = sug
 					? `<button type="button" class="acc-toggle" data-mirrors="${esc(sug.id)}" data-on="0" aria-label="Toggle acceptance of ${esc(t.name)}">○</button>`
 					: `<span></span>`;
-				return `<div class="autorow">
+				const label = labelOf(t);
+				const rowTitle = label && typeof label.headline === 'string' ? label.headline : t.name;
+				return `<div class="autorow" title="${esc(rowTitle)}">
 					${toggle}
 					<span class="nm" title="${esc(t.name)}">${esc(t.name)}</span>
 					${versionsHtml(t, 'vd')}
@@ -4556,7 +4885,7 @@
 			return `<div class="autostrip" id="sec-auto" data-open="0">
 				<button type="button" class="autostrip-head" data-toggle-strip="sec-auto" aria-expanded="false">
 					<span class="ck">✓</span>
-					<span class="t"><b>${auto.length}</b> security-only, no impact here — accepted</span>
+					<span class="t"><b>${auto.length}</b> security-only, no impact here — auto-accepted by rule</span>
 					<span class="names slabel">${esc(auto.map(t => t.name).join(' · '))}</span>
 					<span class="exp">▸ show</span>
 				</button>
@@ -4958,7 +5287,11 @@
 			 * clouds that leave findings out. */
 			const attention = buckets.attention.filter(t => !isNonVersion(t));
 			const routine = buckets.routine.filter(t => !isNonVersion(t));
-			const auto = buckets.security_auto;
+			/* A judgement-moved tool LEAVES the auto strip for the panel
+			 * (report-page.md §3.1) — the strip is collapsed, and a badge
+			 * inside a closed container is never seen. The tile and the bar
+			 * segment keep counting the full bucket; only the rows move. */
+			const auto = buckets.security_auto.filter(t => !isJudged(t));
 			const mixed = buckets.security_mixed;
 
 			const summary = REPORT.summary || {};
@@ -5130,7 +5463,9 @@
 
 			panel.innerHTML =
 				`<p id="lede">${ledeHtml}</p>` +
+				renderDegradedStrip() +
 				((groupA || groupB) ? `<div class="tilegroups">${groupA}${groupB}</div>` : '') +
+				renderJudgementPanel(tools) +
 				secSection + hlSection + elseSection + renderNotesSection(tools);
 		}
 
@@ -5719,6 +6054,18 @@
 				return;
 			}
 
+			/* A judgement row's reasoning expansion. */
+			const reasonBtn = e.target.closest('[data-toggle-reason]');
+			if (reasonBtn) {
+				const row = reasonBtn.closest('.jrow');
+				if (row) {
+					const open = row.dataset.open !== '1';
+					row.dataset.open = open ? '1' : '0';
+					reasonBtn.textContent = open ? 'hide reasoning' : 'full reasoning →';
+				}
+				return;
+			}
+
 			/* The "everything else" fold — one control per card. */
 			const foldHead = e.target.closest('[data-toggle-fold]');
 			if (foldHead) {
@@ -6161,7 +6508,7 @@
 		/* Overview cards in reading order: the mixed security cards, then
 		 * the highlight cards. */
 		function getOverviewCards() {
-			return Array.from(document.querySelectorAll('#panel-overview .mixcard, #panel-overview .hlcard'))
+			return Array.from(document.querySelectorAll('#panel-overview .jrow, #panel-overview .mixcard, #panel-overview .hlcard'))
 				/* A card parked in a collapsed overflow is not on screen, so
 				 * focusing it would move the ring nowhere visible. */
 				.filter(c => {
@@ -6251,10 +6598,18 @@
 			const item = focusedItem();
 			if (!item) return;
 			if (activeTab === 'overview') {
-				const mirror = Array.from(item.querySelectorAll('[data-mirrors]')).find(m => {
+				const mirrors = Array.from(item.querySelectorAll('[data-mirrors]'));
+				let mirror = mirrors.find(m => {
 					const card = canonicalCard(m.dataset.mirrors);
 					return card && card.dataset.decision === '';
 				});
+				/* A judgement row has no undecided suggestion — the decision
+				 * was made for the user — so on that row ONLY the keys act
+				 * on the first mirror: a one-keystroke reject is the row's
+				 * entire affordance. Everywhere else "first undecided"
+				 * stands, because there `r` must not silently flip a
+				 * decision the user already made. */
+				if (!mirror && item.dataset.judgement === '1') mirror = mirrors[0] || null;
 				if (mirror) setDecision(mirror.dataset.mirrors, action);
 				return;
 			}

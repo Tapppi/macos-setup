@@ -975,5 +975,214 @@ class LoudnessChannelTests(PageDriveRunner):
 		self.assertIn("nothing to decide", out["sub"])
 
 
+
+def judged_tool(tid, name, source="judgement", **over):
+	"""A security_auto, pre-accepted tool with a convergence block whose
+	auto_update_label has the given source (references/convergence.md §9)."""
+	tool = page_tool(tid, name, "18.4", "18.6", "security_auto", pre=True, tags=("security",))
+	tool["security"] = {"cve_ids": ["CVE-2026-2222"], "cve_count": 1,
+		"cve_claimed_count": 28, "has_security": True, "security_only": True,
+		"impact": "none", "severity_counts": {"critical": 0, "high": 1, "medium": 0,
+			"low": 0, "unknown": 0}, "display_item_ids": []}
+	tool["bucket_inputs"] = {"has_security": True, "security_only": True,
+		"impact": "none", "version_delta": "minor", "runnable": True}
+	tool["convergence"] = {
+		"touched": True, "edit_ids": ["cv-021"],
+		"bucket": {"from": "security_mixed", "to": "security_auto",
+			"direction": "permissive", "attributed_to": ["cv-021"],
+			"unattributed": source == "judgement_unattributed"},
+		"auto_update_label": {
+			"source": source,
+			"headline": "Cadence note re-rated to chore — this is what makes it security-only.",
+			"reasoning": "The pulled-release note is bookkeeping about cadence, not a change; no reviewer who believed the opposite would hold a 10-CVE upgrade over it.",
+			"confidence": "medium", "edit_ids": ["cv-021"],
+			"quotes": [{"edit_id": "cv-021",
+				"text": "PostgreSQL 18.5 was never shipped; the 18.5 release was pulled"}],
+			"counterweight": {"cve_count": 10, "worst_rating": "high",
+				"items_removed": 1, "items_retagged": 0},
+		},
+	}
+	tool.update(over)
+	return tool
+
+
+def rule_tool(tid, name):
+	tool = page_tool(tid, name, "1.0", "1.0.1", "security_auto", pre=True, tags=("security",))
+	tool["security"]["has_security"] = True
+	tool["security"]["security_only"] = True
+	tool["security"]["impact"] = "none"
+	tool["convergence"] = {"touched": False, "edit_ids": [],
+		"auto_update_label": {"source": "rule",
+			"headline": "Auto by rule — the deterministic path alone put it here.",
+			"reasoning": "Reached security_auto with zero attributed convergence edits.",
+			"confidence": "high", "edit_ids": [], "quotes": [],
+			"counterweight": {"cve_count": 0, "worst_rating": "unknown",
+				"items_removed": 0, "items_retagged": 0}}}
+	return tool
+
+
+def converged_report(tools, **over):
+	conv = {"state": "converged", "attempt": 1, "status": {"attempts": 1,
+		"state": "converged", "explanation": {"headline": "Converged at attempt 1.",
+			"body": "All edits applied.", "attempt_log": []},
+		"degraded_tools": [], "standing_rejects": []},
+		"moved": {}, "findings": [], "flags": [], "applied_count": 1, "rejected_count": 0}
+	conv.update(over)
+	return page_report(tools, convergence=conv)
+
+
+class JudgementPanelTests(PageDriveRunner):
+	"""report-page.md §3 — the auto-update label is STRUCTURAL: a
+	judgement-moved tool leaves the collapsed auto strip for an always-open
+	panel with four lines (identity + CVE + mirror; the headline; the
+	verbatim cut; from → to beside the counterweight), and Reject is the
+	affordance. The failure it prevents: brew:libpq pre-accepted with 10
+	CVEs inside a closed strip nobody opened."""
+
+	def test_a_judged_tool_leaves_the_strip_for_the_panel_with_all_four_lines(self):
+		tools = [judged_tool("brew:libpq", "libpq"), rule_tool("brew:ruled", "ruled")]
+		out = self.drive(converged_report(tools), """
+		const panel = document.getElementById('jpanel');
+		log('panel=' + !!panel);
+		log('panelVisible=' + (panel && panel.offsetParent !== null));
+		const rows = panel.querySelectorAll('.jrow');
+		log('rows=' + rows.length + ':' + rows[0].dataset.tool);
+		const row = rows[0];
+		log('l2=' + row.querySelector('.l2').textContent);
+		log('l3=' + row.querySelector('.l3').textContent.replace(/\\s+/g, ' ').trim());
+		log('l4=' + row.querySelector('.l4').textContent.replace(/\\s+/g, ' ').trim());
+		log('cve=' + row.querySelector('.cve-badge').textContent);
+		const acceptBtn = row.querySelector('.mirror [data-action="accept"]');
+		log('acceptOn=' + acceptBtn.dataset.on);
+		log('reasonHidden=' + (row.querySelector('.reason').offsetParent === null));
+		row.querySelector('[data-toggle-reason]').click();
+		log('reasonShown=' + (row.querySelector('.reason').offsetParent !== null));
+		log('reasonFoot=' + row.querySelector('.reason-foot').textContent);
+		// The strip: judged tool gone, rule tool present, heading says by rule.
+		const strip = document.getElementById('sec-auto');
+		log('stripNames=' + Array.from(strip.querySelectorAll('.autorow .nm')).map(n => n.textContent).join(','));
+		log('stripHead=' + strip.querySelector('.autostrip-head .t').textContent.trim());
+		log('ruleRowTitle=' + strip.querySelector('.autorow').title);
+		// The tile still counts the whole bucket.
+		log('foot=' + panel.querySelector('.jpanel-foot').textContent.trim());
+		// Inline copies on the card.
+		key('2');
+		const s = document.querySelector('[data-tool-id="brew:libpq"]');
+		log('badge=' + s.querySelector('.tool-header .judge-badge').textContent);
+		log('ruleBadge=' + document.querySelector('[data-tool-id="brew:ruled"] .judge-badge').textContent);
+		s.classList.remove('collapsed');
+		const line = s.querySelector('.judge-line');
+		log('lineVisible=' + (line.offsetParent !== null));
+		log('line=' + line.textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertEqual(out["panel"], "true")
+		self.assertEqual(out["panelVisible"], "true")
+		self.assertEqual(out["rows"], "1:brew:libpq")
+		self.assertIn("Cadence note re-rated to chore", out["l2"])
+		self.assertIn("CUT", out["l3"])
+		self.assertIn("18.5 release was pulled", out["l3"])
+		self.assertIn("security_mixed → security_auto", out["l4"])
+		self.assertIn("against: 10 CVEs · worst high · 1 item removed", out["l4"])
+		self.assertIn("1 of 28 CVE", out["cve"])
+		self.assertEqual(out["acceptOn"], "1", "the mirror must show accept already on")
+		self.assertEqual(out["reasonHidden"], "true")
+		self.assertEqual(out["reasonShown"], "true")
+		self.assertIn("confidence medium · cv-021 in converge.json", out["reasonFoot"])
+		self.assertEqual(out["stripNames"], "ruled",
+			"the judged tool must LEAVE the collapsed strip")
+		self.assertIn("auto-accepted by rule", out["stripHead"])
+		self.assertIn("Auto by rule", out["ruleRowTitle"])
+		self.assertIn("Reject one to take it back", out["foot"])
+		self.assertEqual(out["badge"], "⚑ auto by judgement")
+		self.assertEqual(out["ruleBadge"], "auto by rule")
+		self.assertEqual(out["lineVisible"], "true")
+		self.assertIn("review in the judgement panel", out["line"])
+
+	def test_r_on_a_judgement_row_rejects_the_pre_accepted_upgrade(self):
+		"""§9.1's one exception: the row has no undecided suggestion, so
+		"first undecided" finds nothing — on this row only, the keys act on
+		the first mirror. Found by driving the prototype; pinned here."""
+		out = self.drive(converged_report([judged_tool("brew:libpq", "libpq"),
+				page_tool("brew:other", "other", "1.0", "1.1", "attention", sev_item="warning")]), """
+		key('1');
+		key('j');
+		const ring = document.querySelector('#panel-overview [data-focused]');
+		log('ring=' + (ring ? ring.className + ':' + ring.dataset.tool : 'none'));
+		key('r');
+		const card = canonicalCard('brew:libpq:upgrade');
+		log('decision=' + card.dataset.decision);
+		const rowBtn = document.querySelector('.jrow .mirror [data-action="reject"]');
+		log('mirrorOn=' + rowBtn.dataset.on);
+""")
+		self.assertEqual(out["ring"], "jrow:brew:libpq")
+		self.assertEqual(out["decision"], "reject")
+		self.assertEqual(out["mirrorOn"], "1")
+
+	def test_an_unattributed_move_renders_red_with_the_defect_named(self):
+		out = self.drive(converged_report([judged_tool("brew:odd", "odd",
+				source="judgement_unattributed")]), """
+		const row = document.querySelector('.jrow');
+		log('unattributed=' + row.dataset.unattributed);
+		log('l2=' + row.querySelector('.l2').textContent);
+		log('bg=' + getComputedStyle(row).backgroundColor);
+""")
+		self.assertEqual(out["unattributed"], "1")
+		self.assertEqual(out["l2"], "moved to auto-update, cause not attributable")
+		self.assertNotEqual(out["bg"], "rgba(0, 0, 0, 0)")
+
+	def test_a_degraded_gate_run_is_first_class_and_the_forced_tool_starts_undecided(self):
+		forced = {"forced_bucket": "security_mixed", "forced_pre_accept": False,
+			"would_have_been": "security_auto", "code": "E-GATE-UNREASONED"}
+		tool = page_tool("brew:forced", "forced", "1.0", "1.1", "security_mixed",
+			tags=("security",))
+		tool["security"]["has_security"] = True
+		tool["convergence"] = {"touched": True, "edit_ids": ["cv-003"], "forced": forced}
+		report = converged_report([tool, rule_tool("brew:ruled", "ruled")],
+			state="degraded_gate", attempt=5,
+			status={"attempts": 5, "state": "degraded_gate",
+				"explanation": {"headline": "1 tool(s) reached auto-update without surviving the gate and were forced to security_mixed.",
+					"body": "After 5 attempts the gate still failed on: brew:forced.",
+					"attempt_log": [{"attempt": 1, "codes": {"E-GATE-UNREASONED": 1}, "state": "rejected"},
+						{"attempt": 5, "codes": {}, "state": "degraded_gate"}]},
+				"degraded_tools": [dict(forced, tool_id="brew:forced")],
+				"standing_rejects": [{"edit_id": "cv-009", "code": "E-EDIT-OP"}]})
+		out = self.drive(report, """
+		const strip = document.getElementById('degraded-strip');
+		log('strip=' + !!strip);
+		log('tone=' + strip.dataset.tone);
+		log('stripVisible=' + (strip.offsetParent !== null));
+		log('h=' + strip.querySelector('.h').textContent);
+		log('b=' + strip.querySelector('.b').textContent);
+		log('m=' + strip.querySelector('.m').textContent.replace(/\\s+/g, ' ').trim());
+		log('panel=' + !!document.getElementById('jpanel'));
+		log('panelRows=' + document.querySelectorAll('.jrow').length);
+		log('stripNames=' + Array.from(document.querySelectorAll('#sec-auto .autorow .nm')).map(n => n.textContent).join(','));
+		key('2');
+		const s = document.querySelector('[data-tool-id="brew:forced"]');
+		log('badge=' + s.querySelector('.judge-badge').textContent);
+		s.classList.remove('collapsed');
+		log('line=' + s.querySelector('.judge-line').textContent.replace(/\\s+/g, ' ').trim());
+		log('decision=' + canonicalCard('brew:forced:upgrade').dataset.decision);
+""")
+		self.assertEqual(out["strip"], "true")
+		self.assertEqual(out["tone"], "yellow")
+		self.assertEqual(out["stripVisible"], "true")
+		self.assertIn("Convergence degraded (degraded_gate)", out["h"])
+		self.assertIn("forced to security_mixed", out["h"])
+		self.assertIn("After 5 attempts", out["b"])
+		self.assertIn("5 attempts", out["m"])
+		self.assertIn("#1 rejected (E-GATE-UNREASONED)", out["m"])
+		self.assertIn("1 standing reject", out["m"])
+		self.assertIn("forced: forced security_mixed (would have been security_auto)", out["m"])
+		# A forced tool carries no label: not in the panel, not in the strip.
+		self.assertEqual(out["panel"], "false")
+		self.assertEqual(out["panelRows"], "0")
+		self.assertEqual(out["stripNames"], "ruled")
+		self.assertEqual(out["badge"], "forced conservative")
+		self.assertIn("E-GATE-UNREASONED", out["line"])
+		self.assertIn("starts undecided", out["line"])
+		self.assertEqual(out["decision"], "")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)
