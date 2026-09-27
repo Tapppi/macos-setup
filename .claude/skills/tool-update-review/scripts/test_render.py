@@ -1309,5 +1309,187 @@ class RenderPersistTests(RenderRunner):
 		self.assertEqual(self._record(report_dir)["written"], [])
 
 
+
+def notes_report():
+	"""Four tools, five method notes: one topic shared by three tools, two
+	one-off topics (one re-homed, one promoted to global, one self-test
+	tagged), so the grouping, the marks and the mirrors all show."""
+	def note(tid, sid, topic, text, **extra):
+		s = {"id": sid, "kind": "method-note", "title": f"Method note: {topic}",
+			"target_files": [], "command": None, "auto_runnable": False,
+			"rationale": "it happened", "method_topic": topic, "method_note": text}
+		s.update(extra)
+		return s
+	shared = "changelog is cumulative — scope to the version pair"
+	a = page_tool("brew:aa", "aa", "1.0", "1.1", "routine")
+	b = page_tool("brew:bb", "bb", "1.0", "1.1", "routine")
+	c = page_tool("brew:cc", "cc", "1.0", "1.1", "attention", sev_item="incompatible")
+	d = page_tool("brew:nnn", "nnn", "1.0", "1.1", "routine")
+	for t in (a, b, c):
+		t["suggestions"].append(note(t["id"], f"{t['id']}:method-cumulative", shared,
+			"Read only the entries between the two versions."))
+	d["suggestions"].append(note("brew:nnn", "brew:nnn:method-readline", "readline linking in homebrew-core's nnn formula",
+		"Check the formula's readline dependency before trusting the release notes.",
+		self_test_failed={"limb": "unwitnessed", "reason": "predicts rather than names"}))
+	c["suggestions"].append(note("brew:cc", "brew:cc:method-general", "tags beat release pages",
+		"Cite the tag, not the announcement."))
+	conv = {"state": "converged", "memory": {
+		"promoted_to_global": ["brew:cc:method-general"],
+		"rehomed_to_method_note": [{"suggestion_id": "brew:nnn:watch-x",
+			"new_note_id": "brew:nnn:method-readline", "scope": "tool"}],
+		"restored": ["brew:nnn:method-readline"]}}
+	return page_report([a, b, c, d], convergence=conv)
+
+
+class MethodNotesTabTests(PageDriveRunner):
+	"""report-page.md §6 + criterion 18's surface. The notes are already in
+	the store (render persisted them); the tab is how a bad one is caught.
+	Veto is a mirror of reject on the canonical card, modification
+	instructions write through to its comment, and a method note never
+	counts as a decision anywhere."""
+
+	def test_the_tab_groups_by_topic_with_one_offs_first_and_open(self):
+		out = self.drive(notes_report(), """
+		log('tabs=' + Array.from(document.querySelectorAll('.tab-btn')).map(b => b.dataset.tab).join(','));
+		log('count=' + document.getElementById('tab-notes-count').textContent);
+		log('countInk=' + getComputedStyle(document.getElementById('tab-notes-count')).color);
+		key('3');
+		log('active=' + activeTab);
+		const lede = document.getElementById('notes-lede');
+		log('lede=' + lede.textContent.replace(/\\s+/g, ' ').trim().slice(0, 60));
+		const oneoff = document.getElementById('notes-oneoff');
+		const shared = document.getElementById('notes-shared');
+		log('oneoffOpen=' + oneoff.dataset.open + ' sharedOpen=' + shared.dataset.open);
+		log('oneoffSub=' + oneoff.querySelector('.band-head .sub').textContent);
+		log('sharedSub=' + shared.querySelector('.band-head .sub').textContent);
+		log('oneoffRows=' + Array.from(oneoff.querySelectorAll('.nrow')).map(r => r.dataset.note).join(','));
+		log('sharedRows=' + shared.querySelectorAll('.nrow').length);
+		log('sharedTools=' + shared.querySelectorAll('.ntool').length);
+		log('marks=' + Array.from(oneoff.querySelectorAll('.mark')).map(m => m.className.replace('mark ', '')).join(','));
+""")
+		self.assertEqual(out["tabs"], "overview,tools,notes")
+		self.assertEqual(out["count"], "5")
+		self.assertEqual(out["countInk"], "rgb(88, 110, 117)", "the count must wear neutral ink (--base01)")
+		self.assertEqual(out["active"], "notes")
+		self.assertIn("Nothing here needs your attention", out["lede"])
+		self.assertEqual(out["oneoffOpen"], "1 sharedOpen=0")
+		self.assertIn("2 topics", out["oneoffSub"])
+		self.assertIn("most likely to be wrong", out["oneoffSub"])
+		self.assertIn("1 topic · 3 tools", out["sharedSub"])
+		self.assertEqual(out["oneoffRows"], "brew:cc:method-general,brew:nnn:method-readline")
+		self.assertEqual(out["sharedRows"], "1")
+		self.assertEqual(out["sharedTools"], "3")
+		self.assertEqual(out["marks"], "global,rehomed,restored,selftest")
+
+	def test_veto_is_a_mirror_of_reject_and_modify_writes_through(self):
+		out = self.drive(notes_report(), """
+		key('3');
+		const row = document.querySelector('.nrow[data-note="brew:nnn:method-readline"]');
+		const veto = row.querySelector('.veto');
+		log('before=' + veto.textContent + '/' + canonicalCard('brew:nnn:method-readline').dataset.decision);
+		veto.click();
+		log('after=' + veto.textContent + '/' + canonicalCard('brew:nnn:method-readline').dataset.decision + '/' + row.dataset.vetoed);
+		// The canonical card's own Reject button reflects it, and clicking it there restores here.
+		key('2');
+		const card = canonicalCard('brew:nnn:method-readline');
+		log('cardLabel=' + card.querySelector('.card-state-label').textContent);
+		card.querySelector('.btn-reject').click();
+		key('3');
+		log('restored=' + veto.textContent + '/' + row.dataset.vetoed);
+		// Modification instructions write through to the canonical comment.
+		const ta = row.querySelector('.note-modify');
+		ta.value = 'say readline 8.2 specifically';
+		ta.dispatchEvent(new Event('input', {bubbles: true}));
+		log('comment=' + card.querySelector('.card-comment').value);
+		// A shared row: each tool's chip has its own veto; the row is vetoed
+		// only when every tool's note is.
+		const shared = document.querySelector('#notes-shared .nrow');
+		const chips = shared.querySelectorAll('.ntool .veto');
+		chips[0].click();
+		log('sharedPartial=' + shared.dataset.vetoed + '/' + canonicalCard(chips[0].dataset.mirrors).dataset.decision);
+		chips[1].click(); chips[2].click();
+		log('sharedAll=' + shared.dataset.vetoed);
+""")
+		self.assertEqual(out["before"], "veto/")
+		self.assertEqual(out["after"], "restore/reject/1")
+		self.assertEqual(out["cardLabel"], "REJECTED")
+		self.assertEqual(out["restored"], "veto/0")
+		self.assertEqual(out["comment"], "say readline 8.2 specifically")
+		self.assertEqual(out["sharedPartial"], "0/reject")
+		self.assertEqual(out["sharedAll"], "1")
+
+	def test_n_and_v_drive_the_tab_and_the_focused_note(self):
+		out = self.drive(notes_report(), """
+		key('n');
+		log('tab=' + activeTab);
+		key('j');
+		const ring = document.querySelector('#panel-notes [data-focused]');
+		log('ring=' + (ring ? ring.dataset.note : 'none'));
+		key('v');
+		log('vetoed=' + canonicalCard(ring.dataset.note).dataset.decision);
+		key('v');
+		log('restored=' + canonicalCard(ring.dataset.note).dataset.decision);
+		key('r');
+		log('r=' + canonicalCard(ring.dataset.note).dataset.decision);
+		key('a');
+		log('a=' + canonicalCard(ring.dataset.note).dataset.decision);
+""")
+		self.assertEqual(out["tab"], "notes")
+		self.assertEqual(out["ring"], "brew:cc:method-general")
+		self.assertEqual(out["vetoed"], "reject")
+		self.assertEqual(out["restored"], "")
+		self.assertEqual(out["r"], "reject")
+		self.assertEqual(out["a"], "")
+
+	def test_a_method_note_never_counts_as_a_decision(self):
+		"""§6.4: the progress bar does not count method notes; §1.7c: a memory
+		proposal never forces a review. brew:cc is INCOMPATIBLE and carries
+		two method notes — Submit must not be gated on them, the header
+		badge must not count them, and the sort must not rank the tool as
+		needing a decision for them."""
+		out = self.drive(notes_report(), """
+		log('progress=' + document.querySelector('#progress-text .long').textContent);
+		// Decide cc's one real suggestion; the notes stay undecided.
+		setDecision('brew:cc:upgrade', 'accept');
+		log('progressAfter=' + document.querySelector('#progress-text .long').textContent);
+		log('submitDisabled=' + document.getElementById('submit-btn').disabled);
+		log('gate=' + blockingToolIds().join(','));
+		key('2');
+		const s = document.querySelector('[data-tool-id="brew:cc"]');
+		log('badge=' + s.querySelector('[data-role="decision-badge"]').textContent);
+		log('needs=' + sectionNeedsDecision(s));
+""")
+		self.assertEqual(out["progress"], "0 of 4 decided · 1 incompatible undecided")
+		self.assertEqual(out["progressAfter"], "1 of 4 decided · 0 incompatible undecided")
+		self.assertEqual(out["submitDisabled"], "false",
+			"two undecided method notes on an incompatible tool must not gate Submit")
+		self.assertEqual(out["gate"], "")
+		self.assertEqual(out["badge"], "1 decided")
+		self.assertEqual(out["needs"], "false")
+
+	def test_vetoes_freeze_with_the_rest_and_the_panel_survives_submit(self):
+		out = self.drive(notes_report(), """
+		key('3');
+		document.querySelector('.nrow[data-note="brew:nnn:method-readline"] .veto').click();
+		transitionToResults({actions: [], done: false});
+		log('tabs=' + Object.keys(PANELS).join(','));
+		selectTab('notes');
+		const row = document.querySelector('.nrow[data-note="brew:nnn:method-readline"]');
+		log('vetoHidden=' + (row.querySelector('.veto').offsetParent === null));
+		log('label=' + getComputedStyle(row.querySelector('.vetoed-label')).display);
+		log('modifyHidden=' + (row.querySelector('.note-modify').offsetParent === null));
+		const other = document.querySelector('.nrow[data-note="brew:cc:method-general"]');
+		log('otherLabel=' + getComputedStyle(other.querySelector('.vetoed-label')).display);
+		log('bandLive=' + (getComputedStyle(document.querySelector('#notes-shared .band-head')).pointerEvents));
+""")
+		self.assertEqual(out["tabs"], "results,overview,tools,notes,changelog")
+		self.assertEqual(out["vetoHidden"], "true")
+		# A flex item's computed display blockifies; shown is "not none".
+		self.assertNotEqual(out["label"], "none")
+		self.assertEqual(out["modifyHidden"], "true")
+		self.assertEqual(out["otherLabel"], "none")
+		self.assertEqual(out["bandLive"], "auto")
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)

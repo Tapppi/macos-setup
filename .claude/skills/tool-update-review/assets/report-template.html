@@ -337,10 +337,122 @@
 		 * one is displayed. #results-panel / #changelog-panel join them
 		 * post-Submit and keep their own narrower measure. */
 		#panel-overview,
+		#panel-notes,
 		#main {
 			max-width: 1180px;
 			margin: 0 auto;
 			padding: 20px 24px 80px;
+		}
+
+		/* ── Method notes tab (report-page.md §6) ─────────────────────────
+		 * Durable instructions replayed into every future run — a different
+		 * question from everything else on the page ("do I want the
+		 * researcher told this forever?"), so its own tab. Already in the
+		 * store (persisted at render, criterion 18): the tab must not look
+		 * like work. Grouped by topic, one-off notes first and open — a
+		 * note only one tool needed is where a bad note lives — shared
+		 * notes collapsed. The control is veto / restore. */
+		#notes-lede {
+			font-size: 15px;
+			line-height: 1.5;
+			color: var(--base1);
+			margin: 4px 0 18px;
+			max-width: 70ch;
+		}
+
+		#notes-lede b { color: var(--base2); font-weight: 600; }
+		#notes-lede .n { font-family: var(--mono); color: var(--base2); font-weight: 600; }
+
+		.nrow {
+			display: grid;
+			grid-template-columns: minmax(110px, 0.9fr) minmax(160px, 1.3fr) minmax(220px, 3fr) auto;
+			gap: 6px 14px;
+			align-items: start;
+			padding: 9px 0;
+			border-bottom: 1px solid rgba(147,161,161,0.07);
+			font-size: 12.5px;
+		}
+
+		.nrow > * { min-width: 0; }
+		.nrow:last-child { border-bottom: none; }
+		.nrow[data-focused] { outline: 2px solid var(--blue); outline-offset: 2px; }
+		.nrow .tool { color: var(--base1); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.nrow .tool .jump { display: block; font-size: 11px; }
+		.nrow .topic { color: var(--base2); }
+		.nrow .nt { color: var(--base0); white-space: pre-wrap; }
+		.nrow[data-vetoed="1"] .nt,
+		.nrow[data-vetoed="1"] .topic .tt { text-decoration: line-through; color: var(--base01); }
+		.nrow .marks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+		.nrow .ctl { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+
+		/* Provenance marks: cheap, and each changes what you do. */
+		.mark {
+			font-family: var(--mono);
+			font-size: 9.5px;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: var(--base1);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			padding: 0 5px;
+			white-space: nowrap;
+		}
+
+		.mark.rehomed  { border-color: rgba(42,161,152,0.6); }
+		.mark.global   { border-color: rgba(108,113,196,0.7); }
+		.mark.restored { border-color: rgba(181,137,0,0.6); }
+		.mark.selftest { border-color: rgba(181,137,0,0.6); color: var(--yellow); }
+
+		/* The veto control: the third mirror variant. One button, two
+		 * words; on = the canonical card's decision is reject. */
+		.veto { min-width: 74px; }
+		.veto[data-on="1"] { background: var(--base01); border-color: var(--base01); color: var(--base03); font-weight: 600; }
+		.vetoed-label { display: none; font-family: var(--mono); font-size: 11px; color: var(--base01); }
+
+		.note-modify {
+			width: 100%;
+			min-width: 200px;
+			background: var(--base03);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			color: var(--base0);
+			font-size: 11.5px;
+			font-family: inherit;
+			padding: 4px 6px;
+			resize: vertical;
+			min-height: 26px;
+		}
+
+		.note-modify:focus { outline: none; border-color: var(--blue); }
+
+		/* Shared topics: one row per topic, the tools listed inside it with
+		 * their own veto each — the row is one line of chrome for N notes. */
+		.ntools { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+		.ntool {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			font-family: var(--mono);
+			font-size: 11px;
+			color: var(--base1);
+			border: 1px solid var(--hair);
+			border-radius: 4px;
+			padding: 1px 6px;
+		}
+		.ntool[data-vetoed="1"] { text-decoration: line-through; color: var(--base01); }
+		.ntool .veto { min-width: 0; min-height: 20px; padding: 0 6px; font-size: 10.5px; }
+
+		/* Frozen: vetoes freeze with the rest — a vetoed note renders struck
+		 * through with a label rather than a restore button. */
+		#panel-notes.report-frozen .veto,
+		#panel-notes.report-frozen .note-modify { display: none; }
+		#panel-notes.report-frozen [data-vetoed="1"] .vetoed-label { display: inline; }
+		#panel-notes.report-frozen .band-head,
+		#panel-notes.report-frozen .jump { pointer-events: auto; }
+
+		@media (max-width: 760px) {
+			.nrow { grid-template-columns: 1fr; }
+			.nrow .ctl { align-items: flex-start; }
 		}
 
 		/* ── Empty state ────────────────────────────────────────────────── */
@@ -3153,6 +3265,9 @@
 		<div id="tail-spacer" aria-hidden="true"></div>
 	</main>
 
+	<!-- ── Method notes panel (report-page.md §6; built by renderNotes) ─── -->
+	<div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes"></div>
+
 	<!-- ── Back-to-overview pill (visible only after a jump) ───────────── -->
 	<button type="button" id="backpill">← Back to overview</button>
 
@@ -3172,7 +3287,8 @@
 			<table class="key-table">
 				<tbody>
 					<tr><td colspan="2" class="key-group">Tabs</td></tr>
-					<tr><td>1 … 4</td><td>Switch tab (Overview, All tools, and post-Submit Results / Changelog)</td></tr>
+					<tr><td>1 … 5</td><td>Switch tab (Overview, All tools, Method notes, and post-Submit Results / Changelog)</td></tr>
+					<tr><td>n</td><td>Method notes tab</td></tr>
 					<tr><td>g</td><td>Overview: open the focused card's tool in the tool list</td></tr>
 					<tr><td>Escape</td><td>Close modal / help; else back to Overview if you arrived by jump</td></tr>
 					<tr><td colspan="2" class="key-group">Moving and deciding</td></tr>
@@ -3180,6 +3296,7 @@
 					<tr><td>a</td><td>Accept the focused card's first undecided suggestion</td></tr>
 					<tr><td>r</td><td>Reject the focused card's first undecided suggestion</td></tr>
 					<tr><td>c</td><td>Discuss the focused card's first undecided suggestion</td></tr>
+					<tr><td>v</td><td>Method notes: veto / restore the focused note</td></tr>
 					<tr><td>s</td><td>Submit (when ready)</td></tr>
 					<tr><td>f</td><td>All tools + cycle filter: All → Incompatible → Relevant</td></tr>
 					<tr><td>?</td><td>Toggle this help overlay</td></tr>
@@ -4279,7 +4396,7 @@
 		/* ── Render: one tool section ───────────────────────────────────── */
 		/* ── Header badges (references/rendering-report.md §Page Layout "at a glance without expanding") ─────────── */
 		function renderDecisionBadge(tool) {
-			const total = (tool.suggestions || []).length;
+			const total = (tool.suggestions || []).filter(s => s && s.kind !== 'method-note').length;
 			if (!total) return '';
 			/* Decisions aren't tracked in REPORT itself (they're local DOM
 			 * state on each card until Submit) — counted at render time here,
@@ -4287,10 +4404,17 @@
 			return `<span class="decision-badge pending" data-role="decision-badge">${total} undecided</span>`;
 		}
 
+		/* The cards that need a decision: every suggestion card EXCEPT a
+		 * method note, which is already in the store (persisted at render)
+		 * and needs nothing from the user — counting it would put a durable
+		 * instruction on the "needs you" list, which §1.7c forbids. One
+		 * selector, used by the badge, the sort, the gate and the bar. */
+		const DECISION_CARD_SEL = '.suggestion-card:not([data-kind="method-note"])';
+
 		function refreshDecisionBadge(section) {
 			const badge = section.querySelector('[data-role="decision-badge"]');
 			if (!badge) return;
-			const cards = section.querySelectorAll('.suggestion-card');
+			const cards = section.querySelectorAll(DECISION_CARD_SEL);
 			const undecided = Array.from(cards).filter(c => !c.dataset.decision).length;
 			if (undecided === 0) {
 				badge.textContent = `${cards.length} decided`;
@@ -5603,6 +5727,25 @@
 				node.title = on ? 'Accepted — click to un-accept' : 'Not accepted — click to accept';
 				return;
 			}
+			/* The veto control on the Method notes tab: on = the canonical
+			 * method-note card is rejected, which apply reads as "withdraw
+			 * the note render wrote" (references/rendering-report.md
+			 * §Method Notes). */
+			if (node.classList.contains('veto')) {
+				const on = decision === 'reject';
+				node.dataset.on = on ? '1' : '0';
+				node.textContent = on ? 'restore' : 'veto';
+				node.title = on ? 'Vetoed — apply withdraws this note from the store' : 'Veto — withdraw this note at apply';
+				const row = node.closest('.ntool, .nrow');
+				if (row) row.dataset.vetoed = on ? '1' : '0';
+				const outer = node.closest('.nrow');
+				if (outer && outer.querySelector('.ntools')) {
+					/* A shared-topic row is vetoed only when every tool's note is. */
+					const all = Array.from(outer.querySelectorAll('.ntool'));
+					outer.dataset.vetoed = all.length && all.every(t => t.dataset.vetoed === '1') ? '1' : '0';
+				}
+				return;
+			}
 		}
 
 		function syncMirrors(sid) {
@@ -5646,7 +5789,7 @@
 		function blockingToolIds() {
 			const ids = [];
 			document.querySelectorAll('#main .tool-section[data-max-severity="incompatible"]').forEach(section => {
-				const undecided = Array.from(section.querySelectorAll('.suggestion-card'))
+				const undecided = Array.from(section.querySelectorAll(DECISION_CARD_SEL))
 					.some(c => c.dataset.decision === '');
 				if (undecided) ids.push(section.dataset.toolId);
 			});
@@ -5775,6 +5918,7 @@
 		let PANELS = {
 			overview: { el: () => document.getElementById('panel-overview'), label: 'Overview' },
 			tools:    { el: () => document.getElementById('main'),           label: 'All tools' },
+			notes:    { el: () => document.getElementById('panel-notes'),    label: 'Method notes' },
 		};
 		let activeTab = 'overview';
 		let cameFromOverview = false;
@@ -5783,7 +5927,10 @@
 			const strip = document.getElementById('tab-strip');
 			strip.innerHTML = Object.entries(PANELS).map(([name, p]) => {
 				const active = name === activeTab;
-				const cnt = name === 'tools' ? `<span class="cnt" id="tab-tools-count"></span>` : '';
+				/* Both counts wear neutral ink (.cnt is --base01): the notes
+				 * count must never read as attention (report-page.md §6.4). */
+				const cnt = name === 'tools' ? `<span class="cnt" id="tab-tools-count"></span>`
+					: name === 'notes' ? `<span class="cnt" id="tab-notes-count"></span>` : '';
 				return `<button type="button" class="tab-btn${active ? ' active' : ''}" id="tab-${name}"` +
 					` data-tab="${name}" role="tab" aria-selected="${active}">${esc(p.label)}${cnt}</button>`;
 			}).join('');
@@ -5794,6 +5941,11 @@
 		 * `visible/total` while any filter is active — a second,
 		 * always-visible signal that something is hidden. */
 		function refreshTabCount() {
+			const notesEl = document.getElementById('tab-notes-count');
+			if (notesEl) {
+				const n = document.querySelectorAll('#main .suggestion-card[data-kind="method-note"]').length;
+				notesEl.textContent = n ? String(n) : '';
+			}
 			const el = document.getElementById('tab-tools-count');
 			if (!el) return;
 			const all = document.querySelectorAll('#tool-list > .tool-section');
@@ -6010,6 +6162,11 @@
 			/* Mirror decision buttons (mixed cards, highlight rows) and the
 			 * single-toggle accept control (auto rows). Both route through
 			 * setDecision(), which writes the canonical card. */
+			const vetoBtn = e.target.closest('.veto[data-mirrors]');
+			if (vetoBtn) {
+				setDecision(vetoBtn.dataset.mirrors, 'reject');
+				return;
+			}
 			const mirrorBtn = e.target.closest('.mirror[data-mirrors] .btn-d');
 			if (mirrorBtn) {
 				setDecision(mirrorBtn.closest('.mirror').dataset.mirrors, mirrorBtn.dataset.action);
@@ -6217,6 +6374,17 @@
 			}
 		});
 
+		/* Modification instructions on the Method notes tab write through to
+		 * the canonical card's comment, so the payload carries them exactly
+		 * where every other comment lives. */
+		document.addEventListener('input', e => {
+			const ta = e.target;
+			if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('note-modify')) return;
+			const card = canonicalCard(ta.dataset.for);
+			const comment = card && card.querySelector('.card-comment');
+			if (comment) comment.value = ta.value;
+		});
+
 		document.getElementById('btn-collapse-all').addEventListener('click', () => setAllCollapsed(true));
 		document.getElementById('btn-expand-all').addEventListener('click', () => setAllCollapsed(false));
 
@@ -6229,14 +6397,14 @@
 		 * structurally excluded from these selectors because they are never
 		 * .suggestion-card. */
 		function updateProgress() {
-			const allCards = Array.from(document.querySelectorAll('#main .suggestion-card'));
+			const allCards = Array.from(document.querySelectorAll('#main ' + DECISION_CARD_SEL));
 			const total = allCards.length;
 			const decided = allCards.filter(c => c.dataset.decision !== '').length;
 
 			/* Count undecided suggestions specifically on incompatible tools */
 			let incompatibleUndecided = 0;
 			document.querySelectorAll('#main .tool-section[data-max-severity="incompatible"]').forEach(section => {
-				section.querySelectorAll('.suggestion-card').forEach(card => {
+				section.querySelectorAll(DECISION_CARD_SEL).forEach(card => {
 					if (card.dataset.decision === '') incompatibleUndecided++;
 				});
 			});
@@ -6351,7 +6519,7 @@
 		 * the synthesized baseline "upgrade" one — nearly every tool has it)
 		 * is still undecided. */
 		function sectionNeedsDecision(section) {
-			return Array.from(section.querySelectorAll('.suggestion-card'))
+			return Array.from(section.querySelectorAll(DECISION_CARD_SEL))
 				.some(c => c.dataset.decision === '');
 		}
 
@@ -6493,7 +6661,7 @@
 		 * "focused tool section" to "focused item in the active tab", so
 		 * focusedIdx is per-tab (references/rendering-report.md §Keyboard
 		 * Navigation). */
-		const focusedIdx = { overview: -1, tools: -1 };
+		const focusedIdx = { overview: -1, tools: -1, notes: -1 };
 		const FILTER_PRESETS = [
 			{ severity: '', relevant: false },        /* All */
 			{ severity: 'incompatible', relevant: false }, /* Incompatible */
@@ -6530,8 +6698,14 @@
 			return !!(el.offsetParent || el.getClientRects().length);
 		}
 
+		function getNoteRows() {
+			return Array.from(document.querySelectorAll('#panel-notes .nrow'));
+		}
+
 		function focusItems() {
-			const items = activeTab === 'overview' ? getOverviewCards() : getVisibleSections();
+			const items = activeTab === 'overview' ? getOverviewCards()
+				: activeTab === 'notes' ? getNoteRows()
+				: getVisibleSections();
 			return items.filter(onScreen);
 		}
 
@@ -6548,7 +6722,8 @@
 		 * decision then entered the /feedback payload. */
 		function focusedItem() {
 			const items = focusItems();
-			const panelSel = activeTab === 'overview' ? '#panel-overview' : '#main';
+			const panelSel = activeTab === 'overview' ? '#panel-overview'
+				: activeTab === 'notes' ? '#panel-notes' : '#main';
 			const ring = document.querySelector(panelSel + ' [data-focused]');
 			if (ring) {
 				const i = items.indexOf(ring);
@@ -6594,7 +6769,24 @@
 		/* On the Overview an item's decision controls are mirrors, so "first
 		 * undecided" is resolved against the canonical cards they mirror —
 		 * never against any state held on the mirror itself. */
+		/* On the Method notes tab a row's mirrors are veto controls: `r`/`v`
+		 * veto every note in the row, `a` restores them, `c` discusses. */
+		function vetoFocusedRow(action) {
+			const item = focusedItem();
+			if (!item) return;
+			item.querySelectorAll('.veto[data-mirrors]').forEach(v => {
+				const card = canonicalCard(v.dataset.mirrors);
+				if (!card) return;
+				const cur = card.dataset.decision;
+				if (action === 'reject' && cur !== 'reject') setDecision(v.dataset.mirrors, 'reject');
+				else if (action === 'toggle') setDecision(v.dataset.mirrors, 'reject');
+				else if (action === 'accept' && cur === 'reject') setDecision(v.dataset.mirrors, 'reject');
+				else if (action === 'discuss' && cur !== 'discuss') setDecision(v.dataset.mirrors, 'discuss');
+			});
+		}
+
 		function actOnFocused(action) {
+			if (activeTab === 'notes') { vetoFocusedRow(action); return; }
 			const item = focusedItem();
 			if (!item) return;
 			if (activeTab === 'overview') {
@@ -6683,6 +6875,14 @@
 				case 'a': actOnFocused('accept');  e.preventDefault(); break;
 				case 'r': actOnFocused('reject');  e.preventDefault(); break;
 				case 'c': actOnFocused('discuss'); e.preventDefault(); break;
+				case 'n':
+					cameFromOverview = false;
+					selectTab('notes');
+					e.preventDefault();
+					break;
+				case 'v':
+					if (activeTab === 'notes') { vetoFocusedRow('toggle'); e.preventDefault(); }
+					break;
 				case 'g': {
 					/* Overview only: open the focused card's tool. */
 					if (activeTab !== 'overview') break;
@@ -6788,8 +6988,121 @@
 			applyFilters();
 			collapseAllButFirst();
 			renderOverview();
+			renderNotes();
 			syncAllMirrors();
 			updateProgress();
+		}
+
+		/* ══ METHOD NOTES TAB (report-page.md §6) ═════════════════════════
+		 * Every kind:"method-note" suggestion on every tool, grouped by
+		 * method_topic. The store already holds them (persisted at render —
+		 * criterion 18), so nothing here needs a decision: the tab exists so
+		 * a bad note is visible and correctable rather than permanent. The
+		 * veto control is a MIRROR of reject on the canonical card in #main
+		 * (§Decision State and Mirrors), and the modification textarea
+		 * writes through to that card's comment — so the /feedback payload
+		 * carries both through the plumbing every suggestion already uses.
+		 *
+		 * Grouped by topic, singletons first and open: with 38 notes the
+		 * prototype's per-tool table was 3.4 screens of the same sentence;
+		 * grouped it is 6 rows, and the notes only one tool needed — where
+		 * a bad note lives — are the only thing above the fold. */
+		function methodNoteSuggestions() {
+			const out = [];
+			(REPORT.tools || []).forEach(t => {
+				(t.suggestions || []).forEach(s => {
+					if (s && typeof s === 'object' && s.kind === 'method-note' && typeof s.id === 'string') {
+						out.push({ tool: t, sug: s });
+					}
+				});
+			});
+			return out;
+		}
+
+		function memoryDispositions() {
+			const conv = (REPORT.convergence && typeof REPORT.convergence === 'object') ? REPORT.convergence : {};
+			const m = (conv.memory && typeof conv.memory === 'object') ? conv.memory : {};
+			const strs = v => new Set(Array.isArray(v) ? v.filter(x => typeof x === 'string') : []);
+			const rehomed = new Set();
+			(Array.isArray(m.rehomed_to_method_note) ? m.rehomed_to_method_note : []).forEach(r => {
+				if (r && typeof r === 'object' && typeof r.new_note_id === 'string') rehomed.add(r.new_note_id);
+			});
+			return { promoted: strs(m.promoted_to_global), restored: strs(m.restored), rehomed };
+		}
+
+		function noteMarksHtml(sug, disp) {
+			const marks = [];
+			if (disp.rehomed.has(sug.id)) marks.push(`<span class="mark rehomed" title="Proposed as a watch item; convergence re-homed it as a method note — it carries a worry that failed a higher bar">re-homed</span>`);
+			if (disp.promoted.has(sug.id)) marks.push(`<span class="mark global" title="Convergence promoted this to the global store — it applies to every tool">promoted to global</span>`);
+			if (disp.restored.has(sug.id)) marks.push(`<span class="mark restored" title="The self-test failed; convergence kept the note anyway">restored</span>`);
+			if (sug.self_test_failed && typeof sug.self_test_failed === 'object') {
+				marks.push(`<span class="mark selftest" title="${esc(sug.self_test_failed.reason || '')}">self-test failed · ${esc(sug.self_test_failed.limb || '?')}</span>`);
+			}
+			return marks.length ? `<div class="marks">${marks.join('')}</div>` : '';
+		}
+
+		function vetoHtml(sid) {
+			return `<button type="button" class="btn-d veto" data-mirrors="${esc(sid)}" data-on="0">veto</button><span class="vetoed-label">vetoed</span>`;
+		}
+
+		function modifyHtml(sid) {
+			return `<textarea class="note-modify" data-for="${esc(sid)}" rows="1" placeholder="Modification instructions…" title="Written to this note's comment — apply reads it as instructions to change the note"></textarea>`;
+		}
+
+		function methodNoteRowHtml(entry, disp) {
+			const { tool, sug } = entry;
+			return `<div class="nrow" data-note="${esc(sug.id)}" data-tool="${esc(tool.id)}" data-vetoed="0" tabindex="-1">
+				<div class="tool">${esc(tool.name)}${jumpHtml(tool.id, 'open card →')}</div>
+				<div class="topic"><span class="tt">${esc(sug.method_topic || '')}</span>${noteMarksHtml(sug, disp)}</div>
+				<div class="nt">${esc(sug.method_note || '')}</div>
+				<div class="ctl">${vetoHtml(sug.id)}${modifyHtml(sug.id)}</div>
+			</div>`;
+		}
+
+		function sharedRowHtml(topic, entries, disp) {
+			const first = entries[0].sug;
+			const tools = entries.map(e => `<span class="ntool" data-vetoed="0">${esc(e.tool.name)} ${vetoHtml(e.sug.id)}${jumpHtml(e.tool.id, '→')}</span>`).join('');
+			const marks = entries.map(e => noteMarksHtml(e.sug, disp)).find(Boolean) || '';
+			return `<div class="nrow" data-topic="${esc(topic)}" data-vetoed="0" tabindex="-1">
+				<div class="tool">${entries.length} tools</div>
+				<div class="topic"><span class="tt">${esc(topic)}</span>${marks}</div>
+				<div class="nt">${esc(first.method_note || '')}<div class="ntools">${tools}</div></div>
+				<div class="ctl">${modifyHtml(first.id)}</div>
+			</div>`;
+		}
+
+		function renderNotes() {
+			const panel = document.getElementById('panel-notes');
+			const all = methodNoteSuggestions();
+			if (!all.length) {
+				panel.innerHTML = `<p id="notes-lede">No method notes were proposed this run.</p>`;
+				return;
+			}
+			const disp = memoryDispositions();
+			const byTopic = new Map();
+			all.forEach(e => {
+				const topic = typeof e.sug.method_topic === 'string' ? e.sug.method_topic.trim() : '';
+				if (!byTopic.has(topic)) byTopic.set(topic, []);
+				byTopic.get(topic).push(e);
+			});
+			const singles = [], shared = [];
+			byTopic.forEach((entries, topic) => {
+				const distinctTools = new Set(entries.map(e => e.tool.id));
+				(distinctTools.size > 1 ? shared : singles).push([topic, entries]);
+			});
+			shared.sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
+			singles.sort((a, b) => (a[1][0].tool.name || '').localeCompare(b[1][0].tool.name || ''));
+			const singleRows = singles.flatMap(([, entries]) => entries).map(e => methodNoteRowHtml(e, disp)).join('');
+			const sharedRows = shared.map(([topic, entries]) => sharedRowHtml(topic, entries, disp)).join('');
+			const sharedTools = new Set(shared.flatMap(([, entries]) => entries.map(e => e.tool.id))).size;
+			panel.innerHTML =
+				`<p id="notes-lede"><b>Nothing here needs your attention.</b> These <span class="n">${all.length}</span> research-method notes are already in the store — written at render, replayed into every future run. Veto one if it looks wrong; a comment attaches modification instructions. Apply withdraws a vetoed note.</p>` +
+				(singleRows ? bandHtml('notes-oneoff', 'One-off notes',
+					`${singles.length} topic${singles.length === 1 ? '' : 's'} · only one tool needed each · most likely to be wrong`,
+					singleRows, true) : '') +
+				(sharedRows ? bandHtml('notes-shared', 'Notes several tools share',
+					`${shared.length} topic${shared.length === 1 ? '' : 's'} · ${sharedTools} tools`,
+					sharedRows, false) : '');
 		}
 
 		/* ── Transition to Results view ──────────────────────────────────── */
@@ -6834,6 +7147,7 @@
 				results:   { el: () => document.getElementById('results-panel'),   label: 'Results' },
 				overview:  { el: () => document.getElementById('panel-overview'),  label: 'Overview' },
 				tools:     { el: () => document.getElementById('main'),            label: 'All tools' },
+				notes:     { el: () => document.getElementById('panel-notes'),     label: 'Method notes' },
 				changelog: { el: () => document.getElementById('changelog-panel'), label: 'Changelog' },
 			};
 			renderTabStrip();
@@ -6853,6 +7167,13 @@
 			const overviewEl = document.getElementById('panel-overview');
 			overviewEl.classList.add('report-frozen');
 			overviewEl.querySelectorAll('.btn-d, .acc-toggle')
+				.forEach(el => { el.disabled = true; });
+			/* Method-note vetoes freeze with the rest: a vetoed note renders
+			 * struck through with a `vetoed` label rather than a restore
+			 * button (report-page.md §9.4). */
+			const notesEl = document.getElementById('panel-notes');
+			notesEl.classList.add('report-frozen');
+			notesEl.querySelectorAll('.btn-d, .note-modify')
 				.forEach(el => { el.disabled = true; });
 
 			// 4. Fill the results panel. Show an immediate loading

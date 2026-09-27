@@ -483,17 +483,41 @@ the user if the thing happens. A method note changes the next **researcher** —
 how to research this tool correctly at all. Nothing else about them differs,
 which is the point: neither is a parallel system.
 
-- **Accept**: run `scripts/write_status.py add-method-note --tool-id
-  {tool_id} --topic "{method_topic}" --note "{method_note}"` (writes the
-  `{topic, note, added_at}` entry into `method-notes.json` under this tool's
-  id — see §Method Notes (Writing) below for the file mechanics shared with
-  the other path that writes it). No repo edit, no command, no commit action
-  gets synthesized for this suggestion — `target_files` is always `[]`, so
-  `write_status.py init`'s dotfiles/macos-setup commit detection never fires
-  for it. Mark the action `"done"` with a note like `"Added method note:
-  {method_topic}"`.
-- **Reject**: already handled generically at `init` time (rejected →
-  `state: "skipped"` immediately) — no file write, nothing further to do.
+- **Accept** (and an absent decision): **nothing to write.** The note is
+  already in `method-notes.json` — `render.py` persisted every surviving
+  method-note proposal at render (criterion 18, `REDESIGN.md` §L5; the
+  ownership statement is `references/rendering-report.md` §Method Notes),
+  and `{session_dir}/method-notes.render.json` records exactly what it
+  wrote, under which key. Do **not** run `add-method-note` for a research-
+  proposed note: the writer appends without dedupe, and a second write is a
+  duplicate entry the next run replays twice. Confirm the note's
+  `{tool_id or "global", topic}` appears in that record's `written` or
+  `already_present` list (a `failed` entry is the one case that needs the
+  write, and the record carries the writer's own refusal text saying why),
+  then mark the action `"done"` with a note like `"Method note in store:
+  {method_topic}"`. No repo edit, no command, no commit action — `target_files`
+  is always `[]`, so `write_status.py init`'s commit detection never fires.
+- **Reject** is a **veto**: the user looked at a note that is already in the
+  store and withdrew it. Run `scripts/write_status.py remove-method-note
+  --tool-id {tool_id} --topic "{method_topic}" --note "{method_note}"` —
+  or `remove-global-method-note --topic … --note …` when the render record
+  filed it under the `global` key. Pass `--note` with the exact text from
+  `method-notes.render.json`: the remover matches by exact topic (and note),
+  never by position; **not-found is an error (exit 1, nothing written)** and
+  must be surfaced, not swallowed, because a veto that removed nothing leaves
+  the bad note permanent with a green apply log; more than one match refuses
+  and lists the candidates, and `--note` is what narrows it. Mark the action
+  `"done"` with `"Withdrew method note: {method_topic}"`. A comment on the
+  rejected note is the user's reason — carry it into the recap.
+- **Discuss**, or an accept carrying a comment: the comment is **modification
+  instructions** (the page's Method notes tab writes them through to this
+  suggestion's comment). Investigate per §Tool Comments and Discuss; if the
+  note should change, withdraw the render-written entry with
+  `remove-method-note` (exact `--note` from the render record) and write the
+  corrected one with `add-method-note` — **never edit the entry in place** —
+  and say so in the action note. Never leaves a discussed note silently as
+  written, and never writes on the strength of a discuss alone: the pair of
+  writes is the explicit act.
 - **Discuss**: normal discuss handling (§Tool Comments and Discuss below) —
   **never writes `method-notes.json` on the strength of a discuss alone.** A
   discussion that concludes the note is right ends in an accept, or in a
@@ -636,17 +660,27 @@ skill's state files use and the store has exactly one writer to audit.
 
 **Two paths that can trigger it, and no comment-driven third one:**
 
-1. **A research-proposed `kind: "method-note"` suggestion, accepted** (the
-   normal case — `references/research.md` §Writing a Research-Method Note,
-   execution mechanics in §Executing `method-note` Suggestions above).
+1. **A research-proposed `kind: "method-note"` suggestion** — written **at
+   render, by `render.py`**, not at apply (criterion 18; the ownership
+   statement lives in `references/rendering-report.md` §Method Notes). Apply's
+   part is the *disposition*: a rejected note is withdrawn with
+   `remove-method-note` (§Executing `method-note` Suggestions above), an
+   accepted one needs no write, a commented one is modified by withdraw +
+   re-add. Convergence's C6 reviewed and cut before render ran, and a note
+   convergence promoted to global was written under the `global` key by the
+   same render step — the only real-run writer of that store.
 2. **An agent-initiated followup proposing one mid-apply, accepted** (the
    session itself, applying something, finds that the ordinary research path
    for this tool is wrong). Same mechanism as §Agent-Initiated Followups
    above, with `kind: "method-note"` and `method_topic`/`method_note` in
-   place of `target_files`/`command`/`diff_preview`.
+   place of `target_files`/`command`/`diff_preview`. This is the one path
+   that runs `add-method-note` from an apply pass.
 
-Both share the rule the watch store has: **never written on the strength of a
-proposal alone; always a separate, explicit accept.**
+Path 2 keeps the rule the watch store has — **never written on the strength
+of a proposal alone; always a separate, explicit accept.** Path 1 inverts it
+deliberately (`REDESIGN.md` §L5): the store fills from run one, an abandoned
+run included, and the report's Method notes tab is the surface that earns
+that — a bad note is visible and correctable rather than permanent.
 
 The missing third path is deliberate, and it is the one place this section
 diverges from §Watch Items (Writing). A watch item can come straight from a
