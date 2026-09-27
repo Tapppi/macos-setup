@@ -134,18 +134,21 @@ same tokens rather than introducing new ones.
 
 ## Tab Shell
 
-At most one panel is visible at a time. Four exist over the page's life:
+At most one panel is visible at a time. Five exist over the page's life:
 
 | Panel id | Tab label | When it exists |
 |---|---|---|
 | `#panel-overview` | `Overview` | always |
 | `#main` | `All tools` | always (today's `#main`, unchanged in role) |
+| `#panel-notes` | `Method notes` | always (§Method Notes) |
 | `#results-panel` | `Results` | created by `transitionToResults()` |
 | `#changelog-panel` | `Changelog` | created by `transitionToResults()` |
 
-Pre-Submit the strip is `[Overview] [All tools · N]`, defaulting to
-**Overview**. Post-Submit it becomes
-`[Results] [Overview] [All tools] [Changelog]`, defaulting to **Results**.
+Pre-Submit the strip is `[Overview] [All tools · N] [Method notes · K]`,
+defaulting to **Overview**. Post-Submit it becomes
+`[Results] [Overview] [All tools] [Method notes] [Changelog]`, defaulting to
+**Results**. Both count chips wear neutral ink (`--base01`): the notes count
+must never read as attention — nothing on that tab needs a decision.
 
 **The post-Submit strip is flat, not nested.** What used to be a single
 `Report` tab is two siblings, `Overview` and `All tools`, rather than a
@@ -170,7 +173,7 @@ pill only when `activeTab === 'tools' && cameFromOverview`.
 - The `All tools` label carries a count chip: the total tool count normally,
   `visible/total` while any filter is active — a second, always-visible signal
   that something is hidden (§Filter Bar).
-- The strip is `overflow-x: auto; scrollbar-width: none`, so a four-tab
+- The strip is `overflow-x: auto; scrollbar-width: none`, so a five-tab
   post-Submit strip never wraps.
 
 ### The Sticky Shell Bar
@@ -203,10 +206,15 @@ the progress text "N of M decided · K incompatible undecided" (`--red` when
 K > 0), and the Submit button — **disabled until every suggestion on an
 `incompatible`-severity tool has a decision**; the tooltip explains why.
 Non-incompatible suggestions may be left undecided. The gate rule is
-unchanged from the flat layout, and so is the counting: `updateProgress()`
-walks `#main .tool-section[data-max-severity="incompatible"] .suggestion-card`,
-and Overview mirrors are structurally excluded from that selector (§Decision
-State and Mirrors).
+unchanged from the flat layout; the counting walks
+`#main .tool-section[data-max-severity="incompatible"]` with
+`DECISION_CARD_SEL` — `.suggestion-card:not([data-kind="method-note"])` —
+so Overview mirrors are structurally excluded (§Decision State and Mirrors)
+and **a method note never counts**: it is already in the store (§Method
+Notes), and a memory proposal must not force a review (`schemas.md` §1.7c).
+The same selector drives the progress text, the header decision badge and
+the "Needs decision first" sort, so the four cannot disagree about what a
+decision is.
 
 Two additions make the gate impossible to miss from either tab: a
 `N blocking →` button in the shell bar that jumps to the first blocking tool,
@@ -254,7 +262,13 @@ a reload.
    **measured at runtime** by a `ResizeObserver` on the shell bar
    (`observeStickyHeight()`, with a `resize` listener as fallback) — the bar
    wraps on narrow screens, so a hardcoded offset would tuck the target under
-   it.
+   it. **A one-viewport tail spacer** (`#tail-spacer`, the last child of
+   `#main`, `height: calc(100vh - var(--sticky-h))`, `aria-hidden`) gives
+   the scroll the room it needs: `scrollIntoView` clamps at max scroll, so
+   without it a jump into any tool near the document end landed short —
+   measured up to 577.98px at a 1400px viewport with `scrollY` exactly at
+   `maxScroll`, reading as a broken link. With it the residual across 24
+   tools is sub-pixel. Hidden with the empty state.
 7. Set `[data-flash]` for 1.6s — a **static** `outline: 2px solid var(--cyan)`,
    not an animation. A pulsing 77-row page is noise, and this is also the
    `prefers-reduced-motion`-safe choice (`scrollIntoView`'s `behavior` drops
@@ -263,12 +277,12 @@ a reload.
 
 On load the order is `renderTabStrip()` → `renderHeader()` → `renderTools()` →
 per-section decision badges → `applyFilters()` → `collapseAllButFirst()` →
-`renderOverview()` → `syncAllMirrors()` → `updateProgress()` →
-`observeStickyHeight()`, and only then does the page select `tools` and jump
+`renderOverview()` → `renderNotes()` → `syncAllMirrors()` → `updateProgress()`
+→ `observeStickyHeight()`, and only then does the page select `tools` and jump
 when `location.hash` starts with `#tool-`, else `overview`. **`renderOverview()`
-must run after `renderTools()`** — its mirrors resolve against canonical cards
-that have to exist first — and `syncAllMirrors()` after both, to pick up
-everything assembly pre-accepted. The hash jump runs on the post-Submit path
+and `renderNotes()` must run after `renderTools()`** — their mirrors resolve
+against canonical cards that have to exist first — and `syncAllMirrors()`
+after all three, to pick up everything assembly pre-accepted. The hash jump runs on the post-Submit path
 too: in a frozen report it still works, because mirrors are disabled but
 navigation is not.
 
@@ -331,6 +345,29 @@ differently.)
   the page inventing a fact.
 
 This is the five-second answer; everything below it is the evidence.
+
+### Convergence Degraded — the first-class explanation
+
+Directly under the lede, before the tiles, when `REPORT.convergence.state` is
+`degraded_gate` or `degraded_unapplied` (criterion 13, `REDESIGN.md` §L4):
+`#degraded-strip`, `renderDegradedStrip()`. The `convergence_status`
+explanation renders **verbatim** — headline, body — then the attempt count,
+the attempt log (`#1 rejected (E-GATE-UNREASONED) · #5 degraded_gate`), the
+standing-reject count, and every `degraded_tools[]` entry as a jump reading
+`{name}: forced {bucket} (would have been {bucket}) →`. `--yellow` for
+`degraded_gate` — the affected tools were forced conservative, the safe
+failure, one card each; `--red` for `degraded_unapplied`, where convergence's
+whole submission was set aside. The same strip, red, renders for
+`artefacts_inconsistent` (`assembly.md` §Consuming Convergence): the report
+is then showing a corpus convergence did not produce, and that must not read
+as a report note. A `not_run` state is a Report notes row, not a strip —
+absence of convergence is worth saying, not shouting.
+
+A forced tool carries **no** auto-update label: it appears in neither the
+judgement panel nor the auto strip, its header carries a red-ringed
+`forced conservative` badge, its body opens with a red line naming the gate
+code and both buckets, and it starts undecided (assembly bars its
+pre-acceptance on the `forced_conservative` record).
 
 ### Stat Tiles
 
@@ -413,6 +450,61 @@ draw three zeros.
 → hide Group B *and* the whole security section, and the lede drops its
 security clause. Same principle throughout: degrade to silence, never to a
 fabricated zero.
+
+### The Judgement Panel
+
+`#judgement-section` / `#jpanel`, `renderJudgementPanel()`, between the tiles
+and the security section — **above the auto strip**, which is the point
+(`report-page.md` §3, criterion 11). A tool whose `convergence.auto_update_label`
+has `source: "judgement"` (or `judgement_unattributed`) was moved to
+auto-update by convergence's judgement rather than by the deterministic path.
+It **leaves the collapsed auto strip** and gets an always-visible row here:
+the label is structural before it is visual, because a badge inside a closed
+container is never seen, and that is exactly how `brew:libpq` reached
+`security_auto` pre-accepted with 10 CVEs while the reader was told not to
+look. `--yellow` + `--tint-yellow` — the page's existing "decide this"
+treatment, so the panel is the colour of the state it reports. No new hue.
+
+Each `.jrow` (`data-tool`, `data-judgement="1"`, in the `j`/`k` list) is four
+lines, each earning its pixels:
+
+1. `⚑` name, version pair, source badge, the CVE badge (`🛡 10 of 28 CVE`),
+   and the baseline's **three-button mirror with accept already on** — the
+   tool is accepted and the page must not lie about state. The affordance is
+   **Reject**, not an acknowledgement gate: agreeing costs zero clicks,
+   disagreeing one, and the footer says so (*"These are already accepted.
+   Reject one to take it back for a full read."*).
+2. `auto_update_label.headline` — the claim, in the agent's own words.
+3. `CUT “…”` — `quotes[0].text`, **what was cut**, verbatim. The line that
+   would have caught libpq: the reader sees the removed sentence and asks
+   whether it would have changed their mind.
+4. `bucket.from → bucket.to` beside the whole `counterweight`
+   (`against: 10 CVEs · worst high · 1 item removed`) — the deterministic case
+   against the label, so both sides show without the renderer computing
+   anything.
+
+`full reasoning →` toggles `reasoning` verbatim and unbounded (`white-space:
+pre-wrap`, never truncated, never rewritten), any further quotes, and a footer
+`confidence {c} · {edit_ids} in converge.json`. The expansion stays live
+post-Submit (§Transition to Results View): it is the record of why a tool was
+auto-accepted and the thing most likely to be re-read afterwards. The panel
+is never capped and never paginated.
+
+`judgement_unattributed` renders the same row on `--tint-red` with the
+headline replaced by *"moved to auto-update, cause not attributable"* — an
+unattributed permissive move is the §3 defect itself and is the one thing on
+this page that should look like an error.
+
+**`source: "rule"` still gets a label**, carried by the container rather than
+a row: the auto strip's heading reads `N security-only, no impact here —
+auto-accepted by rule`, and each row's `title` is the rule label's headline.
+The tile and the bar segment keep counting the whole `security_auto` bucket;
+only the rows move.
+
+**On the tool card** the label repeats so a reader arriving by deep link sees
+it: a `⚑ auto by judgement` header badge (`auto by rule`, quiet, for the rule
+kind) and a yellow line at the top of the body carrying the headline and a
+`review in the judgement panel →` jump.
 
 ### Security Section
 
@@ -908,6 +1000,28 @@ one test — "does this tool have a version pair" — not a growing list of
 A band with no members is omitted rather than rendered empty; with no bands at
 all, the whole section is omitted.
 
+### Report Notes
+
+`#notes-section` / `band-notes`, `renderNotesSection()`, at the **bottom** of
+the Overview, **collapsed**, with the count in its heading and the subtitle
+`nothing to decide` (`report-page.md` §8.2). These rows change how much you
+*trust* the report, not what you decide, so they come after the thing they
+modify. Rows (`noteRowHtml`: headline, one line of body, then a mono
+`code · tools` line):
+
+- convergence `flag` edits — `REPORT.convergence.flags[]`, headline and body
+  verbatim, `check · edit_id · tool_id`;
+- the applier's findings — `REPORT.convergence.findings[]`, code as headline,
+  `(standing)` when critical;
+- the validation residuals, **aggregated by code across tools** (`CODE on N
+  tools` + the first six ids) — never repeated on 22 cards — plus one row
+  counting the tools that lost content;
+- the two convergence states that are notes rather than strips: `not_run`
+  (`--yellow` headline) and, loud, `artefacts_inconsistent`.
+
+The per-tool `out of spec` badge (§Per-Tool Section) opens this band from
+either tab (`data-act="open-band"`).
+
 ## Page Layout
 
 This is the **All-tools tab** (`#main`) — the flat per-tool report, unchanged
@@ -923,10 +1037,7 @@ sticky row on mobile.
 
 Controls, left to right: **Bucket** select (All | Security + other | Security
 only | Needs attention | Routine — matching `review_bucket`, `schemas.md`
-§1.10), **Delta** select (All | major | minor | patch | revision | unknown),
-Source select (All|brew|cask|mise|standalone|macos|brew-health|skill-drift
-— one `<option>` per value the `source` vocabulary defines, so a source with
-no option is a source the user cannot isolate), severity
+§1.10), severity
 select, **Security only** checkbox (`data-sec="1"`), "Only relevant to me"
 toggle (hides tools with no item carrying a `local` block — `maxSeverity()`
 returns `''` for them, so `data-max-severity` is empty), sort select (**Needs decision
@@ -963,6 +1074,15 @@ failure mode by construction rather than by adjacency:
 `needs-decision`), and is also what `jumpToTool()` calls when a filter hides
 its target (§Tab Shell).
 
+**The Delta and Source selects are cut from the bar** (`report-page.md`
+§8.3): neither has ever changed a decision; both are browse affordances on a
+page that is not a browser. They are `[hidden]` rather than removed
+(`#filter-bar label[hidden] { display: none }` — the UA rule loses to the
+bar's own `display: flex`), because the filter *state* survives: the delta
+tiles still set `#filter-delta`, the hidden-count banner still shows and
+clears it, `clearFilters()` still resets both. Eleven controls became nine
+without touching the machinery; `⌘F` finds a source badge.
+
 ### Per-Tool Section
 
 Per-tool `<section>`: collapsible; header row with name, `current → latest`
@@ -978,8 +1098,10 @@ to dig for. `config_status` is computed by research — see `research.md`
 it's drawn.
 
 Each section carries `data-tool-id`, `data-name`, `data-source`,
-`data-max-severity` (unchanged) plus three new attributes the filter bar reads:
-`data-bucket`, `data-delta`, and `data-sec` (`0`|`1`). It also carries
+`data-max-severity` (unchanged) plus three attributes the filter bar reads —
+`data-bucket`, `data-delta`, and `data-sec` (`0`|`1`) — and `data-risk`
+(`risk_level`, a CSS hook that did not exist: `elevated` occurred only inside
+the embedded JSON). It also carries
 `scroll-margin-top: calc(var(--sticky-h) + 8px)` so a deep link doesn't land
 under the sticky shell bar (§Tab Shell).
 
@@ -1006,6 +1128,24 @@ Both badges, and the `data-*` attributes, degrade quietly on a report from an
 older assembly that lacks the fields — the readers fall back coarsely and
 never invent precision the data doesn't have.
 
+Three more header badges, each present only when it says something: the
+convergence label (`⚑ auto by judgement` / `auto by rule` /
+`forced conservative`, §Overview Tab → The Judgement Panel), **`elevated
+risk`** (`risk_level == "elevated"`; `--orange` ring, ink text), and
+**`out of spec`** (`spec_violations[]` non-empty or a `validator_error`; a
+`<button>` that opens the Report notes band, with the codes in its `title`).
+
+The body opens, before any content group, with up to four lines, each
+rendered only when its data exists: the judgement line, the **degradation
+strip**, the **watch-state line** (§Loudness Channels), and the **why line**
+— `bucket security_mixed · security only · impact possible · minor delta ·
+runnable · risk low · not pre-accepted: a security item reaches this machine`
+— which reads `bucket_inputs` and `pre_accept_bars` off the tool exactly as
+the validator exported them. That line is D2's visibility half: the exported
+"why" was read zero times before it, so a reader could not tell an
+elevated-risk hold from a routine one. The version pair folds the
+release-inventory count in as `18.4 → 18.6 (3)`, versions in the `title`.
+
 ### Header Badges
 
 At a glance without expanding. The delta pill and CVE badge described in
@@ -1018,14 +1158,13 @@ decision-oriented pair and neither substitutes for the others.
   need me" signal). Once every suggestion on the tool has a decision,
   downgrade to a quiet "N decided" badge (`--base01`, same low-key treatment
   as the `config_status` "ok" badge) — the badge never disappears, it just
-  stops demanding attention.
-- **Severity-tier counts**: one small count per severity level actually
-  present among the tool's `items[]` (info/notable/warning/
-  incompatible), using the same icon/color mapping as per-item severity
-  (below) — e.g. "⛔1 ⚠2". Omit a tier with zero items rather than showing
-  "0". This is the "how significant is this tool's changelog" signal,
-  independent of the decision-count badge's "does it need action" signal —
-  both render, neither substitutes for the other.
+  stops demanding attention. **Method notes are not counted** — they need
+  no decision (§Method Notes).
+- **Severity-tier counts are cut** (`report-page.md` §8.3). They counted
+  *items*, which is precisely the number the decision-surface design tells
+  the reader not to care about; the delta pill, the CVE badge and the bucket
+  carry "how significant is this tool" three times over, and no decision
+  changes between `⚠2` and `⚠3`.
 
 ### Collapse Controls
 
@@ -1052,75 +1191,92 @@ signal that means "I'm done looking at this one for now." Add "Collapse all"
 ignore auto-advance entirely (they set every section to one state, not a
 one-at-a-time walk).
 
-### Content Groups
+### Content Groups — three decisive groups and a fold
 
 **There is no separate "headliners" bullet list and no separate "links row"
-wall of buttons — `items[]` renders entirely inside four content groups:
-Security, Fixes, Features, Notes.** Each item carries its own `tags` (topic,
-a closed set of eight) and `severity` (`schemas.md`, both assigned by the
-checker); the **group is derived from the tags** by the same map the contract
-publishes (`items.GROUP_OF_TAG` / `contract.json` `groups.of_tag`), with
-`GROUP_PRECEDENCE` settling an item that carries tags from more than one.
-The groups themselves are neutral, purely-organizational containers with no
-color of their own; **only individual items are colored**, by their own
-`severity`, independent of which group they're in.
+wall of buttons — `items[]` renders entirely inside the card**, and the card
+is **evidence for a decision, not a changelog digest** (`report-page.md` §4,
+`REDESIGN.md` §J). Measured on the fixture bundle before this: 52,392 words
+to make 57 decisions, and 373 of 584 items could not change any of them. The
+rule that follows, applied at the item level:
 
-This is a deliberate change from an earlier version of this design that
-colored the whole group box by a single severity/notability accent and derived
-category client-side from keyword matching — that heuristic is exactly what
-caused topic and urgency to get conflated (a low-profile security item reading
-as "minor" would get bucketed into Notes by the same signal that was supposed
-to be its severity, not its topic). The checker assigns both explicitly now;
-the page derives one map lookup and nothing else.
+> An item earns a place on the default surface only if it could change the
+> decision on its tool. Everything else stays, in full, one click away.
 
-**One item appears exactly once**, which is the whole point of the item model:
-the old headliners/relevancy/notable split wrote one change into three arrays
-with three severities implied, and the dedupe that tried to reconcile them
-silently downgraded a card. A single-tag item gets no tag line — its group heading
-already said it. A multi-tag item renders **all** of its tags on a plain
-"Tagged: …" line in its expanded detail, including ones that map to the same
-group: eliding "the tag that chose the group" hides a second tag sharing it, so
-`["fix", "breaking"]` would render no `breaking` anywhere, and `breaking` is the
-most decision-relevant tag in the set. Only ~7% of items carry more than one tag
-(max two), so the line costs 7% of rows and can never swallow the tag a reader
-needed.
+**Visibility is derived, never authored** (`item-schema.md` §2.3,
+`convergence.md` §1.6 — an authored field reintroduces two answers to "what
+is this item"). The page computes `decisive(item, tool)`:
+
+```js
+   tags ∩ {security, breaking, deprecation} ≠ ∅
+|| severity ∈ {warning, incompatible}
+|| (local.direction == "reaches" && local.effect == "risk")
+|| id ∈ tool.watch_hit_item_ids            // a GROUNDED watch hit
+```
+
+Three clauses, one per way an item can change a decision — a class of change
+that always matters, the researcher rated it as mattering, it lands on this
+machine and lands badly — plus the hit the user asked to be told about.
+Deliberately **not** in the bar: `effect: "benefit"` (a reason to upgrade is
+not a reason to think) and `direction: "unclear"` (an honest "could not tell"
+must not be expensive).
+
+`groupItems(tool)` partitions into four:
+
+| Group | Membership | Order |
+|---|---|---|
+| `🛡 Security · reaches here or rated critical` | `security.display_item_ids` — the contract's own bar, no cap | the id list's order (the contract's total sort) |
+| `Breaking & deprecations` | decisive, tagged `breaking` or `deprecation` | severity worst-first, reaches-first within a tier, stable |
+| `Other changes that reach this machine` | decisive, remainder | same |
+| `▸ Everything else (N) — features, fixes and notes that do not reach this setup` | everything that fails the bar | one flat severity-ordered list |
+
+An empty group renders **nothing** — no heading, no pill. The **fold** is one
+`<button>` (`data-toggle-fold`, `aria-expanded`) and one line that says what
+is behind it, collapsed by default. It is deliberately not four sub-groups:
+at a median of 4.8 background items per tool, four headings would be more
+chrome than content, and once opened you are browsing, and browsing wants a
+list. **This is the only place item cardinality can hurt, and it absorbs any
+N**: the default surface is bounded by the *bar*, not by the item count, so a
+tool with 60 `chore` items renders exactly as tall by default as one with 3.
+The collapsed security detail (`cve_ids[]` chips, the claim note) belongs to
+the security group and renders even when no item cleared the display bar.
+
+**One item appears exactly once**, which is the whole point of the item model.
+The tag→group map (`GROUP_OF_TAG`, `CATEGORY_ORDER`) still exists on the page
+— `primaryGroup()` feeds the Overview's mixed-card comparator and its "other
+changes" column, which are unchanged — but the card no longer files by it.
+
+### Chips — ink carries the word, the hue only rings it
+
+Chips sit on the item's line, **leading** the title rather than trailing it
+(a trailing chip is exactly what a two-line clamp eats), and every one wears
+`--base1` ink inside a 1px coloured ring: `--orange` text at chip size on
+`--base02` measured **2.82:1** and fails AA; ink in a ring is 4.42:1. No chip
+is distinguished by hue alone, which also sidesteps the `--red`/`--orange`
+ΔE 1.4 deuteranopia collision.
+
+- `reaches here` (`--cyan` ring) — `local.direction == "reaches" && effect ==
+  "risk"`; the highest-value bit on the card.
+- `⚑ watch hit` (`--cyan` ring, cyan ink) — **only** for an id in the tool's
+  `watch_hit_item_ids`, the validator's *grounded* export. `item.watch_hit`
+  supplies the `title` text and nothing else: wiring the badge to the raw
+  claim would reopen the unvalidated channel the grounding closed. A raw
+  claim with no grounded id earns nothing (§Loudness Channels).
+- the CVE id (`.cve`) on a security item — an identifier, not a tag.
+- a **second known tag** (`--orange` ring): one tag is implied by the heading
+  the item sits under, and 93% of items carry exactly one and get no chip; a
+  second is news. Only the *rendered* group's own tags are elided (security →
+  `security`; breaking → `breaking`, `deprecation`), so `fix + breaking`
+  under Breaking & deprecations chips `fix`, and a same-group pair still
+  shows.
+- every **unknown tag** (`--magenta` ring — the one hue no group uses) — the
+  validator kept it verbatim (E-TAG-UNKNOWN) and nothing else surfaces it. It
+  never places an item, never satisfies the bar.
 
 Evidence paths stay attached to their item wherever it lands, and a citation
 renders beside them but distinctly: `local.evidence[]` is paths only and
 `local.citations[]` is prose, and conflating the two is what produced 272
-"evidence not found" warnings against one real defect. Lead with title +
-`body` for each item;
-push its changelog/release link into a compact footer-style reference per
-item (a direct deep link where the source supports line-level anchors, e.g.
-a CHANGELOG.md section) rather than a shared links block.
-
-**The Security group carries the same collapsed detail the Overview card
-does**, at its foot, listing `cve_ids[]` as chips plus the
-`cve_claimed_count` note. This is now the **only** place on the All-tools tab
-where the ids are enumerated — the mixed card's head and the auto-strip row
-both stopped listing them — so removing it would make them unreachable. Same
-markup, same handler, same invariant (no interactive control in the body).
-The group's items are already rendered above in full, so this instance passes
-none: it is the id list and the note.
-
-**The detail is built before the group's empty check, and is part of it.** A
-tool can carry `cve_ids[]` or a `cve_claimed_count` while its Security
-category renders no item at all; returning early on "no items and not
-vendor-silent" dropped that detail on the floor. A group with a detail and no
-items renders the detail — and, when the tool is not vendor-silent, no pill:
-the pill states that the vendor published nothing, which is a different claim
-from the group simply having no item in it.
-
-Within a group the page **does not sort at all**. `items[]` arrives in the
-contract's canonical order (`items.order_items`: group, then severity
-worst-first, then `local.direction`, then `local.effect`, then id), so a stable
-group-by reproduces it exactly — and that order already puts a finding about
-*this setup* above the generic changelog line of the same severity, which is
-what the old `sevRank + 0.5` half-step was arbitrating. There is nothing left
-to tie-break, and re-sorting on the page is how two renders of one report came
-to differ. The Overview's mixed-card comparator reads the same ordering, so
-the two views agree about which item is a tool's worst (§Overview Tab →
-Security Section).
+"evidence not found" warnings against one real defect.
 
 ### Per-Item Severity → Color/Icon Mapping
 
@@ -1140,9 +1296,6 @@ this is the fallback for source content with no stable browsable destination
 at all, not a general-purpose reader view; most links just have `url` and
 never trigger the modal.
 
-After the four content groups, two more optional sections render (only when
-the tool's research populated them — most tools have neither):
-
 ### Context Section
 
 *(Retired. `context[]` no longer exists.)* A present-tense repo-scope note is
@@ -1155,37 +1308,51 @@ authoring time.
 
 ### Release Inventory Section
 
-From `release_inventory[]` (`schemas.md`): a short list, one line per
-`{version, link}` pair, no collapse (these are already short) — pure
-bookkeeping about what releases exist in the current→latest range, not a
-claim about what any of them changed.
+*(Cut, `report-page.md` §8.3.)* `release_inventory[]` answered "how many
+releases am I jumping", which the version pair now answers with the count
+folded in — `18.4 → 18.6 (3)`, the versions in the `title` — and the links
+stay reachable from the items that cite them. A section per tool for a
+two-line list was section overhead exceeding content.
 
-Both the Context and Release Inventory sections sit below Notes and above
-the suggestion cards. Suggestion cards follow the grouped content; a
-per-tool note textarea sits last, **with a Close/collapse control** so it
-can be dismissed after reading without leaving it visually "open" forever.
+Suggestion cards follow the grouped content; a per-tool note textarea sits
+last, **with a Close/collapse control** so it can be dismissed after reading
+without leaving it visually "open" forever.
 
 ### Vendor-Silent Compact Tag
 
-Driven by `vendor_silent_categories` (`schemas.md`) — a category name listed
-there renders one small pill-style tag in that group's slot ("No detailed
-changelog published") instead of its normal item list, even if the group
-would otherwise be empty. No bullet, no border-left accent, no per-item link
-(the link lives once, on the tool's canonical changelog/release reference).
-`research.md`'s quality bar forbids authoring a fake bullet to fill this gap
-— this field is the correct alternative, not a fallback the page invents on
-its own from empty groups.
+*(Cut on the tool card, `report-page.md` §8.3.)* "This vendor publishes no
+per-release detail" is a durable fact about *how to research the tool*, and
+a method note says it better and says it once (§Method Notes); a per-run pill
+restated it every run in a place nobody could act on. An empty group now
+renders nothing at all. `vendor_silent_categories` is still read by the
+Overview's mixed card, where the "No detailed changelog published" pill in an
+otherwise empty security column *is* the information (§Overview Tab →
+Security Section) — that surface is unchanged.
 
 ### Per-Item Detail Collapse
 
-Inside the four content groups, an item with real secondary detail (`detail`
-beyond the one-line `summary`/title) shows only the summary in the
-forefront view; a small expand control (e.g. "▸ more") reveals the rest,
-evidence, and per-item link. Items with no extra detail beyond the summary
-render with no expand control at all — don't add one that opens onto
-nothing. This is a lighter-weight collapse than the Context section's
-whole-item collapse (above) — the summary line stays visible here, since
-it's real changelog content, unlike Context's scope/locality notes.
+An item with real secondary detail shows only its title (clamped to two
+lines while collapsed — a belt: `title` is one glanceable sentence by
+contract and `W-TITLE-LONG` reports the violation, so on conforming data the
+clamp never fires) and its chips; `▸ more` reveals, in this order
+(`report-page.md` §4.4): the `body` (the title's own overflow), what it means
+here (`local.statement`), what upstream actually said (`change.citation`, in
+quotes, so the vendor's claim and the researcher's reading can be told
+apart), the checkable paths (`local.evidence[]`), the prose citations
+(`local.citations[]`), and the per-item link. Items with nothing beyond the
+title render with no expand control at all — don't add one that opens onto
+nothing.
+
+**The expandable title is a real keyboard target**: `role="button"`,
+`tabindex="0"`, `aria-expanded` kept true, toggled by the page's delegated
+Enter/Space handler (`data-toggle-item`). Measured before this: a bare `<div>`
+with an inline `onclick` — 140 Tab presses and 32 distinct keys expanded zero
+items, while 45 of 47 gated blocks appeared nowhere else on the page. The
+same handler serves the tool header (which advertised `role="button"` with no
+tabindex — an ARIA contract that could not be honoured) and the changelog
+entry titles. An item with nothing to expand advertises nothing: no role, no
+tab stop, because a focusable no-op is as dishonest as an unreachable
+control.
 
 ### Suggestion Card
 
@@ -1200,10 +1367,27 @@ command — the body is just the proposal's `watch_topic`/`watch_note`
 (`renderWatchItemBody`), a small cyan-accented callout distinct from a diff
 or command chip, since accepting it doesn't run or edit anything, it only
 writes a `watch-items.json` entry (`apply.md` §Executing `watch-item`
-Suggestions). Accept/Reject/Discuss buttons and the comment textarea are
-otherwise identical to an `edit` card — same `decisions` plumbing, no
-special-casing in the Submit payload. Clicking an active decision button
-toggles back to undecided.
+Suggestions). For `kind: "method-note"` (`schemas.md` §1.7b): the body is
+`method_topic` / `method_note` / the `rationale` (*"Why the ordinary path
+fails"*), a `--violet`-railed callout of the same shape
+(`renderMethodNoteBody`), closed by the store line *"In the method-note store
+— persisted at render. Reject to withdraw it; a comment attaches modification
+instructions."* — the render-persist contract stated on the card (§Method
+Notes). This kind used to fall through to `renderDiff(undefined)` and render
+an **empty body**. **Both memory kinds render `self_test_failed`** as a
+`--yellow`-railed block, `⚠ self-test failed — {limb}: {reason}`: a proposal
+the agent wrote despite a failed self-test (§L7 — the tag never removes) and
+convergence kept is exactly the one a human should read twice, and the
+`{limb, reason}` had never reached the page. Accept/Reject/Discuss buttons
+and the comment textarea are otherwise identical to an `edit` card — same
+`decisions` plumbing, no special-casing in the Submit payload. Clicking an
+active decision button toggles back to undecided.
+
+`target_files[]` members are `{path, description}` objects, but the validator
+and `write_status.py` both accept the bare-string shape, and the page must
+too: a string renders as the path it is, an object as its `path` with the
+`description` in `title`, anything else as its own text — never a zero-width
+empty chip beside commit actions apply really synthesized from it.
 
 | State | Visual |
 |---|---|
@@ -1284,17 +1468,20 @@ existing selectors correct without a single edit:
 - `submitFeedback()` walks `#main .suggestion-card[data-suggestion-id]` to
   build the payload — mirrors are excluded, so the payload count is the
   suggestion count no matter how many mirrors are on screen;
-- `updateProgress()` counts `#main .tool-section[data-max-severity=
-  "incompatible"] .suggestion-card` for the Submit gate;
-- `sectionNeedsDecision()` drives the "Needs decision first" sort.
+- `updateProgress()`, `blockingToolIds()`, `refreshDecisionBadge()` and
+  `sectionNeedsDecision()` all count `DECISION_CARD_SEL`
+  (`.suggestion-card:not([data-kind="method-note"])`) — one selector, so the
+  gate, the bar, the badge and the sort agree on what a decision is, and a
+  method note is never one (§Method Notes).
 
-Three mirror variants, all reading the same canonical state:
+Four mirror variants, all reading the same canonical state:
 
 | Variant | Markup | Where |
 |---|---|---|
-| Three-button | `.mirror[data-mirrors]` containing three `.btn-d` | mixed-card feet, highlight suggestion rows |
+| Three-button | `.mirror[data-mirrors]` containing three `.btn-d` | mixed-card feet, highlight suggestion rows, judgement-panel rows |
 | Single toggle | `.acc-toggle[data-mirrors]` — `✓` / `○` | auto-strip rows |
 | Read-only dot | `[data-mirror-dot]` inside a chip | routine / attention bands |
+| Veto | `.veto[data-mirrors]` — `veto` / `restore`; on ⇔ the canonical decision is `reject` | Method notes tab rows and per-tool chips |
 
 `.btn-d` reuses `.btn-decision`'s active-state colors exactly — accept →
 filled `--cyan`, reject → filled `--base01`, discuss → filled `--yellow` —
@@ -1307,6 +1494,98 @@ assembly pre-accepted, and after any bulk change.
 **The `/feedback` payload shape is unchanged.** Pre-accepted and
 mirror-accepted items are ordinary `accept` decisions; there is no new
 decision vocabulary and no new payload field.
+
+## Loudness Channels
+
+`item-schema.md` §5.7 names four channels through which a degraded or held
+tool must be *loud*; the page renders every one of them in the DOM, not
+merely in `REPORT`. Measured before this pass: 77 of 78 tools carried
+`spec_violations`, `validation.clean` was false, and the rendered DOM held
+**zero** finding codes; `risk_level` occurred only inside the embedded JSON;
+`bucket_inputs` was read 0 times; the watch-hit badge did not exist.
+
+### Degradation (D1)
+
+`tool.degradation` — `{content_losing[], markers[], quarantined}`, pre-reduced
+by `items.compute_degradation` — plus `spec_violations[]` and
+`validator_error`. `renderDegradationStrip()` opens the card body with one
+strip: **red** (`data-lost="1"`, `--tint-red`, `⛔ degraded — held out of any
+auto-accepting bucket`) when content was lost or the validator errored — the
+bucket was held on it (clause 0), and a card that looks normal while its
+payload was quarantined is the silent-promotion shape D1 exists to end —
+listing the reasons, the quarantined count and the validator error; quiet
+(`△ validator findings on this tool`) when only markers exist. Every marker
+code is a `.marker-chip` with readable text in its `title` (`CODE_TEXT`) for
+the codes a reader must act on. Nothing here changes a bucket: render, never
+re-rate. The header's `out of spec` badge opens the Report notes band, where
+the same codes are aggregated across tools.
+
+### Risk and the pre-acceptance bars (D2)
+
+`data-risk` on the section (a CSS hook), the `elevated risk` header badge,
+and the why line (§Per-Tool Section) reading `bucket_inputs` and
+`pre_accept_bars` verbatim — `elevated-risk`, `reaches-item`,
+`local-enum-invalid`, `watch-hit` spelled out (`BAR_TEXT`). The bars are
+data the page is handed (`assembly.md` §Review Buckets and Pre-Accept), never
+recomputed here.
+
+### Watch hits (D3)
+
+Three states, all rendered (`report-page.md` §8.1):
+
+- **grounded hit** — the `⚑ watch hit` item chip, for an id in
+  `tool.watch_hit_item_ids` **only** (§Chips). The item is decisive and never
+  folds. `item.watch_hit` is the raw checker claim and supplies display text
+  only.
+- **not checked** — `W-WATCH-UNCHECKED` among the tool's codes renders a
+  `--yellow` line at the top of the card: *"⚑ watch item not checked this run
+  — the session had no watch-item snapshot"*. That is a pipeline defect and
+  should look like one; three runs of silent non-execution is what its
+  absence bought.
+- **claimed but ungrounded / unraised** — `E-WATCH-HIT-UNGROUNDED` and
+  `W-WATCH-HIT-UNRAISED` render the same way, in words.
+
+## Method Notes
+
+Criterion 18 / `REDESIGN.md` §L5: *"Method notes persist at render, and the
+report provides a way to reject one or attach modification instructions."*
+The condition is the point — the store fills from run one, an abandoned run
+included (abandonment is the historical norm), and a bad note is visible and
+correctable rather than permanent. **Which path owns what:**
+
+| Stage | Owns | Mechanism |
+|---|---|---|
+| **Render** (`render.py`, `persist_method_notes`) | **the write** — primary | every `kind: "method-note"` suggestion still on a tool in `report.json` (what survived convergence's C6) is written through `write_status.py add-method-note`; one the ledger `promoted_to_global` — or re-homed with `scope: "global"` — goes under the reserved key through `add-global-method-note`, the only real-run writer of that store. Idempotent by (topic, note); a refused write is recorded and said on stderr, never the run. The outcome is `{session_dir}/method-notes.render.json`: `written` / `already_present` / `failed`, each with the exact key, topic and note. |
+| **The page** (this tab) | **the surface that earns it** | every persisted note is visible; veto = a `reject` decision on the canonical card; a comment = modification instructions. Nothing counts as a decision. |
+| **Apply** (`apply.md` §Executing `method-note` Suggestions) | **the disposition** — supplementary | accept: nothing to write; reject: `remove-method-note --tool-id … --topic … --note …` (exact match from the render record; not-found is an error, never a silent success; several matches refuse and `--note` narrows); a comment: withdraw and re-add, never an in-place edit. `add-method-note` from an apply pass is only for an agent-initiated followup (path 2). |
+
+The per-tool card keeps the canonical suggestion card (its body says the
+note is in the store), so the mirror architecture is untouched; the tab is
+mirrors.
+
+**The tab** (`#panel-notes`, `renderNotes()`, `report-page.md` §6). A method
+note is a durable instruction replayed into every future run — a different
+question from everything else on the page (*"do I want the researcher told
+this forever?"*), hence its own tab. The lede: **"Nothing here needs your
+attention."** — the notes are already in the store; veto one if it looks
+wrong. Grouped by `method_topic`, **singletons first and open** (`One-off
+notes · N topics · only one tool needed each · most likely to be wrong`) —
+a note only one tool needed is where a bad note lives — and shared topics
+**collapsed** as one row each (`Notes several tools share · N topics · M
+tools`) with a veto per tool inside the row. Measured in the prototype: 38
+notes as a per-tool table were 3.4 screens of the same sentence; grouped,
+6 rows over 0.6 screens. Provenance marks read `report.convergence.memory`:
+`re-homed` (a watch item convergence re-homed — it carries a worry that
+failed a higher bar), `promoted to global`, `restored` (kept against a failed
+self-test), and `self-test failed · {limb}` from the suggestion itself.
+
+Controls: `veto` / `restore` (the veto mirror variant, §Decision State and
+Mirrors) and a modification textarea that writes through to the canonical
+card's comment on `input`. `n` opens the tab, `v` vetoes the focused row.
+The count in the tab label wears neutral ink, and a method note is excluded
+from the progress bar, the Submit gate, the header decision badge and the
+needs-decision sort (`DECISION_CARD_SEL`): a memory proposal never forces a
+review (`schemas.md` §1.7c). Post-Submit the vetoes freeze with the rest.
 
 ## Long Strings and Overflow
 
@@ -1416,29 +1695,62 @@ the manual-run hint an `auto_runnable: false` upgrade card already shows
 
 The existing keys all keep working; the model generalizes from "focused tool
 section" to "focused item in the active tab", so `focusedIdx` is per-tab
-(`{overview: -1, tools: -1}`).
+(`{overview: -1, tools: -1, notes: -1}`).
 
-| Key | Overview | All tools |
-|---|---|---|
-| `1` … `4` | switch tab (post-Submit the strip has four) | same |
-| `j` / `k` | next / previous Overview card — the mixed security cards, then the highlight cards | next / previous visible tool section (unchanged) |
-| `a` / `r` / `c` | act on the focused card's **first undecided mirror** | act on the focused tool's first undecided suggestion card (unchanged) |
-| `s` | Submit when enabled (unchanged) | same |
-| `f` | switch to All tools, then cycle the filter preset | cycle preset All → Incompatible → Relevant (unchanged) |
-| `g` | jump into the focused card's tool | — |
-| `Escape` | close modal / help | close modal / help; else back to Overview if you arrived by jump |
-| `?` | help overlay (unchanged) | same |
+| Key | Overview | All tools | Method notes |
+|---|---|---|---|
+| `1` … `5` | switch tab (post-Submit the strip has five) | same | same |
+| `j` / `k` | next / previous Overview card — judgement rows, then the mixed security cards, then the highlight cards | next / previous visible tool section | next / previous note row |
+| `a` / `r` / `c` | act on the focused card's **first undecided mirror**; on a **judgement row only**, the first mirror (below) | act on the focused tool's first undecided suggestion card | `r` vetoes every note in the row, `a` restores, `c` discusses |
+| `v` | — | — | veto / restore the focused row |
+| `n` | switch to Method notes | same | same |
+| `s` | Submit when enabled | same | same |
+| `f` | switch to All tools, then cycle the filter preset | cycle preset All → Incompatible → Relevant | same as Overview |
+| `g` | jump into the focused card's tool | — | — |
+| `Escape` | close modal / help | close modal / help; else back to Overview if you arrived by jump | close modal / help |
+| `?` | help overlay | same | same |
+
+**The ring is resolved by identity, never by stale position.** `focusedIdx`
+is a position in a list the page can rebuild underneath it — `revealOverflow()`
+re-splices the Overview list, and `applyFilters()` re-sorts and hides the tool
+list with no re-render — so an index is only ever a *cache* of the ring, and
+the ring is what the user is looking at. The recorded defect: a ring on
+`brew:azcopy` while `a` accepted `cask:gcloud-cli`, and a ring on
+`1password-cli` while `a` accepted `brew:cmake`, which then entered the
+`/feedback` payload. Two invariants, both driven by headless-Chrome tests that
+dispatch real `KeyboardEvent`s at the rendered page and reproduce both modes
+against the unfixed template:
+
+1. **`focusedItem()` resolves `[data-focused]` first, on every tab**, and
+   resyncs the index from it; a ring that is no longer in the on-screen list
+   is *removed* and resolves to `null` — a keystroke then decides nothing,
+   never whatever now sits at the stale index. `applyFilters()` remaps the
+   index onto the ringed element after its re-sort, or removes a ring it just
+   hid, so the two stay in step between presses; `j`/`k` resync from the ring
+   before stepping.
+2. **The list is filtered to what is actually on screen** — `focusItems()`
+   keeps only elements with an `offsetParent` or a client rect, belt to the
+   per-list filters (`data-hidden`, the collapsed overflow lists). A card in a
+   collapsed container can never take the ring, so revealing one can never
+   shift anything under a pending keystroke.
 
 On the Overview, "first undecided" is resolved against the **canonical cards**
 the mirrors point at, never against any state held on the mirror itself
-(§Decision State and Mirrors), and `j`/`k` skip any card parked in a collapsed
-overflow list — focusing one would move the ring nowhere visible. Focus is a
-blue outline plus
-`scrollIntoView({block: 'nearest'})`, the same treatment tool sections already
-had. Suppressed while typing in an `INPUT`/`TEXTAREA` and while any modifier
-is held; tab switching and `?` work in every phase, everything else defers to
-the Results view once it is active. The `?` overlay's table carries these rows
-under a "Tabs" grouping.
+(§Decision State and Mirrors). **One deliberate exception**: a judgement row
+has no undecided suggestion — the decision was made *for* the user — so
+"first undecided" finds nothing on the one row where a one-keystroke reject
+is the entire affordance. On a `.jrow` only, `a`/`r`/`c` fall back to the
+first mirror. Everywhere else "first undecided" stands, because there `r`
+must not silently flip a decision the user already made. Focus is a blue
+outline plus `scrollIntoView({block: 'nearest'})`. Suppressed while typing in
+an `INPUT`/`TEXTAREA` and while any modifier is held; tab switching and `?`
+work in every phase, everything else defers to the Results view once it is
+active.
+
+Enter and Space activate the page's `role="button"` `<div>`s — the tool
+header, the expandable item title, the changelog entry title — through one
+delegated handler that also `preventDefault`s Space's scroll (§Per-Item
+Detail Collapse).
 
 ## Transition to Results View
 
@@ -1461,12 +1773,18 @@ because they are consequences of the tab shell:
 - **The Overview survives as its own tab** rather than being replaced — it is
   the summary of what was just approved, and the most useful thing to look at
   while an apply runs.
-- **The Overview's mirror controls must be frozen explicitly.** They live
-  outside `#main`, so the existing freeze set
+- **The Overview's and the Method notes tab's mirror controls must be
+  frozen explicitly.** They live outside `#main`, so the existing freeze set
   (`.btn-decision, .card-comment, .tool-note-textarea, #overall-comment`
   inside `#main`) does not reach them: `#panel-overview .btn-d` and
-  `#panel-overview .acc-toggle` are disabled too, and `.report-frozen` is
-  added to `#panel-overview` as well as `#main`.
+  `.acc-toggle`, and `#panel-notes .btn-d` and `.note-modify`, are disabled
+  too, and `.report-frozen` is added to all three panels. On the notes tab a
+  vetoed note then renders struck through with a `vetoed` label rather than a
+  restore button (`report-page.md` §9.4); the band toggles and jumps stay
+  live.
+- **The judgement panel stays open and stays expandable post-Submit** —
+  `.jrow .more` keeps its pointer events. It is the record of why a tool was
+  auto-accepted and the thing most likely to be re-read afterwards.
 
 `.report-frozen` is a blanket `opacity: 0.5; pointer-events: none`, and both
 panels then carve back out of it everything that is not a decision. The rule
@@ -1519,20 +1837,37 @@ engine):
 ```python
 html = html.replace('"__REPORT_ID__"', json.dumps(report_id))
 html = html.replace('"__GENERATED_AT__"', json.dumps(generated_at))
-report_json = json.dumps(report, ensure_ascii=False).replace("</", "<\\/")
+report_json = json.dumps(report, ensure_ascii=False).replace("<", "\\u003c")
 html = html.replace('__REPORT_DATA__', report_json)
 ```
 
 `__REPORT_DATA__` is unquoted in the template so the JSON object lands as a
 JS expression. The other two sit inside attribute quotes, so the replacement
-target includes the quotes. The `"</"` → `"<\\/"` escape on `__REPORT_DATA__`
-guards against a literal `</script>` inside any agent-written free-text
-field (item titles and bodies, rationale, `config_status.detail`,
-`tool_comments`, ...)
-— release notes and security advisories routinely quote HTML/JS snippets —
-prematurely closing the `<script>` tag and corrupting the rest of the page.
-`rendering-results.md` §Markdown Rendering reuses this same escape-first
-discipline for agent-authored recap/changelog/turn text.
+target includes the quotes. **Every `<` in the payload is escaped as
+`\u003c`** — valid JSON, identical once parsed — so no agent-written
+free-text field (item titles and bodies, rationale, `config_status.detail`,
+`tool_comments`, …) can splice markup into the surrounding `<script>`
+element. Escaping only `</` was measured insufficient: a literal `<!--` flips
+the HTML parser into script-data-double-escaped state, where the template's
+own `</script>` no longer terminates the element and the rest of the document
+is swallowed. A denylist of breakout spellings is a losing game, so no `<`
+survives at all; JSON puts `<` only inside string literals, so the blanket
+replace can never touch structure. **Do not narrow this escape, and do not add
+a second interpolation path that bypasses it.** `rendering-results.md`
+§Markdown Rendering reuses the same escape-first discipline for agent-authored
+recap/changelog/turn text.
+
+`render.py` refuses before it writes anything: `schema_version != 2`, then
+`contract_version != items.CONTRACT_VERSION` (exact equality, no shim —
+`REDESIGN.md` §I9; the same gate `write_status.py init` applies, for the
+same reason: a report from another contract would not fail visibly, it would
+render a plausible page whose fields no longer mean what the template
+thinks), then a duplicate suggestion id. A refusal never leaves a stale
+`index.html` behind.
+
+After writing the page, `render.py` **persists method notes**
+(`persist_method_notes`, §Method Notes) and writes `method-notes.render.json`
+beside the page, then copies `server.py`.
 
 Rendering is done in JS from `REPORT.tools[]`: sections carry `data-tool-id`,
 `data-name`, `data-source`, `data-max-severity`, `data-bucket`, `data-delta`

@@ -25,7 +25,7 @@ Table of contents:
 - View Transition
 - Layout
 - Wireframes
-- Element Detail (four-tab strip, unified status header, followups section,
+- Element Detail (five-tab strip, unified status header, followups section,
   action list, recap section, changelog tab, Finish button)
 - Polling Lifecycle
 - Render Update Cycle
@@ -90,7 +90,8 @@ if (resp.ok) {
    (`rendering-report.md` §Filter Bar).
 2. **Rebuild** the sticky `#progress-bar-container` rather than replacing its
    contents: remove the progress wrap, the auto-run-upgrades toggle and the
-   Submit button, register the two new panels, re-render the tab strip from
+   Submit button, register the two new panels (the Method notes panel is
+   already registered pre-Submit and survives), re-render the tab strip from
    the registry, and append the right-aligned `#tab-status`. Do not remove the
    container; keep it sticky.
 3. Freeze the decisions, and only the decisions. Every decision control gets
@@ -114,6 +115,9 @@ if (resp.ok) {
    | Context/item disclosures | live |
    | Filter and sort controls, hidden-count banner, filtered-empty reset | live |
    | Overview jumps, stat tiles, band and auto-strip toggles, `show all N →` expanders | live |
+   | The judgement panel's `full reasoning →` expansion (`rendering-report.md` §Overview Tab → The Judgement Panel) | live |
+   | Method notes tab: band toggles, `open card →` jumps | live |
+   | Method notes tab: `veto`/`restore` buttons and the modification textareas — a vetoed note renders struck through with a `vetoed` label | inert |
    | Mouse text selection anywhere in the report | live |
    | Accept/Reject/Discuss, per-card comment box, tool-note textarea, overall comment — on the cards **and** on their Overview mirrors | inert |
 
@@ -147,7 +151,7 @@ glanceable as it grows.
 ```
 #progress-bar-container (repurposed — stays sticky):
 ┌──────────────────────────────────────────────────────────────────┐
-│ [Results ●] [Overview] [All tools] [Changelog]  Applying… · 0s   │
+│ [Results ●] [Overview] [All tools] [Method notes] [Changelog]  Applying… · 0s │
 └──────────────────────────────────────────────────────────────────┘
 
 #results-panel:
@@ -259,22 +263,23 @@ glanceable as it grows.
 ## Element Detail
 
 **Tab strip** (rebuilt in place, inside the sticky shell bar):
-- Four buttons: "Results", "Overview", "All tools", "Changelog". The old
-  single "Report" tab split into Overview + All tools when the report page
-  gained its triage view — the strip is flat rather than nesting an
+- Five buttons: "Results", "Overview", "All tools", "Method notes",
+  "Changelog". The old single "Report" tab split into Overview + All tools
+  when the report page gained its triage view, and Method notes joined as
+  its own pre-Submit tab (`rendering-report.md` §Method Notes) — the strip is flat rather than nesting an
   Overview/Tools switcher inside a Report tab, because nested tabs are worse
   to use and the frozen Overview is the most useful thing to look at while an
   apply runs (it is the summary of what was just approved). Changelog remains
   a sibling tab, not a Results-panel subsection, since it's audit-trail
   content someone browses independently of live apply progress. Active tab
   uses `--cyan` underline or filled background. Clicking one shows its panel
-  and hides the rest (`#panel-overview`, `#main`, `#results-panel`,
-  `#changelog-panel`).
+  and hides the rest (`#panel-overview`, `#main`, `#panel-notes`,
+  `#results-panel`, `#changelog-panel`).
 - **The strip is rendered from the page's panel registry**, not by replacing
   `#progress-bar-container.innerHTML`: `transitionToResults()` registers
   `results` and `changelog` in `PANELS` and re-renders. See
   `rendering-report.md` §Tab Shell for the registry, `selectTab()`, and the
-  pre-Submit two-tab form of the same strip.
+  pre-Submit three-tab form of the same strip.
 - Right-aligned status text: phase label + "updated N s ago" computed from
   `written_at`. Turn red if `written_at` is >120 s ago and `done` is false
   (stale session hint).
