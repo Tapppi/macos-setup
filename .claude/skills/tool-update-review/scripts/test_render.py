@@ -826,5 +826,154 @@ class DecisionSurfaceTests(PageDriveRunner):
 		self.assertEqual(out["filterStillWorks"], "true")
 
 
+
+class LoudnessChannelTests(PageDriveRunner):
+	"""D1's render half, D2's visibility half, D3's badge — each asserted
+	VISIBLE in the rendered DOM (offsetParent), because "it is in REPORT"
+	was the measured defect: 77 of 78 tools carried spec_violations and the
+	rendered DOM contained zero finding codes; risk_level occurred only
+	inside the embedded JSON; bucket_inputs was read 0 times."""
+
+	def test_a_degraded_tool_is_loud_on_its_card_and_in_the_report_notes(self):
+		tool = page_tool("brew:broken", "broken", "1.0", "1.1", "attention",
+			sev_item="warning")
+		tool["spec_violations"] = ["E-RESEARCH-UNKNOWNKEY", "W-TITLE-LONG"]
+		tool["degradation"] = {"content_losing": ["unknown-key"],
+			"markers": ["W-TITLE-LONG"], "quarantined": 1}
+		tool["risk_level"] = "elevated"
+		out = self.drive(page_report([tool]), """
+		key('2');
+		const strip = document.querySelector('#tool-list .degrade-strip');
+		log('strip=' + (strip ? strip.dataset.lost : 'none'));
+		log('stripVisible=' + (strip && strip.offsetParent !== null));
+		log('stripText=' + strip.textContent.replace(/\\s+/g, ' ').trim());
+		const marker = strip.querySelector('.marker-chip');
+		log('marker=' + (marker ? marker.textContent : 'none'));
+		const badge = document.querySelector('#tool-list .tool-header .spec-badge');
+		log('badge=' + (badge ? badge.textContent : 'none'));
+		log('badgeVisible=' + (badge && badge.offsetParent !== null));
+		badge.click();
+		log('tabAfter=' + activeTab);
+		const band = document.getElementById('band-notes');
+		log('bandOpen=' + band.dataset.open);
+		const rows = Array.from(band.querySelectorAll('.note-row .h')).map(h => h.textContent);
+		log('rows=' + rows.join('|'));
+		const meta = Array.from(band.querySelectorAll('.note-row .m')).map(m => m.textContent).join(' ');
+		log('metaHasTool=' + meta.includes('brew:broken'));
+""")
+		self.assertEqual(out["strip"], "1")
+		self.assertEqual(out["stripVisible"], "true")
+		self.assertIn("content lost", out["stripText"])
+		self.assertIn("unknown-key", out["stripText"])
+		self.assertIn("1 quarantined", out["stripText"])
+		self.assertEqual(out["marker"], "W-TITLE-LONG")
+		self.assertEqual(out["badge"], "out of spec")
+		self.assertEqual(out["badgeVisible"], "true")
+		self.assertEqual(out["tabAfter"], "overview")
+		self.assertEqual(out["bandOpen"], "1")
+		self.assertIn("E-RESEARCH-UNKNOWNKEY on 1 tool", out["rows"])
+		self.assertIn("W-TITLE-LONG on 1 tool", out["rows"])
+		self.assertIn("1 tool lost content at validation", out["rows"])
+		self.assertEqual(out["metaHasTool"], "true")
+
+	def test_risk_and_the_pre_acceptance_bars_are_in_the_dom(self):
+		tool = page_tool("brew:held", "held", "1.0", "1.1", "security_mixed")
+		tool["risk_level"] = "elevated"
+		tool["pre_accept_bars"] = ["elevated-risk", "reaches-item"]
+		tool["bucket_inputs"] = {"has_security": True, "security_only": True,
+			"impact": "possible", "version_delta": "minor", "runnable": True}
+		out = self.drive(page_report([tool]), """
+		key('2');
+		const s = document.querySelector('#tool-list .tool-section');
+		log('dataRisk=' + s.dataset.risk);
+		const rb = s.querySelector('.risk-badge');
+		log('riskBadge=' + (rb ? rb.textContent : 'none'));
+		log('riskBadgeVisible=' + (rb && rb.offsetParent !== null));
+		const why = s.querySelector('.tool-why');
+		log('whyVisible=' + (why && why.offsetParent !== null));
+		log('why=' + why.textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertEqual(out["dataRisk"], "elevated")
+		self.assertEqual(out["riskBadge"], "elevated risk")
+		self.assertEqual(out["riskBadgeVisible"], "true")
+		self.assertEqual(out["whyVisible"], "true")
+		self.assertIn("bucket security_mixed", out["why"])
+		self.assertIn("security only", out["why"])
+		self.assertIn("impact possible", out["why"])
+		self.assertIn("not pre-accepted: elevated risk; a security item reaches this machine",
+			out["why"])
+
+	def test_the_watch_badge_reads_the_grounded_export_never_the_raw_claim(self):
+		"""Four sites name watch_hit_item_ids — the validator's GROUNDED
+		export — as the field the badge reads. item.watch_hit is the raw
+		checker claim; wiring the badge to it reopens the channel pass 1
+		closed. Two items both CLAIM a hit; only one is grounded."""
+		tool = page_tool("brew:watched", "watched", "1.0", "1.1", "attention",
+			sev_item="warning")
+		tool["items"] = [
+			{"id": "brew:watched#a", "title": "Grounded hit", "tags": ["fix"],
+				"severity": "warning", "watch_hit": {"topic": "credential format"},
+				"local": {"direction": "reaches", "effect": "risk", "statement": "s",
+					"evidence": [], "citations": []}},
+			{"id": "brew:watched#b", "title": "Raw claim only", "tags": ["fix"],
+				"severity": "warning", "watch_hit": {"topic": "made-up topic"},
+				"local": {"direction": "reaches", "effect": "risk", "statement": "s",
+					"evidence": [], "citations": []}},
+		]
+		tool["watch_hit_item_ids"] = ["brew:watched#a"]
+		unchecked = page_tool("brew:unchecked", "unchecked", "1.0", "1.1", "routine")
+		unchecked["spec_violations"] = ["W-WATCH-UNCHECKED"]
+		unchecked["degradation"] = {"content_losing": [], "markers": ["W-WATCH-UNCHECKED"],
+			"quarantined": 0}
+		out = self.drive(page_report([tool, unchecked]), """
+		key('2');
+		setAllCollapsed(false);
+		const chips = document.querySelectorAll('#tool-list .item-chip.watch');
+		log('chips=' + chips.length);
+		const owner = chips[0].closest('.content-item').querySelector('.ci-text').textContent;
+		log('owner=' + owner);
+		log('chipVisible=' + (chips[0].offsetParent !== null));
+		log('chipTitle=' + chips[0].title);
+		const ws = document.querySelector('[data-tool-id="brew:unchecked"] .watch-state');
+		log('unchecked=' + (ws ? ws.textContent : 'none'));
+		log('uncheckedVisible=' + (ws && ws.offsetParent !== null));
+""")
+		self.assertEqual(out["chips"], "1",
+			"the raw item.watch_hit claim must not earn a badge")
+		self.assertEqual(out["owner"], "Grounded hit")
+		self.assertEqual(out["chipVisible"], "true")
+		self.assertIn("credential format", out["chipTitle"])
+		self.assertIn("not checked this run", out["unchecked"])
+		self.assertEqual(out["uncheckedVisible"], "true")
+
+	def test_the_report_notes_band_carries_convergence_flags_and_the_not_run_state(self):
+		out = self.drive(page_report(six_tools()), """
+		const band = document.getElementById('band-notes');
+		log('collapsed=' + (band.dataset.open === '0'));
+		log('rows=' + Array.from(band.querySelectorAll('.note-row .h')).map(h => h.textContent).join('|'));
+""")
+		self.assertEqual(out["collapsed"], "true")
+		self.assertIn("Convergence did not run", out["rows"])
+
+		report = page_report(six_tools(), convergence={"state": "converged", "attempt": 1,
+			"status": None, "moved": {}, "applied_count": 3, "rejected_count": 0,
+			"flags": [{"edit_id": "cv-009", "check": "C4-notable-security",
+				"tool_id": "brew:alpha", "headline": "Rating basis is vendor prose",
+				"body": "The high rating quotes the vendor, not an advisory."}],
+			"findings": [{"code": "W-STORE-UNCHECKED", "critical": False,
+				"detail": "method-notes.json was not snapshotted", "tool_id": None}]})
+		out = self.drive(report, """
+		const band = document.getElementById('band-notes');
+		const rows = Array.from(band.querySelectorAll('.note-row'));
+		log('heads=' + rows.map(r => r.querySelector('.h').textContent).join('|'));
+		log('metas=' + rows.map(r => (r.querySelector('.m') || {}).textContent || '').join('|'));
+		log('sub=' + document.querySelector('#notes-section h2 .sub').textContent);
+""")
+		self.assertIn("Rating basis is vendor prose", out["heads"])
+		self.assertIn("W-STORE-UNCHECKED", out["heads"])
+		self.assertIn("C4-notable-security · cv-009 · brew:alpha", out["metas"])
+		self.assertIn("nothing to decide", out["sub"])
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2 if "-v" in sys.argv else 1)
