@@ -896,6 +896,12 @@ def _flag_edits(session_dir: str) -> tuple:
 	return flags, _memory_dispositions(converge_doc)
 
 
+# The view fields `converge.build_corpus_pre` adds on top of the validator's
+# own; a fresh validation lacks exactly these and must otherwise be identical.
+CORPUS_PRE_VIEW_FIELDS = frozenset(
+	("current_version", "latest_version", "pre_accept_bars", "initial_pre_accept"))
+
+
 def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	"""→ (convergence_summary, views_by_id) — the report-level `convergence`
 	object and the views the tools are built from.
@@ -946,6 +952,25 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	post_views = {v.get("id"): v for v in post.get("tools") or [] if isinstance(v, dict)}
 	if set(pre_views) != set(post_views):
 		return inconsistent("corpus.pre and corpus.post carry different tool sets")
+
+	# One corpus: the views the validator produced JUST NOW must be the
+	# views corpus.pre froze — research re-run after convergence, or a
+	# candidate that appeared since, would otherwise render the stale
+	# converged view over the fresh one (run_id is the session id, so it
+	# cannot tell those apart). build_corpus_pre adds exactly four view
+	# fields on top of the validator's; everything else must match.
+	if set(pre_views) != set(views_by_id):
+		missing = sorted(set(views_by_id) - set(pre_views))
+		extra = sorted(set(pre_views) - set(views_by_id))
+		return inconsistent("the fresh validation and corpus.pre carry different tool sets"
+			+ (f" — validated now but not in the corpus: {missing}" if missing else "")
+			+ (f" — in the corpus but not validated now: {extra}" if extra else ""))
+	for tool_id, fresh in views_by_id.items():
+		frozen = {k: v for k, v in pre_views[tool_id].items() if k not in CORPUS_PRE_VIEW_FIELDS}
+		if frozen != fresh:
+			differing = sorted(k for k in set(frozen) | set(fresh) if frozen.get(k) != fresh.get(k))
+			return inconsistent(f"{tool_id}: the fresh validation differs from corpus.pre "
+				f"on {differing} — research changed after convergence ran")
 
 	# Every moved bucket the effect declares must be visible in the corpora
 	# themselves — the from/to on the record against the two views. This is

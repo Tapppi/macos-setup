@@ -2216,6 +2216,48 @@ class ConvergenceMergeTests(unittest.TestCase):
 		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
 		self.assertIn("brew:cm", report["convergence"]["detail"])
 
+	def test_research_changed_after_convergence_is_inconsistent(self):
+		"""Finding 5: run_id is the session id, so research re-run after
+		convergence carries the same id — the fresh validation must be the
+		corpus convergence saw, or the report silently renders the stale
+		converged view over the new research."""
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		files = {"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()}
+		# Identical research: consistent, post views ship.
+		report, _ = assemble_session(collect, research, session_files=files)
+		self.assertEqual(report["convergence"]["state"], "converged")
+		# The research was re-run and an item's title changed.
+		changed = json.loads(json.dumps(research))
+		changed[0]["items"][0]["title"] = "Fixes CVE-2026-11111 in the parser (re-researched)"
+		report, _ = assemble_session(collect, changed, session_files=files)
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("brew:cm", report["convergence"]["detail"])
+		self.assertIn("items", report["convergence"]["detail"])
+		self.assertIn("research changed after convergence", report["convergence"]["detail"])
+		# The FRESH research renders, not the stale converged view.
+		self.assertEqual(len(report["tools"][0]["items"]), 2)
+		self.assertIn("re-researched", report["tools"][0]["items"][0]["title"])
+
+	def test_a_tool_validated_now_but_absent_from_the_corpus_is_inconsistent(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		collect2 = json.loads(json.dumps(collect))
+		collect2["brew"].append(_cand("brew:newcomer", "newcomer", "brew", "1.0", "1.1"))
+		research2 = research + [{"id": "brew:newcomer", "links": [], "items": [
+			_item("x", tags=["fix"], severity="info")]}]
+		report, _ = assemble_session(collect2, research2, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("brew:newcomer", report["convergence"]["detail"])
+		self.assertIn("validated now but not in the corpus", report["convergence"]["detail"])
+
 	def test_a_run_id_mismatch_is_inconsistent(self):
 		collect, research = self._collect_and_research()
 		corpus_pre, corpus_post = self._build_corpora(collect, research)
