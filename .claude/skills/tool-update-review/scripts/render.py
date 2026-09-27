@@ -21,7 +21,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import items  # noqa: E402
 import write_status  # noqa: E402  — the stores' read-only path helpers
 
-RENDER_RECORD = "method-notes.render.json"
+RENDER_RECORD = write_status.METHOD_NOTES_RENDER_RECORD
+
+# The convergence states under which C6 actually reviewed the proposals —
+# the submission applied (cuts, re-homes, promotions in effect). `not_run`
+# (the pre-convergence corpus), `artefacts_inconsistent` (the PRE corpus
+# rendered because the artefacts disagree) and `degraded_unapplied` (the
+# submission set aside; corpus.post IS corpus.pre) all mean the reviewer did
+# not review. The page reads the same set (`notesReviewed()`), and the loop
+# test drives both.
+REVIEWED_STATES = ("converged", "degraded_gate")
 
 
 def persist_method_notes(report: dict, report_dir: str) -> dict:
@@ -36,7 +45,13 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 
 	What is written: every `kind: "method-note"` suggestion still on a tool
 	in report.json — i.e. what survived convergence's C6, which cut or
-	re-homed the rest before this stage ran. A suggestion the ledger
+	re-homed the rest before this stage ran — **and only when convergence
+	actually reviewed** (`REVIEWED_STATES`). Under `not_run`,
+	`artefacts_inconsistent` or `degraded_unapplied` the report carries raw
+	proposals nobody reviewed, and the default when the reviewer did not
+	review must not be "permanent": nothing is written, every note is
+	recorded as `unreviewed` with the reason, the page says so, and apply
+	writes one only on an explicit accept. A suggestion the ledger
 	promoted to global (`report.convergence.memory.promoted_to_global`, or
 	a re-homed note with `scope: "global"`) goes under the reserved global
 	key through `add-global-method-note` — the only real-run writer of
@@ -55,6 +70,8 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 	what failed — which is also what apply reads to withdraw a rejected
 	note by its exact (key, topic, note)."""
 	conv = report.get("convergence") if isinstance(report.get("convergence"), dict) else {}
+	state = conv.get("state") if isinstance(conv.get("state"), str) else "absent"
+	reviewed = state in REVIEWED_STATES
 	memory = conv.get("memory") if isinstance(conv.get("memory"), dict) else {}
 	global_ids = {s for s in (memory.get("promoted_to_global") or []) if isinstance(s, str)}
 	for row in memory.get("rehomed_to_method_note") or []:
@@ -68,7 +85,9 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 		"report_id": report.get("report_id", ""),
 		"rendered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 		"store": store_file,
-		"written": [], "already_present": [], "failed": [],
+		"reviewed": reviewed,
+		"convergence_state": state,
+		"written": [], "already_present": [], "failed": [], "unreviewed": [],
 	}
 	if problem is not None:
 		# The store cannot be read: nothing can be deduped against it and
@@ -94,6 +113,11 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 			is_global = isinstance(sug.get("id"), str) and sug["id"] in global_ids
 			key = items.GLOBAL_METHOD_NOTE_KEY if is_global else tool["id"]
 			entry["key"] = key
+			if not reviewed:
+				entry["reason"] = (f"convergence state {state!r}: C6 did not review this "
+					f"proposal; apply writes it only on an explicit accept")
+				record["unreviewed"].append(entry)
+				continue
 			if problem is not None:
 				entry["reason"] = f"store {problem}"
 				record["failed"].append(entry)
@@ -120,7 +144,11 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 	with open(os.path.join(report_dir, RENDER_RECORD), "w", encoding="utf-8") as fh:
 		json.dump(record, fh, ensure_ascii=False, indent="\t")
 		fh.write("\n")
-	if record["written"] or record["already_present"] or record["failed"]:
+	if record["unreviewed"]:
+		print(f"method notes: {len(record['unreviewed'])} unreviewed — NOT persisted "
+			f"(convergence state {state!r}; accept on the page writes at apply) → "
+			f"{RENDER_RECORD}", file=sys.stderr)
+	elif record["written"] or record["already_present"] or record["failed"]:
 		print(f"method notes: {len(record['written'])} written, "
 			f"{len(record['already_present'])} already present, "
 			f"{len(record['failed'])} failed → {RENDER_RECORD}", file=sys.stderr)

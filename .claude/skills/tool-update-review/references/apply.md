@@ -51,7 +51,16 @@ worth knowing when debugging this step (not just "run the script"):
   `summary.undecided`. An absent decision gets `state: "skipped"` like an
   explicit reject.
 - accepted/discuss → `state: "pending"`; rejected/undecided → `state:
-  "skipped"` immediately (they will never run).
+  "skipped"` immediately (they will never run). **One kind is different:**
+  a `method-note` suggestion is mapped from `method-notes.render.json` (what
+  `render.py` persisted at render — criterion 18): a *rejected persisted*
+  note is a **pending withdraw** whose `detail[0]` is the exact
+  `remove-method-note` invocation to run; an accepted or undecided persisted
+  note is **already `done`**; an accepted *unreviewed* note (convergence did
+  not run) is a **pending add** carrying the `add-method-note` invocation;
+  and any comment on a method note that is not a reject is a pending
+  `investigate:{id}` "Modify method note" action. See §Executing
+  `method-note` Suggestions.
 - **One investigation action per `discuss` decision that has a comment**
   (a bare discuss with nothing written has nothing to investigate) and **one
   investigation action per `tool_comments` entry** — both labeled
@@ -483,45 +492,52 @@ the user if the thing happens. A method note changes the next **researcher** —
 how to research this tool correctly at all. Nothing else about them differs,
 which is the point: neither is a parallel system.
 
-- **Accept** (and an absent decision): **nothing to write.** The note is
-  already in `method-notes.json` — `render.py` persisted every surviving
-  method-note proposal at render (criterion 18, `REDESIGN.md` §L5; the
-  ownership statement is `references/rendering-report.md` §Method Notes),
-  and `{session_dir}/method-notes.render.json` records exactly what it
-  wrote, under which key. Do **not** run `add-method-note` for a research-
-  proposed note: the writer appends without dedupe, and a second write is a
-  duplicate entry the next run replays twice. Confirm the note's
-  `{tool_id or "global", topic}` appears in that record's `written` or
-  `already_present` list (a `failed` entry is the one case that needs the
-  write, and the record carries the writer's own refusal text saying why),
-  then mark the action `"done"` with a note like `"Method note in store:
-  {method_topic}"`. No repo edit, no command, no commit action — `target_files`
-  is always `[]`, so `write_status.py init`'s commit detection never fires.
-- **Reject** is a **veto**: the user looked at a note that is already in the
-  store and withdrew it. Run `scripts/write_status.py remove-method-note
-  --tool-id {tool_id} --topic "{method_topic}" --note "{method_note}"` —
-  or `remove-global-method-note --topic … --note …` when the render record
-  filed it under the `global` key. Pass `--note` with the exact text from
-  `method-notes.render.json`: the remover matches by exact topic (and note),
-  never by position; **not-found is an error (exit 1, nothing written)** and
-  must be surfaced, not swallowed, because a veto that removed nothing leaves
-  the bad note permanent with a green apply log; more than one match refuses
-  and lists the candidates, and `--note` is what narrows it. Mark the action
-  `"done"` with `"Withdrew method note: {method_topic}"`. A comment on the
-  rejected note is the user's reason — carry it into the recap.
-- **Discuss**, or an accept carrying a comment: the comment is **modification
-  instructions** (the page's Method notes tab writes them through to this
-  suggestion's comment). Investigate per §Tool Comments and Discuss; if the
-  note should change, withdraw the render-written entry with
-  `remove-method-note` (exact `--note` from the render record) and write the
-  corrected one with `add-method-note` — **never edit the entry in place** —
-  and say so in the action note. Never leaves a discussed note silently as
-  written, and never writes on the strength of a discuss alone: the pair of
-  writes is the explicit act.
-- **Discuss**: normal discuss handling (§Tool Comments and Discuss below) —
-  **never writes `method-notes.json` on the strength of a discuss alone.** A
-  discussion that concludes the note is right ends in an accept, or in a
-  followup that is then accepted; it never ends in a quiet write.
+`write_status.py init` has already mapped the decision onto the right action
+by reading `{session_dir}/method-notes.render.json` — the record `render.py`
+wrote of exactly what it persisted at render (criterion 18, `REDESIGN.md`
+§L5; the ownership statement is `references/rendering-report.md` §Method
+Notes). Run what the action says; do not re-derive it from the decision:
+
+- **Accept, or no decision, on a persisted note** → the action is already
+  `done` (`note: "In store — persisted at render under {key}"`). **Nothing to
+  write.** Do **not** run `add-method-note` for it: the writer appends without
+  dedupe, and a second write is a duplicate entry the next run replays twice.
+- **Reject on a persisted note** is a **veto**: the user looked at a note that
+  is already in the store and withdrew it. The action is `pending`, labelled
+  `Withdraw method note: {topic}`, and `detail[0]` is the exact invocation —
+  `scripts/write_status.py remove-method-note --tool-id … --topic … --note …`,
+  or `remove-global-method-note` when render filed it under the `global` key.
+  Run it verbatim. The remover matches by exact topic and note, never by
+  position; **not-found is an error (exit 1, nothing written)** and must be
+  surfaced as a failed action, never swallowed — a veto that removed nothing
+  leaves the bad note permanent with a green apply log; several matches refuse
+  and list, and the recorded `--note` is what narrows them. Mark `"done"` with
+  `"Withdrew method note: {topic}"`. The reject's comment, if any, is the
+  user's reason (already in the action's `note`) — carry it into the recap.
+- **Accept on an unreviewed note** (convergence's state was `not_run`,
+  `artefacts_inconsistent` or `degraded_unapplied`, so render persisted
+  nothing): the action is `pending`, labelled `Add method note: {topic}`, and
+  `detail[0]` is the `add-method-note` invocation. Run it verbatim; mark
+  `"done"`. An unreviewed note that was not accepted is `skipped` and nothing
+  is written — the default when the reviewer did not review is never
+  "permanent".
+- **A comment** on a method note that is not a reject — the page attaches
+  `discuss` when one is typed with no decision, so it always reaches
+  `feedback.json` — is a pending `investigate:{id}` action labelled
+  `Modify method note: {topic} — {comment}`. Investigate per §Tool Comments
+  and Discuss; if the note should change, withdraw the render-written entry
+  with `remove-method-note` (exact `--note` from the render record) and write
+  the corrected one with `add-method-note` — **never edit the entry in
+  place** — and say so in the action note. Never leave a discussed note
+  silently as written, and never write on the strength of the discuss alone:
+  the pair of writes is the explicit act.
+- No render record at all (an older render): `init` warns and falls back to
+  accept-writes / reject-skips, with the `add-method-note` invocation in
+  `detail[0]`.
+
+No repo edit, no command, no commit action is ever synthesized for this kind
+— `target_files` is always `[]`, so `write_status.py init`'s commit detection
+never fires for it.
 
 ## Bespoke Setup Execution
 

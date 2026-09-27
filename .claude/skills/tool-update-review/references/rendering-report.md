@@ -1555,9 +1555,17 @@ correctable rather than permanent. **Which path owns what:**
 
 | Stage | Owns | Mechanism |
 |---|---|---|
-| **Render** (`render.py`, `persist_method_notes`) | **the write** — primary | every `kind: "method-note"` suggestion still on a tool in `report.json` (what survived convergence's C6) is written through `write_status.py add-method-note`; one the ledger `promoted_to_global` — or re-homed with `scope: "global"` — goes under the reserved key through `add-global-method-note`, the only real-run writer of that store. Idempotent by (topic, note); a refused write is recorded and said on stderr, never the run. The outcome is `{session_dir}/method-notes.render.json`: `written` / `already_present` / `failed`, each with the exact key, topic and note. |
-| **The page** (this tab) | **the surface that earns it** | every persisted note is visible; veto = a `reject` decision on the canonical card; a comment = modification instructions. Nothing counts as a decision. |
-| **Apply** (`apply.md` §Executing `method-note` Suggestions) | **the disposition** — supplementary | accept: nothing to write; reject: `remove-method-note --tool-id … --topic … --note …` (exact match from the render record; not-found is an error, never a silent success; several matches refuse and `--note` narrows); a comment: withdraw and re-add, never an in-place edit. `add-method-note` from an apply pass is only for an agent-initiated followup (path 2). |
+| **Render** (`render.py`, `persist_method_notes`) | **the write** — primary, **only when convergence reviewed** | every `kind: "method-note"` suggestion still on a tool in `report.json` (what survived convergence's C6) is written through `write_status.py add-method-note` — **iff `report.convergence.state` is `converged` or `degraded_gate`** (`REVIEWED_STATES`); under `not_run`, `artefacts_inconsistent` or `degraded_unapplied` the report carries raw proposals nobody reviewed, nothing is written, and each is recorded `unreviewed` with the reason. A note the ledger `promoted_to_global` — or re-homed with `scope: "global"` — goes under the reserved key through `add-global-method-note`, the only real-run writer of that store. Idempotent by (topic, note); a refused write is recorded and said on stderr, never the run. The outcome is `{session_dir}/method-notes.render.json`: `reviewed`, `convergence_state`, then `written` / `already_present` / `failed` / `unreviewed`, each entry with the exact key, topic and note. |
+| **The page** (this tab) | **the surface that earns it** | `notesReviewed()` reads the same state set. Reviewed: every persisted note is visible, the control is veto/restore (= a `reject` on the canonical card), the lede says the notes are in the store. Unreviewed: the lede says they are **not**, the rows carry the ordinary three-button mirror (accept = write at apply), the card's store line says so. Either way a comment = modification instructions, and **typing one attaches `discuss`** when no decision was clicked (emptying it detaches only a decision it attached), so the comment always reaches `feedback.json`. Nothing counts as a decision. |
+| **`init`** (`write_status.py`, `_method_note_actions`) | **the mapping** | reads the render record: persisted + reject → **pending withdraw** with the exact `remove-method-note` invocation in `detail[0]`; persisted + accept/none → **done**; persisted + discuss → pending; unreviewed + accept → **pending add** with the `add-method-note` invocation; unreviewed + reject/none → skipped; any non-reject comment → pending `investigate:{id}` "Modify method note". No record → warn, accept writes, reject skips. |
+| **Apply** (`apply.md` §Executing `method-note` Suggestions) | **the disposition** — supplementary | runs what the action says, verbatim. Not-found on a withdraw is a failed action, never a silent success; several matches refuse and the recorded `--note` narrows. A modification is withdraw + re-add, never an in-place edit. `add-method-note` from an apply pass is otherwise only for an agent-initiated followup (path 2). |
+
+The loop is driven end to end by `PersistenceLoopTests`: render writes; the
+user vetoes one note on the tab and types a modification on another with no
+decision clicked; `buildFeedbackPayload()` becomes `feedback.json`; `init`
+synthesizes the actions; the withdraw action's own `detail[0]` runs; the
+store no longer holds the vetoed note. And the unreviewed twin: render writes
+nothing, an explicit accept becomes a pending add, and only that note lands.
 
 The per-tool card keeps the canonical suggestion card (its body says the
 note is in the store), so the mirror architecture is untouched; the tab is
@@ -1568,11 +1576,16 @@ note is a durable instruction replayed into every future run — a different
 question from everything else on the page (*"do I want the researcher told
 this forever?"*), hence its own tab. The lede: **"Nothing here needs your
 attention."** — the notes are already in the store; veto one if it looks
-wrong. Grouped by `method_topic`, **singletons first and open** (`One-off
-notes · N topics · only one tool needed each · most likely to be wrong`) —
-a note only one tool needed is where a bad note lives — and shared topics
+wrong (or, unreviewed: **"Not in the store."** — accept one to write it).
+Grouped by `method_topic` **and note text** — one row of prose may stand
+only for entries it matches exactly; two tools proposing one topic with
+different text are two rows — **singletons first and open** (`One-off notes
+· N topics · only one tool needed each · most likely to be wrong`) — a note
+only one tool needed is where a bad note lives — and identical shared notes
 **collapsed** as one row each (`Notes several tools share · N topics · M
-tools`) with a veto per tool inside the row. Measured in the prototype: 38
+tools`) with a control per tool inside the row, the marks as their union
+with each tool's own on its chip, and a textarea that writes through to
+every entry the row stands for. Measured in the prototype: 38
 notes as a per-tool table were 3.4 screens of the same sentence; grouped,
 6 rows over 0.6 screens. Provenance marks read `report.convergence.memory`:
 `re-homed` (a watch item convergence re-homed — it carries a worry that

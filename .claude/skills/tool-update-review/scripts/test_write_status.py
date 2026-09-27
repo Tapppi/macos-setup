@@ -156,6 +156,118 @@ def _pin_result(phase, source, name, target_version, observed_version=None, matc
 		"match": match, "reason": reason}
 
 
+class InitMethodNoteTests(unittest.TestCase):
+	"""Criterion 18's apply half. A method note render.py persisted must
+	become the RIGHT action at init: reject → a pending withdraw carrying
+	the exact remover invocation; accept → done (already in store);
+	comment → a pending modification; an UNREVIEWED accept → a pending add.
+	Before this, every reject was `skipped` and the note stayed in the
+	store for every future run — auto-persist with no working review
+	surface, the option §L5 rejected."""
+
+	def _note(self, sid, topic, note):
+		return {"id": sid, "kind": "method-note", "title": f"Method note: {topic}",
+			"target_files": [], "command": None, "auto_runnable": False,
+			"rationale": "r", "method_topic": topic, "method_note": note}
+
+	def _init(self, decisions, record):
+		with tempfile.TemporaryDirectory(prefix="write-status-mn-") as session:
+			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
+				"report_id": "tool-update-review-20260822T113344Z",
+				"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "summary": {},
+				"repo_context": {}, "highlights": [], "tools": [{
+					"id": "brew:jq", "name": "jq", "source": "brew", "suggestions": [
+						_suggestion("brew:jq:upgrade", []),
+						self._note("brew:jq:method-a", "topic a", "note a"),
+						self._note("brew:jq:method-g", "topic g", "note g"),
+					]}]}
+			feedback = {"report_id": report["report_id"], "tool_comments": {},
+				"decisions": decisions}
+			files = [("report.json", report), ("feedback.json", feedback)]
+			if record is not None:
+				files.append(("method-notes.render.json", record))
+			for name, obj in files:
+				with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+					json.dump(obj, fh)
+			p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+				capture_output=True, text=True, timeout=60)
+			self.assertEqual(p.returncode, 0, p.stderr)
+			with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
+				return {a["id"]: a for a in json.load(fh)["actions"]}, p.stderr
+
+	PERSISTED = {"reviewed": True, "convergence_state": "converged",
+		"written": [{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-a",
+			"key": "brew:jq", "topic": "topic a", "note": "note a"}],
+		"already_present": [{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-g",
+			"key": model.GLOBAL_METHOD_NOTE_KEY, "topic": "topic g", "note": "note g"}],
+		"failed": [], "unreviewed": []}
+
+	def test_a_rejected_persisted_note_is_a_pending_withdraw_with_the_exact_command(self):
+		actions, _ = self._init({"brew:jq:method-a": {"decision": "reject", "comment": "wrong tag"},
+			"brew:jq:method-g": {"decision": "reject"}}, self.PERSISTED)
+		a = actions["brew:jq:method-a"]
+		self.assertEqual(a["state"], "pending")
+		self.assertEqual(a["decision"], "reject")
+		self.assertEqual(a["label"], "Withdraw method note: topic a")
+		self.assertEqual(a["detail"], ["scripts/write_status.py remove-method-note "
+			"--tool-id brew:jq --topic 'topic a' --note 'note a'"])
+		self.assertIn("wrong tag", a["note"])
+		g = actions["brew:jq:method-g"]
+		self.assertEqual(g["detail"], ["scripts/write_status.py remove-global-method-note "
+			"--topic 'topic g' --note 'note g'"])
+		# A reject's comment is its reason, not a modification: no investigate.
+		self.assertNotIn("investigate:brew:jq:method-a", actions)
+
+	def test_an_accepted_or_undecided_persisted_note_is_already_done(self):
+		actions, _ = self._init({"brew:jq:method-a": {"decision": "accept"}}, self.PERSISTED)
+		for sid in ("brew:jq:method-a", "brew:jq:method-g"):
+			with self.subTest(sid):
+				self.assertEqual(actions[sid]["state"], "done")
+				self.assertIsNotNone(actions[sid]["finished_at"])
+				self.assertIn("persisted at render", actions[sid]["note"])
+				self.assertEqual(actions[sid]["detail"], [])
+
+	def test_a_comment_on_a_persisted_note_is_a_pending_modification_whatever_the_decision(self):
+		for decision in ("accept", "discuss", None):
+			with self.subTest(decision):
+				dec = {"comment": "say 8.2 specifically"}
+				if decision:
+					dec["decision"] = decision
+				actions, _ = self._init({"brew:jq:method-a": dec}, self.PERSISTED)
+				inv = actions["investigate:brew:jq:method-a"]
+				self.assertEqual(inv["state"], "pending")
+				self.assertEqual(inv["label"], "Modify method note: topic a — say 8.2 specifically")
+
+	def test_an_unreviewed_accept_is_a_pending_add_and_an_unreviewed_reject_writes_nothing(self):
+		record = {"reviewed": False, "convergence_state": "not_run", "written": [],
+			"already_present": [], "failed": [], "unreviewed": [
+			{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-a", "key": "brew:jq",
+				"topic": "topic a", "note": "note a", "reason": "convergence state 'not_run'"},
+			{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-g", "key": "brew:jq",
+				"topic": "topic g", "note": "note g", "reason": "convergence state 'not_run'"}]}
+		actions, _ = self._init({"brew:jq:method-a": {"decision": "accept"},
+			"brew:jq:method-g": {"decision": "reject"}}, record)
+		a = actions["brew:jq:method-a"]
+		self.assertEqual(a["state"], "pending")
+		self.assertEqual(a["label"], "Add method note: topic a")
+		self.assertEqual(a["detail"], ["scripts/write_status.py add-method-note "
+			"--tool-id brew:jq --topic 'topic a' --note 'note a'"])
+		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+
+	def test_no_render_record_falls_back_to_write_on_accept_and_says_so(self):
+		actions, err = self._init({"brew:jq:method-a": {"decision": "accept"},
+			"brew:jq:method-g": {"decision": "reject"}}, None)
+		self.assertIn("no readable method-notes.render.json", err)
+		self.assertEqual(actions["brew:jq:method-a"]["state"], "pending")
+		self.assertIn("add-method-note", actions["brew:jq:method-a"]["detail"][0])
+		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+
+	def test_an_upgrade_beside_the_notes_is_untouched(self):
+		actions, _ = self._init({"brew:jq:upgrade": {"decision": "reject"}}, self.PERSISTED)
+		self.assertEqual(actions["brew:jq:upgrade"]["state"], "skipped")
+		self.assertEqual(actions["brew:jq:upgrade"]["detail"], [])
+
+
 class PinCheckGateTests(unittest.TestCase):
 	def _session(self, tool):
 		tmp = tempfile.mkdtemp(prefix="write-status-pin-test-")

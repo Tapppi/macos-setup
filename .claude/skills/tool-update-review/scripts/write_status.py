@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import os
 import sys
 from datetime import datetime, timezone
@@ -109,6 +110,101 @@ def load_status(session_dir: str) -> dict:
 
 
 # ── init ────────────────────────────────────────────────────────────────
+# ── method notes at init (criterion 18's apply half) ───────────────────────
+# render.py persisted every convergence-reviewed method-note proposal at
+# render and recorded exactly what it wrote in METHOD_NOTES_RENDER_RECORD.
+# init reads that record so a decision on a method note becomes the RIGHT
+# action: a rejected persisted note is a pending withdraw (the exact remover
+# invocation in `detail`), an accepted persisted note is already done, an
+# accepted UNREVIEWED note (convergence did not run) is a pending add, and any
+# modification instruction is a pending "Modify method note" investigation.
+# Without this, a veto on the page was a `skipped` action that never ran and
+# the note stayed in the store for every future run.
+METHOD_NOTES_RENDER_RECORD = "method-notes.render.json"
+_RENDER_RECORD_BUCKETS = ("written", "already_present", "failed", "unreviewed")
+
+
+def _load_render_record(session_dir: str):
+	"""→ {suggestion_id: (bucket, entry)} from the render record, or None
+	when the record is absent or unreadable (said on stderr: every method
+	note is then treated as unreviewed, so an accept writes at apply and a
+	reject writes nothing — the pre-render-persist behaviour)."""
+	path = os.path.join(session_dir, METHOD_NOTES_RENDER_RECORD)
+	record = load_json(path)
+	if not isinstance(record, dict):
+		print(f"warning: no readable {METHOD_NOTES_RENDER_RECORD} in {session_dir} — "
+			f"treating every method note as unreviewed (accept writes at apply, "
+			f"reject writes nothing)", file=sys.stderr)
+		return None
+	by_id = {}
+	for bucket in _RENDER_RECORD_BUCKETS:
+		for entry in record.get(bucket) or []:
+			if isinstance(entry, dict) and isinstance(entry.get("suggestion_id"), str):
+				by_id[entry["suggestion_id"]] = (bucket, entry)
+	return by_id
+
+
+def _store_command(verb: str, key: str, topic: str, note: str) -> str:
+	"""The exact writer/remover invocation for one entry, shell-quoted, so
+	the apply agent runs what the record says rather than retyping it."""
+	global_key = key == items.GLOBAL_METHOD_NOTE_KEY
+	argv = ["scripts/write_status.py",
+		f"{verb}-global-method-note" if global_key else f"{verb}-method-note"]
+	if not global_key:
+		argv += ["--tool-id", key]
+	argv += ["--topic", topic, "--note", note]
+	return shlex.join(argv)
+
+
+def _blank_action(sid: str, label: str, decision, state: str) -> dict:
+	return {"id": sid, "label": label, "decision": decision, "state": state,
+		"started_at": None, "finished_at": None, "note": None, "detail": [],
+		"thread": [], "pin_checks": {}}
+
+
+def _method_note_actions(sid: str, tool: dict, sug: dict, dec: dict, record) -> list:
+	"""→ [action] or [action, investigate] for one kind:"method-note"
+	suggestion, per references/apply.md §Executing `method-note` Suggestions."""
+	decision = dec.get("decision")
+	comment = (dec.get("comment") or "").strip() if isinstance(dec.get("comment"), str) else ""
+	topic = sug.get("method_topic") if isinstance(sug.get("method_topic"), str) else ""
+	note = sug.get("method_note") if isinstance(sug.get("method_note"), str) else ""
+	bucket, entry = (record or {}).get(sid, (None, None))
+	persisted = bucket in ("written", "already_present")
+	key = entry.get("key") if persisted and isinstance(entry.get("key"), str) else tool.get("id", "")
+	title = sug.get("title", sid)
+	if persisted and decision == "reject":
+		action = _blank_action(sid, f"Withdraw method note: {topic}", decision, "pending")
+		action["note"] = "Vetoed on the page — remove the entry render wrote" \
+			+ (f" — reason: {comment}" if comment else "")
+		action["detail"] = [_store_command("remove", key, topic, note)]
+	elif persisted and decision == "discuss":
+		action = _blank_action(sid, title, decision, "pending")
+		action["note"] = "In store (persisted at render) — under discussion"
+	elif persisted:
+		# accept, or no decision: the note is already in the store.
+		action = _blank_action(sid, title, decision, "done")
+		action["finished_at"] = now_iso()
+		action["note"] = f"In store — persisted at render under {key!r} ({METHOD_NOTES_RENDER_RECORD})"
+	elif decision == "accept":
+		reason = (entry or {}).get("reason") if bucket else "no render record"
+		action = _blank_action(sid, f"Add method note: {topic}", decision, "pending")
+		action["note"] = f"Not persisted at render ({bucket or 'unreviewed'}: {reason}) — write it now"
+		action["detail"] = [_store_command("add", key, topic, note)]
+	elif decision == "discuss":
+		action = _blank_action(sid, title, decision, "pending")
+	else:
+		action = _blank_action(sid, title, decision, "skipped")
+		if bucket == "unreviewed":
+			action["note"] = "Not persisted at render (unreviewed) and not accepted — nothing written"
+	out = [action]
+	if comment and decision != "reject":
+		investigate = _blank_action(f"investigate:{sid}",
+			f"Modify method note: {topic} — {comment}", None, "pending")
+		out.append(investigate)
+	return out
+
+
 def cmd_init(args):
 	session_dir = args.session_dir
 	feedback = load_json(os.path.join(session_dir, "feedback.json"))
@@ -154,8 +250,16 @@ def cmd_init(args):
 	# absent id as "skip the action" (the previous behavior) silently
 	# dropped it from the action list and from summary.undecided entirely.
 	decisions = feedback.get("decisions", {})
+	has_method_notes = any(sug.get("kind") == "method-note"
+		for _, sug in suggestions_by_id.values())
+	render_record = _load_render_record(session_dir) if has_method_notes else None
 	for sid, entry in suggestions_by_id.items():
 		dec = decisions.get(sid, {})
+		if not isinstance(dec, dict):
+			dec = {}
+		if entry[1].get("kind") == "method-note":
+			actions.extend(_method_note_actions(sid, entry[0], entry[1], dec, render_record))
+			continue
 		decision = dec.get("decision")  # None if truly undecided
 		state = "pending" if decision in ("accept", "discuss") else "skipped"
 		label = entry[1].get("title", sid)

@@ -1269,15 +1269,37 @@ class RenderPersistTests(RenderRunner):
 		self.assertEqual(len(store[items.GLOBAL_METHOD_NOTE_KEY]), 1)
 		self.assertEqual(len(self._record(report_dir)["already_present"]), 3)
 
-	def test_a_note_convergence_did_not_route_globally_stays_per_tool_when_convergence_did_not_run(self):
+	def test_an_unreviewed_corpus_persists_nothing_and_says_why(self):
+		"""Finding 4: under not_run / artefacts_inconsistent /
+		degraded_unapplied the report carries raw proposals C6 never
+		reviewed. The default when the reviewer did not review must not be
+		"permanent": nothing is written, the record says unreviewed with
+		the reason, and apply writes one only on an explicit accept."""
+		for state in ("not_run", "artefacts_inconsistent", "degraded_unapplied"):
+			with self.subTest(state):
+				state_home = tempfile.mkdtemp(prefix="render-test-state-")
+				self.addCleanup(__import__("shutil").rmtree, state_home, True)
+				p, report_dir = self.render(self._report(state=state, memory=None),
+					state_home=state_home)
+				self.assertEqual(p.returncode, 0, p.stderr)
+				self.assertIn("3 unreviewed — NOT persisted", p.stderr)
+				self.assertFalse(os.path.exists(os.path.join(state_home, self.STORE)))
+				record = self._record(report_dir)
+				self.assertFalse(record["reviewed"])
+				self.assertEqual(record["convergence_state"], state)
+				self.assertEqual(record["written"], [])
+				self.assertEqual(len(record["unreviewed"]), 3)
+				self.assertIn(state, record["unreviewed"][0]["reason"])
+
+	def test_a_degraded_gate_run_still_counts_as_reviewed(self):
+		"""degraded_gate applied the submission (C6 included) and only
+		forced the gate-failing tools; the notes were reviewed."""
 		state_home = tempfile.mkdtemp(prefix="render-test-state-")
 		self.addCleanup(__import__("shutil").rmtree, state_home, True)
-		p, _ = self.render(self._report(state="not_run", memory=None), state_home=state_home)
+		p, report_dir = self.render(self._report(state="degraded_gate"), state_home=state_home)
 		self.assertEqual(p.returncode, 0, p.stderr)
-		store = self._store(state_home)
-		self.assertNotIn(items.GLOBAL_METHOD_NOTE_KEY, store)
-		self.assertEqual(sorted(e["topic"] for e in store["brew:a"]),
-			["tags beat release pages", "where the changelog lives"])
+		self.assertTrue(self._record(report_dir)["reviewed"])
+		self.assertEqual(len(self._store(state_home)["brew:a"]), 1)
 
 	def test_a_refused_write_never_costs_the_page(self):
 		"""An unreadable store is a refusal at the writer; render records
@@ -1380,6 +1402,43 @@ class MethodNotesTabTests(PageDriveRunner):
 		self.assertEqual(out["sharedRows"], "1")
 		self.assertEqual(out["sharedTools"], "3")
 		self.assertEqual(out["marks"], "global,rehomed,restored,selftest")
+
+	def test_one_topic_with_different_text_is_two_rows_and_a_shared_row_writes_to_every_entry(self):
+		"""Finding 3: grouping on topic alone let brew:a's prose stand for
+		brew:b's different note, and a correction typed on the row reached
+		A only."""
+		report = notes_report()
+		# brew:nnn re-proposes the shared topic with DIFFERENT text.
+		nnn = next(t for t in report["tools"] if t["id"] == "brew:nnn")
+		nnn["suggestions"].append({"id": "brew:nnn:method-cumulative-variant", "kind": "method-note",
+			"title": "Method note", "target_files": [], "command": None, "auto_runnable": False,
+			"rationale": "r", "method_topic": "changelog is cumulative — scope to the version pair",
+			"method_note": "Actually read EVERY entry — this vendor resets the log per major."})
+		out = self.drive(report, """
+		key('3');
+		const shared = Array.from(document.querySelectorAll('#notes-shared .nrow'));
+		log('sharedRows=' + shared.length);
+		log('sharedTools=' + shared[0].querySelectorAll('.ntool').length);
+		const variant = document.querySelector('.nrow[data-note="brew:nnn:method-cumulative-variant"]');
+		log('variantIsOwnRow=' + !!variant);
+		log('variantText=' + (variant ? variant.querySelector('.nt').textContent.trim() : 'none'));
+		const ta = shared[0].querySelector('.note-modify');
+		log('targets=' + ta.dataset.for.split(' ').length);
+		ta.value = 'scope to the pair, but say which entries';
+		ta.dispatchEvent(new Event('input', {bubbles: true}));
+		const reached = ['brew:aa:method-cumulative', 'brew:bb:method-cumulative', 'brew:cc:method-cumulative']
+			.map(sid => canonicalCard(sid).querySelector('.card-comment').value === ta.value);
+		log('reached=' + reached.join(','));
+		log('variantUntouched=' + (canonicalCard('brew:nnn:method-cumulative-variant').querySelector('.card-comment').value === ''));
+""")
+		self.assertEqual(out["sharedRows"], "1")
+		self.assertEqual(out["sharedTools"], "3")
+		self.assertEqual(out["variantIsOwnRow"], "true",
+			"a different note under the same topic must be its own row")
+		self.assertIn("read EVERY entry", out["variantText"])
+		self.assertEqual(out["targets"], "3")
+		self.assertEqual(out["reached"], "true,true,true")
+		self.assertEqual(out["variantUntouched"], "true")
 
 	def test_veto_is_a_mirror_of_reject_and_modify_writes_through(self):
 		out = self.drive(notes_report(), """
@@ -1489,6 +1548,140 @@ class MethodNotesTabTests(PageDriveRunner):
 		self.assertEqual(out["modifyHidden"], "true")
 		self.assertEqual(out["otherLabel"], "none")
 		self.assertEqual(out["bandLive"], "auto")
+
+
+
+WRITE_STATUS_PY = os.path.join(SCRIPT_DIR, "write_status.py")
+
+
+class PersistenceLoopTests(PageDriveRunner):
+	"""Criterion 18, driven end to end — the test that closes the pass:
+	render writes a note; the user vetoes it on the tab and types a
+	modification on another with no decision clicked; Submit's payload
+	(buildFeedbackPayload) becomes feedback.json; `init` synthesizes the
+	actions; the withdraw action's own command runs; the store no longer
+	holds the vetoed note. §L5's bargain — a bad note is visible AND
+	correctable — measured, not asserted."""
+
+	STORE = os.path.join("tool-update-review", items.METHOD_NOTES_STORE)
+
+	def _store(self, state_home):
+		with open(os.path.join(state_home, self.STORE), encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def _run_ws(self, state_home, argv, cwd=None):
+		env = dict(os.environ, XDG_STATE_HOME=state_home)
+		return subprocess.run([sys.executable, WRITE_STATUS_PY] + argv,
+			capture_output=True, text=True, timeout=60, env=env, cwd=cwd)
+
+	def _run_detail(self, state_home, action):
+		"""Run the exact command the action's detail carries — what apply.md
+		tells the agent to run — with scripts/write_status.py resolved."""
+		argv = __import__("shlex").split(action["detail"][0])
+		self.assertEqual(argv[0], "scripts/write_status.py")
+		return self._run_ws(state_home, argv[1:])
+
+	def _drive_and_init(self, report, state_home, scenario):
+		"""render → drive → feedback.json → init; returns (payload, actions,
+		report_dir)."""
+		report_dir = tempfile.mkdtemp(prefix="render-loop-")
+		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
+		p, _ = self.render(report, state_home=state_home, report_dir=report_dir)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		# drive() renders again into its own dir; the page is identical, so
+		# read the payload from that and write it beside THIS render's
+		# report.json + method-notes.render.json — the session dir init reads.
+		out = self.drive(report, scenario)
+		payload = json.loads(out["payload"])
+		with open(os.path.join(report_dir, "feedback.json"), "w", encoding="utf-8") as fh:
+			json.dump(payload, fh)
+		p = self._run_ws(state_home, ["init", report_dir])
+		self.assertEqual(p.returncode, 0, p.stderr)
+		with open(os.path.join(report_dir, "status.json"), encoding="utf-8") as fh:
+			actions = {a["id"]: a for a in json.load(fh)["actions"]}
+		return payload, actions, report_dir
+
+	def test_a_vetoed_note_leaves_the_store_and_a_comment_becomes_an_action(self):
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		payload, actions, _ = self._drive_and_init(notes_report(), state_home, """
+		log('reviewed=' + document.getElementById('notes-lede').dataset.reviewed);
+		key('3');
+		// veto the re-homed one-off note …
+		document.querySelector('.nrow[data-note="brew:nnn:method-readline"] .veto').click();
+		// … type a modification on another with NO decision clicked …
+		const ta = document.querySelector('.nrow[data-note="brew:cc:method-general"] .note-modify');
+		ta.value = 'name the tag format';
+		ta.dispatchEvent(new Event('input', {bubbles: true}));
+		log('autoDecision=' + canonicalCard('brew:cc:method-general').dataset.decision);
+		// … and clear it again on a third, which must detach the auto decision.
+		const ta2 = document.querySelector('#notes-shared .nrow .note-modify');
+		ta2.value = 'x'; ta2.dispatchEvent(new Event('input', {bubbles: true}));
+		ta2.value = '';  ta2.dispatchEvent(new Event('input', {bubbles: true}));
+		log('detached=' + canonicalCard('brew:aa:method-cumulative').dataset.decision);
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""")
+		# The store held all five notes after render (the reviewed case).
+		before = self._store(state_home)
+		self.assertIn("brew:nnn", before)
+		self.assertIn(items.GLOBAL_METHOD_NOTE_KEY, before)
+		# The payload carries the veto and the comment-attached discuss.
+		self.assertEqual(payload["decisions"]["brew:nnn:method-readline"]["decision"], "reject")
+		self.assertEqual(payload["decisions"]["brew:cc:method-general"],
+			{"decision": "discuss", "comment": "name the tag format"})
+		self.assertNotIn("brew:aa:method-cumulative", payload["decisions"])
+		# init: the veto is a PENDING withdraw with the exact command …
+		withdraw = actions["brew:nnn:method-readline"]
+		self.assertEqual(withdraw["state"], "pending")
+		self.assertEqual(withdraw["label"],
+			"Withdraw method note: readline linking in homebrew-core's nnn formula")
+		self.assertIn("remove-method-note --tool-id brew:nnn", withdraw["detail"][0])
+		# … the comment is a pending modification …
+		self.assertEqual(actions["investigate:brew:cc:method-general"]["state"], "pending")
+		self.assertIn("name the tag format", actions["investigate:brew:cc:method-general"]["label"])
+		# … and an untouched persisted note is already done.
+		self.assertEqual(actions["brew:aa:method-cumulative"]["state"], "done")
+		# Apply runs the withdraw exactly as written.
+		p = self._run_detail(state_home, withdraw)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		after = self._store(state_home)
+		self.assertNotIn("brew:nnn", after, "the vetoed note must leave the store")
+		self.assertEqual([e["topic"] for e in after[items.GLOBAL_METHOD_NOTE_KEY]],
+			["tags beat release pages"])
+		self.assertEqual(len(after["brew:aa"]), 1)
+
+	def test_an_unreviewed_note_is_written_only_on_an_explicit_accept(self):
+		report = notes_report()
+		report["convergence"] = {"state": "not_run"}
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		payload, actions, _ = self._drive_and_init(report, state_home, """
+		log('reviewed=' + document.getElementById('notes-lede').dataset.reviewed);
+		log('lede=' + document.getElementById('notes-lede').textContent.replace(/\\s+/g, ' ').trim().slice(0, 40));
+		key('3');
+		const row = document.querySelector('.nrow[data-note="brew:nnn:method-readline"]');
+		log('control=' + (row.querySelector('.veto') ? 'veto' : row.querySelector('.mirror') ? 'mirror' : 'none'));
+		key('2');
+		const card = canonicalCard('brew:nnn:method-readline');
+		log('storeLine=' + card.querySelector('.note-store-line').textContent.slice(0, 27));
+		key('3');
+		key('j'); key('j');  // second one-off row: nnn (cc sorts first)
+		const ring = document.querySelector('#panel-notes [data-focused]');
+		log('ring=' + ring.dataset.note);
+		key('v');            // accept (write at apply) on an unreviewed row
+		log('decision=' + card.dataset.decision);
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""")
+		self.assertFalse(os.path.exists(os.path.join(state_home, self.STORE)),
+			"render must not persist unreviewed proposals")
+		self.assertEqual(payload["decisions"]["brew:nnn:method-readline"]["decision"], "accept")
+		add = actions["brew:nnn:method-readline"]
+		self.assertEqual(add["state"], "pending")
+		self.assertTrue(add["label"].startswith("Add method note:"))
+		self.assertEqual(actions["brew:aa:method-cumulative"]["state"], "skipped")
+		p = self._run_detail(state_home, add)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertEqual(sorted(self._store(state_home)), ["brew:nnn"])
 
 
 if __name__ == "__main__":
