@@ -432,7 +432,9 @@ class PageDriveRunner(RenderRunner):
 		m = _re.search(r'<pre id="test-out">(.*?)</pre>', proc.stdout, _re.S)
 		self.assertIsNotNone(m, "driver output not found in dumped DOM:\n"
 			+ proc.stdout[-1500:] + proc.stderr[-1500:])
-		text = m.group(1)
+		# --dump-dom re-serializes #test-out's text, so "&" arrives as
+		# "&amp;" — unescape ONCE to get back what the page logged.
+		text = __import__("html").unescape(m.group(1))
 		self.assertIn("DONE", text, text)
 		self.assertNotIn("ERROR:", text, text)
 		self.assertNotIn("FAIL:", text, text)
@@ -690,6 +692,138 @@ class SuggestionCardBodyTests(PageDriveRunner):
 		self.assertEqual(out["chips"], "Brewfile|dotfiles/.functions|7")
 		self.assertEqual(out["emptyChips"], "0",
 			"a target_files entry must never render as an empty chip")
+
+
+
+def decision_surface_tool():
+	"""One tool exercising all four item destinations (report-page.md §4.2)
+	plus every chip kind (§5)."""
+	tool = page_tool("brew:surface", "surface", "1.0", "2.0", "security_mixed")
+	tool["items"] = [
+		{"id": "brew:surface#cve:CVE-2026-1111", "title": "Fixes CVE-2026-1111 in the parser",
+			"tags": ["security"], "severity": "warning",
+			"security": {"cve_id": "CVE-2026-1111", "rating": "high",
+				"rating_basis": "vendor", "exploited_in_wild": False},
+			"local": {"direction": "reaches", "effect": "risk",
+				"statement": "The parser runs here.", "evidence": [], "citations": []}},
+		{"id": "brew:surface#release:2.0/flag-removed", "title": "The --full-auto flag is removed",
+			"tags": ["breaking", "fix"], "severity": "warning",
+			"local": {"direction": "reaches", "effect": "risk",
+				"statement": "Used in .functions.", "evidence": [], "citations": []}},
+		{"id": "brew:surface#release:2.0/config-move", "title": "Config moves to XDG",
+			"tags": ["packaging"], "severity": "warning",
+			"local": {"direction": "reaches", "effect": "risk",
+				"statement": "Config lives at ~/.config here.", "evidence": [], "citations": []}},
+		{"id": "brew:surface#release:2.0/speedup", "title": "Startup is 2x faster",
+			"tags": ["perf"], "severity": "info",
+			"local": {"direction": "does_not_reach", "effect": "none",
+				"statement": "s", "evidence": [], "citations": []}},
+		{"id": "brew:surface#release:2.0/mystery", "title": "Something oddly tagged",
+			"tags": ["experimental"], "severity": "info"},
+	]
+	tool["security"] = {"cve_ids": ["CVE-2026-1111"], "cve_count": 1,
+		"cve_claimed_count": None, "has_security": True, "security_only": False,
+		"impact": "possible", "severity_counts": {"critical": 0, "high": 1,
+			"medium": 0, "low": 0, "unknown": 0},
+		"display_item_ids": ["brew:surface#cve:CVE-2026-1111"]}
+	return tool
+
+
+class DecisionSurfaceTests(PageDriveRunner):
+	"""The §4 fold and the §5 chips: three visible groups, one fold that
+	absorbs everything below the visibility bar, chips wearing ink inside a
+	colored ring. Asserted on VISIBILITY (offsetParent), not presence — "it
+	is in REPORT" is the defect, not the fix."""
+
+	def test_the_three_groups_and_the_fold_partition_the_card(self):
+		out = self.drive(page_report([decision_surface_tool()]), """
+		key('2');
+		const body = document.querySelector('#tool-list .tool-section .tool-body');
+		const groups = Array.from(body.querySelectorAll('.content-group-title'))
+			.map(g => g.textContent.trim().replace(/\\s+/g, ' '));
+		log('groups=' + groups.join('|'));
+		const fold = body.querySelector('.item-fold');
+		const foldHead = fold.querySelector('.item-fold-head');
+		log('foldLabel=' + foldHead.textContent.trim().replace(/\\s+/g, ' '));
+		const folded = fold.querySelectorAll('.content-item');
+		log('foldCount=' + folded.length);
+		log('foldHiddenByDefault=' + Array.from(folded).every(i => i.offsetParent === null));
+		foldHead.click();
+		log('foldVisibleAfterClick=' + Array.from(folded).every(i => i.offsetParent !== null));
+		log('foldTitles=' + Array.from(folded).map(i =>
+			i.querySelector('.ci-text').textContent.trim()).join('|'));
+""")
+		groups = out["groups"].split("|")
+		self.assertEqual(len(groups), 3)
+		self.assertIn("Security", groups[0])
+		self.assertIn("Breaking & deprecations", groups[1])
+		self.assertIn("Other changes that reach this machine", groups[2])
+		self.assertIn("Everything else (2)", out["foldLabel"])
+		self.assertIn("do not reach this setup", out["foldLabel"])
+		self.assertEqual(out["foldCount"], "2")
+		self.assertEqual(out["foldHiddenByDefault"], "true")
+		self.assertEqual(out["foldVisibleAfterClick"], "true")
+		self.assertEqual(out["foldTitles"], "Startup is 2x faster|Something oddly tagged")
+
+	def test_the_chips_wear_ink_and_lead_the_line(self):
+		out = self.drive(page_report([decision_surface_tool()]), """
+		key('2');
+		const body = document.querySelector('#tool-list .tool-section .tool-body');
+		const secItem = body.querySelector('#tool-list .content-item');
+		const reaches = body.querySelectorAll('.item-chip.reaches');
+		log('reachesChips=' + reaches.length);
+		log('reachesVisible=' + Array.from(reaches).every(c => c.offsetParent !== null));
+		const cve = body.querySelector('.cat-security .content-item .cve');
+		log('cveChip=' + (cve ? cve.textContent.trim() : 'none'));
+		const secondTag = body.querySelector('.cat-breaking .item-chip.tag');
+		log('secondTag=' + (secondTag ? secondTag.textContent.trim() : 'none'));
+		// The breaking tag itself is implied by its heading and NOT chipped.
+		const breakingChips = Array.from(body.querySelectorAll('.cat-breaking .item-chip.tag'))
+			.map(c => c.textContent.trim());
+		log('breakingChips=' + breakingChips.join('|'));
+		const fold = body.querySelector('.item-fold');
+		fold.querySelector('.item-fold-head').click();
+		const unknown = fold.querySelector('.item-chip.unknown');
+		log('unknownChip=' + (unknown ? unknown.textContent.trim() : 'none'));
+		// A single-known-tag background item gets no tag chip at all.
+		const perfItem = Array.from(fold.querySelectorAll('.content-item'))
+			.find(i => i.textContent.includes('Startup'));
+		log('perfChips=' + perfItem.querySelectorAll('.item-chip.tag').length);
+""")
+		self.assertEqual(out["reachesChips"], "3")
+		self.assertEqual(out["reachesVisible"], "true")
+		self.assertEqual(out["cveChip"], "CVE-2026-1111")
+		self.assertEqual(out["secondTag"], "fix")
+		self.assertEqual(out["breakingChips"], "fix",
+			"the group-implied tag must be elided; the second tag must show")
+		self.assertEqual(out["unknownChip"], "experimental")
+		self.assertEqual(out["perfChips"], "0",
+			"93%% of items carry one tag and must carry no chip")
+
+	def test_the_cut_surfaces_are_gone_and_the_version_pair_folds_the_count(self):
+		tool = decision_surface_tool()
+		tool["release_inventory"] = [
+			{"version": "1.5", "link": None}, {"version": "2.0", "link": None}]
+		out = self.drive(page_report([tool]), """
+		key('2');
+		log('tierBadges=' + document.querySelectorAll('.severity-tier-badges').length);
+		log('riSections=' + document.querySelectorAll('.release-inventory-list').length);
+		const vd = document.querySelector('#tool-list .tool-header .version-delta');
+		log('versionPair=' + vd.textContent.trim().replace(/\\s+/g, ' '));
+		const deltaLabel = document.querySelector('#filter-bar #filter-delta').closest('label');
+		const srcLabel = document.querySelector('#filter-bar #filter-source').closest('label');
+		log('deltaControlHidden=' + (deltaLabel.offsetParent === null));
+		log('sourceControlHidden=' + (srcLabel.offsetParent === null));
+		// The filter STATE survives the control's removal: a tile still sets it.
+		runOverviewAction('filter-delta', 'major');
+		log('filterStillWorks=' + (document.getElementById('filter-delta').value === 'major'));
+""")
+		self.assertEqual(out["tierBadges"], "0")
+		self.assertEqual(out["riSections"], "0")
+		self.assertIn("(2)", out["versionPair"])
+		self.assertEqual(out["deltaControlHidden"], "true")
+		self.assertEqual(out["sourceControlHidden"], "true")
+		self.assertEqual(out["filterStillWorks"], "true")
 
 
 if __name__ == "__main__":

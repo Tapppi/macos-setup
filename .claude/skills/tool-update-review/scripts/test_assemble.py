@@ -1502,25 +1502,27 @@ class PageContractTests(unittest.TestCase):
 		self.assertIn("isNonVersion(tool)", fn.group(1),
 			"maxSeverity() lost its finding-source exemption")
 
-	def test_the_tag_line_shows_a_same_group_pair_and_a_lone_unknown_tag(self):
-		"""Two ways to render nothing where something was needed.
-
-		Filtering by GROUP hides a second tag that maps to the same one —
-		`["fix", "breaking"]` renders no `breaking` anywhere, and `breaking` is
-		the most decision-relevant tag in the set. And an item whose only tag is
-		unrecognised must still say so: the validator kept that tag deliberately
-		(E-TAG-UNKNOWN reports and keeps), the item lands in Notes, and nothing
-		else on the page surfaces it."""
+	def test_the_tag_chips_show_a_second_tag_and_a_lone_unknown_tag(self):
+		"""Two ways to render nothing where something was needed — carried
+		forward from the "Tagged:" line onto the chip row that replaced it
+		(report-page.md §5). A multi-tag item must chip its second known tag
+		(only the RENDERED group's own tags are elided — an item under
+		Breaking & deprecations still chips `fix`), and an item whose only
+		tag is unrecognised must chip it: the validator kept that tag
+		deliberately (E-TAG-UNKNOWN reports and keeps) and nothing else on
+		the page surfaces it."""
 		block = re.search(
-			r"const tags = tagsOf\(item\);\n(.*?)const tagsHtml", self.template, re.S)
-		self.assertIsNotNone(block, "the tag line stopped reading tagsOf(item)")
+			r"const tags = tagsOf\(item\);\n(.*?)const link = ", self.template, re.S)
+		self.assertIsNotNone(block, "the chip row stopped reading tagsOf(item)")
 		body = block.group(1)
-		self.assertNotIn("GROUP_OF_TAG[t] !== cat", body,
-			"the tag line is filtered by group again — a same-group second tag is hidden")
-		self.assertIn("tags.length > 1", body,
-			"a multi-tag item must render its tags")
+		self.assertIn("known.length > 1", body,
+			"a multi-tag item must chip its second known tag")
+		self.assertIn("!implied.has(t)", body,
+			"only the rendered group's own tags are elided")
 		self.assertIn("!GROUP_OF_TAG[t]", body,
 			"a lone unrecognised tag must still render — nothing else surfaces E-TAG-UNKNOWN")
+		self.assertIn("item-chip unknown", body,
+			"unknown tags wear the --magenta ring, distinct from known ones")
 
 	def test_the_renderer_refuses_a_schema_one_report(self):
 		with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.py"),
