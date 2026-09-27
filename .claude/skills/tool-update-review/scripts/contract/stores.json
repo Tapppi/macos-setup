@@ -21,6 +21,7 @@
 	"method-notes.json": {
 		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/method-notes.json",
 		"writer": "write_status.py add-method-note --tool-id ID --topic TEXT --note TEXT",
+		"remover": "write_status.py remove-method-note --tool-id ID --topic TEXT [--note TEXT] — exact (tool id, topic[, note]) match, never index; not-found is exit 1; several matches refuse and list; an emptied key is deleted",
 		"entry": {
 			"topic": "string",
 			"note": "string",
@@ -32,6 +33,7 @@
 			"filled_by": "promotion during convergence only — never a per-tool proposal (schemas.md §1.7b Scope)",
 			"why_not_a_third_file": "a tool id always contains a colon, so this key cannot collide with one; the store then rides along in the method-notes snapshot every reader already takes, instead of needing a third one"
 		},
+		"global_remover": "write_status.py remove-global-method-note --topic TEXT [--note TEXT] — the same exact-match removal against the reserved key; kept beside the `global` block rather than inside it because items.MEMORY_STORES mirrors that block whole",
 		"after_one_global_write": {
 			"global": [
 				{
@@ -49,8 +51,10 @@
 					"added_at": "<today>"
 				}
 			]
-		}
+		},
+		"after_one_write_then_one_removal": {},
+		"after_one_write_then_one_removal_note": "Writing then removing the same entry returns the file to an empty object: the emptied per-tool key is deleted, not left as []. Every reader treats an absent key and an empty one identically, so nothing observes the difference — and the file keeps the shape this fixture pins."
 	},
-	"keying": "Per-tool entries are keyed by tool id ({source}:{name}), one array per tool, appended to. A tool id always contains a colon, which is what makes the colon-free \"global\" key safe: every tool-id lookup in the pipeline is a plain snapshot.get(tool_id) and can never reach it, and no per-tool writer can write it either — add-watch-item and add-method-note refuse a --tool-id with no colon.",
+	"keying": "Per-tool entries are keyed by tool id ({source}:{name}), one array per tool, appended to. A tool id always contains a colon, which is what makes the colon-free \"global\" key safe: every tool-id lookup in the pipeline is a plain snapshot.get(tool_id) and can never reach it, and no per-tool writer can write it either — add-watch-item and add-method-note refuse a --tool-id with no colon. Removal (remove-method-note / remove-global-method-note) matches an entry by exact topic and, when given, exact note — never by index — and deletes a key it leaves empty; a topic matched more than once is refused rather than guessed.",
 	"created_on_first_use": "No pre-seeding and no migration machinery (REDESIGN.md §I3, §L9). An absent file is an empty store that the first accepted proposal creates. A file that exists but does not parse as a JSON object is a REFUSAL, not a fresh start — these stores accumulate for months, so silently replacing an unreadable one with {} would destroy every note in it and report success."
 }

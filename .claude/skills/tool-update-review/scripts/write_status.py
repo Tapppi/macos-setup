@@ -32,6 +32,15 @@ Subcommands:
                                                            Items (Writing)). No <session_dir> — this file is
                                                            machine-global, not scoped to any one review session, and
                                                            this subcommand never touches status.json.
+  remove-method-note --tool-id ID --topic TEXT [--note TEXT]
+                                                       remove ONE method-note entry by exact (tool id, topic[, note])
+                                                       match — never by index. Not found is an error (exit 1, nothing
+                                                       written); more than one match REFUSES and lists them, so pass
+                                                       --note to disambiguate. An emptied key is deleted. This is the
+                                                       apply-side half of render-time persistence: a note render.py
+                                                       wrote and the user then rejected on the page comes out here
+                                                       (references/rendering-report.md §Method Notes).
+  remove-global-method-note --topic TEXT [--note TEXT]   the same removal against the reserved global key.
   add-method-note --tool-id ID --topic TEXT --note TEXT   the same write, one store over: an accepted method-note
                                                            proposal's {topic, note, added_at} into method-notes.json
                                                            (references/apply.md §Method Notes (Writing)). A watch item
@@ -608,6 +617,61 @@ def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
 	write_json_atomic(path, store)
 
 
+def remove_store_entry(filename: str, key: str, topic: str, note) -> dict:
+	"""Remove exactly one `{topic, note, added_at}` entry under `key`,
+	matched by EXACT topic (and exact note when given) — never by index or
+	position, because a store accumulates for months and a position is
+	only meaningful against the file the caller last looked at.
+
+	Three outcomes, none silent: not found is a refusal (exit 1, nothing
+	written) that names what was looked for; more than one match is a
+	refusal that lists the candidates — ambiguity goes to a human, who
+	passes --note to narrow it to one; exactly one match is removed, and a
+	key left with no entries is deleted rather than kept as `[]`. Every
+	reader treats an absent key and an empty one identically (a per-tool
+	lookup is `snapshot.get(tool_id)` read as list-or-nothing, and
+	converge's store_state is file-level), so the deletion changes what no
+	reader sees and keeps the file the shape the golden pins."""
+	path = store_path(filename)
+	store, problem = _load_store(path)
+	if problem is not None:
+		print(f"Error: refusing to write {path} — {problem}. Fix or move the file; "
+			f"nothing was written.", file=sys.stderr)
+		sys.exit(1)
+	entries = store.get(key)
+	if entries is None:
+		print(f"Error: nothing to remove — {path} has no entries under {key!r}. "
+			f"Nothing was written.", file=sys.stderr)
+		sys.exit(1)
+	if not isinstance(entries, list):
+		print(f"Error: refusing to write {path} — {key!r} holds a "
+			f"{type(entries).__name__}, not an array of entries. Nothing was written.",
+			file=sys.stderr)
+		sys.exit(1)
+	matches = [i for i, e in enumerate(entries)
+		if isinstance(e, dict) and e.get("topic") == topic
+		and (note is None or e.get("note") == note)]
+	if not matches:
+		print(f"Error: nothing to remove — no entry under {key!r} in {path} has "
+			f"topic {topic!r}" + (f" and note {note!r}" if note is not None else "")
+			+ ". Nothing was written.", file=sys.stderr)
+		sys.exit(1)
+	if len(matches) > 1:
+		listing = "\n".join(
+			f"  [{i}] added {entries[i].get('added_at')!r}: {str(entries[i].get('note'))[:100]!r}"
+			for i in matches)
+		print(f"Error: {len(matches)} entries under {key!r} match topic {topic!r}"
+			+ (" and that note" if note is not None else "")
+			+ f" — refusing to guess which one. Pass --note with the exact note text "
+			f"to narrow it to one. Nothing was written.\n{listing}", file=sys.stderr)
+		sys.exit(1)
+	removed = entries.pop(matches[0])
+	if not entries:
+		del store[key]
+	write_json_atomic(path, store)
+	return removed
+
+
 # ── add-watch-item (references/apply.md §Watch Items (Writing)) ───────────
 def cmd_add_watch_item(args):
 	_require_tool_id(args.tool_id)
@@ -633,6 +697,23 @@ def cmd_add_global_method_note(args):
 	append_store_entry(items.METHOD_NOTES_STORE, items.GLOBAL_METHOD_NOTE_KEY,
 		args.topic, args.note)
 	print(f"added global method note: {args.topic!r}")
+
+
+# ── remove-method-note / remove-global-method-note ────────────────────────
+# The apply-side half of criterion 18. render.py persists every surviving
+# method-note proposal at render (references/rendering-report.md §Method
+# Notes); a note the user then REJECTS on the page is withdrawn here, by the
+# exact (tool id, topic, note) render recorded in method-notes.render.json.
+def cmd_remove_method_note(args):
+	_require_tool_id(args.tool_id)
+	remove_store_entry(items.METHOD_NOTES_STORE, args.tool_id, args.topic, args.note)
+	print(f"removed method note for {args.tool_id!r}: {args.topic!r}")
+
+
+def cmd_remove_global_method_note(args):
+	remove_store_entry(items.METHOD_NOTES_STORE, items.GLOBAL_METHOD_NOTE_KEY,
+		args.topic, args.note)
+	print(f"removed global method note: {args.topic!r}")
 
 
 # ── finalize ──────────────────────────────────────────────────────────────
@@ -726,6 +807,17 @@ def main():
 	p.add_argument("--topic", required=True)
 	p.add_argument("--note", required=True)
 	p.set_defaults(func=cmd_add_global_method_note)
+
+	p = sub.add_parser("remove-method-note")
+	p.add_argument("--tool-id", required=True)
+	p.add_argument("--topic", required=True)
+	p.add_argument("--note", default=None)
+	p.set_defaults(func=cmd_remove_method_note)
+
+	p = sub.add_parser("remove-global-method-note")
+	p.add_argument("--topic", required=True)
+	p.add_argument("--note", default=None)
+	p.set_defaults(func=cmd_remove_global_method_note)
 
 	p = sub.add_parser("finalize")
 	p.add_argument("session_dir")

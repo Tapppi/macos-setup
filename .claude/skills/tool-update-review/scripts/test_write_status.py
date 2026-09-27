@@ -496,6 +496,129 @@ class MemoryStoreWriterTests(unittest.TestCase):
 		with open(path, "r", encoding="utf-8") as fh:
 			self.assertEqual(fh.read(), body)
 
+	# ── remove-method-note / remove-global-method-note ─────────────────────
+	# The apply-side half of render-time persistence (criterion 18): a note
+	# render.py wrote and the user rejected on the page is withdrawn here.
+	def _seed(self, state_home, *specs):
+		"""specs: (subcommand, tool_id_or_None, topic, note)."""
+		for sub, tool_id, topic, note in specs:
+			argv = [sub] + (["--tool-id", tool_id] if tool_id else []) + ["--topic", topic, "--note", note]
+			self.assertEqual(self._run(state_home, *argv).returncode, 0)
+
+	def test_removal_matches_by_topic_and_deletes_an_emptied_key(self):
+		state_home = self._state_home()
+		self._seed(state_home,
+			("add-method-note", "brew:jq", "where the changelog lives", "read the tag"),
+			("add-method-note", "brew:yq", "keep", "keep this one"))
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:jq",
+			"--topic", "where the changelog lives")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertIn("removed method note", p.stdout)
+		store = self._store(state_home, model.METHOD_NOTES_STORE)
+		# The emptied key is DELETED, not left as [] — the shape the golden
+		# pins, and a shape no reader can tell from absent.
+		self.assertNotIn("brew:jq", store)
+		self.assertEqual([e["topic"] for e in store["brew:yq"]], ["keep"])
+
+	def test_removal_of_one_of_several_keeps_the_rest_in_order(self):
+		state_home = self._state_home()
+		self._seed(state_home,
+			("add-method-note", "brew:jq", "first", "a"),
+			("add-method-note", "brew:jq", "second", "b"),
+			("add-method-note", "brew:jq", "third", "c"))
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:jq",
+			"--topic", "second")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertEqual([e["topic"] for e in
+			self._store(state_home, model.METHOD_NOTES_STORE)["brew:jq"]], ["first", "third"])
+
+	def test_not_found_is_an_explicit_error_and_writes_nothing(self):
+		"""Never a silent success: a veto that removed nothing must say so,
+		or a bad note stays in the store with a green apply log."""
+		state_home = self._state_home()
+		self._seed(state_home, ("add-method-note", "brew:jq", "present", "n"))
+		path = os.path.join(state_home, "tool-update-review", model.METHOD_NOTES_STORE)
+		with open(path, encoding="utf-8") as fh:
+			before = fh.read()
+		for tool_id, topic, note in (("brew:jq", "absent", None),
+				("brew:other", "present", None), ("brew:jq", "present", "wrong note")):
+			with self.subTest(f"{tool_id} {topic} {note}"):
+				argv = ["remove-method-note", "--tool-id", tool_id, "--topic", topic]
+				if note is not None:
+					argv += ["--note", note]
+				p = self._run(state_home, *argv)
+				self.assertEqual(p.returncode, 1)
+				self.assertIn("nothing to remove", p.stderr)
+				self.assertIn("Nothing was written", p.stderr)
+				with open(path, encoding="utf-8") as fh:
+					self.assertEqual(fh.read(), before)
+
+	def test_an_ambiguous_topic_is_refused_until_note_narrows_it(self):
+		"""Two entries with one topic is a reachable store state — apply's
+		path 2 (an agent-initiated followup) appends without dedupe — so
+		the remover refuses to guess and lists the candidates; the exact
+		note (from method-notes.render.json) narrows it to one."""
+		state_home = self._state_home()
+		self._seed(state_home,
+			("add-method-note", "brew:jq", "dup", "first note"),
+			("add-method-note", "brew:jq", "dup", "second note"))
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:jq", "--topic", "dup")
+		self.assertEqual(p.returncode, 1)
+		self.assertIn("2 entries", p.stderr)
+		self.assertIn("refusing to guess", p.stderr)
+		self.assertIn("first note", p.stderr)
+		self.assertIn("second note", p.stderr)
+		self.assertEqual(len(self._store(state_home, model.METHOD_NOTES_STORE)["brew:jq"]), 2)
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:jq",
+			"--topic", "dup", "--note", "second note")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertEqual([e["note"] for e in
+			self._store(state_home, model.METHOD_NOTES_STORE)["brew:jq"]], ["first note"])
+
+	def test_the_global_remover_takes_no_tool_id_and_the_per_tool_one_refuses_the_reserved_key(self):
+		state_home = self._state_home()
+		self._seed(state_home,
+			("add-global-method-note", None, "tags beat release pages", "cite the tag"),
+			("add-method-note", "brew:jq", "local", "n"))
+		p = self._run(state_home, "remove-method-note", "--tool-id",
+			model.GLOBAL_METHOD_NOTE_KEY, "--topic", "tags beat release pages")
+		self.assertNotEqual(p.returncode, 0)
+		self.assertIn("--tool-id", p.stderr)
+		store = self._store(state_home, model.METHOD_NOTES_STORE)
+		self.assertEqual(len(store[model.GLOBAL_METHOD_NOTE_KEY]), 1)
+		p = self._run(state_home, "remove-global-method-note", "--topic", "tags beat release pages")
+		self.assertEqual(p.returncode, 0, p.stderr)
+		store = self._store(state_home, model.METHOD_NOTES_STORE)
+		self.assertNotIn(model.GLOBAL_METHOD_NOTE_KEY, store)
+		self.assertIn("brew:jq", store)
+
+	def test_an_unreadable_store_is_refused_by_the_remover_too(self):
+		state_home = self._state_home()
+		path = os.path.join(state_home, "tool-update-review", model.METHOD_NOTES_STORE)
+		os.makedirs(os.path.dirname(path))
+		body = '{"brew:jq": [{"topic": "t",'
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write(body)
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:jq", "--topic", "t")
+		self.assertEqual(p.returncode, 1)
+		self.assertIn("refusing to write", p.stderr)
+		with open(path, encoding="utf-8") as fh:
+			self.assertEqual(fh.read(), body)
+
+	def test_write_then_remove_matches_the_pinned_golden(self):
+		"""contract/stores.json pins the shape after one write and one
+		removal: an empty object, not {"brew:attention": []}."""
+		with open(os.path.join(SCRIPT_DIR, "contract", "stores.json"), encoding="utf-8") as fh:
+			golden = json.load(fh)["method-notes.json"]
+		state_home = self._state_home()
+		entry = golden["after_one_write"]["brew:attention"][0]
+		self._seed(state_home, ("add-method-note", "brew:attention", entry["topic"], entry["note"]))
+		p = self._run(state_home, "remove-method-note", "--tool-id", "brew:attention",
+			"--topic", entry["topic"], "--note", entry["note"])
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertEqual(self._store(state_home, model.METHOD_NOTES_STORE),
+			golden["after_one_write_then_one_removal"])
+
 	def test_every_entry_carries_exactly_the_pinned_three_fields(self):
 		state_home = self._state_home()
 		self._run(state_home, "add-global-method-note", "--topic", "t", "--note", "n")
