@@ -2114,7 +2114,34 @@ class ConvergenceMergeTests(unittest.TestCase):
 				"target": {"tool_id": "brew:cm", "kind": "tool"},
 				"reason": {"headline": "Rating basis is vendor prose",
 					"body": "The high rating quotes the vendor, not an advisory."}},
-		]}
+		], "ledger": {
+			"watch_items": {"existing": [], "proposed_kept": [
+				{"suggestion_id": "brew:cm:watch-a", "restored": True, "reason": "r"}],
+				"proposed_cut": [], "rehomed_to_method_note": [
+				{"suggestion_id": "brew:cm:watch-b", "new_note_id": "brew:cm:method-b",
+					"scope": "tool", "reason": "r"}]},
+			"method_notes_tool": {"kept": [], "cut": [], "promoted_to_global": [
+				{"suggestion_id": "brew:cm:method-general", "reason": "cross-tool"}]},
+			"method_notes_global": {"kept": [], "cut": [], "demoted_to_tool": []},
+		}}
+
+	def test_the_ledgers_memory_dispositions_ride_on_the_report(self):
+		"""Criterion 18's input: render.py routes a promoted note to the
+		global store, and the page marks RE-HOMED / RESTORED provenance —
+		both read this block, so the ledger is parsed once, here."""
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		memory = report["convergence"]["memory"]
+		self.assertEqual(memory["promoted_to_global"], ["brew:cm:method-general"])
+		self.assertEqual(memory["rehomed_to_method_note"], [{
+			"suggestion_id": "brew:cm:watch-b", "new_note_id": "brew:cm:method-b",
+			"scope": "tool"}])
+		self.assertEqual(memory["restored"], ["brew:cm:watch-a"])
 
 	def test_a_session_with_no_artefacts_reports_not_run(self):
 		collect, research = self._collect_and_research()

@@ -843,17 +843,43 @@ def _read_session_json(session_dir: str, name: str):
 	return document, None
 
 
-def _flag_edits(session_dir: str) -> list:
-	"""The `op: "flag"` edits out of the accepted converge.json — findings
-	convergence recorded for the human without changing anything. They feed
-	the Report notes band. Tolerant: an unreadable converge.json costs the
-	flags and says so, never the merge."""
+def _memory_dispositions(converge_doc) -> dict:
+	"""C6's ledger (references/convergence.md §5), reduced to what the
+	render stage and the page need: which method-note suggestions
+	convergence PROMOTED to the global store (render.py writes those under
+	the reserved key instead of the tool's), which watch-item proposals it
+	RE-HOMED into method notes (with the new note's id and scope), and which
+	tagged proposals it RESTORED against a failed self-test. Ids only — the
+	proposals themselves are on the tools."""
+	ledger = converge_doc.get("ledger") if isinstance(converge_doc.get("ledger"), dict) else {}
+	def rows(block, array):
+		blk = ledger.get(block) if isinstance(ledger.get(block), dict) else {}
+		return [r for r in (blk.get(array) or []) if isinstance(r, dict)
+			and isinstance(r.get("suggestion_id"), str)]
+	promoted = [r["suggestion_id"] for r in rows("method_notes_tool", "promoted_to_global")]
+	rehomed = [{"suggestion_id": r["suggestion_id"],
+		"new_note_id": r.get("new_note_id") if isinstance(r.get("new_note_id"), str) else None,
+		"scope": r.get("scope") if isinstance(r.get("scope"), str) else "tool"}
+		for r in rows("watch_items", "rehomed_to_method_note")]
+	restored = sorted({r["suggestion_id"]
+		for block, array in (("method_notes_tool", "kept"), ("watch_items", "proposed_kept"))
+		for r in rows(block, array) if r.get("restored") is True})
+	return {"promoted_to_global": promoted, "rehomed_to_method_note": rehomed,
+		"restored": restored}
+
+
+def _flag_edits(session_dir: str) -> tuple:
+	"""→ (flags, memory) out of the accepted converge.json: the `op: "flag"`
+	edits — findings convergence recorded for the human without changing
+	anything, which feed the Report notes band — and the ledger's memory
+	dispositions (`_memory_dispositions`). Tolerant: an unreadable
+	converge.json costs both and says so, never the merge."""
 	converge_doc, problem = _read_session_json(session_dir, "converge.json")
 	if converge_doc is None:
 		if problem != "absent":
-			note(f"warning: converge.json is {problem} — convergence flags will "
-				f"not appear in the report")
-		return []
+			note(f"warning: converge.json is {problem} — convergence flags and "
+				f"memory dispositions will not appear in the report")
+		return [], None
 	flags = []
 	for edit in converge_doc.get("edits") or []:
 		if not isinstance(edit, dict) or edit.get("op") != "flag":
@@ -867,7 +893,7 @@ def _flag_edits(session_dir: str) -> list:
 			"headline": reason.get("headline"),
 			"body": reason.get("body"),
 		})
-	return flags
+	return flags, _memory_dispositions(converge_doc)
 
 
 def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
@@ -944,6 +970,7 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 				f"{post_v.get('initial_review_bucket')!r}")
 
 	status = effect.get("convergence_status")
+	flags, memory = _flag_edits(session_dir)
 	summary = {
 		"state": effect.get("state"),
 		"attempt": effect.get("attempt"),
@@ -953,7 +980,10 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 		"status": status if isinstance(status, dict) else None,
 		"moved": moved,
 		"findings": list(effect.get("findings") or []),
-		"flags": _flag_edits(session_dir),
+		"flags": flags,
+		# Criterion 18's input: what render.py writes to the GLOBAL store,
+		# and the provenance the Method notes tab marks.
+		"memory": memory,
 		"applied_count": len(effect.get("applied") or []),
 		"rejected_count": len(effect.get("rejected") or []),
 		"tools": effect.get("tools") if isinstance(effect.get("tools"), dict) else {},

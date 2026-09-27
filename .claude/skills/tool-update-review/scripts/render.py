@@ -3,17 +3,128 @@
 render.py — inject report.json into the HTML template and write index.html.
 Usage: render.py <path-to-report.json>
 
-Reads report.json, validates schema_version and suggestion-id uniqueness,
-performs three token replacements in the template, writes index.html next
-to report.json, and copies server.py alongside it. Prints the output path.
+Reads report.json, validates schema_version, contract_version and
+suggestion-id uniqueness, performs three token replacements in the template,
+writes index.html next to report.json, PERSISTS every surviving method-note
+proposal into the method-note store (criterion 18 — see
+persist_method_notes), and copies server.py alongside it. Prints the output
+path.
 """
 import json
 import os
 import shutil
+import subprocess
 import sys
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import items  # noqa: E402
+import write_status  # noqa: E402  — the stores' read-only path helpers
+
+RENDER_RECORD = "method-notes.render.json"
+
+
+def persist_method_notes(report: dict, report_dir: str) -> dict:
+	"""Criterion 18 / REDESIGN §L5: method notes persist AT RENDER, not on
+	Submit, so the store fills from run one — including a run the user
+	abandons, which is the historical norm. The report page then carries
+	the surface that earns this: every persisted note is visible there, a
+	Reject withdraws it at apply (`write_status.py remove-method-note`),
+	and a comment attaches modification instructions. Render owns the
+	write; apply owns the disposition (references/rendering-report.md
+	§Method Notes).
+
+	What is written: every `kind: "method-note"` suggestion still on a tool
+	in report.json — i.e. what survived convergence's C6, which cut or
+	re-homed the rest before this stage ran. A suggestion the ledger
+	promoted to global (`report.convergence.memory.promoted_to_global`, or
+	a re-homed note with `scope: "global"`) goes under the reserved global
+	key through `add-global-method-note` — the only real-run writer of
+	that store. Everything else goes under its tool id.
+
+	Idempotent by content: an entry with the same topic AND note already
+	under the key is skipped, so re-rendering one report never duplicates.
+	Same topic with different text still writes — convergence dedupes
+	proposals against the store by (tool_id, topic) before this stage, so
+	a same-topic survivor is one it judged distinct.
+
+	Never the run: a write the store refuses (unreadable file, a key
+	holding a non-array) is recorded as failed, said on stderr, and the
+	page still renders. The whole outcome is written beside the page as
+	method-notes.render.json — what was written, what already existed,
+	what failed — which is also what apply reads to withdraw a rejected
+	note by its exact (key, topic, note)."""
+	conv = report.get("convergence") if isinstance(report.get("convergence"), dict) else {}
+	memory = conv.get("memory") if isinstance(conv.get("memory"), dict) else {}
+	global_ids = {s for s in (memory.get("promoted_to_global") or []) if isinstance(s, str)}
+	for row in memory.get("rehomed_to_method_note") or []:
+		if isinstance(row, dict) and row.get("scope") == "global" \
+				and isinstance(row.get("new_note_id"), str):
+			global_ids.add(row["new_note_id"])
+
+	store_file = write_status.store_path(items.METHOD_NOTES_STORE)
+	store, problem = write_status._load_store(store_file)
+	record = {
+		"report_id": report.get("report_id", ""),
+		"rendered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+		"store": store_file,
+		"written": [], "already_present": [], "failed": [],
+	}
+	if problem is not None:
+		# The store cannot be read: nothing can be deduped against it and
+		# every write would be refused by the writer anyway. Say so once,
+		# record every proposal as failed, keep rendering.
+		record["store_problem"] = problem
+	script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "write_status.py")
+
+	for tool in report.get("tools", []):
+		if not isinstance(tool, dict) or not isinstance(tool.get("id"), str):
+			continue
+		for sug in tool.get("suggestions", []) or []:
+			if not isinstance(sug, dict) or sug.get("kind") != "method-note":
+				continue
+			topic, note_text = sug.get("method_topic"), sug.get("method_note")
+			entry = {"tool_id": tool["id"], "suggestion_id": sug.get("id"),
+				"key": None, "topic": topic, "note": note_text}
+			if not (isinstance(topic, str) and topic.strip()
+					and isinstance(note_text, str) and note_text.strip()):
+				entry["reason"] = "method_topic/method_note missing or empty"
+				record["failed"].append(entry)
+				continue
+			is_global = isinstance(sug.get("id"), str) and sug["id"] in global_ids
+			key = items.GLOBAL_METHOD_NOTE_KEY if is_global else tool["id"]
+			entry["key"] = key
+			if problem is not None:
+				entry["reason"] = f"store {problem}"
+				record["failed"].append(entry)
+				continue
+			existing = store.get(key) if isinstance(store.get(key), list) else []
+			if any(isinstance(e, dict) and e.get("topic") == topic
+					and e.get("note") == note_text for e in existing):
+				record["already_present"].append(entry)
+				continue
+			argv = [sys.executable, script] + (
+				["add-global-method-note"] if is_global
+				else ["add-method-note", "--tool-id", tool["id"]]
+			) + ["--topic", topic, "--note", note_text]
+			proc = subprocess.run(argv, capture_output=True, text=True)
+			if proc.returncode != 0:
+				entry["reason"] = proc.stderr.strip()[-400:]
+				record["failed"].append(entry)
+				continue
+			record["written"].append(entry)
+			# Keep the in-memory view current so a second proposal with the
+			# same (topic, note) in this run is deduped against the first.
+			store.setdefault(key, []).append({"topic": topic, "note": note_text})
+
+	with open(os.path.join(report_dir, RENDER_RECORD), "w", encoding="utf-8") as fh:
+		json.dump(record, fh, ensure_ascii=False, indent="\t")
+		fh.write("\n")
+	if record["written"] or record["already_present"] or record["failed"]:
+		print(f"method notes: {len(record['written'])} written, "
+			f"{len(record['already_present'])} already present, "
+			f"{len(record['failed'])} failed → {RENDER_RECORD}", file=sys.stderr)
+	return record
 
 
 def main():
@@ -122,6 +233,10 @@ def main():
 	out_path = os.path.join(report_dir, "index.html")
 	with open(out_path, "w", encoding="utf-8") as fh:
 		fh.write(html)
+
+	# ── Persist method notes (criterion 18) — after the page exists, so a
+	# store problem can never cost the render. ─────────────────────────────
+	persist_method_notes(report, report_dir)
 
 	# ── Copy server.py ────────────────────────────────────────────────────
 	server_dst = os.path.join(report_dir, "server.py")

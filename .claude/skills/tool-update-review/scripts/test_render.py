@@ -62,12 +62,21 @@ def minimal_report(**over):
 
 
 class RenderRunner(unittest.TestCase):
-	def render(self, report, as_bytes=None, path_override=None):
+	def render(self, report, as_bytes=None, path_override=None, state_home=None,
+			report_dir=None):
 		"""Run render.py against a throwaway report dir; returns
 		(CompletedProcess, report_dir). The dir outlives the call so a test
-		can assert what was — or was not — written into it."""
-		report_dir = tempfile.mkdtemp(prefix="render-test-")
-		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
+		can assert what was — or was not — written into it.
+
+		Every run gets its OWN XDG_STATE_HOME (a throwaway, unless the test
+		passes one to share across two renders), so render-time persistence
+		can never touch the machine's real method-note store from a test."""
+		if report_dir is None:
+			report_dir = tempfile.mkdtemp(prefix="render-test-")
+			self.addCleanup(__import__("shutil").rmtree, report_dir, True)
+		if state_home is None:
+			state_home = tempfile.mkdtemp(prefix="render-test-state-")
+			self.addCleanup(__import__("shutil").rmtree, state_home, True)
 		report_path = os.path.join(report_dir, "report.json")
 		if as_bytes is not None:
 			with open(report_path, "wb") as fh:
@@ -75,9 +84,10 @@ class RenderRunner(unittest.TestCase):
 		else:
 			with open(report_path, "w", encoding="utf-8") as fh:
 				json.dump(report, fh)
+		env = dict(os.environ, XDG_STATE_HOME=state_home)
 		p = subprocess.run([sys.executable, RENDER_PY,
 			path_override or report_path],
-			capture_output=True, text=True, timeout=60)
+			capture_output=True, text=True, timeout=60, env=env)
 		return p, report_dir
 
 	def read_page(self, report_dir):
@@ -1182,6 +1192,121 @@ class JudgementPanelTests(PageDriveRunner):
 		self.assertIn("E-GATE-UNREASONED", out["line"])
 		self.assertIn("starts undecided", out["line"])
 		self.assertEqual(out["decision"], "")
+
+
+
+class RenderPersistTests(RenderRunner):
+	"""Criterion 18 / §L5: method notes persist AT RENDER. The store fills
+	from run one — an abandoned run included — and the page's reject /
+	modify surface is what earns that. render.py owns the write; the
+	record beside the page is what apply withdraws a rejected note from."""
+
+	STORE = os.path.join("tool-update-review", items.METHOD_NOTES_STORE)
+
+	def _note(self, tool_id, sid, topic, note):
+		return {"id": sid, "kind": "method-note", "title": f"Method note: {topic}",
+			"target_files": [], "command": None, "auto_runnable": False,
+			"rationale": "it happened", "method_topic": topic, "method_note": note}
+
+	def _report(self, **conv):
+		a = page_tool("brew:a", "a", "1.0", "1.1", "attention")
+		a["suggestions"].append(self._note("brew:a", "brew:a:method-1", "where the changelog lives", "read the tag"))
+		a["suggestions"].append(self._note("brew:a", "brew:a:method-general", "tags beat release pages", "cite the tag"))
+		b = page_tool("brew:b", "b", "1.0", "1.1", "routine")
+		b["suggestions"].append(self._note("brew:b", "brew:b:method-1", "empty release body", "diff the range"))
+		convergence = {"state": "converged", "memory": {
+			"promoted_to_global": ["brew:a:method-general"],
+			"rehomed_to_method_note": [], "restored": []}}
+		convergence.update(conv)
+		return page_report([a, b], convergence=convergence)
+
+	def _store(self, state_home):
+		with open(os.path.join(state_home, self.STORE), encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def _record(self, report_dir):
+		with open(os.path.join(report_dir, "method-notes.render.json"), encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def test_every_surviving_note_is_written_and_a_promoted_one_goes_global(self):
+		state_home = tempfile.mkdtemp(prefix="render-test-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		p, report_dir = self.render(self._report(), state_home=state_home)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertIn("method notes: 3 written, 0 already present, 0 failed", p.stderr)
+		store = self._store(state_home)
+		self.assertEqual([e["topic"] for e in store["brew:a"]], ["where the changelog lives"])
+		self.assertEqual([e["topic"] for e in store["brew:b"]], ["empty release body"])
+		# The ledger's promotion is honoured: the global store has its first
+		# real-run writer.
+		self.assertEqual([e["topic"] for e in store[items.GLOBAL_METHOD_NOTE_KEY]],
+			["tags beat release pages"])
+		self.assertNotIn("brew:a:method-general", json.dumps(store["brew:a"]))
+		# Every entry has exactly the three pinned fields, written by the
+		# store's own writer — never a hand-rolled edit.
+		for key, entries in store.items():
+			for e in entries:
+				self.assertEqual(set(e), {"topic", "note", "added_at"}, key)
+		record = self._record(report_dir)
+		self.assertEqual(len(record["written"]), 3)
+		self.assertEqual(record["already_present"], [])
+		self.assertEqual(record["failed"], [])
+		promoted = next(w for w in record["written"] if w["suggestion_id"] == "brew:a:method-general")
+		self.assertEqual(promoted["key"], items.GLOBAL_METHOD_NOTE_KEY)
+		self.assertEqual(promoted["tool_id"], "brew:a")
+
+	def test_a_second_render_of_the_same_report_writes_nothing_new(self):
+		"""Idempotent by content: re-rendering never duplicates."""
+		state_home = tempfile.mkdtemp(prefix="render-test-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		self.render(self._report(), state_home=state_home)
+		p, report_dir = self.render(self._report(), state_home=state_home)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertIn("0 written, 3 already present", p.stderr)
+		store = self._store(state_home)
+		self.assertEqual(len(store["brew:a"]), 1)
+		self.assertEqual(len(store["brew:b"]), 1)
+		self.assertEqual(len(store[items.GLOBAL_METHOD_NOTE_KEY]), 1)
+		self.assertEqual(len(self._record(report_dir)["already_present"]), 3)
+
+	def test_a_note_convergence_did_not_route_globally_stays_per_tool_when_convergence_did_not_run(self):
+		state_home = tempfile.mkdtemp(prefix="render-test-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		p, _ = self.render(self._report(state="not_run", memory=None), state_home=state_home)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		store = self._store(state_home)
+		self.assertNotIn(items.GLOBAL_METHOD_NOTE_KEY, store)
+		self.assertEqual(sorted(e["topic"] for e in store["brew:a"]),
+			["tags beat release pages", "where the changelog lives"])
+
+	def test_a_refused_write_never_costs_the_page(self):
+		"""An unreadable store is a refusal at the writer; render records
+		the failure, says so, and still writes index.html — never a dead
+		run, never a silent success."""
+		state_home = tempfile.mkdtemp(prefix="render-test-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		path = os.path.join(state_home, self.STORE)
+		os.makedirs(os.path.dirname(path))
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write('{"brew:a": [{"topic": "t",')
+		p, report_dir = self.render(self._report(), state_home=state_home)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertTrue(os.path.exists(os.path.join(report_dir, "index.html")))
+		self.assertIn("3 failed", p.stderr)
+		record = self._record(report_dir)
+		self.assertEqual(len(record["failed"]), 3)
+		self.assertIn("could not be read", record["store_problem"])
+		with open(path, encoding="utf-8") as fh:
+			self.assertEqual(fh.read(), '{"brew:a": [{"topic": "t",')
+
+	def test_a_report_with_no_method_notes_writes_no_store_and_no_noise(self):
+		state_home = tempfile.mkdtemp(prefix="render-test-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		p, report_dir = self.render(page_report(six_tools()), state_home=state_home)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertNotIn("method notes:", p.stderr)
+		self.assertFalse(os.path.exists(os.path.join(state_home, self.STORE)))
+		self.assertEqual(self._record(report_dir)["written"], [])
 
 
 if __name__ == "__main__":
