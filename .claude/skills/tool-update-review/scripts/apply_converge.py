@@ -1965,6 +1965,41 @@ def _degrade_unapplied(corpus_pre, converge, attempt, findings, attempt_log):
 		"corpus_post": corpus_post, "effect": effect}
 
 
+def _degraded_gate_explanation(forced, attempt):
+	"""→ (headline, body) for a degraded_gate run, saying what actually
+	happened per gate kind: a permissive failure is a move toward auto-update
+	the gate could not see justified; a demotion failure is a priority
+	lowered without a reason that survived — nothing moved toward
+	auto-update, and the page keeps the tool's PRIOR priority (§12 A-R3-3)."""
+	permissive = sorted(t for t, r in forced.items() if r.get("kind") != "demotion")
+	demoted = sorted(t for t, r in forced.items() if r.get("kind") == "demotion")
+	clauses = []
+	if permissive:
+		clauses.append("{} tool(s) reached auto-update without surviving the "
+			"gate".format(len(permissive)))
+	if demoted:
+		clauses.append("{} tool(s) had their security priority lowered without "
+			"a reason that survived the gate".format(len(demoted)))
+	headline = "{}; {} forced to {} and not accepted{}.".format(
+		" and ".join(clauses), "it was" if len(forced) == 1 else "they were",
+		contract.FORCED_BUCKET,
+		" — a demoted tool keeps its prior priority" if demoted else "")
+	parts = ["After {} attempts the gate still failed on: {}.".format(
+		attempt, ", ".join(sorted(forced)))]
+	if permissive:
+		parts.append("{} kept out of the auto strip and put into the review flow "
+			"instead of the move convergence could not justify.".format(
+				", ".join(permissive)))
+	if demoted:
+		parts.append("{} stays at its pre-convergence priority on the page rather "
+			"than the lowered one, and is held for review rather than "
+			"accepted.".format(", ".join(demoted)))
+	parts.append("The reviewer pays one card per tool, which is the safe failure. "
+		"The rest of the corpus keeps its convergence. Standing rejects and "
+		"findings are listed below.")
+	return headline, " ".join(parts)
+
+
 def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		attempt_log, excluded):
 	"""Attempt 5: whatever remains, ship something conservative and explained
@@ -2032,13 +2067,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 	degraded_tools = [dict(record, tool_id=tool_id)
 		for tool_id, record in sorted(forced.items())]
 	if state == "degraded_gate":
-		headline = "{} tool(s) reached auto-update without surviving the gate " \
-			"and were forced to {}.".format(len(forced), contract.FORCED_BUCKET)
-		body = ("After {} attempts the gate still failed on: {}. Each is forced "
-			"out of the auto strip into the review flow — the reviewer pays one "
-			"card, which is the safe failure. The rest of the corpus keeps its "
-			"convergence. Standing rejects and findings are listed "
-			"below.").format(attempt, ", ".join(sorted(forced)))
+		headline, body = _degraded_gate_explanation(forced, attempt)
 	elif standing or standing_findings:
 		headline = "Converged at attempt {} with {} standing reject(s).".format(
 			attempt, len(standing))

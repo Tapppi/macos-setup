@@ -5303,7 +5303,7 @@
 		 * deep link sees it too (report-page.md §2.2). */
 		function renderJudgeBadge(tool) {
 			const forced = forcedOf(tool);
-			if (forced) return `<span class="judge-badge forced" title="Forced to ${esc(forced.forced_bucket || 'security_mixed')} at attempt 5 — would have been ${esc(forced.would_have_been || '?')}">forced conservative</span>`;
+			if (forced) return `<span class="judge-badge forced" title="Forced to ${esc(forced.forced_bucket || 'security_mixed')} at attempt 5 — would have been ${esc(wouldHaveText(forced.would_have_been))}">forced conservative</span>`;
 			const label = labelOf(tool);
 			if (!label) return '';
 			if (JUDGED_SOURCES.includes(label.source)) {
@@ -5330,10 +5330,30 @@
 			return `<div class="judge-line" data-priority-move="${sp.lost ? 'lowered' : 'raised'}">Convergence ${verb} this fix's priority ${esc(sp.from || 'not G-SEC')} → ${esc(sp.to || 'not G-SEC')}${ids.length ? ` (${esc(ids.join(', '))})` : ''}. ${sp.lost ? jumpHtmlOverview('lowered-block', 'see why →') : ''}</div>`;
 		}
 
+		/* `would_have_been` is the {bucket, pre_accept, priority} the failing
+		 * submission would have produced (an older record: a bucket string). */
+		function wouldHaveText(w) {
+			if (typeof w === 'string') return w;
+			if (!w || typeof w !== 'object') return '?';
+			const parts = [typeof w.bucket === 'string' ? w.bucket : '?'];
+			if (typeof w.pre_accept === 'boolean') parts.push(w.pre_accept ? 'accepted' : 'not accepted');
+			if (w.priority === null || typeof w.priority === 'string') parts.push(`priority ${w.priority || 'not G-SEC'}`);
+			return parts.join(', ');
+		}
+
 		function renderAutoJudgeLine(tool) {
 			const forced = forcedOf(tool);
 			if (forced) {
-				return `<div class="judge-line forced">Convergence could not justify this tool's move to auto-update after five attempts (${esc(forced.code || '')}); it was forced to <b>${esc(forced.forced_bucket || 'security_mixed')}</b> instead of <b>${esc(forced.would_have_been || '?')}</b> and starts undecided. ${jumpHtmlOverview('degraded-strip', 'see the convergence status →')}</div>`;
+				const bucket = esc(forced.forced_bucket || 'security_mixed');
+				const jump = jumpHtmlOverview('degraded-strip', 'see the convergence status →');
+				if (forced.kind === 'demotion') {
+					const w = forced.would_have_been;
+					const to = (w && typeof w === 'object' && (w.priority === null || typeof w.priority === 'string')) ? (w.priority || 'not G-SEC') : '?';
+					const fd = forcedDisplayOf(tool);
+					const kept = fd ? ` It keeps its prior priority <b>${esc(fd.priority)}</b> here` : ' It keeps its prior priority here';
+					return `<div class="judge-line forced" data-forced-kind="demotion">Convergence lowered this fix's priority to <b>${esc(to)}</b> without a reason that survived the gate after five attempts (${esc(forced.code || '')}).${kept}, is forced to <b>${bucket}</b>, is not accepted, and starts undecided. ${jump}</div>`;
+				}
+				return `<div class="judge-line forced" data-forced-kind="permissive">Convergence could not justify this tool's move to auto-update after five attempts (${esc(forced.code || '')}); it was forced to <b>${bucket}</b> instead of <b>${esc(wouldHaveText(forced.would_have_been))}</b> and starts undecided. ${jump}</div>`;
 			}
 			if (!isJudged(tool)) return '';
 			const label = labelOf(tool);
@@ -5368,7 +5388,7 @@
 					${attempts !== null ? `<span>${attempts} attempt${attempts === 1 ? '' : 's'}</span>` : ''}
 					${log.length ? `<span>log: ${esc(log.map(a => `#${a.attempt} ${a.state}${a.codes && Object.keys(a.codes).length ? ' (' + Object.keys(a.codes).join(', ') + ')' : ''}`).join(' · '))}</span>` : ''}
 					${rejects ? `<span>${rejects} standing reject${rejects === 1 ? '' : 's'}</span>` : ''}
-					${degraded.map(d => jumpHtml(d.tool_id, `${(toolById(d.tool_id) || {}).name || d.tool_id}: forced ${d.forced_bucket || 'security_mixed'} (would have been ${d.would_have_been || '?'}) →`)).join('')}
+					${degraded.map(d => jumpHtml(d.tool_id, `${(toolById(d.tool_id) || {}).name || d.tool_id}: forced ${d.forced_bucket || 'security_mixed'} (would have been ${wouldHaveText(d.would_have_been)}) →`)).join('')}
 				</div>
 			</div>`;
 		}

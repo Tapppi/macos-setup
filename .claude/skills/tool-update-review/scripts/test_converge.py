@@ -1369,6 +1369,12 @@ class TerminalDegradationTests(unittest.TestCase):
 		self.assertEqual(status["degraded_tools"][0]["would_have_been"],
 			{"bucket": "security_auto", "pre_accept": True, "priority": None})
 		self.assertEqual(status["degraded_tools"][0]["kind"], "permissive")
+		explanation = status["explanation"]
+		self.assertIn("1 tool(s) reached auto-update without surviving the gate",
+			explanation["headline"])
+		self.assertIn("forced to security_mixed", explanation["headline"])
+		self.assertNotIn("priority", explanation["headline"])
+		self.assertIn("kept out of the auto strip", explanation["body"])
 		# a degraded tool carries NO auto_update_label (§4.4)
 		self.assertNotIn("auto_update_label",
 			result["effect"]["tools"]["brew:auto"])
@@ -1855,6 +1861,15 @@ class GSecConvergenceTests(unittest.TestCase):
 		self.assertEqual(forced["would_have_been"]["priority"], "P3")
 		self.assertEqual(forced["forced_display"]["priority"], "P2")
 		self.assertEqual(forced["forced_display"]["reasons"], ["relevant-fix", "fix"])
+		# explained as what happened — a lowered priority, not a failed move
+		# to auto-update
+		explanation = result["effect"]["convergence_status"]["explanation"]
+		self.assertIn("had their security priority lowered without a reason that "
+			"survived the gate", explanation["headline"])
+		self.assertIn("keeps its prior priority", explanation["headline"])
+		self.assertNotIn("auto-update", explanation["headline"])
+		self.assertNotIn("auto strip", explanation["body"])
+		self.assertIn("pre-convergence priority", explanation["body"])
 		self.assertEqual(forced["forced_display"]["labels"]["relevant-fix"],
 			model.TIER_LABELS["relevant-fix"]["text"])
 		self.assertFalse(post["initial_pre_accept"])

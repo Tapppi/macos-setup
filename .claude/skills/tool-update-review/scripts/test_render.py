@@ -1143,7 +1143,9 @@ class JudgementPanelTests(PageDriveRunner):
 
 	def test_a_degraded_gate_run_is_first_class_and_the_forced_tool_starts_undecided(self):
 		forced = {"forced_bucket": "security_mixed", "forced_pre_accept": False,
-			"would_have_been": "security_auto", "code": "E-GATE-UNREASONED"}
+			"would_have_been": {"bucket": "security_auto", "pre_accept": True,
+				"priority": None},
+			"code": "E-GATE-UNREASONED", "kind": "permissive"}
 		tool = page_tool("brew:forced", "forced", "1.0", "1.1", "security_mixed",
 			tags=("security",))
 		tool["security"]["has_security"] = True
@@ -1184,7 +1186,11 @@ class JudgementPanelTests(PageDriveRunner):
 		self.assertIn("5 attempts", out["m"])
 		self.assertIn("#1 rejected (E-GATE-UNREASONED)", out["m"])
 		self.assertIn("1 standing reject", out["m"])
-		self.assertIn("forced: forced security_mixed (would have been security_auto)", out["m"])
+		self.assertIn("forced: forced security_mixed (would have been security_auto, "
+			"accepted, priority not G-SEC)", out["m"])
+		self.assertNotIn("[object Object]", out["m"] + out["line"])
+		self.assertIn("could not justify this tool's move to auto-update", out["line"])
+		self.assertIn("instead of security_auto, accepted, priority not G-SEC", out["line"])
 		# A forced tool carries no label: not in the panel, not in the strip.
 		self.assertEqual(out["panel"], "false")
 		self.assertEqual(out["panelRows"], "0")
@@ -2236,7 +2242,30 @@ class GSecDegradedPageTests(PageDriveRunner):
 		log('ons=' + ons);
 		log('decision=' + (document.querySelector('#main .suggestion-card[data-suggestion-id="brew:duckdb:upgrade"]').dataset.decision || ''));
 		log('inStrip=' + !!document.querySelector('#sec-auto .autorow [data-mirrors="brew:duckdb:upgrade"]'));
+		const card = document.querySelector('[data-tool-id="brew:duckdb"]');
+		card.classList.remove('collapsed');
+		const line = card.querySelector('.judge-line.forced');
+		log('kind=' + line.dataset.forcedKind);
+		log('line=' + line.textContent.replace(/\\s+/g, ' ').trim());
+		log('badge=' + card.querySelector('.judge-badge.forced').title);
+		const strip = document.getElementById('degraded-strip');
+		log('h=' + strip.querySelector('.h').textContent);
+		log('m=' + strip.querySelector('.m').textContent.replace(/\\s+/g, ' ').trim());
 """)
+		# a DEMOTION failure is explained as one — never as a failed move to
+		# auto-update — and would_have_been reads as words, not [object Object]
+		self.assertEqual(out["kind"], "demotion")
+		self.assertIn("Convergence lowered this fix's priority to P3 without a reason "
+			"that survived the gate", out["line"])
+		self.assertIn("keeps its prior priority P2 here", out["line"])
+		self.assertIn("is not accepted", out["line"])
+		self.assertNotIn("auto-update", out["line"])
+		self.assertIn("had their security priority lowered", out["h"])
+		self.assertNotIn("reached auto-update", out["h"])
+		for text in (out["line"], out["badge"], out["m"]):
+			self.assertNotIn("[object Object]", text)
+		self.assertIn("would have been security_auto, accepted, priority P3", out["m"])
+		self.assertIn("would have been security_auto, accepted, priority P3", out["badge"])
 		priority, text = out["row"].split("|", 1)
 		self.assertEqual(priority, "P2")
 		self.assertIn("the fix touches how you use it", text)

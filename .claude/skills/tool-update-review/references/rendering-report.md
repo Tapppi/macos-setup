@@ -371,7 +371,9 @@ Directly under the lede, before the tiles, when `REPORT.convergence.state` is
 explanation renders **verbatim** — headline, body — then the attempt count,
 the attempt log (`#1 rejected (E-GATE-UNREASONED) · #5 degraded_gate`), the
 standing-reject count, and every `degraded_tools[]` entry as a jump reading
-`{name}: forced {bucket} (would have been {bucket}) →`. `--yellow` for
+`{name}: forced {bucket} (would have been {bucket}, accepted|not accepted,
+priority {P…|not G-SEC}) →` — `would_have_been` is the `{bucket, pre_accept,
+priority}` record, spelled out as words. `--yellow` for
 `degraded_gate` — the affected tools were forced conservative, the safe
 failure, one card each; `--red` for `degraded_unapplied`, where convergence's
 whole submission was set aside. The same strip, red, renders for
@@ -383,7 +385,11 @@ absence of convergence is worth saying, not shouting.
 A forced tool carries **no** auto-update label: it appears in neither the
 judgement panel nor the auto strip, its header carries a red-ringed
 `forced conservative` badge, its body opens with a red line naming the gate
-code and both buckets, and it starts undecided (assembly bars its
+code and saying what the gate caught by its `kind` — `permissive`: a move to
+auto-update convergence could not justify, with both buckets; `demotion`: a
+priority lowered without a reason that survived, the tool kept at its prior
+priority, forced and not accepted (never worded as a move to auto-update) —
+and it starts undecided (assembly bars its
 pre-acceptance on the `forced_conservative` record).
 
 ### Stat Tiles
