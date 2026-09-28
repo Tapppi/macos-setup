@@ -1358,6 +1358,15 @@ def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 				"attributed_to": sorted(attributed.get(contract.PRIORITY_AXIS, {})
 					.get("attributed_to", [])),
 			}
+			# What the page's "Lowered by convergence" disclosure shows for each
+			# attributed edit: its headline and its verbatim quote — the
+			# report carries no converge.json edits, so the record does.
+			block["security_priority"]["edits"] = [{
+				"edit_id": eid,
+				"headline": (edits_by_id[eid].get("reason") or {}).get("headline"),
+				"quote": edits_by_id[eid].get("quote")
+					if isinstance(edits_by_id[eid].get("quote"), str) else None,
+			} for eid in block["security_priority"]["attributed_to"]]
 		if record:
 			bucket_attr = attributed.get("initial_review_bucket", {})
 			block["bucket"] = {

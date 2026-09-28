@@ -1037,6 +1037,66 @@
 		/* judgement_unattributed: a permissive move nobody can attribute is
 		 * the §3 defect itself — the one thing on the page that should
 		 * look like an error. */
+		/* ── G-SEC: "Security fixes for you" ─────────────────────────────
+		 * The judgement-row pattern, on the security accent. P0 rows carry
+		 * a red rail, held rows a dimmed one; the chip TEXT carries the
+		 * meaning (test_render removes the colour classes and still reads
+		 * it). */
+		.ppanel, .lowered {
+			border: 1px solid rgba(220,50,47,0.40);
+			border-left: 3px solid var(--red);
+			border-radius: 6px;
+			background: linear-gradient(var(--tint-red), var(--tint-red)), var(--base02);
+			margin-bottom: 14px;
+		}
+		.lowered { border-color: rgba(181,137,0,0.45); border-left-color: var(--yellow);
+			background: linear-gradient(var(--tint-yellow), var(--tint-yellow)), var(--base02); }
+		.ppanel-head, .lowered-head {
+			display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+			padding: 9px 13px; border-bottom: 1px solid var(--hair);
+		}
+		.ppanel-head h3, .lowered-head h3 { font-size: 13px; color: var(--base2); font-weight: 600; }
+		.ppanel-head .sub, .lowered-head .sub { font-size: 12px; color: var(--base00); font-family: var(--mono); }
+		.ppanel-foot { padding: 7px 13px; font-size: 12px; color: var(--base00); border-top: 1px solid var(--hair); }
+		.prow, .lwrow { padding: 10px 13px; border-bottom: 1px solid var(--hair); min-width: 0; }
+		.prow:last-of-type, .lwrow:last-child { border-bottom: none; }
+		.prow[data-focused] { outline: 2px solid var(--blue); outline-offset: -2px; }
+		.prow .l1, .lwrow .l1 { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; min-width: 0; }
+		.prow .l1 .nm, .lwrow .l1 .nm { color: var(--base2); font-weight: 600; font-size: 14px; }
+		.prow .spacer, .lwrow .spacer { flex: 1; }
+		.prow .l2 { margin-top: 6px; display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: baseline; }
+		.prow .l3 { margin-top: 4px; display: flex; gap: 4px 12px; flex-wrap: wrap; align-items: baseline;
+			font-size: 12.5px; color: var(--base1); overflow-wrap: anywhere; }
+		.prow .l3 .ln { min-width: 0; }
+		.prow .l3 .jump { font-size: 11.5px; }
+		.prow .l3 code { font-family: var(--mono); font-size: 11.5px; color: var(--base0); }
+		.prow[data-held="1"] { background: rgba(0,0,0,0.12); }
+		.prio-chip, .held-chip {
+			display: inline-flex; align-items: baseline; gap: 5px;
+			font-size: 12px; padding: 1px 8px; border-radius: 10px;
+			border: 1px solid var(--base01); color: var(--base1);
+			overflow-wrap: anywhere; max-width: 100%;
+		}
+		.prio-chip[data-p="P0"] { border-color: rgba(220,50,47,0.7); color: var(--red-text); }
+		.prio-chip[data-p="P1"] { border-color: rgba(181,137,0,0.7); color: var(--yellow); }
+		.prio-chip[data-p="P2"] { border-color: rgba(42,161,152,0.7); color: var(--cyan); }
+		.held-chip { border-style: dashed; color: var(--base0); }
+		.more-reasons { font-size: 11px; color: var(--base00); font-family: var(--mono); }
+		.lwrow .lw-move { font-family: var(--mono); font-size: 12px; color: var(--base00); }
+		.lwrow .lw-move b { color: var(--base1); }
+		.lwrow .lw-edit { margin-top: 4px; font-size: 12.5px; color: var(--base1); overflow-wrap: anywhere; }
+		.lwrow .lw-edit .q { color: var(--base0); }
+		.lwrow .lw-edit .eid { font-family: var(--mono); font-size: 11px; color: var(--base01); }
+		.prio-badge, .held-badge {
+			font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 3px;
+			border: 1px solid var(--base01); color: var(--base1); white-space: nowrap;
+		}
+		.prio-badge[data-p="P0"] { border-color: rgba(220,50,47,0.7); color: var(--red-text); }
+		.prio-badge[data-p="P1"] { border-color: rgba(181,137,0,0.7); color: var(--yellow); }
+		.prio-badge[data-p="P2"] { border-color: rgba(42,161,152,0.7); color: var(--cyan); }
+		.held-badge { border-style: dashed; color: var(--base0); }
+		.autostrip-head .elev { color: var(--orange); font-size: 12px; white-space: normal; }
+
 		.jrow[data-unattributed="1"] { background: var(--tint-red); }
 		.jrow[data-unattributed="1"] .l1 .flag,
 		.jrow[data-unattributed="1"] .l2 { color: var(--red-text); }
@@ -3179,8 +3239,8 @@
 				Bucket:
 				<select id="filter-bucket">
 					<option value="">All</option>
-					<option value="security_mixed">Security + other</option>
-					<option value="security_auto">Security only</option>
+					<option value="security_mixed">Security · held or needs you</option>
+					<option value="security_auto">Security · accepted</option>
 					<option value="attention">Needs attention</option>
 					<option value="routine">Routine</option>
 				</select>
@@ -4348,6 +4408,13 @@
 			'E-WATCH-HIT-NOLOCAL': 'a watch hit was claimed on an item with no local finding',
 			'W-WATCH-HIT-UNRAISED': 'an item matches a stored watch topic but claims no hit',
 			'E-RESEARCH-UNKNOWNKEY': 'the checker wrote keys outside the contract; that payload is quarantined',
+			'E-SEC-FIX-UNGROUNDED': 'a security fix was claimed without the tag, block or cited upstream change that ground it — it counts for nothing',
+			'W-SEC-FIX-NOID': 'a grounded security fix carries no CVE, advisory or anchored id',
+			'E-SUG-REQUIRED-UNGROUNDED': 'an edit marked required serves no incompatible item — it is still treated as required',
+			'E-SUG-SERVES-UNRESOLVED': 'an edit names an item of this tool that does not exist',
+			'E-REQUIREMENT-CONTRADICTED': 'an edit marked proposed answers something the upgrade breaks — it is treated as required',
+			'E-USAGE-UNGROUNDED': 'a usage claim could not be grounded in the file it quotes — it confirms nothing',
+			'W-USAGE-INSTALL-ONLY': 'a usage quote is only the install line (or a comment) — the tool is installed, not shown to be used',
 		};
 
 		function renderDegradationStrip(tool) {
@@ -4378,16 +4445,37 @@
 		}
 
 		/* ── D2: risk, the bucket's inputs, and the pre-acceptance bars ─── */
+		/* Every bar and hold (items.PRE_ACCEPT_BARS), in words. On a G-SEC
+		 * tool the bars are its P0 reasons and holds; on any other tool the
+		 * pre-G-SEC bars plus the two universal ones. */
 		const BAR_TEXT = {
+			'required-edit': 'a config edit is required before the upgrade works',
+			'pinned': 'pinned',
+			'incompatible-unfixed': 'breaks something here with no fix proposed',
+			'content-losing': 'content was lost at validation',
+			'security-item-risk': 'a security change adds risk here',
+			'watch-hit': 'a watch-item hit',
+			'enum-invalid': 'an unreadable field (fail-closed)',
+			'container-unreadable': 'an unreadable item container (fail-closed)',
+			'research-incomplete': 'research incomplete',
+			'not-runnable': 'no runnable upgrade',
+			'forced-conservative': 'forced conservative by convergence',
+			'tier-uncomputed': 'security tier not computed',
 			'elevated-risk': 'elevated risk',
 			'reaches-item': 'a security item reaches this machine',
-			'local-enum-invalid': 'an unreadable local claim (fail-closed)',
-			'watch-hit': 'a grounded watch hit',
 		};
 
+		/* Elevated stays visible (D2's visibility half) — and never claims
+		 * "never pre-accepted" of a tool that IS: a positively identified
+		 * fix is accepted by tier at elevated risk (R6). */
 		function renderRiskBadge(tool) {
 			if (tool.risk_level !== 'elevated') return '';
-			return `<span class="risk-badge" title="risk_level: elevated — never pre-accepted (references/schemas.md §1.4)">elevated risk</span>`;
+			const sug = baselineSuggestion(tool);
+			const tier = tierOf(tool);
+			const title = sug && sug.pre_accept === true
+				? `elevated risk — accepted because it carries a security fix${tier ? ` (${tier.priority})` : ''}`
+				: 'risk_level: elevated — not pre-accepted (references/schemas.md §1.4)';
+			return `<span class="risk-badge" title="${esc(title)}">elevated risk</span>`;
 		}
 
 		function renderToolWhy(tool) {
@@ -4404,6 +4492,11 @@
 				bits.push(inputs.runnable ? 'runnable' : 'not runnable');
 			}
 			bits.push(`risk <b>${esc(tool.risk_level || 'unknown')}</b>`);
+			const p = prioInfo(tool);
+			if (p) {
+				const atLevel = p.reasons.filter(r => TIER_REASON_LEVEL[r] === p.priority);
+				bits.push(`priority <b>${esc(p.priority)}</b>${atLevel.length ? ' · ' + esc(atLevel.join(', ')) : ''}`);
+			}
 			const held = bars.length
 				? `<span class="held">· not pre-accepted: ${esc(bars.map(b => BAR_TEXT[b] || b).join('; '))}</span>`
 				: '';
@@ -4532,6 +4625,7 @@
 				${cveBadgeHtml(sec)}
 				${pinnedHtml}
 				${renderJudgeBadge(tool)}
+				${renderPriorityChips(tool)}
 				${renderRiskBadge(tool)}
 				${renderSpecBadge(tool)}
 				${renderConfigStatusBadge(tool)}
@@ -4955,6 +5049,256 @@
 			</section>`;
 		}
 
+
+		/* ── G-SEC: "Security fixes for you" (references/rendering-report.md
+		 * §"Security fixes for you") ────────────────────────────────────────
+		 * The tier is the validator's, carried on the tool and never
+		 * re-derived here: `security_tier.priority` says where a fix is
+		 * shown, `holds` why it is not taken, and the checkbox is the
+		 * baseline's `pre_accept`. The labels are the model's
+		 * (`items.TIER_LABELS`; test_render pins this copy to it) — text and
+		 * glyph, never colour alone. */
+		const TIER_LABELS = {"required-edit": {"glyph": "⛔", "text": "Needs you — a config change is required before this upgrade works"}, "pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"}, "incompatible-unfixed": {"glyph": "⛔", "text": "Needs you — breaks something here; no config fix proposed"}, "edit-proposed": {"glyph": "⚙", "text": "Accepted — config edits proposed, not applied unless you accept them"}, "config-attention": {"glyph": "⚙", "text": "Accepted — config needs attention — no edit proposed"}, "relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"}, "fix-with-breaking": {"glyph": "◎", "text": "Accepted — also has a breaking change: take a quick look"}, "fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"}, "vendor-unread": {"glyph": "◎", "text": "Accepted — vendor declares a security release without details"}, "fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"}};
+		const TIER_REASON_LEVEL = {"required-edit": "P0", "pinned": "P0", "incompatible-unfixed": "P0", "edit-proposed": "P1", "config-attention": "P1", "relevant-fix": "P2", "fix-with-breaking": "P2", "fix-with-risk": "P2", "vendor-unread": "P2", "fix": "P3"};
+		const TIER_HOLDS = ["content-losing", "security-item-risk", "watch-hit", "enum-invalid", "container-unreadable", "research-incomplete", "not-runnable", "forced-conservative", "tier-uncomputed"];
+		const TIER_TIERS = ['P0', 'held', 'P1', 'P2', 'P3'];
+		const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 };
+		const HIGHLIGHT_PRIORITIES = ['P0', 'P1', 'P2'];
+
+		/* The page's structural check of a tier — vocabulary membership and
+		 * the tier/priority/holds relation. An absent or malformed tier puts
+		 * the tool in no panel and claims nothing beyond `pre_accept`. */
+		function validTier(t) {
+			if (!t || typeof t !== 'object') return false;
+			if (!TIER_TIERS.includes(t.tier) || PRIORITY_ORDER[t.priority] === undefined) return false;
+			if (!Array.isArray(t.reasons) || !Array.isArray(t.holds)) return false;
+			if (!t.reasons.every(r => TIER_REASON_LEVEL[r]) || !t.holds.every(h => TIER_HOLDS.includes(h))) return false;
+			const want = t.priority === 'P0' ? 'P0' : (t.holds.length ? 'held' : t.priority);
+			return t.tier === want;
+		}
+
+		function tierOf(tool) {
+			return validTier(tool.security_tier) ? tool.security_tier : null;
+		}
+
+		/* §12 A-R3-3: a tool convergence could not justify moving, forced
+		 * conservative at attempt 5, carries a snapshot of its PRE-convergence
+		 * priority. It governs display only — the tool is never accepted. */
+		function forcedDisplayOf(tool) {
+			const f = (tool.forced_conservative && typeof tool.forced_conservative === 'object')
+				? tool.forced_conservative : forcedOf(tool);
+			const d = f && f.forced_display;
+			return (d && typeof d === 'object' && PRIORITY_ORDER[d.priority] !== undefined
+				&& Array.isArray(d.reasons)) ? d : null;
+		}
+
+		/* → {priority, reasons, holds, ids, forced} or null: what the page
+		 * shows about a tool's security tier. */
+		function prioInfo(tool) {
+			const tier = tierOf(tool);
+			const fd = forcedDisplayOf(tool);
+			if (fd) {
+				const holds = tier ? tier.holds.slice() : [];
+				if (!holds.includes('forced-conservative')) holds.push('forced-conservative');
+				return { priority: fd.priority, reasons: fd.reasons.filter(r => TIER_REASON_LEVEL[r]),
+					holds, ids: tier ? (tier.ids || {}) : {}, forced: true };
+			}
+			if (!tier) return null;
+			return { priority: tier.priority, reasons: tier.reasons, holds: tier.holds,
+				ids: (tier.ids && typeof tier.ids === 'object') ? tier.ids : {}, forced: false };
+		}
+
+		function inPriorityPanel(tool) {
+			const p = prioInfo(tool);
+			return !!(p && HIGHLIGHT_PRIORITIES.includes(p.priority));
+		}
+
+		function leadReason(p) {
+			return p.reasons.find(r => TIER_REASON_LEVEL[r] === p.priority) || p.reasons[0] || null;
+		}
+
+		/* A label on a HELD row drops its "Accepted — " lead: the tool is
+		 * not accepted, and a chip that says it is would be the one false
+		 * sentence on the row. The reason itself still reads. */
+		function reasonText(reason, held) {
+			const label = TIER_LABELS[reason];
+			if (!label) return reason;
+			return held ? label.text.replace(/^Accepted — /, '') : label.text;
+		}
+
+		function prioChipHtml(p) {
+			const reason = leadReason(p);
+			if (!reason) return '';
+			const held = p.holds.length > 0;
+			const label = TIER_LABELS[reason] || { glyph: '·', text: reason };
+			const rest = p.reasons.filter(r => r !== reason && r !== 'fix');
+			const more = rest.length
+				? `<span class="more-reasons" title="${esc(rest.map(r => reasonText(r, held)).join(' · '))}">+${rest.length} more reason${rest.length === 1 ? '' : 's'}</span>`
+				: '';
+			return `<span class="prio-chip" data-p="${esc(p.priority)}" data-reason="${esc(reason)}" title="security priority ${esc(p.priority)}">` +
+				`<span class="g" aria-hidden="true">${esc(label.glyph)}</span> ${esc(reasonText(reason, held))}</span>${more}`;
+		}
+
+		function heldChipHtml(p) {
+			if (!p.holds.length) return '';
+			const first = p.holds[0];
+			return `<span class="held-chip" data-hold="${esc(first)}" title="${esc(p.holds.map(h => BAR_TEXT[h] || h).join(' · '))}">⏸ Held — ${esc(BAR_TEXT[first] || first)}</span>`;
+		}
+
+		function itemById(tool, id) {
+			return itemsOf(tool).find(i => i && i.id === id) || null;
+		}
+
+		function firstSentence(text) {
+			const s = (typeof text === 'string' ? text : '').trim();
+			const m = s.match(/^.*?[.!?](\s|$)/);
+			return (m ? m[0] : s).trim();
+		}
+
+		/* One line per row, derived from the lead reason — one branch per
+		 * reason, never a single template for a level. */
+		function prioLineHtml(tool, p) {
+			const reason = leadReason(p);
+			const ids = (p.ids && Array.isArray(p.ids[reason])) ? p.ids[reason].filter(x => typeof x === 'string') : [];
+			const firstItem = ids.length ? itemById(tool, ids[0]) : null;
+			const title = firstItem && typeof firstItem.title === 'string' ? firstItem.title : '';
+			switch (reason) {
+			case 'required-edit': {
+				const sug = ids.length ? suggestionById(tool, ids[0]) : null;
+				const served = sug && Array.isArray(sug.serves_item_ids) ? itemById(tool, sug.serves_item_ids[0]) : null;
+				return `Required edit: ${esc(sug && sug.title ? sug.title : 'see the card')}` +
+					(served && served.title ? ` — for “${esc(served.title)}”` : '');
+			}
+			case 'incompatible-unfixed':
+				return `Breaks here: ${esc(title || 'see the card')}`;
+			case 'pinned':
+				return `pinned at ${esc(tool.current_version || '?')}`;
+			case 'edit-proposed':
+				return `+${ids.length || 1} proposed edit${ids.length === 1 ? '' : 's'} — not applied unless you accept ${ids.length === 1 ? 'it' : 'them'}`;
+			case 'config-attention': {
+				const cs = (tool.config_status && typeof tool.config_status === 'object') ? tool.config_status : {};
+				const detail = firstSentence(cs.detail);
+				return `config needs attention — no edit proposed${detail ? ': ' + esc(detail) : ''}`;
+			}
+			case 'relevant-fix': {
+				const ev = firstItem && localOf(firstItem) && Array.isArray(localOf(firstItem).evidence)
+					? localOf(firstItem).evidence.find(e => e && typeof e === 'object' && e.role === 'usage') : null;
+				return `${esc(title || 'the fix')}${ev && typeof ev.path === 'string' ? ` — used in <code>${esc(ev.path)}</code>` : ''}`;
+			}
+			case 'fix-with-breaking':
+				return `Breaking: ${esc(title || 'see the card')}`;
+			case 'fix-with-risk':
+				return `Risk here: ${esc(title || 'see the card')}`;
+			case 'vendor-unread':
+				return 'vendor published no details';
+			default:
+				return '';
+			}
+		}
+
+		function prioRowHtml(tool) {
+			const p = prioInfo(tool);
+			const sec = toolSecurity(tool);
+			const sug = baselineSuggestion(tool);
+			const line = prioLineHtml(tool, p);
+			return `<article class="prow" data-tool="${esc(tool.id)}" data-priority="${esc(p.priority)}" data-held="${p.holds.length ? '1' : '0'}" tabindex="-1">
+				<div class="l1">
+					<span class="nm">${esc(tool.name)}</span>
+					${versionsHtml(tool, 'vd')}
+					<span class="source-badge ${esc(tool.source)}">${esc(tool.source)}</span>
+					${cveBadgeHtml(sec)}
+					${renderRiskBadge(tool)}
+					<span class="spacer"></span>
+					${sug ? mirrorHtml(sug.id) : ''}
+					${sug ? sudoChipHtml(sug) : ''}
+				</div>
+				<div class="l2">${prioChipHtml(p)} ${heldChipHtml(p)}</div>
+				<div class="l3"><span class="ln">${line}</span><span class="spacer"></span>${jumpHtml(tool.id, 'open card →')}</div>
+			</article>`;
+		}
+
+		function comparePriorityTools(a, b) {
+			return (PRIORITY_ORDER[prioInfo(a).priority] - PRIORITY_ORDER[prioInfo(b).priority])
+				|| compareMixedTools(a, b);
+		}
+
+		/* O3: a fix whose priority convergence lowered — disclosed, expanded,
+		 * never capped. */
+		function loweredOf(tool) {
+			const c = convergenceOf(tool);
+			const sp = c && c.security_priority;
+			return (sp && typeof sp === 'object' && sp.lost === true) ? sp : null;
+		}
+
+		function loweredRowHtml(tool) {
+			const sp = loweredOf(tool);
+			const edits = Array.isArray(sp.edits) ? sp.edits.filter(e => e && typeof e === 'object') : [];
+			const why = edits.map(e =>
+				`<div class="lw-edit">${esc(e.headline || e.edit_id || '')}` +
+				(typeof e.quote === 'string' ? ` <span class="q">“${esc(e.quote)}”</span>` : '') +
+				`${e.edit_id ? ` <span class="eid">${esc(e.edit_id)}</span>` : ''}</div>`).join('');
+			return `<div class="lwrow" data-tool="${esc(tool.id)}">
+				<div class="l1"><span class="nm">${esc(tool.name)}</span>
+					<span class="lw-move">${esc(sp.from || 'not G-SEC')} → <b>${esc(sp.to || 'not G-SEC')}</b></span>
+					<span class="spacer"></span>${jumpHtml(tool.id, 'open card →')}</div>
+				${why || '<div class="lw-edit">no attributed edit recorded</div>'}
+			</div>`;
+		}
+
+		/* Accepted rows per priority: the summary's, else counted from the
+		 * tools — a held P1/P2 row is never "accepted". */
+		function acceptedPriorityCounts() {
+			const s = ((REPORT.summary || {}).security || {}).accepted_priority_counts;
+			if (s && typeof s === 'object' && isCount(s.P1) && isCount(s.P2)) return s;
+			const out = { P1: 0, P2: 0 };
+			(REPORT.tools || []).forEach(t => {
+				const tier = tierOf(t);
+				const sug = baselineSuggestion(t);
+				if (tier && out[tier.tier] !== undefined && sug && sug.pre_accept === true) out[tier.tier]++;
+			});
+			return out;
+		}
+
+		function renderPriorityPanel(tools) {
+			const rows = tools.filter(inPriorityPanel).sort(comparePriorityTools);
+			const lowered = tools.filter(loweredOf).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+			if (!rows.length && !lowered.length) return '';
+			const count = lv => rows.filter(t => prioInfo(t).priority === lv).length;
+			const held = rows.filter(t => prioInfo(t).holds.length).length;
+			const panel = rows.length ? `<div class="ppanel" id="ppanel">
+					<div class="ppanel-head">
+						<h3>🛡 Positively identified security fixes, most important first</h3>
+						<span class="sub">${count('P0')} need you · ${count('P1')} config first · ${count('P2')} worth a look${held ? ` · ${held} held` : ''}</span>
+					</div>
+					${rows.map(prioRowHtml).join('')}
+					<div class="ppanel-foot">Accepted rows are already accepted — press Reject to hold one back. Rows marked Needs you or Held start undecided.</div>
+				</div>` : '';
+			const loweredBlock = lowered.length ? `<div class="lowered" id="lowered-block">
+					<div class="lowered-head"><h3>Lowered by convergence</h3>
+						<span class="sub">${lowered.length} fix${lowered.length === 1 ? '' : 'es'} convergence moved down the page — with its reason</span></div>
+					${lowered.map(loweredRowHtml).join('')}
+				</div>` : '';
+			return `<section class="ovsection" id="sec-priority">
+				<h2>Security fixes for you <span class="sub">${rows.length} fix${rows.length === 1 ? '' : 'es'} shown first · never capped</span></h2>
+				${panel}
+				${loweredBlock}
+			</section>`;
+		}
+
+		/* The card's own copies: the priority chip (visible while
+		 * collapsed) for P0-P2, and the held chip. */
+		function renderPriorityChips(tool) {
+			const p = prioInfo(tool);
+			if (!p) return '';
+			const chip = HIGHLIGHT_PRIORITIES.includes(p.priority)
+				? `<span class="prio-badge" data-p="${esc(p.priority)}" title="${esc(reasonText(leadReason(p), p.holds.length > 0))}">${esc(TIER_LABELS[leadReason(p)] ? TIER_LABELS[leadReason(p)].glyph : '')} ${esc(p.priority)}</span>`
+				: '';
+			const held = p.holds.length
+				? `<span class="held-badge" title="${esc(p.holds.map(h => BAR_TEXT[h] || h).join(' · '))}">⏸ held</span>`
+				: '';
+			return chip + held;
+		}
+
 		/* The tool card's own copies of the label, so a reader arriving by
 		 * deep link sees it too (report-page.md §2.2). */
 		function renderJudgeBadge(tool) {
@@ -4973,6 +5317,20 @@
 		}
 
 		function renderJudgeLine(tool) {
+			return renderPriorityJudgeLine(tool) + renderAutoJudgeLine(tool);
+		}
+
+		/* One sentence when convergence moved the fix's priority (O3). */
+		function renderPriorityJudgeLine(tool) {
+			const c = convergenceOf(tool);
+			const sp = c && c.security_priority;
+			if (!sp || typeof sp !== 'object') return '';
+			const ids = Array.isArray(sp.attributed_to) ? sp.attributed_to.filter(x => typeof x === 'string') : [];
+			const verb = sp.lost ? 'lowered' : 'raised';
+			return `<div class="judge-line" data-priority-move="${sp.lost ? 'lowered' : 'raised'}">Convergence ${verb} this fix's priority ${esc(sp.from || 'not G-SEC')} → ${esc(sp.to || 'not G-SEC')}${ids.length ? ` (${esc(ids.join(', '))})` : ''}. ${sp.lost ? jumpHtmlOverview('lowered-block', 'see why →') : ''}</div>`;
+		}
+
+		function renderAutoJudgeLine(tool) {
 			const forced = forcedOf(tool);
 			if (forced) {
 				return `<div class="judge-line forced">Convergence could not justify this tool's move to auto-update after five attempts (${esc(forced.code || '')}); it was forced to <b>${esc(forced.forced_bucket || 'security_mixed')}</b> instead of <b>${esc(forced.would_have_been || '?')}</b> and starts undecided. ${jumpHtmlOverview('degraded-strip', 'see the convergence status →')}</div>`;
@@ -5018,6 +5376,10 @@
 		/* ── Security group (a): the collapsed auto-approved strip ───────── */
 		function autoStripHtml(auto) {
 			if (!auto.length) return '';
+			/* D2's visibility half for the fixes it no longer bars: an
+			 * elevated tool in the strip is named on the HEAD, as text,
+			 * visible without expanding anything. */
+			const elevated = auto.filter(t => t.risk_level === 'elevated');
 			const rows = auto.map(t => {
 				const sec = toolSecurity(t);
 				const sug = baselineSuggestion(t);
@@ -5040,7 +5402,8 @@
 			return `<div class="autostrip" id="sec-auto" data-open="0">
 				<button type="button" class="autostrip-head" data-toggle-strip="sec-auto" aria-expanded="false">
 					<span class="ck">✓</span>
-					<span class="t"><b>${auto.length}</b> security-only, no impact here — auto-accepted by rule</span>
+					<span class="t"><b>${auto.length}</b> security update${auto.length === 1 ? '' : 's'} with nothing flagged for this setup — accepted by rule</span>
+					${elevated.length ? `<span class="elev">⚠ elevated risk: ${esc(elevated.map(t => t.name).join(', '))}</span>` : ''}
 					<span class="names slabel">${esc(auto.map(t => t.name).join(' · '))}</span>
 					<span class="exp">▸ show</span>
 				</button>
@@ -5250,7 +5613,9 @@
 
 		function compareMixedTools(a, b) {
 			const sa = toolSecurity(a), sb = toolSecurity(b);
-			return (securitySeverityRank(a) - securitySeverityRank(b))
+			const p0 = t => { const p = prioInfo(t); return p && p.priority === 'P0' ? 0 : 1; };
+			return (p0(a) - p0(b))
+				|| (securitySeverityRank(a) - securitySeverityRank(b))
 				|| (sb.cve_count - sa.cve_count)
 				|| (IMPACT_RANK[sa.impact] - IMPACT_RANK[sb.impact])
 				|| (DELTA_RANK[versionDelta(a)] - DELTA_RANK[versionDelta(b)])
@@ -5446,7 +5811,10 @@
 			 * (report-page.md §3.1) — the strip is collapsed, and a badge
 			 * inside a closed container is never seen. The tile and the bar
 			 * segment keep counting the full bucket; only the rows move. */
-			const auto = buckets.security_auto.filter(t => !isJudged(t));
+			/* G-SEC: a tool in "Security fixes for you" leaves the strip too —
+			 * the strip is what is left: P3 fixes and pre-G-SEC security-only
+			 * tools, accepted with nothing flagged. */
+			const auto = buckets.security_auto.filter(t => !isJudged(t) && !inPriorityPanel(t));
 			const mixed = buckets.security_mixed;
 
 			const summary = REPORT.summary || {};
@@ -5463,14 +5831,29 @@
 			 * a report with no security content must not claim any, and
 			 * "already accepted below" must not be said when nothing was
 			 * pre-accepted. */
-			const secClause = SEC ? ' or security-only with no impact here' : '';
+			const secClause = SEC ? ' or accepted security updates' : '';
 			const preAccepted = (REPORT.tools || []).some(t =>
 				(t.suggestions || []).some(sg => sg.pre_accept === true));
 			const acceptedClause = preAccepted ? ' — already accepted below' : '';
-			const ledeHtml = needs === 0
+			/* G-SEC: P0 leads the lede — a fix that cannot be taken until the
+			 * user acts is the first thing said — then how many security
+			 * updates start accepted and how many of those are listed first. */
+			const panelRows = tools.filter(inPriorityPanel);
+			const p0Rows = panelRows.filter(t => prioInfo(t).priority === 'P0').length;
+			const heldRows = panelRows.filter(t => prioInfo(t).holds.length).length;
+			const APC = acceptedPriorityCounts();
+			const acceptedSec = tools.filter(t => toolSecurity(t).has_security && !isNonVersion(t)
+				&& (baselineSuggestion(t) || {}).pre_accept === true).length;
+			const p0Lede = p0Rows
+				? `<b class="p0-lede">${p0Rows} security fix${p0Rows === 1 ? ' needs' : 'es need'} you before ${p0Rows === 1 ? 'it' : 'they'} can be accepted — first below.</b> `
+				: '';
+			const secLede = (SEC && (acceptedSec || panelRows.length))
+				? ` <span class="sec-lede">${acceptedSec} security update${acceptedSec === 1 ? ' is' : 's are'} accepted by default; ${APC.P1 + APC.P2} of them ${APC.P1 + APC.P2 === 1 ? 'is' : 'are'} listed in “Security fixes for you”${heldRows ? `, beside ${heldRows} held` : ''}.</span>`
+				: '';
+			const ledeHtml = p0Lede + (needs === 0
 				? `<b>Nothing needs a decision</b> — all <span class="n">${total}</span> updates are routine${secClause}.`
 				: `<b><span class="n">${needs}</span> of ${total} updates need a decision.</b> ` +
-					`The other <span class="n">${waved}</span> are patch-level${secClause}${acceptedClause}.`;
+					`The other <span class="n">${waved}</span> are patch-level${secClause}${acceptedClause}.`) + secLede;
 
 			/* ── Group A: change size ────────────────────────────────────── */
 			let groupA = '';
@@ -5514,12 +5897,12 @@
 					<span class="slabel">Security — ${SEC.tools_with_security} of ${total} tools affected</span>
 					<div class="tiles">
 						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: tileSecSecondary(SEC), accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
-						${tileHtml({ v: SEC.auto_count, l: 'Security only', s: 'no impact here · accepted', accent: 'cyan', act: 'open-auto', arg: 'sec-auto', title: 'Open the auto-approved list' })}
-						${tileHtml({ v: SEC.mixed_count, l: 'Security + other', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the tools that mix security with other changes' })}
+						${tileHtml({ v: SEC.auto_count, l: 'Security · accepted', s: `P1 ${APC.P1} · P2 ${APC.P2} of these in the panel`, accent: 'cyan', act: 'open-auto', arg: 'sec-auto', title: 'Open the accepted security updates' })}
+						${tileHtml({ v: SEC.mixed_count, l: 'Security · held or needs you', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the security updates that are held or need you' })}
 					</div>
 					${total ? `<div class="deltabar">
-						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security only', 'open-auto', 'sec-auto')}
-						${barSegHtml('seg-mixed', SEC.mixed_count, total, 'Security + other', 'scroll', 'sec-mixed')}
+						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security · accepted', 'open-auto', 'sec-auto')}
+						${barSegHtml('seg-mixed', SEC.mixed_count, total, 'Security · held or needs you', 'scroll', 'sec-mixed')}
 						${barSegHtml('seg-rest', Math.max(0, total - SEC.auto_count - SEC.mixed_count), total, 'No security content', '', '')}
 					</div>` : ''}
 				</div>`;
@@ -5537,16 +5920,20 @@
 				 * counting the full set. */
 				const MIX_CAP = 8;
 				const mixOrdered = mixed.slice().sort(compareMixedTools);
-				const mixRest = mixOrdered.slice(MIX_CAP).map(mixCardHtml).join('');
+				/* P0 is exempt from the cap: every card that needs the user
+				 * before its fix can land renders (they sort first). */
+				const cap = Math.max(MIX_CAP, mixOrdered.filter(t => {
+					const p = prioInfo(t); return p && p.priority === 'P0'; }).length);
+				const mixRest = mixOrdered.slice(cap).map(mixCardHtml).join('');
 				const mixedBody = mixed.length
-					? mixOrdered.slice(0, MIX_CAP).map(mixCardHtml).join('') + (mixRest
+					? mixOrdered.slice(0, cap).map(mixCardHtml).join('') + (mixRest
 						? `<button type="button" class="btn-bar-action" id="mix-showall" data-act="show-all-mixed">show all ${mixed.length} →</button>
 							<div id="mix-rest" style="display:none">${mixRest}</div>`
 						: '')
 					: `<p class="ov-empty">No tool mixes security fixes with other changes this run.</p>`;
 				secSection = `<section class="ovsection" id="sec-section">
 					<h2><span class="shield">🛡</span> Security patches
-						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.auto_count} auto-approved · ${SEC.mixed_count} need a look</span>
+						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.auto_count} accepted · ${SEC.mixed_count} held or need you</span>
 					</h2>
 					${sevMeterHtml({ has_security: true, cve_count: SEC.cve_count,
 						severity_counts: SEC.severity_counts }, { wide: true })}
@@ -5620,6 +6007,7 @@
 				`<p id="lede">${ledeHtml}</p>` +
 				renderDegradedStrip() +
 				((groupA || groupB) ? `<div class="tilegroups">${groupA}${groupB}</div>` : '') +
+				renderPriorityPanel(tools) +
 				renderJudgementPanel(tools) +
 				secSection + hlSection + elseSection + renderNotesSection(tools);
 		}

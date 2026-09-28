@@ -316,6 +316,13 @@
 					],
 					"attributed_to": [
 						"cv-014"
+					],
+					"edits": [
+						{
+							"edit_id": "cv-014",
+							"headline": "The quoted init line is a setting, not the parsing path the fix is in.",
+							"quote": "The tracked init file drives the CLI's dot-command parser on every interactive session."
+						}
 					]
 				},
 				"auto_update_label": {

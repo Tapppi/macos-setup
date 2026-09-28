@@ -1100,7 +1100,8 @@ class JudgementPanelTests(PageDriveRunner):
 		self.assertIn("confidence medium · cv-021 in converge.json", out["reasonFoot"])
 		self.assertEqual(out["stripNames"], "ruled",
 			"the judged tool must LEAVE the collapsed strip")
-		self.assertIn("auto-accepted by rule", out["stripHead"])
+		# G-SEC reworded the head (the strip is no longer "security-only")
+		self.assertIn("accepted by rule", out["stripHead"])
 		self.assertIn("Auto by rule", out["ruleRowTitle"])
 		self.assertIn("Reject one to take it back", out["foot"])
 		self.assertEqual(out["badge"], "⚑ auto by judgement")
@@ -1906,6 +1907,400 @@ class PersistenceLoopTests(PageDriveRunner):
 		self.assertIn('"method_notes_render": {', html)
 		self.assertIn('"written": []', html)
 		self.assertIn("persistence crashed", html)
+
+
+# ── G-SEC: "Security fixes for you" (pass 4b §5) ────────────────────────────
+def _gsec_pipeline(**kw):
+	"""The published fixture session through validate → converge → assemble
+	(test_assemble.run_fixture_pipeline), in a throwaway dir → the report."""
+	import shutil as _sh
+	import test_assemble as TA
+	tmp = tempfile.mkdtemp(prefix="gsec-page-")
+	try:
+		report, _, _ = TA.run_fixture_pipeline(tmp, **kw)
+	finally:
+		_sh.rmtree(tmp, True)
+	report.pop("_log", None)
+	return report
+
+
+def _forced_submission():
+	"""The pinned submission with cv-014's reason no longer naming the
+	consequence — at attempt 5 the demotion gate forces brew:duckdb."""
+	sub = items.load_fixture("converge.json")
+	for edit in sub["edits"]:
+		if edit["edit_id"] == "cv-014":
+			edit["reason"]["body"] = ("The quoted init line is a setting, not the "
+				"parsing path the fix is in; unclear is the honest direction here.")
+	return sub
+
+
+def _template_json_const(name):
+	with open(TEMPLATE, encoding="utf-8") as fh:
+		text = fh.read()
+	m = __import__("re").search(r"const " + name + r" = (\{.*?\}|\[.*?\]);\n", text)
+	assert m, name
+	return json.loads(m.group(1))
+
+
+class GSecTemplateDataTests(unittest.TestCase):
+	def test_the_page_labels_are_the_models(self):
+		self.assertEqual(_template_json_const("TIER_LABELS"), items.TIER_LABELS)
+		self.assertEqual(_template_json_const("TIER_REASON_LEVEL"),
+			dict(items.TIER_REASON_LEVELS))
+		self.assertEqual(_template_json_const("TIER_HOLDS"), list(items.TIER_HOLDS))
+
+	def test_every_bar_and_hold_has_words_and_the_old_bar_is_gone(self):
+		with open(TEMPLATE, encoding="utf-8") as fh:
+			text = fh.read()
+		block = text[text.index("const BAR_TEXT = {"):]
+		block = block[:block.index("};")]
+		for bar in items.PRE_ACCEPT_BARS:
+			self.assertIn("'{}':".format(bar), block, bar)
+		self.assertNotIn("local-enum-invalid", text)
+
+	def test_every_new_code_has_readable_text(self):
+		with open(TEMPLATE, encoding="utf-8") as fh:
+			text = fh.read()
+		block = text[text.index("const CODE_TEXT = {"):]
+		block = block[:block.index("};")]
+		for code in ("E-SEC-FIX-UNGROUNDED", "W-SEC-FIX-NOID", "E-SUG-REQUIRED-UNGROUNDED",
+				"E-SUG-SERVES-UNRESOLVED", "E-REQUIREMENT-CONTRADICTED", "E-USAGE-UNGROUNDED",
+				"W-USAGE-INSTALL-ONLY"):
+			self.assertIn("'{}':".format(code), block, code)
+
+
+class GSecPriorityPanelTests(PageDriveRunner):
+	"""Plan §7.5's page tests, from the fixture session run through the whole
+	pipeline — validate → converge → assemble → render → headless Chrome —
+	asserting from the live DOM with real dispatched events."""
+
+	@classmethod
+	def setUpClass(cls):
+		cls.report = _gsec_pipeline()
+
+	def test_01_visible_on_load_first_and_in_priority_order(self):
+		out = self.drive(self.report, """
+		const s = document.getElementById('sec-priority');
+		let hidden = false;
+		for (let e = s; e; e = e.parentElement) {
+			if (e.hidden || getComputedStyle(e).display === 'none' || getComputedStyle(e).visibility === 'hidden') hidden = true;
+		}
+		log('visible=' + (!hidden && s.getClientRects().length > 0));
+		const pos = id => { const el = document.getElementById(id); return el ? s.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING : 'none'; };
+		log('beforeJudgement=' + (pos('judgement-section') ? 1 : 0));
+		log('beforeSec=' + (pos('sec-section') ? 1 : 0));
+		log('firstSection=' + document.querySelector('#panel-overview > section.ovsection').id);
+		log('order=' + Array.from(s.querySelectorAll('.prow')).map(r => r.dataset.priority).join(''));
+		log('count=' + s.querySelectorAll('.prow').length);
+""")
+		self.assertEqual(out["visible"], "true")
+		self.assertEqual(out["beforeJudgement"], "1")
+		self.assertEqual(out["beforeSec"], "1")
+		self.assertEqual(out["firstSection"], "sec-priority")
+		order = [out["order"][i:i + 2] for i in range(0, len(out["order"]), 2)]
+		self.assertEqual(order, sorted(order))
+		self.assertEqual((order[0], order[-1]), ("P0", "P2"))
+		self.assertEqual(int(out["count"]), 12)
+
+	def test_02_every_row_carries_its_label_text_without_colour(self):
+		out = self.drive(self.report, """
+		document.querySelectorAll('.prio-chip').forEach(c => { c.removeAttribute('data-p'); c.className = ''; });
+		const rows = Array.from(document.querySelectorAll('#sec-priority .prow'));
+		rows.forEach(r => log('row:' + r.dataset.tool + '=' + r.querySelector('.l2').textContent.replace(/\\s+/g, ' ').trim()));
+		const req = document.querySelector('.prow[data-tool="brew:tier-required"] .more-reasons');
+		log('moreTitle=' + (req ? req.textContent + '|' + req.title : 'none'));
+""")
+		labels = items.TIER_LABELS
+		self.assertIn(labels["required-edit"]["text"], out["row:brew:tier-required"])
+		self.assertIn(labels["pinned"]["text"], out["row:brew:tier-pinned"])
+		self.assertIn(labels["incompatible-unfixed"]["text"], out["row:brew:tier-incompatible"])
+		self.assertIn(labels["edit-proposed"]["text"], out["row:brew:tier-proposed"])
+		self.assertIn(labels["relevant-fix"]["text"], out["row:brew:libpq"])
+		self.assertIn(labels["fix-with-breaking"]["text"], out["row:brew:tier-breaking"])
+		self.assertIn(labels["fix-with-risk"]["text"], out["row:brew:tier-risk"])
+		self.assertIn(labels["vendor-unread"]["text"], out["row:cask:tier-vendor"])
+		self.assertIn("⛔", out["row:brew:tier-required"])
+		# a multi-reason row names the rest
+		self.assertIn("+2 more reasons", out["moreTitle"])
+		self.assertIn("also has a breaking change", out["moreTitle"])
+		self.assertIn("also carries a risk here", out["moreTitle"])
+
+	def test_03_accepted_rows_start_on_and_one_reject_takes_the_upgrade_back(self):
+		out = self.drive(self.report, """
+		const on = t => { const b = document.querySelector('.prow[data-tool="' + t + '"] .mirror [data-action="accept"]'); return b ? b.dataset.on : 'none'; };
+		['brew:libpq', 'brew:tier-proposed', 'brew:tier-config', 'brew:tier-breaking', 'brew:tier-risk', 'cask:tier-vendor']
+			.forEach(t => log('on:' + t + '=' + on(t)));
+		const card = () => document.querySelector('#main .suggestion-card[data-suggestion-id="brew:libpq:upgrade"]');
+		log('before=' + card().dataset.decision);
+		document.querySelector('.prow[data-tool="brew:libpq"] .mirror [data-action="reject"]').click();
+		log('after=' + card().dataset.decision);
+		const p = buildFeedbackPayload();
+		log('payload=' + ((p.decisions['brew:libpq:upgrade'] || {}).decision || 'none'));
+		log('mirrorRejectOn=' + document.querySelector('.prow[data-tool="brew:libpq"] .mirror [data-action="reject"]').dataset.on);
+""")
+		for tool in ("brew:libpq", "brew:tier-proposed", "brew:tier-config",
+				"brew:tier-breaking", "brew:tier-risk", "cask:tier-vendor"):
+			self.assertEqual(out["on:" + tool], "1", tool)
+		self.assertEqual(out["before"], "accept")
+		self.assertEqual(out["after"], "reject")
+		self.assertEqual(out["payload"], "reject")
+		self.assertEqual(out["mirrorRejectOn"], "1")
+
+	def test_04_p0_and_held_rows_start_undecided_and_say_why(self):
+		out = self.drive(self.report, """
+		['brew:tier-required', 'brew:tier-pinned', 'brew:tier-incompatible', 'brew:tier-p0-lost',
+			'brew:tier-held-p2', 'brew:tier-held-p1'].forEach(t => {
+			const r = document.querySelector('.prow[data-tool="' + t + '"]');
+			if (!r) { log('row:' + t + '=missing'); return; }
+			const acc = r.querySelector('.mirror [data-action="accept"]');
+			const held = r.querySelector('.held-chip');
+			log('row:' + t + '=' + r.dataset.priority + '|' + (acc.dataset.on || '0') + '|' + (held ? held.textContent : ''));
+		});
+		const lost = document.querySelector('[data-tool-id="brew:tier-p0-lost"]');
+		log('p0LostBucket=' + lost.dataset.bucket);
+""")
+		for tool in ("brew:tier-required", "brew:tier-pinned", "brew:tier-incompatible"):
+			priority, on, _ = out["row:" + tool].split("|")
+			self.assertEqual((priority, on), ("P0", "0"), tool)
+		self.assertEqual(out["row:brew:tier-held-p2"].split("|")[:2], ["P2", "0"])
+		self.assertIn("⏸ Held — a security change adds risk here", out["row:brew:tier-held-p2"])
+		self.assertEqual(out["row:brew:tier-held-p1"].split("|")[:2], ["P1", "0"])
+		self.assertIn("⏸ Held — a watch-item hit", out["row:brew:tier-held-p1"])
+		# an attention (content-losing) tool with an incompatible item is a P0 row
+		self.assertEqual(out["p0LostBucket"], "attention")
+		self.assertEqual(out["row:brew:tier-p0-lost"].split("|")[:2], ["P0", "0"])
+		self.assertIn("Held — content was lost at validation", out["row:brew:tier-p0-lost"])
+
+	def test_05_the_lede_leads_with_p0_and_stops_claiming_security_only(self):
+		out = self.drive(self.report, """
+		log('lede=' + document.getElementById('lede').textContent.replace(/\\s+/g, ' ').trim());
+		log('overview=' + document.getElementById('panel-overview').textContent.replace(/\\s+/g, ' '));
+""")
+		self.assertTrue(out["lede"].startswith(
+			"4 security fixes need you before they can be accepted — first below."), out["lede"])
+		self.assertIn("6 of them are listed in “Security fixes for you”, beside 3 held", out["lede"])
+		for gone in ("security-only", "no impact here · accepted", "security-only with no impact here"):
+			self.assertNotIn(gone, out["lede"])
+		self.assertNotIn("security-only, no impact here", out["overview"])
+
+	def test_06_tiles_bar_and_filter_carry_the_new_words(self):
+		out = self.drive(self.report, """
+		const tiles = Array.from(document.querySelectorAll('.tile')).map(t => t.querySelector('.l').textContent + '/' + t.querySelector('.s').textContent);
+		log('tiles=' + tiles.join(' | '));
+		log('seg=' + (document.querySelector('.seg-auto') || {}).title + ' | ' + (document.querySelector('.seg-mixed') || {}).title);
+		log('opt=' + document.querySelector('#filter-bucket option[value="security_auto"]').textContent + ' | ' +
+			document.querySelector('#filter-bucket option[value="security_mixed"]').textContent);
+""")
+		self.assertIn("Security · accepted/P1 2 · P2 4 of these in the panel", out["tiles"])
+		self.assertIn("Security · held or needs you/decide these", out["tiles"])
+		self.assertNotIn("Security only", out["tiles"])
+		self.assertNotIn("Security + other", out["tiles"])
+		self.assertIn("Security · accepted", out["seg"])
+		self.assertIn("Security · held or needs you", out["seg"])
+		self.assertEqual(out["opt"], "Security · accepted | Security · held or needs you")
+
+	def test_07_the_strip_is_what_is_left_and_names_elevated_on_its_head(self):
+		out = self.drive(self.report, """
+		const strip = document.getElementById('sec-auto');
+		log('names=' + Array.from(strip.querySelectorAll('.autorow .nm')).map(n => n.textContent).sort().join(','));
+		const head = strip.querySelector('.autostrip-head');
+		log('head=' + head.textContent.replace(/\\s+/g, ' ').trim());
+		log('elevVisible=' + (strip.querySelector('.autostrip-head .elev').getClientRects().length > 0));
+""")
+		names = out["names"].split(",")
+		for panel_tool in ("libpq", "tier-proposed", "tier-config", "tier-breaking",
+				"tier-risk", "tier-vendor"):
+			self.assertNotIn(panel_tool, names)
+		self.assertIn("tier-fix", names)
+		self.assertIn("elevated-fix", names)
+		self.assertIn("duckdb", names)   # lowered to P3 by cv-014
+		self.assertIn("with nothing flagged for this setup — accepted by rule", out["head"])
+		self.assertIn("⚠ elevated risk: elevated-fix", out["head"])
+		self.assertNotIn("security-only", out["head"])
+		self.assertEqual(out["elevVisible"], "true")
+
+	def test_08_the_mixed_cap_never_cuts_a_p0_card(self):
+		report = json.loads(json.dumps(self.report))
+		template = next(t for t in report["tools"] if t["id"] == "brew:tier-pinned")
+		for n in range(9):
+			clone = json.loads(json.dumps(template).replace("brew:tier-pinned",
+				"brew:tier-pinned-{}".format(n)).replace('"tier-pinned"', '"tier-pinned-{}"'.format(n)))
+			report["tools"].append(clone)
+		out = self.drive(report, """
+		const rest = document.getElementById('mix-rest');
+		const inRest = rest ? Array.from(rest.querySelectorAll('article.mixcard')).map(c => c.dataset.tool) : [];
+		log('restHasP0=' + inRest.filter(t => t.startsWith('brew:tier-pinned') || t === 'brew:tier-required' || t === 'brew:tier-incompatible').length);
+		log('restCount=' + inRest.length);
+		const allCards = Array.from(document.querySelectorAll('#sec-mixed article.mixcard')).map(c => c.dataset.tool);
+		log('firstTwelve=' + allCards.slice(0, 12).filter(t => t.startsWith('brew:tier-pinned') || t === 'brew:tier-required' || t === 'brew:tier-incompatible').length);
+""")
+		self.assertEqual(out["restHasP0"], "0")
+		self.assertEqual(out["firstTwelve"], "12")
+
+	def test_09_an_accepted_elevated_fix_is_never_called_never_pre_accepted(self):
+		out = self.drive(self.report, """
+		const b = document.querySelector('[data-tool-id="brew:elevated-fix"] .tool-header .risk-badge');
+		log('title=' + b.title);
+		const other = document.querySelector('[data-tool-id="brew:elevated"] .tool-header .risk-badge');
+		log('otherTitle=' + other.title);
+""")
+		self.assertIn("accepted because it carries a security fix (P3)", out["title"])
+		self.assertNotIn("never pre-accepted", out["title"])
+		self.assertNotIn("accepted because", out["otherTitle"])
+
+	def test_11_the_demotion_is_disclosed_expanded_and_on_the_card(self):
+		out = self.drive(self.report, """
+		const block = document.getElementById('lowered-block');
+		log('visible=' + (block && block.getClientRects().length > 0 && !block.closest('[hidden]')));
+		log('row=' + block.querySelector('.lwrow[data-tool="brew:duckdb"]').textContent.replace(/\\s+/g, ' ').trim());
+		const card = document.querySelector('[data-tool-id="brew:duckdb"]');
+		log('line=' + card.querySelector('.judge-line[data-priority-move]').textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertEqual(out["visible"], "true")
+		self.assertIn("duckdb P2 → P3", out["row"])
+		self.assertIn("The quoted init line is a setting", out["row"])
+		self.assertIn("cv-014", out["row"])
+		self.assertIn("Convergence lowered this fix's priority P2 → P3 (cv-014)", out["line"])
+
+	def test_12_the_new_markers_render_with_their_words(self):
+		out = self.drive(self.report, """
+		const chip = (t, c) => { const el = document.querySelector('[data-tool-id="' + t + '"] .marker-chip[title]');
+			const all = Array.from(document.querySelectorAll('[data-tool-id="' + t + '"] .marker-chip'));
+			const hit = all.find(x => x.textContent === c); return hit ? hit.title : 'none'; };
+		log('install=' + chip('brew:tier-fix', 'W-USAGE-INSTALL-ONLY'));
+		log('ungrounded=' + chip('brew:nonconforming', 'E-SEC-FIX-UNGROUNDED'));
+""")
+		self.assertIn("the tool is installed, not shown to be used", out["install"])
+		self.assertIn("counts for nothing", out["ungrounded"])
+
+	def test_13_the_accepted_tile_counts_only_rows_that_start_accepted(self):
+		out = self.drive(self.report, """
+		const onRows = lv => Array.from(document.querySelectorAll('#sec-priority .prow[data-priority="' + lv + '"]'))
+			.filter(r => (r.querySelector('.mirror [data-action="accept"]') || {dataset: {}}).dataset.on === '1').length;
+		log('onP1=' + onRows('P1'));
+		log('onP2=' + onRows('P2'));
+		log('rowsP2=' + document.querySelectorAll('#sec-priority .prow[data-priority="P2"]').length);
+		const tile = Array.from(document.querySelectorAll('.tile')).find(t => t.querySelector('.l').textContent === 'Security · accepted');
+		log('tile=' + tile.querySelector('.s').textContent);
+""")
+		sec = self.report["summary"]["security"]
+		self.assertEqual(int(out["onP1"]), sec["accepted_priority_counts"]["P1"])
+		self.assertEqual(int(out["onP2"]), sec["accepted_priority_counts"]["P2"])
+		# the held P2 tool is a panel row and never counted as accepted
+		self.assertEqual(int(out["rowsP2"]), sec["priority_counts"]["P2"])
+		self.assertEqual(sec["priority_counts"]["P2"], sec["accepted_priority_counts"]["P2"] + 1)
+		self.assertEqual(out["tile"], "P1 {} · P2 {} of these in the panel".format(
+			sec["accepted_priority_counts"]["P1"], sec["accepted_priority_counts"]["P2"]))
+		self.assertEqual(sec["auto_count"] + sec["mixed_count"],
+			sum(1 for t in self.report["tools"]
+				if t["review_bucket"] in ("security_auto", "security_mixed")))
+
+	def test_14_config_attention_has_its_own_line(self):
+		out = self.drive(self.report, """
+		const r = document.querySelector('.prow[data-tool="brew:tier-config"]');
+		log('chip=' + r.querySelector('.prio-chip').textContent.replace(/\\s+/g, ' ').trim());
+		log('line=' + r.querySelector('.l3 .ln').textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertIn("Accepted — config needs attention — no edit proposed", out["chip"])
+		self.assertIn("config needs attention — no edit proposed: The tracked config pins "
+			"the old cipher list", out["line"])
+		self.assertNotIn("proposed edit", out["line"])
+
+
+class GSecDegradedPageTests(PageDriveRunner):
+	"""Page tests 10 and 15: a degraded-gate forced tool and a validator
+	stage failing after the bucket — neither rendered accepted anywhere."""
+
+	def test_10_a_forced_tool_keeps_its_priority_and_is_accepted_nowhere(self):
+		report = _gsec_pipeline(submission=_forced_submission(), terminal=True, attempt=5)
+		self.assertEqual(report["convergence"]["state"], "degraded_gate")
+		out = self.drive(report, """
+		const r = document.querySelector('.prow[data-tool="brew:duckdb"]');
+		log('row=' + (r ? r.dataset.priority + '|' + r.querySelector('.l2').textContent.replace(/\\s+/g, ' ').trim() : 'none'));
+		const ons = document.querySelectorAll('[data-mirrors="brew:duckdb:upgrade"][data-on="1"], [data-mirrors="brew:duckdb:upgrade"] [data-action="accept"][data-on="1"]').length;
+		log('ons=' + ons);
+		log('decision=' + (document.querySelector('#main .suggestion-card[data-suggestion-id="brew:duckdb:upgrade"]').dataset.decision || ''));
+		log('inStrip=' + !!document.querySelector('#sec-auto .autorow [data-mirrors="brew:duckdb:upgrade"]'));
+""")
+		priority, text = out["row"].split("|", 1)
+		self.assertEqual(priority, "P2")
+		self.assertIn("the fix touches how you use it", text)
+		self.assertIn("Held — forced conservative by convergence", text)
+		self.assertEqual(out["ons"], "0")
+		self.assertNotEqual(out["decision"], "accept")
+		self.assertEqual(out["inStrip"], "false")
+
+	def test_15_a_post_bucket_failure_renders_as_an_attention_card(self):
+		import test_converge as TC
+		import validate_items
+		real = validate_items._self_test_tagged_ids
+
+		def failing(suggestions, tool_id):
+			if tool_id == "brew:tier-fix":
+				raise RuntimeError("injected after the bucket")
+			return real(suggestions, tool_id)
+		patch = __import__("unittest.mock").mock.patch(
+			"validate_items._self_test_tagged_ids", side_effect=failing)
+		report = _gsec_pipeline(submission=lambda pre: TC.make_submission(pre, []),
+			patch_validator=patch)
+		out = self.drive(report, """
+		const card = document.querySelector('[data-tool-id="brew:tier-fix"]');
+		log('bucket=' + card.dataset.bucket);
+		log('inStrip=' + !!document.querySelector('#sec-auto .autorow [data-mirrors="brew:tier-fix:upgrade"]'));
+		const ons = document.querySelectorAll('[data-mirrors="brew:tier-fix:upgrade"][data-on="1"], [data-mirrors="brew:tier-fix:upgrade"] [data-action="accept"][data-on="1"]').length;
+		log('ons=' + ons);
+		log('decision=' + (document.querySelector('#main .suggestion-card[data-suggestion-id="brew:tier-fix:upgrade"]').dataset.decision || ''));
+""")
+		self.assertEqual(out["bucket"], "attention")
+		self.assertEqual(out["inStrip"], "false")
+		self.assertEqual(out["ons"], "0")
+		self.assertNotEqual(out["decision"], "accept")
+
+
+class GSecNarrowViewportTests(unittest.TestCase):
+	"""At a TRUE 390 px viewport (headless Chrome's window clamps at 500, so
+	this uses Python Playwright from the agent-skills venv), the panel and
+	the demotion disclosure populated, nothing scrolls sideways."""
+
+	VENV_PY = os.path.expanduser("~/.local/share/agent-skills/venv/bin/python")
+
+	def test_no_horizontal_overflow_at_390(self):
+		if not os.path.exists(self.VENV_PY):
+			self.skipTest("no agent-skills venv with Playwright")
+		report = _gsec_pipeline()
+		report_dir = tempfile.mkdtemp(prefix="gsec-390-")
+		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
+		state = tempfile.mkdtemp(prefix="gsec-390-state-")
+		self.addCleanup(__import__("shutil").rmtree, state, True)
+		path = os.path.join(report_dir, "report.json")
+		with open(path, "w", encoding="utf-8") as fh:
+			json.dump(report, fh)
+		p = subprocess.run([sys.executable, RENDER_PY, path], capture_output=True, text=True,
+			env=dict(os.environ, XDG_STATE_HOME=state), timeout=60)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		probe = (
+			"from playwright.sync_api import sync_playwright\n"
+			"import sys, json\n"
+			"with sync_playwright() as p:\n"
+			"    b = p.chromium.launch()\n"
+			"    pg = b.new_page(viewport={'width': 390, 'height': 844})\n"
+			"    pg.goto('file://' + sys.argv[1]); pg.wait_for_timeout(600)\n"
+			"    print(json.dumps(pg.evaluate('''() => ({sw: document.documentElement.scrollWidth,\n"
+			"        cw: document.documentElement.clientWidth,\n"
+			"        rows: document.querySelectorAll('#sec-priority .prow').length,\n"
+			"        lowered: document.querySelectorAll('#lowered-block .lwrow').length})''')))\n"
+			"    b.close()\n")
+		r = subprocess.run([self.VENV_PY, "-c", probe, os.path.join(report_dir, "index.html")],
+			capture_output=True, text=True, timeout=120)
+		if r.returncode != 0 and "Executable doesn't exist" in r.stderr:
+			self.skipTest("Playwright has no Chromium installed")
+		self.assertEqual(r.returncode, 0, r.stderr[-1500:])
+		info = json.loads(r.stdout.strip().splitlines()[-1])
+		self.assertEqual(info["cw"], 390)
+		self.assertEqual(info["sw"], info["cw"], info)
+		self.assertGreater(info["rows"], 0)
+		self.assertEqual(info["lowered"], 1)
 
 
 if __name__ == "__main__":
