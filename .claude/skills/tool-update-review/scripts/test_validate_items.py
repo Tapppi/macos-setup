@@ -810,6 +810,56 @@ class StructuralTests(unittest.TestCase):
 		self.assertEqual(codes(self._sug(dict(clean,
 			to={"type": "task", "name": "setup.sh:nosuchtask"}))), ["E-STRUCT-PRECOND"])
 
+	def _task_root(self, td):
+		with open(os.path.join(td, "setup.sh"), "w", encoding="utf-8") as fh:
+			fh.write('if [[ "${1}" = "install" ]]; then install; fi\n')
+		os.makedirs(os.path.join(td, "tasks"))
+		with open(os.path.join(td, "tasks", "install.sh"), "w", encoding="utf-8") as fh:
+			fh.write("install() {\n\tinstall_cursor_agent\n}\n\n"
+				"install_cursor_agent() {\n\t:\n}\n\nfunction legacy_helper {\n\t:\n}\n")
+
+	def _task(self, op, name, anchor_file):
+		return {"op": op, "subjects": [{"type": "cask", "name": "cursor-cli"}],
+			"manifest": None, "from": None,
+			"to": {"type": "task", "name": name}, "anchor": {"file": anchor_file}}
+
+	def test_a_task_script_anchor_is_checked_against_its_functions_not_the_dispatch_list(self):
+		"""Review finding: a task_change on `tasks/install.sh:install_cursor_agent`
+		— legal per the op table — failed because the function is not a
+		`setup.sh` subcommand. A `tasks/*.sh` anchor reads that file's
+		function definitions instead."""
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			run = lambda op, name: codes(self._sug(
+				self._task(op, name, "tasks/install.sh")), manifest_root=td)
+			self.assertEqual(run("task_change", "tasks/install.sh:install_cursor_agent"), [])
+			self.assertEqual(run("task_change", "tasks/install.sh:legacy_helper"), [])
+			self.assertEqual(run("task_change", "tasks/install.sh:no_such_fn"),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_add", "tasks/install.sh:install_new_thing"), [])
+			self.assertEqual(run("task_add", "tasks/install.sh:install_cursor_agent"),
+				["E-STRUCT-PRECOND"])
+
+	def test_a_setup_anchor_still_reads_the_dispatch_list(self):
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			run = lambda op, name: codes(self._sug(
+				self._task(op, name, "setup.sh")), manifest_root=td)
+			self.assertEqual(run("task_change", "setup.sh:install"), [])
+			# a function that exists in tasks/*.sh is not a subcommand
+			self.assertEqual(run("task_change", "setup.sh:install_cursor_agent"),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_add", "setup.sh:install"), ["E-STRUCT-PRECOND"])
+
+	def test_an_unreadable_task_script_is_unchecked(self):
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			with open(os.path.join(td, "tasks", "install.sh"), "wb") as fh:
+				fh.write(b"\xff\xfe not utf-8")
+			self.assertEqual(codes(self._sug(self._task("task_change",
+				"tasks/install.sh:install_cursor_agent", "tasks/install.sh")),
+				manifest_root=td), ["W-STRUCT-UNCHECKED"])
+
 	def test_task_change_against_an_unreadable_setup_is_unchecked(self):
 		with tempfile.TemporaryDirectory() as td:
 			with open(os.path.join(td, "setup.sh"), "wb") as fh:

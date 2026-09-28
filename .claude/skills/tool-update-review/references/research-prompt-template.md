@@ -181,12 +181,16 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
       "proposed" — everything else (absent reads proposed).
     "structural" — the change re-manages an entity (deprecated cask
       migrated, formula moved between sections, tap trusted/dropped,
-      install handed between mechanisms, setup.sh task added/changed):
+      install handed between mechanisms, setup.sh subcommand or
+      tasks/*.sh function added/changed):
       add a structural block {op: "manifest_add"|"manifest_remove"|
       "manifest_replace"|"manifest_move"|"tap_add"|"tap_remove"|
       "install_method_change"|"task_add"|"task_change",
       subjects: [{type, name}, ...] — the entities the change is ABOUT,
-      manifest: "Brewfile" or null, from, to, anchor} — see
+      manifest: "Brewfile" or null, from, to, anchor}. A task op's
+      to.name is "setup.sh:<subcommand>" with anchor.file "setup.sh",
+      or "tasks/<file>.sh:<function>" with anchor.file that script;
+      task_change needs it to exist, task_add needs it not to. See
       `references/research.md` §Suggestion Kinds for each op's required
       fields.
     "watch-item" — a proposed watch item: watch_topic/watch_note/

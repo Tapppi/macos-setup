@@ -461,6 +461,30 @@ _DISPATCH_TOKEN = re.compile(
 	r'\[\[\s*"(?:\$\{1(?::-[^}]*)?\}|\$1)"\s*=\s*"([A-Za-z0-9_-]+)"\s*\]\]')
 
 
+# A task script is `tasks/<name>.sh`; its tasks are its shell functions, in
+# either the `name() {` style the repo uses or the `function name` form.
+_TASK_SCRIPT = re.compile(r"^tasks/[^/]+\.sh$")
+_SHELL_FUNCTION = re.compile(
+	r"^\s*(?:function\s+([A-Za-z_][A-Za-z0-9_-]*)(?:\s*\(\s*\))?|([A-Za-z_][A-Za-z0-9_-]*)\s*\(\s*\))",
+	re.MULTILINE)
+
+
+def _norm_anchor(anchor_file) -> str:
+	"""`./setup.sh` and `setup.sh` are the same anchor."""
+	return os.path.normpath(str(anchor_file)).replace(os.sep, "/")
+
+
+def _shell_functions(path):
+	"""→ the function names a shell script defines, or None when it cannot be
+	read (reported as unchecked, never as passing)."""
+	try:
+		with open(path, "r", encoding="utf-8") as fh:
+			text = fh.read()
+	except (OSError, UnicodeDecodeError):
+		return None
+	return {a or b for a, b in _SHELL_FUNCTION.findall(text)}
+
+
 class Manifest:
 	"""The Brewfile as data: which entries exist, in which section, plus the
 	`setup.sh` subcommands already dispatched.
@@ -1480,20 +1504,35 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 			fail("anchor.file \"{}\" does not exist".format(anchor_file),
 				"structural.anchor.file", anchor_file)
 			return
-		# Both task ops read the dispatch list: a task_add must name a new
-		# subcommand, a task_change one setup.sh dispatches today — a change
-		# to a task that does not exist is not a change, it is an add under
-		# the wrong op, and the reviewer would be told something is being
-		# modified that is in fact being created.
-		if not manifest.tasks_readable:
-			unchecked("no readable setup.sh under the configured macos-setup root")
-			return
+		# The anchor decides what the name is checked against. A `setup.sh`
+		# anchor names a dispatched subcommand: a task_add must be new, a
+		# task_change one setup.sh dispatches today — a change to a task that
+		# does not exist is an add under the wrong op, and the reviewer would
+		# be told something is being modified that is in fact being created.
+		# A `tasks/*.sh` anchor names a function in that file, checked the same
+		# way against its function definitions. Any other anchor file gets
+		# only the existence check above.
 		token = str(to.get("name", "")).split(":")[-1]
-		if op == "task_add" and token in manifest.tasks:
-			fail("setup.sh already dispatches \"{}\"".format(token),
+		if _norm_anchor(anchor_file) == "setup.sh":
+			if not manifest.tasks_readable:
+				unchecked("no readable setup.sh under the configured macos-setup root")
+				return
+			known, has, lacks = manifest.tasks, "setup.sh already dispatches", \
+				"setup.sh does not dispatch"
+		elif _TASK_SCRIPT.match(_norm_anchor(anchor_file)):
+			known = _shell_functions(path)
+			if known is None:
+				unchecked("anchor.file \"{}\" is not readable".format(anchor_file))
+				return
+			has = "{} already defines".format(anchor_file)
+			lacks = "{} does not define".format(anchor_file)
+		else:
+			return
+		if op == "task_add" and token in known:
+			fail("{} \"{}\"".format(has, token),
 				"structural.to", to.get("name"))
-		elif op == "task_change" and token not in manifest.tasks:
-			fail("setup.sh does not dispatch \"{}\" — nothing to change".format(token),
+		elif op == "task_change" and token not in known:
+			fail("{} \"{}\" — nothing to change".format(lacks, token),
 				"structural.to", to.get("name"))
 
 

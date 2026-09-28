@@ -1020,7 +1020,16 @@ each op's precondition against the live manifest and reports
 | `manifest_move` | move an entry to another section | `manifest`, `from`, `anchor.section` |
 | `tap_add` / `tap_remove` | trust or drop a tap | `manifest`, `to`/`from` (type `tap`) |
 | `install_method_change` | hand a tool between install mechanisms | `from`, `to` with distinct types |
-| `task_add` / `task_change` | add or change a `setup.sh`/`tasks/*.sh` task | `to` (type `task`), `anchor.file` |
+| `task_add` / `task_change` | add or change a `setup.sh` subcommand or a `tasks/*.sh` function | `to` (type `task`), `anchor.file` |
+
+For the task ops, `anchor.file` decides what `to.name` names, and the
+validator checks the part after its last `:`. With `anchor.file:
+"setup.sh"`, `to.name` is `setup.sh:<subcommand>` and the subcommand must
+not yet be dispatched (`task_add`) or must be dispatched today
+(`task_change`). With `anchor.file: "tasks/<file>.sh"`, `to.name` is
+`tasks/<file>.sh:<function>` and the function must not yet be defined in
+that file (`task_add`) or must be defined there (`task_change`). Any other
+anchor file is checked only for existence.
 
 **`subjects[]` is the load-bearing field** — the entities the change is
 *about*, separate from the files it edits. The grounding case: four
