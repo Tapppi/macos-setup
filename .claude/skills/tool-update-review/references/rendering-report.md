@@ -1580,11 +1580,13 @@ The rules that follow from it:
   never "done, in store", because the entry is going. Not stored + veto →
   nothing written.
 - **A not-stored entry is written once**, carried by the first writing id,
-  the others skipped naming it: when an id accepted it, or — for a `failed`
-  entry only — when an id is merely undecided. Render meant to store a failed
-  note and the user saw no reason not to, so a failed write is the one
+  the others skipped naming it: when an id accepted it, or — for a store-write
+  failure (`failed` with a key) only — when an id is merely undecided. Render
+  meant to store that note and the user saw no reason not to, so a failed write is the one
   persisted-path case that still needs the write at apply. An unreviewed or
-  unrecorded note is written only on an explicit accept.
+  unrecorded note is written only on an explicit accept. A malformed proposal
+  (blank/missing topic or note, or a failed outcome without a key) is skipped
+  with a reason even if accepted; the writer also refuses blank topic/note.
 - **The key travels from the record** (a promoted note's add is
   `add-global-method-note`); only with no record at all is it re-derived,
   by render's own routing rule (`write_status.global_method_note_ids`).

@@ -503,7 +503,7 @@ Notes). Run what the action says; do not re-derive it from the decision:
   write.** Do **not** run `add-method-note` for it: the writer appends without
   dedupe, and a second write is a duplicate entry the next run replays twice.
 - **A note render FAILED to write** (the record's `failed` list — an
-  unreadable store, a refused key) is **not stored**, whatever the run's
+  unreadable store, a refused key, with a store key recorded) is **not stored**, whatever the run's
   convergence state, and it is the one persisted-path case that needs the
   write: accepted **or left undecided**, the action is `pending`, labelled
   `Add method note: {topic}`, with the record's reason in its note and the
@@ -511,6 +511,9 @@ Notes). Run what the action says; do not re-derive it from the decision:
   record) invocation in `detail[0]`. Fix what the reason (the record's
   `store_problem`) names, then run it verbatim. Rejected, it is `skipped` and
   nothing is written.
+- **A malformed proposal** (blank/missing topic or note, or a failed outcome
+  without a store key) is skipped with a reason, even if accepted. Never add
+  it verbatim; the writer refuses blank topics and notes too.
 - **One store entry, several suggestion ids** (identical notes under one
   key — two tools' notes convergence promoted to global): the entry, not the
   id, is the unit of persistence and of veto (`references/rendering-report.md`

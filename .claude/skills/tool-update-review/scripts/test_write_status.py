@@ -170,13 +170,13 @@ class InitMethodNoteTests(unittest.TestCase):
 			"target_files": [], "command": None, "auto_runnable": False,
 			"rationale": "r", "method_topic": topic, "method_note": note}
 
-	def _init(self, decisions, record):
+	def _init(self, decisions, record, proposals=None):
 		with tempfile.TemporaryDirectory(prefix="write-status-mn-") as session:
 			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
 				"report_id": "tool-update-review-20260822T113344Z",
 				"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "summary": {},
 				"repo_context": {}, "highlights": [], "tools": [{
-					"id": "brew:jq", "name": "jq", "source": "brew", "suggestions": [
+					"id": "brew:jq", "name": "jq", "source": "brew", "suggestions": proposals if proposals is not None else [
 						_suggestion("brew:jq:upgrade", []),
 						self._note("brew:jq:method-a", "topic a", "note a"),
 						self._note("brew:jq:method-g", "topic g", "note g"),
@@ -357,6 +357,32 @@ class InitMethodNoteTests(unittest.TestCase):
 		self.assertEqual(a["detail"], ["scripts/write_status.py add-method-note "
 			"--tool-id brew:jq --topic 'topic a' --note 'note a'"])
 		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+
+	def test_malformed_failed_proposals_never_plan_an_add(self):
+		for field in ("method_topic", "method_note"):
+			for value in (None, "", " \t\n"):
+				for decision in (None, "accept"):
+					with self.subTest(field=field, value=value, decision=decision):
+						sug = self._note("brew:jq:bad", "topic", "note")
+						if value is None:
+							del sug[field]
+						else:
+							sug[field] = value
+						record = {"failed": [{"suggestion_id": sug["id"], "key": None,
+							"reason": "method_topic/method_note missing or empty"}]}
+						by_id, _ = self._init({sug["id"]: {"decision": decision}}, record, [sug])
+						actions = list(by_id.values())
+						self.assertEqual(len(actions), 1)
+						self.assertEqual(actions[0]["state"], "skipped")
+						self.assertIn("missing or empty", actions[0]["detail"][0])
+						self.assertNotIn("add-method-note", actions[0]["detail"][0])
+
+	def test_store_level_failure_still_plans_an_undecided_add(self):
+		record = {"failed": [{"suggestion_id": "brew:jq:method-a", "key": "brew:jq",
+			"reason": "store could not be read"}]}
+		actions, _ = self._init({}, record)
+		self.assertEqual(actions["brew:jq:method-a"]["state"], "pending")
+		self.assertIn("add-method-note", actions["brew:jq:method-a"]["detail"][0])
 
 	def test_no_render_record_falls_back_to_write_on_accept_and_says_so(self):
 		actions, err = self._init({"brew:jq:method-a": {"decision": "accept"},
@@ -609,6 +635,19 @@ class MemoryStoreWriterTests(unittest.TestCase):
 		path = os.path.join(state_home, "tool-update-review", filename)
 		with open(path, "r", encoding="utf-8") as fh:
 			return json.load(fh)
+
+	def test_method_note_writers_refuse_blank_topic_or_note(self):
+		state_home = self._state_home()
+		for command in ("add-method-note", "add-global-method-note"):
+			for field in ("topic", "note"):
+				for blank in ("", " \t\n"):
+					with self.subTest(command=command, field=field, blank=blank):
+						argv = [command] + (["--tool-id", "brew:jq"] if command == "add-method-note" else [])
+						values = {"topic": "valid topic", "note": "valid note", field: blank}
+						p = self._run(state_home, *argv, "--topic", values["topic"], "--note", values["note"])
+						self.assertNotEqual(p.returncode, 0)
+						self.assertIn(f"{field} must be a non-blank string", p.stderr)
+						self.assertFalse(os.path.exists(os.path.join(state_home, "tool-update-review", model.METHOD_NOTES_STORE)))
 
 	def test_each_store_is_created_on_first_use(self):
 		"""No pre-seeding (REDESIGN.md §I3): a fresh XDG_STATE_HOME has no

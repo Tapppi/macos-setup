@@ -202,7 +202,7 @@ def _method_note_actions(notes: list, record, report: dict) -> list:
 	skipped naming it (never "done, in store" — the entry is going).
 	Stored, no veto → done per id (a discuss stays pending). Not stored +
 	veto → nothing written. Not stored, no veto → ONE pending add when an
-	id accepted it — or, for a FAILED entry, when an id is merely
+	id accepted it — or, for a STORE-WRITE FAILED entry, when an id is merely
 	undecided: render meant to store it and the user saw no reason not to,
 	so the failed write is the one persisted-path case that still needs
 	the write. The key always travels from the record. Comments are per
@@ -217,7 +217,9 @@ def _method_note_actions(notes: list, record, report: dict) -> list:
 			key = rec["key"]
 		else:
 			key = items.GLOBAL_METHOD_NOTE_KEY if sid in global_ids else tool.get("id", "")
-		entry = entries.setdefault((key, topic, note), {"members": [], "buckets": set(), "reasons": []})
+		entry = entries.setdefault((key, topic, note), {"members": [], "buckets": set(), "reasons": [], "malformed": False})
+		entry["malformed"] |= not topic.strip() or not note.strip() or (
+			bucket == "failed" and not (rec and isinstance(rec.get("key"), str) and rec["key"].strip()))
 		entry["members"].append((sid, sug, dec))
 		entry["buckets"].add(bucket)
 		if rec is not None and isinstance(rec.get("reason"), str):
@@ -242,7 +244,11 @@ def _method_note_actions(notes: list, record, report: dict) -> list:
 			decision = dec.get("decision")
 			comment = dec.get("comment").strip() if isinstance(dec.get("comment"), str) else ""
 			title = sug.get("title", sid)
-			if storage == "stored" and rejected:
+			if entry["malformed"]:
+				action = _blank_action(sid, title, decision, "skipped")
+				action["note"] = "Malformed method note — nothing written"
+				action["detail"] = ["method_topic/method_note missing or empty, or failed proposal has no store key"]
+			elif storage == "stored" and rejected:
 				if sid == rejected[0]:
 					action = _blank_action(sid, f"Withdraw method note: {topic}", decision, "pending")
 					action["note"] = "Vetoed on the page — remove the entry render wrote" + shared \
@@ -784,6 +790,10 @@ def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
 	store on first use. One atomic .tmp + os.replace(), same as every other
 	write in this file."""
 	path = store_path(filename)
+	for field, value in (("topic", topic), ("note", note)):
+		if not isinstance(value, str) or not value.strip():
+			print(f"Error: refusing to write {path} — {field} must be a non-blank string. Nothing was written.", file=sys.stderr)
+			sys.exit(1)
 	store, problem = _load_store(path)
 	if problem is not None:
 		print(f"Error: refusing to write {path} — {problem}. Fix or move the file; "
