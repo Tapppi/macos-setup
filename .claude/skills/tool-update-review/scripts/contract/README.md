@@ -87,7 +87,12 @@ assert got == items.load_fixture("expected_validation.json")
 ## Changing the contract
 
 1. Change `items.py` / `validate_items.py`.
-2. `python3 contract/regenerate.py`
+2. `python3 contract/regenerate.py` — it refuses (exit 2) while any file it
+   writes has uncommitted changes, or when git cannot say, because it reads
+   the working tree and rewrites all six generated fixtures: run over someone
+   else's in-progress edits, it sweeps them into your diff. Pass
+   `--allow-dirty` only when those changes are yours (a second regeneration
+   after your own first one).
 3. **Read the diff.** A change in `expected_validation.json` you did not intend
    is the fixture doing its job.
 4. `python3 -m unittest test_items test_validate_items`

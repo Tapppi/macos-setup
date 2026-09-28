@@ -348,6 +348,75 @@ class EvidenceShorthandTests(unittest.TestCase):
 				self.assertFalse(model.url_is_absolute_http(bad))
 
 
+# ── 5a. regenerate.py's concurrency guard ──────────────────────────────────
+class RegenerateGuardTests(unittest.TestCase):
+	"""regenerate.py reads the working tree and rewrites six shared fixtures,
+	so running it over another agent's uncommitted edits to them sweeps those
+	edits into this run's diff (IMPLEMENTATION §7.16's incident). It refuses
+	instead, unless told the changes are the caller's own; and a directory git
+	cannot answer for is a refusal, never "clean"."""
+
+	@classmethod
+	def setUpClass(cls):
+		sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+			"contract"))
+		import regenerate
+		cls.regenerate = regenerate
+
+	def _repo(self, td):
+		import subprocess
+		subprocess.run(["git", "init", "-q", td], check=True, capture_output=True)
+		return td
+
+	def test_dirty_outputs_names_exactly_the_uncommitted_generated_files(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as td:
+			self._repo(td)
+			self.assertEqual(self.regenerate.dirty_outputs(td), [])
+			for name in ("contract.json", "unrelated.json"):
+				with open(os.path.join(td, name), "w", encoding="utf-8") as fh:
+					fh.write("{}")
+			self.assertEqual(self.regenerate.dirty_outputs(td), ["contract.json"])
+
+	def test_outside_git_the_answer_is_unknown_not_clean(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as td:
+			self.assertIsNone(self.regenerate.dirty_outputs(td))
+
+	def test_main_refuses_to_overwrite_uncommitted_fixtures(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as td:
+			self._repo(td)
+			path = os.path.join(td, "expected_validation.json")
+			with open(path, "w", encoding="utf-8") as fh:
+				fh.write("someone else's edit")
+			with unittest.mock.patch("sys.stderr"):
+				self.assertEqual(self.regenerate.main([], here=td), 2)
+			with open(path, encoding="utf-8") as fh:
+				self.assertEqual(fh.read(), "someone else's edit")
+			self.assertEqual(sorted(os.listdir(td)), [".git", "expected_validation.json"])
+
+	def test_main_refuses_when_git_cannot_answer(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as td:
+			with unittest.mock.patch("sys.stderr"):
+				self.assertEqual(self.regenerate.main([], here=td), 2)
+			self.assertEqual(os.listdir(td), [])
+
+	def test_allow_dirty_regenerates_every_output(self):
+		import tempfile
+		with tempfile.TemporaryDirectory() as td:
+			self._repo(td)
+			with open(os.path.join(td, "contract.json"), "w", encoding="utf-8") as fh:
+				fh.write("mine")
+			with unittest.mock.patch("sys.stdout"):
+				self.assertEqual(self.regenerate.main(["--allow-dirty"], here=td), 0)
+			self.assertEqual(sorted(n for n in os.listdir(td) if n != ".git"),
+				sorted(self.regenerate.GENERATED))
+			with open(os.path.join(td, "contract.json"), encoding="utf-8") as fh:
+				self.assertEqual(json.load(fh), model.contract())
+
+
 # ── 5. Fixture agreement ────────────────────────────────────────────────────
 class PublishedFixtureTests(unittest.TestCase):
 	"""A published fixture that can go stale is worth no more than a paragraph.
