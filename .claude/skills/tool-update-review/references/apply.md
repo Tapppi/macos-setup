@@ -500,8 +500,11 @@ Notes). Run what the action says; do not re-derive it from the decision:
 
 - **Accept, or no decision, on a persisted note** → the action is already
   `done` (`note: "In store — persisted at render under {key}"`). **Nothing to
-  write.** Do **not** run `add-method-note` for it: the writer appends without
-  dedupe, and a second write is a duplicate entry the next run replays twice.
+  write.** Do **not** run `add-method-note` for it. (The method-note writers
+  refuse an entry whose topic and note already sit under the key — exit 0,
+  "nothing written" — so an accept planned after a render crash, whose record
+  claims nothing, cannot store a note twice; but a same-topic note with
+  different text is a second entry.)
 - **A note render FAILED to write** (the record's `failed` list — an
   unreadable store, a refused key, with a store key recorded) is **not stored**, whatever the run's
   convergence state, and it is the one persisted-path case that needs the

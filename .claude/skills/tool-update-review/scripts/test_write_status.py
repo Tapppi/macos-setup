@@ -652,6 +652,25 @@ class MemoryStoreWriterTests(unittest.TestCase):
 		with open(path, "r", encoding="utf-8") as fh:
 			return json.load(fh)
 
+	def test_method_note_writers_never_store_the_same_note_twice(self):
+		"""Carried finding: a render that crashed after persisting leaves a
+		record claiming nothing, so an accept on the page plans an add at
+		apply for a note that did land. The writer is the one place that can
+		see the store, so it is where the duplicate is refused."""
+		state_home = self._state_home()
+		for argv, key in ((("add-method-note", "--tool-id", "brew:jq"), "brew:jq"),
+				(("add-global-method-note",), model.GLOBAL_METHOD_NOTE_KEY)):
+			with self.subTest(key=key):
+				for _ in range(2):
+					p = self._run(state_home, *argv, "--topic", "t", "--note", "n")
+					self.assertEqual(p.returncode, 0, p.stderr)
+				self.assertIn("already in the store", p.stdout)
+				p = self._run(state_home, *argv, "--topic", "t", "--note", "other text")
+				self.assertEqual(p.returncode, 0, p.stderr)
+				entries = self._store(state_home, "method-notes.json")[key]
+				self.assertEqual([(e["topic"], e["note"]) for e in entries],
+					[("t", "n"), ("t", "other text")])
+
 	def test_method_note_writers_refuse_blank_topic_or_note(self):
 		state_home = self._state_home()
 		for command in ("add-method-note", "add-global-method-note"):
@@ -825,8 +844,9 @@ class MemoryStoreWriterTests(unittest.TestCase):
 					self.assertEqual(fh.read(), before)
 
 	def test_an_ambiguous_topic_is_refused_until_note_narrows_it(self):
-		"""Two entries with one topic is a reachable store state — apply's
-		path 2 (an agent-initiated followup) appends without dedupe — so
+		"""Two entries with one topic is a reachable store state — the
+		writers refuse only an identical (topic, note), so a same-topic note
+		with different text is a second entry — so
 		the remover refuses to guess and lists the candidates; the exact
 		note (from method-notes.render.json) narrows it to one."""
 		state_home = self._state_home()

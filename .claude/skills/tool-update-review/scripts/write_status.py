@@ -43,7 +43,8 @@ Subcommands:
   remove-global-method-note --topic TEXT [--note TEXT]   the same removal against the reserved global key.
   add-method-note --tool-id ID --topic TEXT --note TEXT   the same write, one store over: an accepted method-note
                                                            proposal's {topic, note, added_at} into method-notes.json
-                                                           (references/apply.md §Method Notes (Writing)). A watch item
+                                                           (references/apply.md §Method Notes (Writing)). Idempotent:
+                                                           an entry with the same topic AND note is not written twice. A watch item
                                                            says what to tell the user if it happens; a method note says
                                                            how to research this tool correctly next time.
   add-global-method-note --topic TEXT --note TEXT         the third store: a method note that holds across many tools,
@@ -799,10 +800,18 @@ def _require_tool_id(tool_id: str) -> None:
 		sys.exit(1)
 
 
-def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
+def append_store_entry(filename: str, key: str, topic: str, note: str,
+		dedupe: bool = False) -> bool:
 	"""Append one `{topic, note, added_at}` entry under `key`, creating the
 	store on first use. One atomic .tmp + os.replace(), same as every other
-	write in this file."""
+	write in this file. → True when written.
+
+	With `dedupe`, an entry with the same exact topic AND note already under
+	`key` means nothing is written (→ False). The method-note writers ask for
+	it: render persists notes before anything records that it did, so a
+	render that crashed after a write leaves a record claiming nothing, and
+	the accept that record plans at apply would otherwise store the note a
+	second time — a duplicate every later run replays."""
 	path = store_path(filename)
 	for field, value in (("topic", topic), ("note", note)):
 		if not isinstance(value, str) or not value.strip():
@@ -819,6 +828,9 @@ def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
 			f"{type(entries).__name__}, not an array of entries. Nothing was written.",
 			file=sys.stderr)
 		sys.exit(1)
+	if dedupe and any(isinstance(e, dict) and e.get("topic") == topic
+			and e.get("note") == note for e in entries):
+		return False
 	entries.append({
 		"topic": topic,
 		"note": note,
@@ -826,6 +838,7 @@ def append_store_entry(filename: str, key: str, topic: str, note: str) -> None:
 	})
 	os.makedirs(os.path.dirname(path), exist_ok=True)
 	write_json_atomic(path, store)
+	return True
 
 
 def remove_store_entry(filename: str, key: str, topic: str, note) -> dict:
@@ -896,8 +909,12 @@ def cmd_add_method_note(args):
 	# point: the two stores share one layout (contract/stores.json), so they
 	# share one writer rather than growing two that can drift.
 	_require_tool_id(args.tool_id)
-	append_store_entry(items.METHOD_NOTES_STORE, args.tool_id, args.topic, args.note)
-	print(f"added method note for {args.tool_id!r}: {args.topic!r}")
+	if append_store_entry(items.METHOD_NOTES_STORE, args.tool_id, args.topic, args.note,
+			dedupe=True):
+		print(f"added method note for {args.tool_id!r}: {args.topic!r}")
+	else:
+		print(f"method note for {args.tool_id!r}: {args.topic!r} is already in the store "
+			f"with this exact text — nothing written")
 
 
 # ── add-global-method-note (references/apply.md §Method Notes (Writing)) ──
@@ -905,9 +922,12 @@ def cmd_add_global_method_note(args):
 	# No --tool-id, because a global note is not about a tool. It takes no
 	# tool id rather than a magic one, so the reserved key is spelled in
 	# exactly one place in this file.
-	append_store_entry(items.METHOD_NOTES_STORE, items.GLOBAL_METHOD_NOTE_KEY,
-		args.topic, args.note)
-	print(f"added global method note: {args.topic!r}")
+	if append_store_entry(items.METHOD_NOTES_STORE, items.GLOBAL_METHOD_NOTE_KEY,
+			args.topic, args.note, dedupe=True):
+		print(f"added global method note: {args.topic!r}")
+	else:
+		print(f"global method note {args.topic!r} is already in the store with this "
+			f"exact text — nothing written")
 
 
 # ── remove-method-note / remove-global-method-note ────────────────────────
