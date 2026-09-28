@@ -323,8 +323,11 @@ Deep Linking for the full load order.
 One sentence above the tiles, prose in `--base1` with numbers in
 `--mono`/`--base2`:
 
+> **1 security fix needs you before it can be accepted — first below.**
 > **42 of 74 updates need a decision.** The other **32** are patch-level or
-> security-only with no impact here — already accepted below.
+> accepted security updates — already accepted below. 18 security updates are
+> accepted by default; 6 of them are listed in “Security fixes for you”,
+> beside 2 held.
 
 (Those figures are the recorded run's — `assembly.md` §Review Buckets and
 Pre-Accept — worked through the definitions below; every run splits
@@ -337,7 +340,21 @@ differently.)
   count things that are not updates.
 - "the other" = `routine` + `security_auto`.
 - Zero needing a decision reads *"Nothing needs a decision — all 74 updates
-  are routine or security-only with no impact here."*
+  are routine or accepted security updates."*
+- **P0 leads.** When any row of "Security fixes for you" is at P0, the lede
+  opens with *"N security fix(es) need you before (it/they) can be accepted —
+  first below."* A fix that cannot be taken until the user acts is the first
+  thing said.
+- **Then the accepted set, honestly.** *"S security updates are accepted by
+  default; A of them are listed in “Security fixes for you”, beside H held."*
+  — S counts version-source tools with security content whose baseline starts
+  accepted, A is `summary.security.accepted_priority_counts` P1 + P2, H the
+  held panel rows. The accepted set is **not** "security-only with no impact
+  here" any more — a positively identified fix is accepted with other
+  changes beside it (G-SEC) — and the page never says it is. The first
+  viewport carries this lede; the panel itself is "visible on load" (rendered,
+  no hidden or collapsed ancestor, in DOM order before the judgement panel and
+  the security section), not promised to fit that viewport.
 - **Both trailing clauses are conditional on the data.** The security clause
   is dropped when the report has no security content at all, and "— already
   accepted below" is dropped unless at least one suggestion actually carries
@@ -402,8 +419,15 @@ faking them with alpha reads as "disabled" in Solarized Dark.
 | Tile | Value | Label | Secondary | Accent | Click |
 |---|---|---|---|---|---|
 | 4 | `summary.security.cve_count` | CVEs fixed | two worst non-zero **graded** classes in words (`3 critical · 30 high`), falling back to `across N tools` | `--red` + `--tint-red` | scroll to `#sec-section` |
-| 5 | `summary.security.auto_count` | Security only | `no impact here · accepted` | `--cyan` | scroll to `#sec-auto` **and expand it** |
-| 6 | `summary.security.mixed_count` | Security + other | `decide these` | `--yellow` + `--tint-yellow` | scroll to `#sec-mixed` |
+| 5 | `summary.security.auto_count` | Security · accepted | `P1 n · P2 n of these in the panel` — from `summary.security.accepted_priority_counts`, the rows that START accepted; a held P1/P2 tool is counted by tile 6, never here | `--cyan` | scroll to `#sec-auto` **and expand it** |
+| 6 | `summary.security.mixed_count` | Security · held or needs you | `decide these` | `--yellow` + `--tint-yellow` | scroll to `#sec-mixed` |
+
+The bucket ids are **not** renamed (convergence, the fixtures and the filter
+use them); their meanings moved with G-SEC (`schemas.md` §1.10):
+`security_auto` is every accepted security update — a positively identified
+fix at P1/P2/P3, or a pre-G-SEC security-only tool — and `security_mixed` every
+security update that is held or needs the user. The bar segments and the
+filter bar's bucket options carry the same two labels.
 
 `--cyan` on tile 5 is not decorative: cyan is already this page's "Accept
 confirmed" color, so the tile is literally the color of the state it reports.
@@ -451,6 +475,66 @@ draw three zeros.
 security clause. Same principle throughout: degrade to silence, never to a
 fabricated zero.
 
+### Security Fixes for You (G-SEC)
+
+`#sec-priority`, `renderPriorityPanel()` — **the first `ovsection`**, after the
+tile groups and before the judgement panel, never inside a collapsed
+container and **never capped**. It answers the user's own question: which
+security fixes need me, and which are worth my look even though they are
+already accepted.
+
+**Membership** is read, never derived: every tool whose `security_tier`
+(`schemas.md` §1.2) has `priority` P0, P1 or P2 — **whether or not it is
+held** (held means not accepted, never hidden) — plus a degraded-gate forced
+tool whose `forced_conservative.forced_display.priority` is one of those
+(its pre-convergence priority; display only). An absent or malformed tier puts
+a tool in no panel and claims nothing beyond `pre_accept`. Order: P0 → P1 →
+P2, then the mixed-card order.
+
+**Rows** reuse the judgement-row pattern (`.prow`): the identity line — name,
+version pair, source badge, CVE badge, the `elevated risk` badge when
+elevated, and the baseline's three-button mirror (Accept already on for an
+accepted row; undecided for P0 and held rows, because the mirror reads the
+canonical card, which reads `pre_accept`) — then a chip line and a detail
+line with the `open card →` jump:
+
+- the **priority chip**: glyph + text of `items.TIER_LABELS` for the first
+  reason at the row's priority (`⛔ Needs you — …` at P0, `⚙ Accepted — …` at
+  P1, `◎ Accepted — …` at P2), with `+N more reasons` naming the others (the
+  baseline `fix` reason excepted) in its `title`. The page's copy of the
+  labels is pinned to the model by `test_render.py`. **On a held row the
+  label drops its "Accepted — " lead** — the tool is not accepted, and a chip
+  saying it is would be the one false sentence on the row;
+- the **held chip**, when `holds` is non-empty: `⏸ Held — {BAR_TEXT of the
+  first hold}`, every hold in its `title`;
+- one detail line derived from the lead reason, one branch per reason:
+  `required-edit` — the required edit's title and the item it serves;
+  `incompatible-unfixed` — the item's title; `pinned` — `pinned at {version}`;
+  `edit-proposed` — `+N proposed edits — not applied unless you accept them`;
+  `config-attention` — `config needs attention — no edit proposed:` and the
+  first sentence of `config_status.detail`; `relevant-fix` — the fix's title
+  and its usage quote's path; `fix-with-breaking` / `fix-with-risk` — the
+  breaking or risk item's title; `vendor-unread` — `vendor published no
+  details`.
+
+Foot: *"Accepted rows are already accepted — press Reject to hold one back.
+Rows marked Needs you or Held start undecided."* No new decision mechanism:
+the mirror is the existing one.
+
+**Lowered by convergence** (`#lowered-block`) — a sub-block at the foot of the
+section, expanded, never capped: one row per tool whose
+`convergence.security_priority.lost` is true — name, `P2 → P3`, each
+attributed edit's headline and quote (the block's `edits`), `open card →`.
+It renders even when no fix is left in the panel. This is O3's disclosure:
+convergence may lower a fix's priority only with an attributed, reasoned edit
+(`convergence.md` §6), and the page says so where the fix would have been.
+
+**On the card**: the header carries a priority badge (`⛔ P0` / `⚙ P1` /
+`◎ P2`, visible while collapsed) and a `⏸ held` badge; the why line gains
+`priority P1 · edit-proposed`; a judge line reads *"Convergence lowered this
+fix's priority P2 → P3 (cv-…)"* (or *raised*) whenever the tool's
+convergence block carries `security_priority`.
+
 ### The Judgement Panel
 
 `#judgement-section` / `#jpanel`, `renderJudgementPanel()`, between the tiles
@@ -496,8 +580,9 @@ unattributed permissive move is the §3 defect itself and is the one thing on
 this page that should look like an error.
 
 **`source: "rule"` still gets a label**, carried by the container rather than
-a row: the auto strip's heading reads `N security-only, no impact here —
-auto-accepted by rule`, and each row's `title` is the rule label's headline.
+a row: the auto strip's heading reads `N security updates with nothing
+flagged for this setup — accepted by rule`, and each row's `title` is the rule
+label's headline.
 The tile and the bar segment keep counting the whole `security_auto` bucket;
 only the rows move.
 
@@ -509,8 +594,20 @@ kind) and a yellow line at the top of the body carrying the headline and a
 ### Security Section
 
 Anchor `#sec-section`. Heading: 🛡 **Security patches** with a `--mono`
-sub-line — `N CVEs · M tools · A auto-approved · X need a look` — and, below
+sub-line — `N CVEs · M tools · A accepted · X held or need you` — and, below
 it, the report-level instance of the severity strip described next.
+
+**The accepted strip** (`#sec-auto`) is what is left of `security_auto` after
+the panels: accepted tools **not** in "Security fixes for you" and not moved
+by convergence's judgement — P3 fixes and pre-G-SEC security-only tools.
+Heading: `N security updates with nothing flagged for this setup — accepted by
+rule`. **Elevated stays visible without expanding** — D2's visibility half for
+the fixes it no longer bars: when any strip tool is `elevated`, the strip
+**head** carries `⚠ elevated risk: name, name` as text.
+
+**The mixed cards** (`#sec-mixed`, every `security_mixed` tool: P0, held and
+pre-G-SEC mixed) sort P0 first, and **the cap exempts P0**: `max(MIX_CAP,
+#P0)` cards render before the expander, so the ninth P0 card is never cut.
 
 #### The security summary strip
 
@@ -620,7 +717,7 @@ versus "triage first".
 `--tint-cyan`). Collapsed head, always visible:
 
 ```
-✓  5 security-only, no impact here — accepted    LIBPQ · OPENSSH · STUNNEL · …    ▸ show
+✓  5 security updates with nothing flagged for this setup — accepted by rule   ⚠ elevated risk: tier-fix   OPENSSH · STUNNEL · …   ▸ show
 ```
 
 The inline tool-name list is `--base01` uppercase micro-type that truncates
@@ -1130,8 +1227,11 @@ never invent precision the data doesn't have.
 
 Three more header badges, each present only when it says something: the
 convergence label (`⚑ auto by judgement` / `auto by rule` /
-`forced conservative`, §Overview Tab → The Judgement Panel), **`elevated
-risk`** (`risk_level == "elevated"`; `--orange` ring, ink text), and
+`forced conservative`, §Overview Tab → The Judgement Panel), the G-SEC
+priority and held badges (§Overview Tab → Security Fixes for You), **`elevated
+risk`** (`risk_level == "elevated"`; `--orange` ring, ink text — its `title`
+says *"accepted because it carries a security fix (P3)"* on a pre-accepted
+tool, and never claims "never pre-accepted" of one), and
 **`out of spec`** (`spec_violations[]` non-empty or a `validator_error`; a
 `<button>` that opens the Report notes band, with the codes in its `title`).
 
@@ -1528,11 +1628,18 @@ the same codes are aggregated across tools.
 ### Risk and the pre-acceptance bars (D2)
 
 `data-risk` on the section (a CSS hook), the `elevated risk` header badge,
-and the why line (§Per-Tool Section) reading `bucket_inputs` and
-`pre_accept_bars` verbatim — `elevated-risk`, `reaches-item`,
-`local-enum-invalid`, `watch-hit` spelled out (`BAR_TEXT`). The bars are
-data the page is handed (`assembly.md` §Review Buckets and Pre-Accept), never
-recomputed here.
+and the why line (§Per-Tool Section) reading `bucket_inputs`,
+`pre_accept_bars` and the security tier verbatim — every bar and hold of
+`items.PRE_ACCEPT_BARS` spelled out (`BAR_TEXT`: `required-edit`, `pinned`,
+`incompatible-unfixed`, `content-losing`, `security-item-risk`, `watch-hit`,
+`enum-invalid`, `container-unreadable`, `research-incomplete`, `not-runnable`,
+`forced-conservative`, `tier-uncomputed`, `elevated-risk`, `reaches-item`).
+The bars and the tier are data the page is handed (`assembly.md` §Review
+Buckets and Pre-Accept), never recomputed here. The seven G-SEC finding codes
+(`E-SEC-FIX-UNGROUNDED`, `W-SEC-FIX-NOID`, `E-SUG-REQUIRED-UNGROUNDED`,
+`E-SUG-SERVES-UNRESOLVED`, `E-REQUIREMENT-CONTRADICTED`,
+`E-USAGE-UNGROUNDED`, `W-USAGE-INSTALL-ONLY`) render through the markers
+channel with readable `CODE_TEXT`.
 
 ### Watch hits (D3)
 

@@ -49,8 +49,8 @@ see `references/collection.md`) and writes four files:
 
 **The item corpus is not read here.**
 `validate_items.validate_session()` (`references/item-schema.md`) owns loading,
-spec validation, normalization, id assignment, the eighteen invariants,
-`impact`, `risk_level` and the initial bucket. Assembly consumes the views it
+spec validation, normalization, id assignment, the twenty-three invariants,
+`impact`, `risk_level`, the security tier and the initial bucket. Assembly consumes the views it
 returns. That boundary is the point rather than a tidiness preference: two
 implementations of "does this release touch this setup" is exactly the drift
 `REDESIGN.md` §C3 exists to remove, and one of them would have been a regex
@@ -262,7 +262,20 @@ Three states the report-level object can carry beyond the effect's own:
 `apply_pre_accept()` bars on it, because assembly's own predicate —
 baseline, runnable, bucket ≠ attention, low risk, no bars — is exactly what
 a forced `security_mixed`-at-low-risk tool would otherwise pass, quietly
-re-accepting the tool the gate just held.
+re-accepting the tool the gate just held. A tool forced over a **demotion**
+(convergence lowered a fix's priority without a reason naming it) carries a
+`forced_display` snapshot of its pre-convergence priority, reasons and labels
+inside the forced record — display only; its `security_tier` stays the pure
+recomputation, holding `forced-conservative`.
+
+**A stale corpus is refused.** `load_convergence` runs
+`converge.check_corpus_versions` on `corpus.pre.json`: a corpus built under
+another contract or converge version is `artefacts_inconsistent`, the
+versions named in `detail`. And since the validator owns `pre_accept_bars`,
+the fresh-vs-frozen comparison excludes only the three fields
+`build_corpus_pre` adds (`current_version`, `latest_version`,
+`initial_pre_accept`) — `pre_accept_bars`, `security_tier`, `usage_evidence`
+and `usage_item_ids` must compare equal.
 
 ## Suggestion-ID Uniqueness
 Suggestion ids must be unique **globally across the whole report**, not just
@@ -751,17 +764,23 @@ Order of evaluation (pinned as data in `contract/bucketing.json`, which
    finding still forces review;
 1. the two non-version sources — `brew-health` and `skill-drift`: `routine`
    when the finding is expected, else `attention`;
-2. `security_auto` — `has_security` **and** `security_only` **and**
-   `impact == "none"` **and** `version_delta` not `major`/`unknown` **and** a
-   runnable baseline **and** no pre-acceptance bar (D2/E3,
-   `items.pre_accept_bars`: elevated risk, a reaching security **item** —
-   one that itself carries security content, never merely any reaching item
-   on a security tool — a present-but-invalid `local.direction`/`local.effect`
-   enum — an unreadable local claim fails closed, since one character of
-   drift otherwise blinds both the reaches-item bar and impact at once — or
-   a watch hit — a barred tool falls through to `security_mixed`,
-   where the card renders expanded, rather than sitting in the one bucket
-   whose name means "no decision needed");
+2. **G-SEC** — the tool carries a `security_tier` (a positively identified
+   security fix, or a vendor-declared unread security release;
+   `references/item-schema.md` §7 *Initial bucketing*): an accepted tier
+   (P1/P2/P3) → `security_auto`, P0 or held → `security_mixed`. The clause
+   reads the tier the validator stored on the view; a malformed one is never
+   accepted;
+2b. `security_auto` (pre-G-SEC, for every other tool) — `has_security`
+   **and** `security_only` **and** `impact == "none"` **and** `version_delta`
+   not `major`/`unknown` **and** a runnable baseline **and** no
+   pre-acceptance bar (D2/E3, `items.pre_accept_bars`: elevated risk, a
+   reaching security **item** — one that itself carries security content,
+   never merely any reaching item on a security tool — or a watch hit; plus
+   the two bars every tool carries since G-SEC, `enum-invalid` — any
+   tier-input enum present and unreadable, the renamed and widened
+   `local-enum-invalid` — and `container-unreadable`) — a barred tool falls
+   through to `security_mixed`, where the card renders expanded, rather than
+   sitting in the one bucket whose name means "no decision needed";
 3. `security_mixed` — `has_security`;
 4. `attention` — elevated `risk_level`, or stale `config_status`, or any
    `edit`/`structural` suggestion (`items.needs_a_decision` — a memory
@@ -789,17 +808,29 @@ def baseline_upgrade(tool):
 
 def apply_pre_accept(tool):
 	baseline = baseline_upgrade(tool)
-	for sug in tool.get("suggestions", []):
-		sug["pre_accept"] = bool(
-			sug is baseline
-			and sug.get("auto_runnable")
-			and tool["review_bucket"] != "attention"   # the needs-you list never starts accepted
-			and tool["risk_level"] == "low"            # D2 — the security_auto disjunct is gone
-			and not model.content_losing(tool)         # D1 — belt and braces
-			and not tool["pre_accept_bars"])           # D2/E3 — computed from the VALIDATOR'S
-	                                                   #   view in finalize_tool; a tool nobody
-	                                                   #   computed them for raises, never diverges
+	accepted = model.accepts_baseline(tool)     # THE predicate — converge.initial_pre_accept
+	for sug in tool.get("suggestions", []):     #   calls the same function over the view
+		sug["pre_accept"] = bool(sug is baseline and sug.get("auto_runnable") and accepted)
+
+def accepts_baseline(x):                        # items.py — a view or a Tool, identically
+	tier, bars = x["security_tier"], x["pre_accept_bars"]   # KeyError if nobody computed them
+	if not isinstance(bars, list) or bars:
+		return False
+	if tier is None:                            # not G-SEC — the pre-G-SEC predicate
+		return (bucket != "attention" and x["risk_level"] == "low"
+			and not content_losing(x) and not x.get("forced_conservative"))
+	if not valid_security_tier(tier):           # {} / [] / "P2" / inconsistent: never
+		return False
+	return (tier["tier"] in ("P1", "P2", "P3") and not content_losing(x)
+		and not x.get("forced_conservative"))
 ```
+
+`security_tier`, `pre_accept_bars` and `usage_item_ids` are **copied** from the
+validator's view by `finalize_tool`, never recomputed from the assembled
+tool — its `items[]` can hold synthesized items the validator never saw (a
+health finding's reaching `security`-tagged item). A tool is accepted by
+tier at elevated risk (R6): elevated is not a bar on a positively identified
+fix, and the page's "Security fixes for you" panel is how it stays visible.
 
 The flag is written onto **every** suggestion, so no consumer has to
 distinguish "false" from "absent". The page reads it and never re-derives the
@@ -836,10 +867,12 @@ Precisely what can be pre-accepted:
   variant is one clause — `and not sug.get("needs_sudo")` — in
   `apply_pre_accept()`.
 
-**How `security_auto` interacts with `risk_level` (D2).** There is no union
-any more: `pre_accept` requires `risk_level == "low"` and asks
-`items.pre_accept_bars` — the same predicate the bucket's security_auto
-clause asks — so the bucket and the checkbox cannot tell two stories. The
+**How `security_auto` interacts with `risk_level` (D2, G-SEC).** There is no
+union any more: for a tool that is not G-SEC, `pre_accept` requires
+`risk_level == "low"` and reads `pre_accept_bars` — the same bars the
+bucket's clause 2b asks — so the bucket and the checkbox cannot tell two
+stories. A G-SEC tool is accepted by its tier instead, and its bars are the
+tier's P0 reasons and holds. The
 one situation the old union created — a security-only tool whose one
 elevating signal was a reaching `warning`-severity security item, read as "a
 reason to take the update" and pre-accepted (measured: `brew:libpq`,
@@ -1360,7 +1393,10 @@ the same guard runs in both code paths.
 - `by_bucket` — `{security_auto, security_mixed, attention, routine}` over
   **every** tool, brew-health and skill-drift included.
 - `security` — `{cve_count, severity_counts, tools_with_security, auto_count,
-  mixed_count, tools_with_unlisted_cves}`, where `cve_count` is the size of the
+  mixed_count, tools_with_unlisted_cves, tier_counts, priority_counts,
+  accepted_priority_counts}` (the last three G-SEC's: tools per tier; the
+  priority panel's rows, held tools at their priority; and only the panel
+  rows that start accepted — `references/schemas.md` §1.9), where `cve_count` is the size of the
   *union* of `cve_ids` across tools (§Security Extraction), not the sum, and
   `severity_counts` is rolled up over that same union — never summed from the
   per-tool counts (§Severity Rollup and the Sum Invariant).

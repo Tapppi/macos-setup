@@ -8,7 +8,7 @@ evaporate into a prompt and cannot drift from what actually runs:
 | Thing | Where |
 |---|---|
 | The model — vocabularies, groups, ids, **the ordering and the comparator** | `scripts/items.py` |
-| The six stages, the twenty invariants, the finding codes | `scripts/validate_items.py` |
+| The six stages, the twenty-three invariants, the finding codes | `scripts/validate_items.py` |
 | The published fixtures a sibling package imports and asserts against | `scripts/contract/` (see its `README.md`) |
 | The tests | `scripts/test_items.py`, `scripts/test_validate_items.py` |
 | The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` and `HANDOFF.md` — **not in this repo.** Every `§A`/`§C3`/`§L1`/`criterion N` citation in the skill resolves there |
@@ -99,7 +99,8 @@ One array replaces four. Each element is **one real change**, carrying **tags**
   },
 
   "security": {"cve_id": null, "advisory_id": null, "rating": "unknown",
-               "rating_basis": "unrated", "exploited_in_wild": false}
+               "rating_basis": "unrated", "exploited_in_wild": false,
+               "nature": "unclear"}          // fix | boundary | unclear (§2.6)
 }
 ```
 
@@ -245,6 +246,39 @@ watch-hit marker today. When it is built it must read the same
 `watch_hit_item_ids` export, never the raw `watch_hit` claim — wiring it to
 the claim would re-open the unvalidated channel this field exists to close.
 
+### 2.6 `security.nature` — a positively identified fix (G-SEC)
+
+The `security` tag covers two different facts — a fixed vulnerability and a
+moved security boundary — so the tag alone is never "a fix". Every `security`
+block carries `nature`:
+
+| `nature` | means |
+|---|---|
+| `fix` | the release fixes or mitigates a vulnerability present in the installed version |
+| `boundary` | the release moves a security boundary (auth, permissions, signing, defaults, a sandbox) without fixing a vulnerability |
+| `unclear` | security content whose nature the checker could not establish |
+
+`nature` is required whenever a `security` block is present (`E-FIELD-MISSING`,
+read as no fix claim); out of vocabulary is `E-ENUM-INVALID`, wrong-typed
+`E-FIELD-TYPE` — both kept verbatim and both holding the tool
+(`enum-invalid`).
+
+**I-21 grounds `fix`.** A `fix` counts only when the item is tagged `security`,
+carries a `security` object (an orphan block is not a fix) and has a `change`
+with a non-empty verbatim `citation` — a fix is an upstream fact, so it is
+cited from upstream. Otherwise `E-SEC-FIX-UNGROUNDED`, and the ungrounded
+`fix` counts for nothing: a PROMOTING claim is worth nothing unverified. No
+identifier is required (`brew:iproute2mac`'s 1.7.5 command-injection fix has
+no CVE by the maintainer's choice); a grounded fix with no CVE, advisory or
+anchored anchor raises `W-SEC-FIX-NOID` so pass 6 can count them.
+`items.is_positive_fix(item)` is the one predicate.
+
+A version-source tool with at least one positive fix — or whose
+`vendor_silent_categories` contains `"security"` — is **G-SEC**: it carries a
+`security_tier` (§7 *Initial bucketing*) and is accepted by tier. Security
+content that is not a positively identified fix is judged by the pre-G-SEC
+rules, unchanged.
+
 ## 3. The evidence split
 
 *Splitting a field is better than conflating.* Applied literally, because 272 of
@@ -276,6 +310,60 @@ now lives in `note`.
 
 Anything else raises `E-EVID-MALFORMED`, is **kept verbatim**, and is excluded
 from path resolution. It is **not** moved to `citations[]`.
+
+### `role` and `quote` — usage, grounded in the file (G-SEC, I-23)
+
+An object-form entry may carry `role`: `usage` (this setup *uses* the affected
+thing — a config line, a call site, a service definition), `install` (the tool
+is installed — the Brewfile line, the install task) or `reference`. A shorthand
+string carries no role and makes no usage claim. `role` out of vocabulary is
+`E-ENUM-INVALID`, wrong-typed `E-FIELD-TYPE` — both hold the tool
+(`enum-invalid`).
+
+A `usage` entry carries `quote`, a **verbatim** excerpt of the file showing the
+use, and I-23 grounds it in the stage-3 validator, where the resolver lives:
+
+1. the path resolves under a configured root or as an existing absolute path
+   (`unconfigured` and `missing` fail — `W-EVID-ROOT`/`E-EVID-404` say why);
+2. the file is readable UTF-8 text within `items.USAGE_FILE_MAX_BYTES`;
+3. `quote` occurs **verbatim** — within `lines` when present, anywhere
+   otherwise. The only normalization is line endings: CRLF and a lone CR
+   become LF, in the file and in the quote;
+4. **the matched source lines are usage, judged in their file and section,
+   never by the quote text alone.** Every occurrence of the quote is expanded
+   to the full lines it spans; each is classified with the file's kind (from
+   its basename: Brewfile, `.tool-versions`, mise TOML — `mise.toml`,
+   `.mise.toml`, `mise.local.toml`, `mise/config.toml` — shell `*.sh`/`.bash*`,
+   other) and, for TOML, its enclosing table header. A line is not usage when
+   it is the tool's own install declaration (`items.INSTALL_DECLARATION_PATTERNS`,
+   published data with a `{name}` slot: a Brewfile `brew|cask|tap|mas
+   "<name>"`, a `.tool-versions` `<name> <version>`, a mise `<name> = …` under
+   `[tools]`/`[tools.<x>]`, a top-level dotted `tools.<name> = …`, a shell
+   `brew install|reinstall|upgrade … <name>` or `mise use|install … <name>`),
+   or a `#`-led comment or blank line. An occurrence grounds iff none of its
+   lines is the install declaration and at least one is not a comment/blank;
+   the entry grounds iff one occurrence does. A partial quote (`libpq` out of
+   `brew "libpq"`) and a mise excerpt that omits its `[tools]` header ground
+   nothing; the same key under `[settings]` or `[env]` grounds.
+
+1–3 failing is `E-USAGE-UNGROUNDED` (naming the step), 4 failing
+`W-USAGE-INSTALL-ONLY` (naming the install/comment lines). Either way the entry
+confirms nothing; neither is a hold, and neither removes, rewrites or re-rates
+anything — it withholds a derived highlight, which is all it may do (§0).
+
+**The record, not a re-read.** The validator records the grounded entries per
+view as `usage_evidence: [{"entry": <the entry as authored, after shape
+normalization>, "matched_lines": [...]}]`, sorted. Membership is keyed on the
+**authored entry** — an entry with no `lines`, or a wider range than the match,
+is the same entry after convergence carries it; `matched_lines` is the evidence
+of why it grounded. An item is **usage-confirmed** iff `local.direction ==
+"reaches"` and one of its `usage` entries is in the record
+(`items.usage_confirmed`); the view exports `usage_item_ids`. No edit can write
+the record; convergence carries it and never re-grounds — its applier runs the
+explicit no-I/O mode (`validate_items.NO_IO_RESOLVER`), under which neither
+I-14 resolution nor I-23 grounding runs. A `move_evidence` that removes the
+entry removes the confirmation; a `merge` carrying the grounded entry keeps it;
+a forged entry matches nothing.
 
 **Resolution** has three outcomes:
 
@@ -338,6 +426,30 @@ whose body covers **two of the four casks the others document as needing it**. A
 
 `Ref` = `{type, name}` with type in `formula`, `cask`, `tap`, `mas`, `task`,
 `runtime`, `section`.
+
+**`requirement` and `serves` (G-SEC, I-22).** Every ACTION suggestion (`edit`,
+`structural`, or any unrecognized kind) carries `requirement`: `required` — the
+upgrade does not work here without this edit — or `proposed`. `serves` names
+the items the edit answers, by the part of the derived id after `#`
+(`slug:key-renamed`, `cve:CVE-2026-1234`), the full id, or the unquoted anchor
+spelling (`issue:org/repo#9`); the validator resolves them into
+`serves_item_ids` on the suggestion (the authored `serves` stays verbatim; no
+convergence op can write the resolution).
+
+| input | finding | reads as |
+|---|---|---|
+| `requirement` absent | `E-FIELD-MISSING` | `proposed` — upgrade only by default |
+| out of vocabulary / not a string | `E-ENUM-INVALID` / `E-FIELD-TYPE` | `required` (worst), and the `enum-invalid` hold |
+| `serves` not an array | `E-FIELD-TYPE` | the `container-unreadable` hold |
+| a `serves` entry naming no item | `E-SUG-SERVES-UNRESOLVED` | that entry links nothing |
+| `required` serving no resolved `incompatible` item | `E-SUG-REQUIRED-UNGROUNDED` | still `required` — a RESTRICTING claim stands unverified |
+| `proposed` serving an `incompatible` item | `E-REQUIREMENT-CONTRADICTED` | `required` |
+
+The reading is over the tool's **current** items
+(`items.suggestion_requirement(sug, items_by_id)`): convergence can rerate,
+merge or delete a served item, and after it does the reading changes with it —
+a vanished id links nothing. `requirement`/`serves` on a memory or `upgrade`
+suggestion are read by nothing.
 
 | `op` | required | precondition the validator checks |
 |---|---|---|
@@ -436,7 +548,7 @@ report-wide CVE **union** (per-tool counts summed to 77; the union is 76).
 | **V2** spec | required fields, types, closed vocabularies — including the closed **top-level key set** (`items.RESEARCH_KEYS`): an unrecognized key is `E-RESEARCH-UNKNOWNKEY`, quarantined verbatim and content-losing, which is how the retired `headliners[]`/`relevancy[]` schema stopped being silently discarded. **The item survives with every offending field exactly as written** — a wrong-typed `change`/`local`/`security` is reported, not nulled, because the finding's `value` is bounded for readability and nulling would make the truncated copy the only one |
 | **V3** normalize | only the normalizations above: `null` → `[]`, non-list → `[]` with a warning, evidence shorthand → object form, wrong-typed members quarantined. `quarantine[]` holds wrong-typed array members **and** the payloads of unrecognized top-level keys — same entry shape `{field, item_id, value}`, `item_id: null` for the key case |
 | **V3b** identify | ids assigned from the anchor, in authored order, then disambiguated |
-| **V4** invariants | the twenty below. Every one **reports and changes nothing** |
+| **V4** invariants | the twenty-three below. Every one **reports and changes nothing** |
 | **V5** impact | `none` \| `possible` \| `unknown` |
 | **V6** bucket | `initial_review_bucket` plus `bucket_inputs` |
 
@@ -464,7 +576,7 @@ Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
 runs. The workflow surfaces it; it never aborts.
 
-### The twenty invariants
+### The twenty-three invariants
 
 | id | invariant | code |
 |---|---|---|
@@ -488,11 +600,14 @@ runs. The workflow surfaces it; it never aborts.
 | I-18 | suggestion ids unique across the whole report | `W-SUG-DUP-ID` |
 | I-19 | a memory proposal carries its payload, and a `self_test_failed` tag carries its reason | `E-FIELD-MISSING` / `E-SELFTEST-NOREASON` |
 | I-20 | a watch-item hit names a stored watch item for this tool and says what it means here | `E-WATCH-HIT-UNGROUNDED` / `E-WATCH-HIT-NOLOCAL` / `W-WATCH-UNCHECKED` / `W-WATCH-HIT-UNRAISED` |
+| I-21 | `security.nature: fix` ⇒ tagged `security` ∧ `security` block ∧ cited `change` (§2.6) | `E-SEC-FIX-UNGROUNDED` / `W-SEC-FIX-NOID` |
+| I-22 | a `required` edit serves ≥1 resolved `incompatible` item, and only such; a `proposed` edit serves none (§4) | `E-SUG-REQUIRED-UNGROUNDED` / `E-SUG-SERVES-UNRESOLVED` / `E-REQUIREMENT-CONTRADICTED` |
+| I-23 | a `usage` evidence quote occurs verbatim in its resolved file, on a line that is not the install declaration or a comment (§3) | `E-USAGE-UNGROUNDED` / `W-USAGE-INSTALL-ONLY` |
 
 I-14 is the mechanical replacement for the prose rule "if you can point at the
 touchpoint, you owe a relevancy item" — same claim, now checkable. It warns and
 never sets or clears the direction for you. Keep that discipline for all
-twenty.
+twenty-three.
 
 I-15 and the bucket clause read one tuple, `model.ACTION_SUGGESTION_KINDS`:
 **memory proposals do not force `attention`; action proposals do.**
@@ -573,17 +688,68 @@ pre-accepted, because `pre_accept` reads `risk_level` and
 `vendor_silent_categories`. So `"security"`-silence elevates on its own. Both
 halves are needed and the second is the easy one to miss.
 
-It now reaches everywhere (D2): `pre_accept` requires `risk_level == "low"`
-outright, and the security_auto clause itself asks `items.pre_accept_bars` —
-elevated risk, a reaching security **item** (one that itself carries security
-content; never merely any reaching item on a security tool), a
-present-but-invalid `local.direction`/`local.effect` enum (an unreadable
-local claim fails closed — one character of drift otherwise blinds the
-reaches-item bar and impact together), or a watch hit — so a
-barred security-only tool falls through to `security_mixed`, visible and
-undecided, instead of being pre-accepted "by design" the way the old
-precedence allowed. The bar and the clause order are pinned as data in
-`contract/bucketing.json`.
+**The clause order** (`items.BUCKET_CLAUSE_ORDER`, pinned with every case in
+`contract/bucketing.json`):
+
+```
+0.  content_losing(view)                          → attention       [D1]
+1.  brew-health / skill-drift                     → routine | attention
+2.  security_tier(view) is not None (G-SEC):
+      stored tier valid and in (P1, P2, P3)       → security_auto
+      else (P0, held, malformed)                  → security_mixed
+2b. has_security ∧ security_only ∧ impact none ∧ delta not major/unknown
+      ∧ runnable ∧ no pre_accept_bars             → security_auto   [pre-G-SEC]
+3.  has_security                                  → security_mixed
+4.  elevated / needs_attention / action suggestion / not runnable → attention
+5.                                                → routine
+```
+
+**G-SEC — positively identified security fixes are accepted by tier.** A
+version-source tool with a positive fix (§2.6) or a vendor-declared unread
+security release carries `security_tier`, computed once per view by
+`items.security_tier` from fields a view and an assembled Tool both carry, and
+stored by the validator before the bucket. Two axes, kept apart: display
+**priority** ("which fixes matter") and acceptance **holds** ("why it is not
+taken"). A held tool keeps its priority — held means not accepted, never
+hidden.
+
+| priority | reason (first match per level; every reason that holds is listed) |
+|---|---|
+| P0 | `required-edit` (an action suggestion reads required), `pinned`, `incompatible-unfixed` (an `incompatible` item no required edit serves) |
+| P1 | `edit-proposed` (an action suggestion reads proposed), `config-attention` (needs_attention with **no** action suggestion) |
+| P2 | `relevant-fix` (a fix usage-confirmed with effect benefit/none), `fix-with-breaking` (any `breaking` item, any severity), `fix-with-risk` (a NON-security item with effect risk), `vendor-unread` |
+| P3 | `fix` |
+
+Holds: `content-losing`, `security-item-risk` (a security item with effect
+risk), `watch-hit`, `enum-invalid`, `container-unreadable`,
+`research-incomplete`, `not-runnable`, `forced-conservative` (the applier's),
+`tier-uncomputed` (the view default). `tier` = P0 when the priority is P0,
+else `held` if any hold applies, else the priority; the tool is accepted iff
+the tier is P1–P3 (`items.accepts_baseline`). The shape, the labels and the
+vocabularies are `items.contract()["security_tier"]`.
+
+**D2 governs every tool that is not G-SEC** — including one whose only
+security content is not a positively identified fix. For those,
+`items.pre_accept_bars` is elevated risk, a reaching security **item** (one that
+itself carries security content; never merely any reaching item on a security
+tool), or a watch hit — so a barred security-only tool falls through to
+`security_mixed`, visible and undecided. For a G-SEC tool the bars are its P0
+reasons and holds; elevated risk and the reaches limb do not apply to it (the
+priority panel is the visibility D2 asked for). **Two bars apply to every tool,
+G-SEC or not** (R7): `enum-invalid` — any tier-input enum present and
+unreadable (severity, local direction/effect, `security.nature`, evidence
+`role`, suggestion `kind`, `requirement`, `config_status.state`; the renamed and
+widened `local-enum-invalid`) — and `container-unreadable` — an item's
+`local`/`security`/`change`/`watch_hit` not an object, `tags` not an array, or
+an action suggestion's `serves` not an array. Both fail closed: an unreadable
+claim costs a click.
+
+**The final act.** After every guarded stage, `validate_tool` finalizes the
+conservative axes on a view whose stage failed (`attention`/`elevated`/
+`unknown`, `validate_items.CONSERVATIVE_AXES`) and then recomputes the tier,
+the bars and `usage_item_ids` from the final view — so the stored tier equals
+`security_tier(final view)` whichever stage failed, and a failure after the
+bucket can never leave a held tool in `security_auto`.
 
 `items.recompute_flags` stays **tag-only**, deliberately: it is what
 `E-FLAG-DISAGREE` compares a checker's claim against, and a checker that
@@ -603,6 +769,10 @@ when its rating is `critical`, or it is exploited in the wild, or
 **There is no cap.** A cap is a count, and counts invite padding. The predicate
 is a bar; whatever clears it is shown, and everything else still exists, still
 renders in the collapsed detail, and still carries its finding.
+
+The predicate is unchanged by G-SEC: a `relevant-fix` item reaches and is
+tagged `security`, so it already clears the bar — `relevant-fix` ids are a
+subset of `display_item_ids`.
 
 ---
 

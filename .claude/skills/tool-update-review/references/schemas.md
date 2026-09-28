@@ -90,7 +90,14 @@ mechanism).
 			"tools_with_security":      6,
 			"auto_count":               2,   // == by_bucket.security_auto
 			"mixed_count":              4,   // == by_bucket.security_mixed
-			"tools_with_unlisted_cves": 1    // vendor claims more advisories than we could extract ids for
+			"tools_with_unlisted_cves": 1,   // vendor claims more advisories than we could extract ids for
+			// G-SEC (§1.9): one per tool at its tier; the priority panel's rows
+			// (held tools counted AT THEIR PRIORITY); and the panel rows that
+			// START accepted (tier P1/P2 with a pre-accepted baseline) — the
+			// only numbers the "Security · accepted" tile may show
+			"tier_counts":              {"P0": 1, "held": 1, "P1": 1, "P2": 2, "P3": 1},
+			"priority_counts":          {"P0": 1, "P1": 1, "P2": 3},
+			"accepted_priority_counts": {"P1": 1, "P2": 2}
 		}
 	},
 	// ── Repo freshness (see references/collection.md §Repo Freshness) ──
@@ -246,11 +253,30 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	// every OTHER finding is a marker (listed under `markers`) and moves
 	// nothing. Pinned in contract/degradation.json.
 	"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
-	// The pre-acceptance bar (D2/E3), computed from the VALIDATOR'S view in
-	// finalize_tool — the same inputs the bucket's clause 2 read, never the
-	// assembled items — and carried for the page. Subset of
-	// ["elevated-risk", "reaches-item", "watch-hit"], emission order fixed.
+	// The pre-acceptance bar, stored by the VALIDATOR on its view and COPIED
+	// by finalize_tool — never recomputed from the assembled items. Emission
+	// order fixed (items.PRE_ACCEPT_BARS). A G-SEC tool's bars are its tier's
+	// P0 reasons and holds; any other tool's are elevated-risk, reaches-item
+	// and watch-hit (D2/E3) — and enum-invalid / container-unreadable apply
+	// to every tool (R7).
 	"pre_accept_bars": [],
+	// G-SEC (items.security_tier): null for a tool that is not a positively
+	// identified security fix; else the tier, computed once per view by the
+	// validator, copied here, never re-derived by the page. `priority` is the
+	// display priority (computed WITHOUT the holds); `tier` is P0 when the
+	// priority is P0, else "held" if any hold applies, else the priority; the
+	// baseline starts accepted iff the tier is P1/P2/P3. `ids` names what
+	// earned each reason and hold ([] for tool-level ones).
+	"security_tier": {
+		"tier": "P2", "priority": "P2",
+		"reasons": ["relevant-fix", "fix"], "holds": [],
+		"ids": {"relevant-fix": ["cask:wireshark-app#cve:CVE-2026-0962"],
+			"fix": ["cask:wireshark-app#cve:CVE-2026-0962"]},
+		"fix_item_ids": ["cask:wireshark-app#cve:CVE-2026-0962"]
+	},
+	// Items confirmed against actual usage (I-23): reaching, with a `usage`
+	// evidence entry the validator grounded in its file.
+	"usage_item_ids": ["cask:wireshark-app#cve:CVE-2026-0962"],
 	// Items whose watch_hit GROUNDED against the session snapshot (I-20).
 	// The 70-point highlight and the item badge read this, never the raw
 	// claim; the claim alone still bars pre-acceptance.
@@ -462,6 +488,14 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 				"label": "podman v5.0.0",
 				"url":   "https://github.com/containers/podman/releases/tag/v5.0.0"
 			},
+			// G-SEC (I-22): every action suggestion says whether the upgrade
+			// works here without it. "required" names the `incompatible` item it
+			// answers in `serves` (by the part of its id after '#', the full id,
+			// or its unquoted anchor); the validator writes the resolution to
+			// `serves_item_ids`. Absent reads "proposed".
+			"requirement": "required",
+			"serves": ["slug:machine-init-flags"],
+			"serves_item_ids": ["brew:podman#slug:machine-init-flags"],
 			"diff_preview": "-\tpodman machine init --image-path \"${image_path}\"\n+\tpodman machine init --rootful"
 		},
 		{
@@ -613,36 +647,21 @@ auto-approved. Widening `has_security` moves such a tool into `security_mixed`,
 which makes it visible; the risk clause is what stops it being pre-accepted
 while it sits there.
 
-**And be precise about how far that goes, because the clause ordering decides
-it.** `pre_accept` is `risk_level == "low"` **OR**
-`review_bucket == "security_auto"` (§1.6), and `security_auto` is returned by
-clause 2 of the bucket precedence while `risk_level` is not consulted until
-clause 4. So:
-
-- **`risk_level: "elevated"` is not a bar on pre-acceptance for a tool that
-  reaches `security_auto`.** It never has been. A security-only release with no
-  impact here, a non-major delta and a runnable baseline is pre-accepted
-  whatever its risk level says — that is what the bucket means.
-- The risk clause therefore stops pre-acceptance for exactly the tools that
-  *miss* clause 2 — the vendor-silent-security tool with any non-security
-  content, which is the shape that motivated it (`cask:slack`: one `feature`
-  item, so `security_only` is false).
-- A vendor-silent-security tool whose **readable** items are all security-only
-  still reaches `security_auto` and is still pre-accepted. That is the designed
-  path — the content we could read is security-only and taking the update is
-  the safe action — but it is a judgement, not a consequence of the risk
-  clause, and this paragraph exists so the next reader does not mistake one for
-  the other.
+**What `risk_level` decides, and what it no longer does.** Pre-acceptance is
+one predicate, `items.accepts_baseline` (§1.6), and it reads `risk_level` only
+for a tool that is **not** G-SEC: there, `risk_level == "low"` is required,
+and elevated risk bars the tool from `security_auto` as well (D2's
+`elevated-risk` bar). A **positively identified security fix** (G-SEC,
+`security_tier` non-null) is accepted **by tier**: elevated risk is not a bar
+on it (R6), and the "Security fixes for you" panel is how an elevated fix stays
+visible. So a vendor-declared unread security release — the case this clause
+was written for — is now accepted and highlighted at P2 (`vendor-unread`), the
+user's own ruling, instead of held; its `risk_level` still says `elevated`.
 
 `risk_level` is computed by the **validator** (`validate_items.compute_risk_level`)
 and read off its view by assembly, so there is exactly one implementation.
-It feeds the assembly-computed `pre_accept` flag (§1.6), which is
-the single pre-accept mechanism: a suggestion renders pre-accepted iff
-`pre_accept` is true, and assembly sets that from `risk_level == "low"` **or**
-`review_bucket == "security_auto"` (§1.10), on the baseline `upgrade`
-suggestion only. Research-authored `edit`, `watch-item` and
-`method-note` suggestions always start undecided regardless of the tool's
-`risk_level`.
+Research-authored `edit`, `watch-item` and `method-note` suggestions always
+start undecided regardless of the tool's `risk_level` or tier.
 
 See `references/assembly.md` §Risk Level for the computation's place in
 `assemble.py`'s flow and §Review Buckets and Pre-Accept for the union, and
@@ -683,6 +702,16 @@ renders.
   the V→latest delta and lands on `up_to_date` or `needs_attention`, per
   `references/research.md` §Config Status. Render neutrally, same as today
   (no badge).
+
+**The vocabulary is validated** (CONTRACT 4, `items.CONFIG_STATES`). An object
+with no `state` is `E-FIELD-MISSING` and reads `unknown` (no claim); a `state`
+outside the three values is `E-ENUM-INVALID`, and one that is not a string
+`E-FIELD-TYPE` — both kept verbatim and both holding the tool
+(`enum-invalid`, every tool). A `config_status` that is not an object at all is
+`W-SHAPE-COERCED`, content-losing, as before. On a G-SEC tool,
+`needs_attention` with no action suggestion is P1 `config-attention` — the fix
+is accepted and listed first with that label, and I-15's `W-ATTENTION-NOSUG`
+still reports the missing edit.
 
 ### 1.6 `kind: "upgrade"` field semantics
 
@@ -755,8 +784,11 @@ mechanism.)
   suggestion on every tool (so a consumer never has to distinguish "false"
   from "absent"), but only ever `true` on the tool's baseline
   `{source}:{name}:upgrade` suggestion, and only when `auto_runnable` is
-  true and either `risk_level == "low"` (§1.4) or
-  `review_bucket == "security_auto"` (§1.10). The page reads this field and
+  true and `items.accepts_baseline(tool)` — for a tool that is not G-SEC:
+  bucket not `attention`, `risk_level == "low"` (§1.4), nothing content-losing,
+  no pre-acceptance bar, not forced; for a positively identified security fix:
+  an accepted tier (P1/P2/P3), nothing content-losing, no bar, not forced. The
+  same function answers `converge.initial_pre_accept`. The page reads this field and
   never re-derives the decision — a second derivation in the page is exactly
   how the rendered state and the submitted payload drift apart. Absent field
   ⇒ treat as `false`. Three consequences worth stating explicitly:
@@ -1172,6 +1204,16 @@ never beat a recorded one, so it ranks lowest; ordering the display, it means
 whose checker produced no items — the same doctrine as "No items ⇒ never
 `security_only`", applied twice.
 
+**The report-level G-SEC counts** (`summary.security`): `tier_counts` — every
+G-SEC tool once, at its tier (`P0`, `held`, `P1`, `P2`, `P3`);
+`priority_counts` — the rows of the page's "Security fixes for you" panel
+(`P0`, `P1`, `P2`), **held tools counted at their priority**, because held
+means not accepted, never hidden; `accepted_priority_counts` — only the panel
+rows that **start accepted** (`P1`, `P2`: tier P1/P2 and a pre-accepted
+baseline). The "Security · accepted" tile reads the last and never the second,
+so a held P2 tool is a panel row and never counted as accepted.
+`auto_count`/`mixed_count` keep their bucket definitions.
+
 ### 1.10 `review_bucket` semantics
 
 The review-effort axis: how much of a human does this tool need. Strict
@@ -1179,8 +1221,8 @@ precedence, first match wins.
 
 | Bucket | Means | Renders as |
 |---|---|---|
-| `security_auto` | Security content only, no impact here, delta not `major`/`unknown`, a runnable baseline, and no pre-acceptance bar — not elevated, no reaching security item, no watch hit (`items.pre_accept_bars`) | The auto-approved list in the Overview's security section; its baseline is pre-accepted (§1.6) |
-| `security_mixed` | Has security content **plus** something else — other changes, a possible impact, an unknown, an elevated risk | The side-by-side card: security items and other items shown together so the user decides fast |
+| `security_auto` | **Security · accepted.** A positively identified security fix whose tier is accepted (P1/P2/P3 — G-SEC); or, for any other security content, security-only material with no impact here, delta not `major`/`unknown`, a runnable baseline and no pre-acceptance bar (not elevated, no reaching security item, no watch hit, nothing unreadable) | P1/P2 tools are listed first in "Security fixes for you"; the rest (P3 fixes and pre-G-SEC security-only tools) in the accepted strip; the baseline starts accepted (§1.6) |
+| `security_mixed` | **Security · held or needs you.** A G-SEC tool at P0 or held; or security content with something else — other changes, a possible impact, an unknown, an elevated risk, a bar | The side-by-side card, P0 first and never capped; P0/P1/P2 tools are also rows in "Security fixes for you" |
 | `attention` | No security content, but something needs a human: elevated `risk_level`, stale `config_status`, a proposed `edit`/`structural`, or nothing runnable — a memory proposal (`watch-item`/`method-note`) never forces it | The "needs you" list |
 | `routine` | No security content, low risk, only the baseline upgrade to decide | The long tail, collapsed by default |
 
@@ -1189,8 +1231,10 @@ Order of evaluation: **content-losing input first** — a non-empty
 `validator_error` forces `attention` before any other clause runs (D1,
 `items.content_losing`) — then the two non-version sources — `brew-health`
 (`routine` when `health_expected`, else `attention`) and `skill-drift`
-(`routine` when `drift_expected`, else `attention`) — then `security_auto`
-(barred tools fall through to `security_mixed` — see the row above), then
+(`routine` when `drift_expected`, else `attention`) — then the G-SEC clause
+(an accepted tier → `security_auto`, P0/held → `security_mixed`), then the
+pre-G-SEC `security_auto` clause (barred tools fall through to
+`security_mixed` — see the row above), then
 `security_mixed`, then `attention`, then `routine`. Because
 `risk_level` is computed before the bucket, the `attention` test doesn't
 re-check the major/unknown delta or `research_error` conditions —
@@ -1207,7 +1251,8 @@ need a human land in `attention` and, when their severity warrants, in
 `highlights` too.
 
 A `macos` or `standalone` tool has `auto_runnable: false` on its baseline, so
-the runnable guard bars it from `security_auto` unconditionally: a
+the runnable guard bars it from `security_auto` unconditionally (on a G-SEC
+tool, the `not-runnable` hold): a
 security-only macOS update lands in `security_mixed` and one with no security
 content lands in `attention`. That is deliberate — there is nothing to
 auto-approve when the skill cannot run the command; render such a card with

@@ -37,6 +37,17 @@ python3 scripts/apply_converge.py --session "$SD" --check  converge.draft.json
 python3 scripts/apply_converge.py --session "$SD" --submit converge.draft.json
 ```
 
+**A stale corpus is refused before anything runs.** `corpus.pre.json`
+records the `contract_version` and `converge_version` it was built under;
+unless both are exactly this code's (`converge.check_corpus_versions` — an
+int, equal; `"4"`, `4.0`, `true` or a missing key is refused), `--check` and
+`--submit` exit 4 **without recording an attempt** — it is an operator
+condition, not your error — and `apply_converge()` raises
+`CorpusVersionError` at every attempt, the terminal one included, so no
+`corpus.post.json` or effect is ever derived from a stale corpus. Re-run
+`--prepare --force`. `build_view`/`build_tables` refuse too, and assembly
+renders such a session `artefacts_inconsistent`.
+
 `--check` runs all five phases and writes nothing durable — iterate against
 it until clean; it costs no attempt. `--submit` is an attempt, counted in
 `converge-attempts.json` by the applier, not by you. A submission with
@@ -47,7 +58,9 @@ dying** (§6). On success the applier writes `corpus.post.json`,
 `converge-effect.json` and the accepted `converge.json`.
 
 You read: `converge-view.json` (every item minus its `body`, every
-suggestion whole, per-tool derived state), `converge-tables.json` (the
+suggestion whole, per-tool derived state — including, since view version 2,
+the validator's `security_tier`, its `usage_evidence` record and the
+`usage_item_ids`), `converge-tables.json` (the
 corpus-level relations no single checker could see), `validation.json`
 findings — plus **on-demand reads of `corpus.pre.json` by id** for any
 `body`, `config_status.detail` or link you need. §4's quote rule makes
@@ -58,7 +71,7 @@ skipping that read detectable.
 ```jsonc
 {
   "run_id": "…",                      // the session's — echoed, checked
-  "converge_version": 2, "view_version": 1,
+  "converge_version": 3, "view_version": 2,
   "corpus_digest": "sha256:…",        // copied from converge-view.json
   "attempt": 1,
   "checks": [ /* one attestation per check, ALL SEVEN, mandatory — §5 */ ],
@@ -139,7 +152,13 @@ arithmetic catches it. Each check may emit only its listed ops
 `citations[]`; a path you cannot place is a `flag` naming what it would take
 to resolve; an item claiming a live risk (`reaches`+`risk`) with empty
 evidence is a `flag` — you cannot go and find the path (§8). Never `delete`:
-a citation in the wrong field is a filing error, not noise. Attest
+a citation in the wrong field is a filing error, not noise. The table also
+carries I-23's two usage codes (`converge.EVIDENCE_FINDING_CODES`):
+`E-USAGE-UNGROUNDED` (a `usage` entry whose path, file or quote did not check
+out) and `W-USAGE-INSTALL-ONLY` (a quote that is only the tool's install line
+or a comment) — neither confirmed usage, so neither earned the fix a
+highlight; a `move_evidence` of such an entry is filing, a `flag` is fine,
+and you can never make one ground (the applier re-grounds nothing). Attest
 `scanned.tools/items/evidence_entries` and `findings ==
 len(evidence_findings)`.
 
@@ -179,6 +198,14 @@ the items in front of me have said it might?* If no, fix whichever item is
 mis-tagged or mis-rated — **there is no op that writes a bucket, by
 construction**. Attest one row per tool: `deciding_input`, `verdict`. This
 attestation feeds §9's label.
+
+**The set is larger since G-SEC** — every positively identified security
+fix whose tier is accepted (P1/P2/P3) is pre-accept-eligible whatever its
+risk level, so expect ~25–40 rows per run rather than ~9. For a G-SEC tool
+`deciding_input` is `security_tier`, and the question is the same: is the
+`nature: fix` real (a cited upstream fix, not a boundary move), and did the
+checker miss a `required` edit or an `incompatible` item that would have held
+it? Fix the item — a `retag`/`rerate`/`redirect` — and the tier follows.
 
 **C6 — memory: three stores** (`delete`, `add`, `flag`). Stores: global
 method notes (rare **by definition** — only convergence can see a note is
@@ -233,6 +260,49 @@ many words; `converge.GATE_CONSEQUENCE_TOKENS`). Permissive direction only:
 a move OUT of an auto bucket is reported, never blocked, and nothing caps
 how many reasoned moves a run may make.
 
+**The demotion gate (G-SEC).** A positively identified fix's display
+**priority** (P0 > P1 > P2 > P3 > not G-SEC) is a derived fact the page leads
+with, and losing it is consequential. The applier compares every tool's
+priority pre vs post (read through `converge.axis_value` — priority lives
+inside `security_tier`, which `MOVED_AXES` does not include, so
+`tools_moved` keeps its meaning and you never predict a tier move). **Any
+strict decrease is a demotion**, and for each one the attributed edits must
+(a) exist (`E-GATE-UNATTRIBUTED`) and (b) name the consequence in
+`reason.body` — `priority`, `highlight` or `prominence`
+(`converge.PROMINENCE_CONSEQUENCE_TOKENS`; `E-GATE-UNREASONED`, gate record
+`kind: "demotion"`). `E-GATE-UNDECLARED` does not apply: `moves_bucket` is
+about the bucket. Attribution for priority replays
+`converge.PROMINENCE_CAPABLE_OPS` — the bucket-capable ops **plus
+`move_evidence`**, because priority also reads `local.evidence` (a usage
+confirmation): moving the grounded `usage` entry out of an item removes its
+confirmation, and a `move_evidence` needs no `reason.body` as an op but does
+as a demotion. A merge that carries a grounded entry to another item keeps
+the confirmation (the record is keyed on the authored entry); a forged entry
+confirms nothing. Every priority change — either direction — is written to
+the tool's effect block as `security_priority: {from, to, lost,
+reasons_from, reasons_to, attributed_to, edits}` (each edit's headline and
+quote), and the report page discloses the losses, expanded, in "Lowered by
+convergence".
+
+**The tier is re-derived, never written.** After your edits the applier
+recomputes `security_tier`, `pre_accept_bars` and `usage_item_ids` through
+the model's own functions over the CURRENT items and the carried
+`usage_evidence` record, and its self-check compares its re-derivation of
+corpus.pre's tier and bars against the validator's (`E-APPLY-INTERNAL`).
+Element re-validation runs in the explicit **no-I/O mode**
+(`validate_items.NO_IO_RESOLVER`): no path is resolved and no usage quote is
+re-grounded; the resolver-dependent codes (`E-EVID-404`, `W-EVID-ROOT`,
+`E-USAGE-UNGROUNDED`, `W-USAGE-INSTALL-ONLY`) are excluded from the pre/post
+comparison on both sides. **I-22 after edits:** a `required`/`proposed`
+reading depends on the current severity of the items an edit `serves`, so
+I-22 is re-run over every suggestion of every tool whose items you edited;
+a code present post and not pre (`E-SUG-REQUIRED-UNGROUNDED`,
+`E-SUG-SERVES-UNRESOLVED`, `E-REQUIREMENT-CONTRADICTED`) is a `W-EDIT-SCHEMA`
+note implicating the item edit — not a bounce: a reasoned rerate of an
+`incompatible` item is legitimate, an ungrounded `required` still reads
+required, and any acceptance or prominence change it causes meets the
+permissive gate or the demotion gate.
+
 The loop: any critical finding bounces the whole submission while attempts
 remain — fix and resubmit; rejects are per-edit and transitively closed over
 `requires`, and nothing is silently dropped. **At attempt 5 the run ships
@@ -240,7 +310,7 @@ anyway** (criterion 13 — never a silent pass, never a dead run):
 
 | State | When | What ships |
 |---|---|---|
-| `degraded_gate` | the gate still fails on ≥1 tool | The submission applies; each gate-failing tool is **forced** to `security_mixed` / `pre_accept: false` — the one place a bucket is written rather than derived, written by the applier, recorded as forced. Such a tool carries **no** auto-update label. |
+| `degraded_gate` | the gate — permissive or demotion — still fails on ≥1 tool | The submission applies; each gate-failing tool is **forced** to `security_mixed` / `pre_accept: false` — the one place a bucket is written rather than derived, written by the applier, recorded as forced (`kind: permissive` or `demotion`). Its tier is recomputed with the `forced-conservative` hold; a G-SEC tool's forced record also carries `forced_display` — its PRE-convergence priority, reasons and labels — which the page shows (display only; the tier stays the pure recomputation, even when the forced view is no longer G-SEC). Such a tool carries **no** auto-update label. |
 | `degraded_unapplied` | the submission itself cannot be resolved | `corpus.post.json` **is** `corpus.pre.json`; every rejected edit is listed with its code. |
 
 Scope- or schema-violating edits at attempt 5 are excluded individually and
@@ -277,8 +347,13 @@ validator computed. Every claim in every reason must be quotable from
 - **Never author a finding** — `add` exists for re-homed and promoted memory
   notes only. A `reword` that changes what an item claims is authoring.
 - **Never write a bucket, `pre_accept`, `risk_level`, `impact`,
-  `security_only`, an item `id`, or any corpus file** — there is no op that
-  can, and stage 5 recomputes all of them from the edited items.
+  `security_only`, an item `id`, `security_tier`, `usage_evidence`,
+  `usage_item_ids`, a suggestion's `serves_item_ids`, or any corpus file** —
+  there is no op that can (`converge.NEVER_WRITE_FIELDS`; tool-level derived
+  fields are addressable by no op, and a suggestion takes only text edits,
+  `delete` and `annotate`), and stage 5 recomputes all of them from the edited
+  items — except `usage_evidence`, the validator's grounding record, which it
+  carries.
 - **Never delete on a regex or heuristic** — if a cut needs no reason it is
   a rule, and rules do not live here.
 - **Never pad, never cap, never cut for appearance, never resolve a
@@ -302,8 +377,9 @@ label then carries the causing edit's `reason.headline`, its `body`
 verbatim, its `confidence`, the `quotes` of what was cut, and a
 `counterweight` (CVE count, worst rating, items removed/re-rated) so the
 card shows both sides; `"rule"` when the deterministic path alone put it
-there. `"judgement_unattributed"` exists for the renderer's completeness and
-never ships while the gate stands. Report-side rendering is
+there — its reasoning names the security tier and its reasons for a G-SEC
+tool, and `security_only`/`impact` for any other. `"judgement_unattributed"`
+exists for the renderer's completeness and never ships while the gate stands. Report-side rendering is
 `references/rendering-report.md`'s concern; the per-tool blocks and
 `convergence_status` in `converge-effect.json` are the hand-off.
 
