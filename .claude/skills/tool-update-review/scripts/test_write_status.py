@@ -238,6 +238,110 @@ class InitMethodNoteTests(unittest.TestCase):
 				self.assertEqual(inv["state"], "pending")
 				self.assertEqual(inv["label"], "Modify method note: topic a — say 8.2 specifically")
 
+	def test_a_failed_write_is_not_stored_and_becomes_a_pending_add_under_the_records_key(self):
+		"""Round-2 finding 1: a `failed` note is NOT stored, whatever the
+		convergence state. Undecided or accepted, it becomes a pending add;
+		the key travels from the record (here: global, for a promoted note)
+		— it is never re-derived from the tool id."""
+		record = {"reviewed": True, "convergence_state": "converged",
+			"store_problem": "it exists but could not be read",
+			"written": [], "already_present": [], "unreviewed": [], "failed": [
+			{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-a", "key": "brew:jq",
+				"topic": "topic a", "note": "note a", "reason": "store it exists but could not be read"},
+			{"tool_id": "brew:jq", "suggestion_id": "brew:jq:method-g", "key": model.GLOBAL_METHOD_NOTE_KEY,
+				"topic": "topic g", "note": "note g", "reason": "store it exists but could not be read"}]}
+		actions, _ = self._init({"brew:jq:method-a": {"decision": "accept"}}, record)
+		a = actions["brew:jq:method-a"]
+		self.assertEqual(a["state"], "pending")
+		self.assertEqual(a["label"], "Add method note: topic a")
+		self.assertIn("could not be read", a["note"])
+		g = actions["brew:jq:method-g"]  # undecided + failed → still a pending add
+		self.assertEqual(g["state"], "pending")
+		self.assertEqual(g["detail"], ["scripts/write_status.py add-global-method-note "
+			"--topic 'topic g' --note 'note g'"])
+		actions, _ = self._init({"brew:jq:method-g": {"decision": "reject"}}, record)
+		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+
+	def test_one_store_entry_shared_by_two_ids_withdraws_once_and_adds_once(self):
+		"""Round-2 finding 2: two tools' identical notes both promoted to
+		global are ONE entry (render wrote one, recorded the other as
+		already_present). A veto on either id is one withdraw, and the other
+		id is never marked "done, in store" — it is skipped naming the
+		carrier. The same for an add of a not-stored shared entry."""
+		def note(sid):
+			return {"id": sid, "kind": "method-note", "title": "Method note: shared",
+				"target_files": [], "command": None, "auto_runnable": False,
+				"rationale": "r", "method_topic": "shared", "method_note": "same text"}
+		def run(decisions, record):
+			with tempfile.TemporaryDirectory(prefix="write-status-mn-") as session:
+				report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
+					"report_id": "r", "generated_at": "2026-08-22T11:33:44Z", "machine": {},
+					"summary": {}, "repo_context": {}, "highlights": [], "tools": [
+						{"id": "brew:aa", "name": "aa", "source": "brew", "suggestions": [note("brew:aa:method-s")]},
+						{"id": "brew:bb", "name": "bb", "source": "brew", "suggestions": [note("brew:bb:method-s")]}]}
+				for name, obj in (("report.json", report), ("feedback.json",
+						{"report_id": "r", "tool_comments": {}, "decisions": decisions}),
+						("method-notes.render.json", record)):
+					with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+						json.dump(obj, fh)
+				p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+					capture_output=True, text=True, timeout=60)
+				self.assertEqual(p.returncode, 0, p.stderr)
+				with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
+					return {a["id"]: a for a in json.load(fh)["actions"]}
+		g = model.GLOBAL_METHOD_NOTE_KEY
+		stored = {"reviewed": True, "convergence_state": "converged", "failed": [], "unreviewed": [],
+			"written": [{"tool_id": "brew:aa", "suggestion_id": "brew:aa:method-s", "key": g, "topic": "shared", "note": "same text"}],
+			"already_present": [{"tool_id": "brew:bb", "suggestion_id": "brew:bb:method-s", "key": g, "topic": "shared", "note": "same text"}]}
+		# Veto from bb's id only: ONE withdraw, and aa is not "done, in store".
+		actions = run({"brew:bb:method-s": {"decision": "reject"}}, stored)
+		withdraws = [a for a in actions.values() if a["label"].startswith("Withdraw")]
+		self.assertEqual(len(withdraws), 1)
+		self.assertEqual(withdraws[0]["id"], "brew:bb:method-s")
+		self.assertIn("remove-global-method-note", withdraws[0]["detail"][0])
+		self.assertIn("2 suggestion ids", withdraws[0]["note"])
+		self.assertEqual(actions["brew:aa:method-s"]["state"], "skipped")
+		self.assertIn("Same store entry as 'brew:bb:method-s'", actions["brew:aa:method-s"]["note"])
+		# Both rejected: still one withdraw, carried by the first id.
+		actions = run({"brew:aa:method-s": {"decision": "reject"}, "brew:bb:method-s": {"decision": "reject"}}, stored)
+		self.assertEqual(sum(1 for a in actions.values() if a["label"].startswith("Withdraw")), 1)
+		self.assertEqual(actions["brew:aa:method-s"]["state"], "pending")
+		self.assertEqual(actions["brew:bb:method-s"]["state"], "skipped")
+		# Not stored (unreviewed), both accepted: ONE add.
+		unrev = {"reviewed": False, "convergence_state": "not_run", "written": [], "already_present": [], "failed": [],
+			"unreviewed": [{"tool_id": "brew:aa", "suggestion_id": "brew:aa:method-s", "key": g, "topic": "shared", "note": "same text", "reason": "not_run"},
+				{"tool_id": "brew:bb", "suggestion_id": "brew:bb:method-s", "key": g, "topic": "shared", "note": "same text", "reason": "not_run"}]}
+		actions = run({"brew:aa:method-s": {"decision": "accept"}, "brew:bb:method-s": {"decision": "accept"}}, unrev)
+		self.assertEqual(sum(1 for a in actions.values() if a["label"].startswith("Add")), 1)
+		self.assertEqual(actions["brew:bb:method-s"]["state"], "skipped")
+		# Any reject is a veto of the ENTRY: an accept on the other id does
+		# not write it.
+		actions = run({"brew:aa:method-s": {"decision": "accept"}, "brew:bb:method-s": {"decision": "reject"}}, unrev)
+		self.assertFalse(any(a["label"].startswith("Add") for a in actions.values()))
+		self.assertEqual(actions["brew:aa:method-s"]["note"], "Not stored (unreviewed) and vetoed — nothing written")
+
+	def test_the_no_record_fallback_honours_the_reports_global_routing(self):
+		"""No render record: the key cannot come from it, so it comes from
+		the same routing render applies — report.convergence.memory."""
+		with tempfile.TemporaryDirectory(prefix="write-status-mn-") as session:
+			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
+				"report_id": "r", "generated_at": "2026-08-22T11:33:44Z", "machine": {},
+				"summary": {}, "repo_context": {}, "highlights": [],
+				"convergence": {"state": "converged", "memory": {"promoted_to_global": ["brew:jq:method-g"],
+					"rehomed_to_method_note": [], "restored": []}},
+				"tools": [{"id": "brew:jq", "name": "jq", "source": "brew",
+					"suggestions": [self._note("brew:jq:method-g", "topic g", "note g")]}]}
+			for name, obj in (("report.json", report), ("feedback.json",
+					{"report_id": "r", "tool_comments": {}, "decisions": {"brew:jq:method-g": {"decision": "accept"}}})):
+				with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+					json.dump(obj, fh)
+			p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+				capture_output=True, text=True, timeout=60)
+			self.assertEqual(p.returncode, 0, p.stderr)
+			with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
+				actions = {a["id"]: a for a in json.load(fh)["actions"]}
+		self.assertIn("add-global-method-note", actions["brew:jq:method-g"]["detail"][0])
+
 	def test_an_unreviewed_accept_is_a_pending_add_and_an_unreviewed_reject_writes_nothing(self):
 		record = {"reviewed": False, "convergence_state": "not_run", "written": [],
 			"already_present": [], "failed": [], "unreviewed": [

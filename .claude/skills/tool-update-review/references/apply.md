@@ -502,6 +502,23 @@ Notes). Run what the action says; do not re-derive it from the decision:
   `done` (`note: "In store — persisted at render under {key}"`). **Nothing to
   write.** Do **not** run `add-method-note` for it: the writer appends without
   dedupe, and a second write is a duplicate entry the next run replays twice.
+- **A note render FAILED to write** (the record's `failed` list — an
+  unreadable store, a refused key) is **not stored**, whatever the run's
+  convergence state, and it is the one persisted-path case that needs the
+  write: accepted **or left undecided**, the action is `pending`, labelled
+  `Add method note: {topic}`, with the record's reason in its note and the
+  `add-method-note` (or `add-global-method-note` — the key travels from the
+  record) invocation in `detail[0]`. Fix what the reason (the record's
+  `store_problem`) names, then run it verbatim. Rejected, it is `skipped` and
+  nothing is written.
+- **One store entry, several suggestion ids** (identical notes under one
+  key — two tools' notes convergence promoted to global): the entry, not the
+  id, is the unit of persistence and of veto (`references/rendering-report.md`
+  §Method Notes states the model). `init` plans **one** withdraw or **one**
+  add per entry, carried by one id; the entry's other ids are `skipped` with
+  a note naming the carrier. Run the carrier only — a second withdraw of the
+  same entry exits 1 not-found, a spurious failure rather than a real one.
+  A reject on any of the entry's ids is a veto of the entry.
 - **Reject on a persisted note** is a **veto**: the user looked at a note that
   is already in the store and withdrew it. The action is `pending`, labelled
   `Withdraw method note: {topic}`, and `detail[0]` is the exact invocation —

@@ -112,29 +112,32 @@ def load_status(session_dir: str) -> dict:
 # ── init ────────────────────────────────────────────────────────────────
 # ── method notes at init (criterion 18's apply half) ───────────────────────
 # render.py persisted every convergence-reviewed method-note proposal at
-# render and recorded exactly what it wrote in METHOD_NOTES_RENDER_RECORD.
-# init reads that record so a decision on a method note becomes the RIGHT
-# action: a rejected persisted note is a pending withdraw (the exact remover
-# invocation in `detail`), an accepted persisted note is already done, an
-# accepted UNREVIEWED note (convergence did not run) is a pending add, and any
-# modification instruction is a pending "Modify method note" investigation.
-# Without this, a veto on the page was a `skipped` action that never ran and
-# the note stayed in the store for every future run.
+# render and recorded, per suggestion id, exactly what happened to it in
+# METHOD_NOTES_RENDER_RECORD. init reads that record so a decision on a
+# method note becomes the RIGHT action, planned per store entry
+# (_method_note_actions): a vetoed stored entry is ONE pending withdraw (the
+# exact remover invocation in `detail`), an accepted stored note is already
+# done, a not-stored entry (render's write failed, or convergence did not
+# review) is ONE pending add when accepted — or, for a failed write, when
+# left undecided — and any modification instruction is a pending "Modify
+# method note" investigation. Without this, a veto on the page was a
+# `skipped` action that never ran and the note stayed in the store for
+# every future run.
 METHOD_NOTES_RENDER_RECORD = "method-notes.render.json"
 _RENDER_RECORD_BUCKETS = ("written", "already_present", "failed", "unreviewed")
 
 
 def _load_render_record(session_dir: str):
 	"""→ {suggestion_id: (bucket, entry)} from the render record, or None
-	when the record is absent or unreadable (said on stderr: every method
-	note is then treated as unreviewed, so an accept writes at apply and a
-	reject writes nothing — the pre-render-persist behaviour)."""
+	when the record is absent or unreadable (said on stderr: no note is
+	then known to be stored, so an accept writes at apply and anything else
+	writes nothing — the pre-render-persist behaviour)."""
 	path = os.path.join(session_dir, METHOD_NOTES_RENDER_RECORD)
 	record = load_json(path)
 	if not isinstance(record, dict):
 		print(f"warning: no readable {METHOD_NOTES_RENDER_RECORD} in {session_dir} — "
-			f"treating every method note as unreviewed (accept writes at apply, "
-			f"reject writes nothing)", file=sys.stderr)
+			f"no method note is known to be stored (accept writes at apply, "
+			f"nothing else writes)", file=sys.stderr)
 		return None
 	by_id = {}
 	for bucket in _RENDER_RECORD_BUCKETS:
@@ -162,47 +165,121 @@ def _blank_action(sid: str, label: str, decision, state: str) -> dict:
 		"thread": [], "pin_checks": {}}
 
 
-def _method_note_actions(sid: str, tool: dict, sug: dict, dec: dict, record) -> list:
-	"""→ [action] or [action, investigate] for one kind:"method-note"
-	suggestion, per references/apply.md §Executing `method-note` Suggestions."""
-	decision = dec.get("decision")
-	comment = (dec.get("comment") or "").strip() if isinstance(dec.get("comment"), str) else ""
-	topic = sug.get("method_topic") if isinstance(sug.get("method_topic"), str) else ""
-	note = sug.get("method_note") if isinstance(sug.get("method_note"), str) else ""
-	bucket, entry = (record or {}).get(sid, (None, None))
-	persisted = bucket in ("written", "already_present")
-	key = entry.get("key") if persisted and isinstance(entry.get("key"), str) else tool.get("id", "")
-	title = sug.get("title", sid)
-	if persisted and decision == "reject":
-		action = _blank_action(sid, f"Withdraw method note: {topic}", decision, "pending")
-		action["note"] = "Vetoed on the page — remove the entry render wrote" \
-			+ (f" — reason: {comment}" if comment else "")
-		action["detail"] = [_store_command("remove", key, topic, note)]
-	elif persisted and decision == "discuss":
-		action = _blank_action(sid, title, decision, "pending")
-		action["note"] = "In store (persisted at render) — under discussion"
-	elif persisted:
-		# accept, or no decision: the note is already in the store.
-		action = _blank_action(sid, title, decision, "done")
-		action["finished_at"] = now_iso()
-		action["note"] = f"In store — persisted at render under {key!r} ({METHOD_NOTES_RENDER_RECORD})"
-	elif decision == "accept":
-		reason = (entry or {}).get("reason") if bucket else "no render record"
-		action = _blank_action(sid, f"Add method note: {topic}", decision, "pending")
-		action["note"] = f"Not persisted at render ({bucket or 'unreviewed'}: {reason}) — write it now"
-		action["detail"] = [_store_command("add", key, topic, note)]
-	elif decision == "discuss":
-		action = _blank_action(sid, title, decision, "pending")
-	else:
-		action = _blank_action(sid, title, decision, "skipped")
-		if bucket == "unreviewed":
-			action["note"] = "Not persisted at render (unreviewed) and not accepted — nothing written"
-	out = [action]
-	if comment and decision != "reject":
-		investigate = _blank_action(f"investigate:{sid}",
-			f"Modify method note: {topic} — {comment}", None, "pending")
-		out.append(investigate)
+def global_method_note_ids(report: dict) -> set:
+	"""The suggestion ids convergence routed to the global method-note store
+	(`report.convergence.memory.promoted_to_global`, and a re-homed note
+	with `scope: "global"`). ONE rule, used by render.py to choose the key
+	it writes under and by init's no-record fallback, so a promoted note is
+	keyed `global` on both sides even when the render record is missing."""
+	conv = report.get("convergence") if isinstance(report.get("convergence"), dict) else {}
+	memory = conv.get("memory") if isinstance(conv.get("memory"), dict) else {}
+	out = {s for s in (memory.get("promoted_to_global") or []) if isinstance(s, str)}
+	for row in memory.get("rehomed_to_method_note") or []:
+		if isinstance(row, dict) and row.get("scope") == "global" \
+				and isinstance(row.get("new_note_id"), str):
+			out.add(row["new_note_id"])
 	return out
+
+
+def _method_note_actions(notes: list, record, report: dict) -> list:
+	"""→ the actions for every kind:"method-note" suggestion, planned PER
+	STORE ENTRY (references/apply.md §Executing `method-note` Suggestions;
+	the model is stated once in references/rendering-report.md §Method
+	Notes, and the page follows the same one).
+
+	Three units, kept apart. A **suggestion id** is what the page and the
+	decisions map act on. A **store entry** `(key, topic, note)` is what
+	render writes and dedupes on — several ids map to one entry when two
+	tools propose one note and convergence promotes both; it is the unit
+	of persistence and of veto. A **render outcome** per id (`written` /
+	`already_present` / `failed` / `unreviewed`, or none) is what is true
+	about storage: an entry is STORED iff any of its ids was written or
+	already present; `failed` and `unreviewed` are NOT stored, whatever the
+	run's convergence state.
+
+	Per entry: any reject is a veto of the entry. Stored + veto → ONE
+	pending withdraw carried by the first rejected id, the other ids
+	skipped naming it (never "done, in store" — the entry is going).
+	Stored, no veto → done per id (a discuss stays pending). Not stored +
+	veto → nothing written. Not stored, no veto → ONE pending add when an
+	id accepted it — or, for a FAILED entry, when an id is merely
+	undecided: render meant to store it and the user saw no reason not to,
+	so the failed write is the one persisted-path case that still needs
+	the write. The key always travels from the record. Comments are per
+	id: a non-reject comment is a pending "Modify method note"."""
+	global_ids = global_method_note_ids(report)
+	entries = {}
+	for sid, tool, sug, dec in notes:
+		topic = sug.get("method_topic") if isinstance(sug.get("method_topic"), str) else ""
+		note = sug.get("method_note") if isinstance(sug.get("method_note"), str) else ""
+		bucket, rec = (record or {}).get(sid, (None, None))
+		if rec is not None and isinstance(rec.get("key"), str):
+			key = rec["key"]
+		else:
+			key = items.GLOBAL_METHOD_NOTE_KEY if sid in global_ids else tool.get("id", "")
+		entry = entries.setdefault((key, topic, note), {"members": [], "buckets": set(), "reasons": []})
+		entry["members"].append((sid, sug, dec))
+		entry["buckets"].add(bucket)
+		if rec is not None and isinstance(rec.get("reason"), str):
+			entry["reasons"].append(rec["reason"])
+
+	actions = []
+	for (key, topic, note), entry in entries.items():
+		members = sorted(entry["members"], key=lambda m: m[0])
+		buckets = entry["buckets"]
+		storage = "stored" if buckets & {"written", "already_present"} \
+			else "failed" if "failed" in buckets \
+			else "unreviewed" if "unreviewed" in buckets else "no render record"
+		ids = [sid for sid, _, _ in members]
+		shared = f" (one store entry, {len(ids)} suggestion ids: {', '.join(ids)})" if len(ids) > 1 else ""
+		rejected = [sid for sid, _, dec in members if dec.get("decision") == "reject"]
+		writers = [] if rejected or storage == "stored" else [
+			sid for sid, _, dec in members if dec.get("decision") == "accept"
+		] or ([sid for sid, _, dec in members if dec.get("decision") is None]
+			if storage == "failed" else [])
+		reason = "; ".join(dict.fromkeys(entry["reasons"])) or storage
+		for sid, sug, dec in members:
+			decision = dec.get("decision")
+			comment = dec.get("comment").strip() if isinstance(dec.get("comment"), str) else ""
+			title = sug.get("title", sid)
+			if storage == "stored" and rejected:
+				if sid == rejected[0]:
+					action = _blank_action(sid, f"Withdraw method note: {topic}", decision, "pending")
+					action["note"] = "Vetoed on the page — remove the entry render wrote" + shared \
+						+ (f" — reason: {comment}" if comment else "")
+					action["detail"] = [_store_command("remove", key, topic, note)]
+				else:
+					action = _blank_action(sid, title, decision, "skipped")
+					action["note"] = f"Same store entry as {rejected[0]!r}, which withdraws it"
+			elif storage == "stored":
+				if decision == "discuss":
+					action = _blank_action(sid, title, decision, "pending")
+					action["note"] = "In store (persisted at render) — under discussion"
+				else:
+					action = _blank_action(sid, title, decision, "done")
+					action["finished_at"] = now_iso()
+					action["note"] = f"In store — persisted at render under {key!r} ({METHOD_NOTES_RENDER_RECORD})"
+			elif writers and sid == writers[0]:
+				action = _blank_action(sid, f"Add method note: {topic}", decision, "pending")
+				action["note"] = f"Not stored ({storage}: {reason}) — write it now{shared}"
+				action["detail"] = [_store_command("add", key, topic, note)]
+			elif writers:
+				action = _blank_action(sid, title, decision, "skipped")
+				action["note"] = f"Same store entry as {writers[0]!r}, which writes it"
+			elif rejected:
+				action = _blank_action(sid, title, decision, "skipped")
+				action["note"] = f"Not stored ({storage}) and vetoed — nothing written"
+			elif decision == "discuss":
+				action = _blank_action(sid, title, decision, "pending")
+				action["note"] = f"Not stored ({storage}) — under discussion"
+			else:
+				action = _blank_action(sid, title, decision, "skipped")
+				action["note"] = f"Not stored ({storage}) and not accepted — nothing written"
+			actions.append(action)
+			if comment and decision != "reject":
+				actions.append(_blank_action(f"investigate:{sid}",
+					f"Modify method note: {topic} — {comment}", None, "pending"))
+	return actions
 
 
 def cmd_init(args):
@@ -250,15 +327,19 @@ def cmd_init(args):
 	# absent id as "skip the action" (the previous behavior) silently
 	# dropped it from the action list and from summary.undecided entirely.
 	decisions = feedback.get("decisions", {})
-	has_method_notes = any(sug.get("kind") == "method-note"
-		for _, sug in suggestions_by_id.values())
-	render_record = _load_render_record(session_dir) if has_method_notes else None
+	notes = []
+	for sid, (tool, sug) in suggestions_by_id.items():
+		if sug.get("kind") == "method-note":
+			dec = decisions.get(sid, {})
+			notes.append((sid, tool, sug, dec if isinstance(dec, dict) else {}))
+	render_record = _load_render_record(session_dir) if notes else None
+	# Method notes are planned per store entry, after the loop, so one
+	# entry shared by several ids yields one withdraw or one add.
 	for sid, entry in suggestions_by_id.items():
 		dec = decisions.get(sid, {})
 		if not isinstance(dec, dict):
 			dec = {}
 		if entry[1].get("kind") == "method-note":
-			actions.extend(_method_note_actions(sid, entry[0], entry[1], dec, render_record))
 			continue
 		decision = dec.get("decision")  # None if truly undecided
 		state = "pending" if decision in ("accept", "discuss") else "skipped"
@@ -312,6 +393,8 @@ def cmd_init(args):
 				"decision": None, "state": "pending",
 				"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [], "pin_checks": {},
 			})
+
+	actions.extend(_method_note_actions(notes, render_record, report))
 
 	# Investigation actions — one per tool_comments entry (references/apply.md §Tool Comments and Discuss).
 	for tool_id, comment in feedback.get("tool_comments", {}).items():
