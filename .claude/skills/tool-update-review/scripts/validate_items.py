@@ -1765,7 +1765,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	# version delta, then the derived axes, in dependency order.
 	_guard(view, findings, "derived axes",
 		lambda: _derive_axes(view, candidate, findings, watch_topics))
-	_finalize(view)
+	_finalize(view, findings)
 	return view
 
 
@@ -1777,18 +1777,29 @@ CONSERVATIVE_AXES = {"initial_review_bucket": "attention", "risk_level": "elevat
 	"impact": "unknown"}
 
 
-def _finalize(view):
-	"""The final act of `validate_tool`, outside every `_guard` stage.
+def _finalize(view, findings):
+	"""The final act of `validate_tool`, after every other stage.
 
-	`_guard` records `validator_error` and nothing else, and `_derive_axes`
-	assigns risk and the bucket BEFORE the exports, the I-15 check and the
-	tier — so a failure after them used to leave a stale `security_auto`/
-	`low` on a view whose recomputed tier is held: a held tool in the auto
-	strip. So, on a failed view, every conservative axis is finalized first;
-	then — on every view — the tier, the bars and the usage export are
-	recomputed from the FINAL view through the same never-raising functions.
-	Stored tier == `security_tier(final view)` is therefore true by
-	construction, whichever stage failed (G-SEC §4.2)."""
+	**The bucket is decided here, and only here** — never inside a stage
+	that later stages follow. That is what makes `_guard`'s no-promotion
+	guarantee structural rather than positional (U3): the bucket used to be
+	assigned mid-`_derive_axes`, BEFORE the exports, the I-15 check and the
+	tier's final recompute, so it was true of the final view only while
+	nothing after that line could fail or change what it read. Now:
+
+	1. a view no stage failed gets its tier, its bars and then its bucket
+	   from the FINAL view, inside a guard of its own — the bucket reads the
+	   stored tier and bars, so they are stored first, in this one place;
+	2. a view any stage failed on — that last one included — takes every
+	   conservative axis (`CONSERVATIVE_AXES`), whatever was assigned before;
+	3. on every view the tier, the bars and the usage export are recomputed
+	   through the never-raising functions, so stored tier ==
+	   `security_tier(final view)` by construction (G-SEC §4.2).
+
+	`_derive_axes` therefore assigns no bucket at all; nothing a stage does
+	can leave one behind for this function to trust."""
+	if not view.get("validator_error"):
+		_guard(view, findings, "initial bucket", lambda: _assign_bucket(view))
 	if view.get("validator_error"):
 		view.update(CONSERVATIVE_AXES)
 		inputs = view.get("bucket_inputs")
@@ -1797,6 +1808,18 @@ def _finalize(view):
 	view["security_tier"] = model.security_tier(view)
 	view["pre_accept_bars"] = model.pre_accept_bars(view)
 	view["usage_item_ids"] = model.usage_item_ids(view)
+
+
+def _assign_bucket(view):
+	"""The tier, the bars it implies, then the bucket — which routes a G-SEC
+	tool by the stored tier and reads the stored bars — all from the view as
+	every stage left it. Called only by `_finalize`, under a guard."""
+	inputs = view["bucket_inputs"]
+	view["security_tier"] = model.security_tier(view)
+	view["pre_accept_bars"] = model.pre_accept_bars(view)
+	view["initial_review_bucket"] = compute_initial_bucket(view,
+		inputs["has_security"], inputs["security_only"], view["impact"],
+		view["risk_level"], inputs["runnable"])
 
 
 def _guard(view, findings: Findings, stage, work):
@@ -1912,10 +1935,11 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 
 
 def _derive_axes(view, candidate, findings, watch_topics=None):
-	"""V5 and V6. Reads only what is on the view, and `research_produced_content`
-	refuses to read a view that a failed stage left incomplete — so a tool whose
-	research stage failed lands on `unknown`/`elevated`/`attention`, exactly
-	where one with no research at all lands."""
+	"""V5, and V6's inputs (the bucket itself is `_finalize`'s). Reads only
+	what is on the view, and `research_produced_content` refuses to read a view
+	that a failed stage left incomplete — so a tool whose research stage failed
+	lands on `unknown`/`elevated`/`attention`, exactly where one with no
+	research at all lands."""
 	source, name = view["source"], view["name"]
 	# The codes raised so far, BEFORE any axis reads them — `content_losing`
 	# feeds `compute_risk_level` and `compute_initial_bucket` below. All four
@@ -1972,9 +1996,10 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 		else bool(assemble.upgrade_command_and_runnable(source, name)[1]))
 	view["impact"] = impact
 	view["risk_level"] = risk_level
-	# Assigned BEFORE the bucket: clause 2's bar (`model.pre_accept_bars`)
-	# reads `risk_level` off the view, so it must exist when the clause runs.
-	# Same values either way — this is ordering, not meaning.
+	# What the bucket is computed from. The bucket itself, the tier and the
+	# bars are NOT assigned here: `_finalize` decides them from the final
+	# view, after every stage (U3), so no later line of this stage can leave
+	# a bucket that no longer describes the view.
 	view["bucket_inputs"] = {
 		"has_security": has_security,
 		"security_only": security_only,
@@ -1982,16 +2007,8 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 		"version_delta": view["version_delta"],
 		"runnable": runnable,
 	}
-	# G-SEC: the tier, computed ONCE from the view, stored BEFORE the bucket —
-	# clause 2 routes a G-SEC tool by the tier it reads off the view — then
-	# the bars the tier and the pre-G-SEC rules imply, then the bucket.
-	view["security_tier"] = model.security_tier(view)
-	view["pre_accept_bars"] = model.pre_accept_bars(view)
-	view["initial_review_bucket"] = compute_initial_bucket(view, has_security,
-		security_only, impact, risk_level, runnable)
 	view["security_display_item_ids"] = [
 		i["id"] for i in model.security_display_items(view["items"])]
-	view["usage_item_ids"] = model.usage_item_ids(view)
 	# The GROUNDED hits, exported beside security_display_item_ids and
 	# computed in the same stage deliberately: both are pure functions of
 	# view["items"], and when this one lived in _read_research a crash after

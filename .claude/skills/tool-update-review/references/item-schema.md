@@ -744,12 +744,17 @@ widened `local-enum-invalid`) — and `container-unreadable` — an item's
 an action suggestion's `serves` not an array. Both fail closed: an unreadable
 claim costs a click.
 
-**The final act.** After every guarded stage, `validate_tool` finalizes the
-conservative axes on a view whose stage failed (`attention`/`elevated`/
-`unknown`, `validate_items.CONSERVATIVE_AXES`) and then recomputes the tier,
+**The final act.** The initial bucket is decided only here, after every
+other stage, from the final view: on a view no stage failed, `validate_tool`
+stores the tier and the bars and then computes the bucket from them, in a
+guarded stage of its own; on a view any stage failed (that one included) it
+finalizes the conservative axes (`attention`/`elevated`/`unknown`,
+`validate_items.CONSERVATIVE_AXES`). Either way it then recomputes the tier,
 the bars and `usage_item_ids` from the final view — so the stored tier equals
-`security_tier(final view)` whichever stage failed, and a failure after the
-bucket can never leave a held tool in `security_auto`.
+`security_tier(final view)` whichever stage failed, and no stage can leave
+behind a bucket that no longer describes the view (a held tool in
+`security_auto`). The no-promotion guarantee is therefore structural, not a
+matter of statement order.
 
 `items.recompute_flags` stays **tag-only**, deliberately: it is what
 `E-FLAG-DISAGREE` compares a checker's claim against, and a checker that

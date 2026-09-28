@@ -449,7 +449,8 @@ def derive_tool_state(view, watch_topics) -> dict:
 	"""Recompute every derived axis of one tool view from its items and
 	suggestions — the applier's half of the differential recomputation.
 
-	Mirrors `validate_items._derive_axes` step for step, THROUGH THE SAME
+	Mirrors `validate_items._derive_axes` and the bucket step of its final act
+	(`_finalize` → `_assign_bucket`) step for step, THROUGH THE SAME
 	FUNCTIONS (`compute_impact`, `compute_security_only`,
 	`compute_risk_level`, `model.security_tier`, `model.pre_accept_bars`,
 	`compute_initial_bucket`, `model.security_display_items`,

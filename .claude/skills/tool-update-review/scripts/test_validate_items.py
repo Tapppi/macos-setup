@@ -2756,6 +2756,48 @@ class TierStorageTests(unittest.TestCase):
 		self.assertEqual(V.CONSERVATIVE_AXES["risk_level"], V.compute_risk_level(view))
 		self.assertEqual(V.CONSERVATIVE_AXES["impact"], V.compute_impact(view))
 
+	def test_the_bucket_describes_the_view_every_stage_left(self):
+		"""U3: the no-promotion guarantee is structural, not positional. The
+		bucket used to be assigned mid-`_derive_axes`, so it described the
+		view as of that line; anything a later step did to the view — here, a
+		stage that runs after the axes and quarantines content — left a
+		`security_auto` bucket on a tool whose own final tier is held. The
+		bucket is now decided in the final act, from the final view."""
+		real = V._derive_axes
+
+		def axes_then_a_later_stage(view, *args, **kwargs):
+			real(view, *args, **kwargs)
+			view["quarantine"].append({"field": "late", "item_id": None, "value": 1})
+		with mock.patch("validate_items._derive_axes", side_effect=axes_then_a_later_stage):
+			view, _ = validate_one(copy.deepcopy(self.RESEARCH))
+		self.assertIn("content-losing", view["security_tier"]["holds"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertFalse(model.accepts_baseline(view))
+
+	def test_every_fixture_bucket_is_the_function_of_its_final_view(self):
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		for view in document["tools"]:
+			with self.subTest(view["id"]):
+				if view.get("validator_error"):
+					self.assertEqual(view["initial_review_bucket"], "attention")
+					continue
+				inputs = view["bucket_inputs"]
+				self.assertEqual(view["initial_review_bucket"], V.compute_initial_bucket(
+					view, inputs["has_security"], inputs["security_only"],
+					view["impact"], view["risk_level"], inputs["runnable"]))
+
+	def test_a_failing_bucket_computation_is_conservative(self):
+		"""The bucket's own stage is guarded like every other: a raise there
+		costs the tool its axes, never the run."""
+		with mock.patch("validate_items.compute_initial_bucket",
+				side_effect=RuntimeError("injected")):
+			view, findings = validate_one(copy.deepcopy(self.RESEARCH))
+		self.assertIn("E-VALIDATOR-CRASH", {f["code"] for f in findings.entries})
+		self.assertEqual((view["initial_review_bucket"], view["risk_level"], view["impact"]),
+			("attention", "elevated", "unknown"))
+		self.assertEqual(view["security_tier"]["tier"], "held")
+
 	def _inject(self, target):
 		"""Run the fixture fix tool with `target` raising; → the view."""
 		with mock.patch(target, side_effect=RuntimeError("injected")):
@@ -2767,7 +2809,7 @@ class TierStorageTests(unittest.TestCase):
 		import converge
 		for target in (
 				"validate_items.compute_impact",           # before the tier line
-				"items.pre_accept_bars",                  # between the tier and the bucket
+				"items.pre_accept_bars",                  # inside the final act's bucket stage
 				"validate_items._self_test_tagged_ids",    # after the bucket
 				"items.security_display_items"):           # after the bucket
 			with self.subTest(target):
@@ -2783,9 +2825,9 @@ class TierStorageTests(unittest.TestCase):
 				self.assertFalse(converge.initial_pre_accept(view))
 
 	def _inject_once(self, target):
-		"""`pre_accept_bars` raises only on its FIRST call — inside
-		_derive_axes, between the tier and the bucket — so the final act's
-		own call (the recovery) runs."""
+		"""`pre_accept_bars` raises only on its FIRST call — inside the final
+		act's guarded bucket stage, between the tier and the bucket — so the
+		final act's own recompute (the recovery) runs."""
 		real = model.pre_accept_bars
 		calls = []
 
