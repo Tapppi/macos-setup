@@ -1079,6 +1079,12 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 			"usage evidence is not grounded (step {}: {}) — it confirms nothing".format(
 				step, why), tool_id=tool_id, item_id=item_id, field=field, value=path)
 
+	if not isinstance(path, str) or not path:
+		# normalize_evidence has already raised E-EVID-MALFORMED and kept the
+		# entry; here it is simply ungrounded. Never handed to the resolver —
+		# a crash would cost the whole item its checks (E-VALIDATOR-CRASH).
+		ungrounded(1, "it names no string `path`")
+		return None
 	quote = entry.get("quote")
 	if not isinstance(quote, str) or not quote.strip():
 		ungrounded(3, "`quote` is absent or empty — a usage claim quotes the line "
@@ -1090,7 +1096,7 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 		return None
 	try:
 		outcome, detail, located = resolver.locate(path)
-	except OSError as exc:
+	except (OSError, ValueError) as exc:
 		ungrounded(1, "the path could not be resolved ({})".format(type(exc).__name__))
 		return None
 	if outcome != "ok" or not located:

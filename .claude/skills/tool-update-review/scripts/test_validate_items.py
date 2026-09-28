@@ -2665,6 +2665,25 @@ class UsageGroundingTests(unittest.TestCase):
 			with self.subTest(rel):
 				self.assertUngrounded(self._run(_usage(rel, "host=db"), roots=[root]), 2)
 
+	def test_a_usage_entry_with_no_string_path_is_ungrounded_not_a_crash(self):
+		"""E-EVID-MALFORMED keeps a pathless entry; I-23 must then call it
+		ungrounded (step 1) — never hand it to the resolver, whose TypeError
+		would cost the whole item its checks. The item's other usage entry
+		still grounds, which only a fully validated item can do."""
+		good = _usage("dotfiles/home/.pg_service.conf", "host=db.internal")
+		for bad in ({"role": "usage", "quote": "host=db.internal"},
+				{"path": None, "role": "usage", "quote": "host=db.internal"},
+				{"path": 42, "role": "usage", "quote": "host=db.internal"},
+				{"path": "", "role": "usage", "quote": "host=db.internal"}):
+			with self.subTest(bad=bad):
+				view, findings = self._run(bad, good)
+				self.assertEqual(sorted(f["code"] for f in findings.entries),
+					["E-EVID-MALFORMED", "E-USAGE-UNGROUNDED"], findings.entries)
+				self.assertIn("step 1", _found(findings, "E-USAGE-UNGROUNDED")[0]["message"])
+				self.assertEqual(view["usage_evidence"], [{"entry": good, "matched_lines": [3]}])
+				self.assertEqual(view["usage_item_ids"], [view["items"][0]["id"]])
+				self.assertEqual(view["security_tier"]["reasons"], ["relevant-fix", "fix"])
+
 	# — §12 A-R3-1: membership is the AUTHORED entry —
 	def test_the_record_is_keyed_on_the_authored_entry(self):
 		for extra in ({}, {"lines": [[1, 5]]}, {"note": "the homelab service"}):
