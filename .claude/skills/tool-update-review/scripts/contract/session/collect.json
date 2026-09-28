@@ -85,10 +85,171 @@
 			"current_version": "1.0.0",
 			"latest_version": "1.0.1",
 			"pinned": false
+		},
+		{
+			"id": "brew:tier-required",
+			"name": "tier-required",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-pinned",
+			"name": "tier-pinned",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": true
+		},
+		{
+			"id": "brew:tier-incompatible",
+			"name": "tier-incompatible",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-proposed",
+			"name": "tier-proposed",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-config",
+			"name": "tier-config",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:libpq",
+			"name": "libpq",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:duckdb",
+			"name": "duckdb",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-breaking",
+			"name": "tier-breaking",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-risk",
+			"name": "tier-risk",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "cask:tier-vendor",
+			"name": "tier-vendor",
+			"source": "cask",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-fix",
+			"name": "tier-fix",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:elevated-fix",
+			"name": "elevated-fix",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-held-p2",
+			"name": "tier-held-p2",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-held-p1",
+			"name": "tier-held-p1",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-enum",
+			"name": "tier-enum",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-container",
+			"name": "tier-container",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-research",
+			"name": "tier-research",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:tier-p0-lost",
+			"name": "tier-p0-lost",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		},
+		{
+			"id": "brew:routine-unreadable",
+			"name": "routine-unreadable",
+			"source": "brew",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
 		}
 	],
 	"mise": [],
-	"standalone": [],
+	"standalone": [
+		{
+			"id": "standalone:tier-manual",
+			"name": "tier-manual",
+			"source": "standalone",
+			"current_version": "1.0.0",
+			"latest_version": "1.0.1",
+			"pinned": false
+		}
+	],
 	"macos": [],
 	"brew_health": {
 		"findings": [

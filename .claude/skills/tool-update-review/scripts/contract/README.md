@@ -29,6 +29,11 @@ items.FINDING_CODES             # every code the deterministic layer can raise
 items.MEMORY_SUGGESTION_KINDS   # watch-item, method-note — proposals about MEMORY
 items.ACTION_SUGGESTION_KINDS   # edit, structural — proposals about the SYSTEM
 items.SELF_TEST_LIMBS           # the limbs a self-test tag may name (REDESIGN.md L7)
+items.security_tier(view)       # G-SEC: THE tier computation — None, or the tier
+                                #   object; the validator stores it, nothing else
+                                #   recomputes it but convergence
+items.accepts_baseline(x)       # THE pre-acceptance predicate, view or Tool
+items.TIER_REASONS, items.TIER_HOLDS, items.TIER_LABELS
 ```
 
 Run the validator over your own corpus:
@@ -44,7 +49,7 @@ document = validate_items.validate_session(session_dir, roots)
 | `contract.json` | yes, from `items.contract()` | the field table, every vocabulary, the group map, the rank tables, the ordering spec, the finding codes, the closed research-key set, the degradation rule, the bucketing clause order, the pre-accept predicate, the watch-hit contract, the memory-store layout |
 | `ordering.json` | hand-written | a shuffled item list and the exact order `items.order_items()` must produce, one entry per tier of the sort key — including that `watch_hit` is not a tier |
 | `comparator.json` | hand-written | pairwise comparisons, `worst_severity`, both CVE rank tables, the security-display bar, id derivation, the evidence shorthand grammar |
-| `bucketing.json` | hand-written | the clause order of `compute_initial_bucket` and the `apply_pre_accept` predicate, as a truth table driven through both live functions (D1, D2, E3) |
+| `bucketing.json` | hand-written | the clause order of `compute_initial_bucket` and the pre-accept predicate, as a truth table driven through `items.security_tier`, `items.pre_accept_bars`, the bucket, `apply_pre_accept` and `converge.initial_pre_accept` (D1, D2, E3, G-SEC) — one row per tier reason and hold, per fail-closed matrix row the bucket can see, and the coherence invariants |
 | `degradation.json` | hand-written | `content_losing()` / `compute_degradation()` over synthetic tool shapes, and the `degradation` block's own shape (D1) |
 | `stores.json` | hand-written | the on-disk layout of `watch-items.json` and `method-notes.json`, and the golden file state after one write of each (D4) |
 | `convergence.json` | yes, from `converge.contract()` | the WP3 output contract: the 11-op vocabulary with per-op preconditions and declared scope, the seven checks and their attestation surfaces, every applier code with its severity and phase, the degradation states, the label contract, the effect fields and their safety grading |
@@ -52,13 +57,21 @@ document = validate_items.validate_session(session_dir, roots)
 | `expected_converge_view.json` | yes, from `session/` | the exact projection convergence reads — `converge.build_view()` over the fixture corpus, digest included |
 | `expected_converge_tables.json` | yes, from `session/` | the exact corpus-level tables — collisions, proposals with self-test verdicts, evidence findings, distributions, and `store_state` (absent vs present-but-empty, per memory store) |
 | `expected_converge_effect.json` | yes, from `converge.json` | both corpus digests plus the full derived effect: the diff computed without the edit list, the leave-one-out attribution, the per-tool convergence blocks with the judgement-sourced auto-update label, the recomputed corpus_effect, `convergence_status` |
-| `session/` | hand-written | a complete research corpus: three conforming tools (one carrying a grounded watch hit), one that violates nearly every invariant, one retired-schema entry, the two content-losing degradation routes, the elevated security-only route, a watch-hit tool with one grounded control and five invalid hits, its `watch-items.json` grounding snapshot, one unmatched entry, one non-array file, one brew-health finding |
+| `session/` | hand-written | a complete research corpus: three conforming tools (one carrying a grounded watch hit), one that violates nearly every invariant, one retired-schema entry, the two content-losing degradation routes, the elevated security-only route (a `boundary` item, so D2 still governs it), a watch-hit tool with one grounded control and five invalid hits, its `watch-items.json` grounding snapshot, one unmatched entry, one non-array file, one brew-health finding — and `08-security-tiers.json`: one tool per G-SEC reason and hold (P0 required-edit, pinned, incompatible-unfixed; P1 edit-proposed, config-attention; P2 relevant-fix ×2, fix-with-breaking, fix-with-risk, vendor-unread; P3 with ungrounded usage claims; the elevated fix twin; every hold; the R7 routine route) |
 | `expected_validation.json` | yes, from `session/` | the exact `validation.json` that corpus must produce — every finding, every id, every derived flag, every bucket |
 
 `session/roots/` ships the repo tree the fixture's evidence paths resolve
 against, so the golden output does not depend on what sits beside the repo on
 one machine. `session/roots/tieto/` is the stand-in for a real repo that is not
-a configured root — the `W-EVID-ROOT` case.
+a configured root — the `W-EVID-ROOT` case. The G-SEC files under
+`roots/macos-setup/` (`dotfiles/home/.pg_service.conf`, `.duckdbrc`,
+`dotfiles/config/mise/config.toml`, `tasks/install.sh`, and the tail of the
+Brewfile) are what I-23's usage quotes ground against — and fail to.
+
+`converge.json` keeps three paths exercised: a pre-G-SEC permissive move
+through the gate (cv-003, `brew:openssh`), G-SEC tools accepted by rule (their
+labels name the tier), and one reasoned demotion (cv-014 lowers `brew:duckdb`
+P2 → P3 and says so).
 
 ## Asserting against the golden run
 

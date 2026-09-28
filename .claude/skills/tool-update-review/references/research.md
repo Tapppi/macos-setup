@@ -418,6 +418,11 @@ Python raised to 3.11, Node to v22..." is a correctly-tagged `packaging`
 item — genuine compatibility/requirements info that is not security, a
 fix or a feature by topic at all.
 
+The `security` tag itself covers two different facts — a fixed
+vulnerability and a moved security boundary — and the tag alone never says
+which. That is `security.nature`'s job (§Security Items: Direction Decides
+the Display): keep the tag on both, and let `nature` carry the difference.
+
 ### CVE Severity Capture
 
 The card shows `security.cve_ids` as a count, not a list — the user's own
@@ -564,6 +569,30 @@ That last row is the whole rule in one line: the rating records what the
 issuer said, the direction records what it means here, and neither is
 allowed to overwrite the other.
 
+**`security.nature` — is this a fix?** Every `security` block carries
+`nature`, one of three values, and it decides more than any other field
+you write for a security item: a **positively identified fix** is accepted
+by default, and the ones that need the user are shown first on the page
+(`references/rendering-report.md` §"Security fixes for you").
+
+- **`fix`** — the release fixes or mitigates a vulnerability present in the
+  installed version. Write `fix` only when upstream says so, and cite the
+  upstream text that says so in `change.citation` — the validator grounds a
+  `fix` in the `security` tag, the `security` block and a cited `change`
+  (I-21), and an ungrounded one counts for nothing (`E-SEC-FIX-UNGROUNDED`).
+  No identifier is required: a maintainer who issues no CVE still fixed
+  something (`W-SEC-FIX-NOID` only counts it).
+- **`boundary`** — the release moves a security boundary without fixing a
+  vulnerability: a changed default, a new permission prompt, a new signing
+  or notarization requirement, a new sandbox.
+- **`unclear`** — security content whose nature you cannot establish. Say
+  so; do not guess `fix`.
+
+Worked rows: `brew:iproute2mac` 1.7.5 (the installed 1.7.4 executes
+injected shell commands; no CVE by the maintainer's choice, a commit
+anchor) — `fix`. `brew:libpq` 18.6 (28 CVEs fixed) — `fix`. A cask whose
+new build adds a Gatekeeper/notarization requirement — `boundary`.
+
 **Every `security`-tagged item carries its `security` block** — I-4
 reports the omission (`E-SEC-BLOCK-MISSING`) and the converse
 (`E-SEC-BLOCK-ORPHAN`, a block on an item that forgot the tag). And when a
@@ -608,7 +637,30 @@ what you find as the item's `local` block: `direction` (does this land on
 something this setup runs), `effect` (is that good or bad for me), a
 `statement`, and `evidence[]` as path objects
 (`references/item-schema.md` §3 — paths only; prose belongs in
-`citations[]`). Severity is the item's own: `incompatible` (something
+`citations[]`).
+
+**Evidence `role` and `quote` — usage, not installation.** An object-form
+evidence entry may say what it shows with `role`: `usage` — this setup
+*uses* the affected thing (a config line, a call site, a service
+definition); `install` — the tool is installed (the Brewfile line, the
+install task); `reference` — anything else worth pointing at. A `usage`
+entry carries `quote`, a **verbatim** excerpt of the file showing the use,
+and the validator grounds it in the file itself (I-23): the path must
+resolve under a configured root, the quote must occur verbatim (within
+`lines` when you give them), and the matched line, read in its file and
+section, must not be the tool's own install declaration or a comment.
+**Quote the whole line (or lines) that shows the use, not a fragment** — a
+fragment that occurs only on the install line grounds nothing
+(`W-USAGE-INSTALL-ONLY`), and an unresolvable path or an absent quote
+confirms nothing (`E-USAGE-UNGROUNDED`). A grounded usage quote on a
+reaching fix is what the page's "the fix touches how you use it" highlight
+rests on — "the tool is installed" is not usage. Worked: `brew:libpq` —
+`.path:40` putting `psql` on PATH is `install`; a `~/.pg_service.conf`
+service entry is `usage`. `brew:iproute2mac` — the Brewfile line is
+`install`, and nothing in the setup calls `ip`, so there is no usage entry
+at all.
+
+Severity is the item's own: `incompatible` (something
 that works here today stops working — requires `reaches` and `risk`,
 I-2) > `warning` (a behaviour change here the reader must know before
 upgrading — requires a `local` block, I-3) > `notable` (worth reading; no
@@ -989,6 +1041,25 @@ the tool on the needs-a-decision list (`items.needs_a_decision`), unlike
 the two memory kinds, and either one satisfies I-15's demand that a
 `needs_attention` config verdict comes with something to act on.
 
+**`requirement` and `serves` — is the edit needed for the upgrade to
+work?** Every action suggestion carries `requirement`: `required` only when
+the upgrade stops working here without the edit, `proposed` for everything
+else (absent reads `proposed` — upgrade only by default). A `required` edit
+answers a change the upgrade breaks here, and that change is an
+`incompatible` item (`reaches`, `risk`, evidence) — name it in `serves`,
+by the part of its id after `#` or its anchor (`slug:key-renamed`,
+`cve:CVE-2026-1234`). The validator grounds it (I-22): a `required` edit
+serving no `incompatible` item is `E-SUG-REQUIRED-UNGROUNDED` and still
+reads required; a `proposed` edit serving an `incompatible` item is
+`E-REQUIREMENT-CONTRADICTED` and reads required. A required edit keeps a
+security fix from being accepted by default and puts it first on the page;
+a proposed one leaves the upgrade accepted and the edit for the user to
+click. Worked: a renamed config key the tool refuses to start without —
+`required`, serving the `incompatible` item that says so. podman/libkrun's
+ARM-only build — an `incompatible` item that no edit can fix (the host is
+wrong, not the config), so there is no suggestion at all, and the page
+says "breaks something here; no config fix proposed".
+
 ### Config Status
 
 Per tool, compute `config_status` — this is a **re-verification of the
@@ -1044,6 +1115,12 @@ already handled to the newest version" instead of from scratch.
 This deliberately reuses the same "cite it or don't claim it" discipline as
 an item's `local` block — a verdict, in either direction, without a concrete look at
 the V→latest delta is worse than no verdict at all.
+
+**The state vocabulary is validated.** `state` is exactly one of
+`up_to_date`, `needs_attention`, `unknown`; anything else is
+`E-ENUM-INVALID`, kept verbatim, and holds the tool for review with its
+upgrade no longer pre-accepted — an unreadable verdict is not "no
+verdict".
 
 **A `"needs_attention"` verdict must come with at least one suggestion
 addressing it** — flagging a possibly-stale fix and then giving the user
@@ -1842,6 +1919,9 @@ often.
 
 Never suggest unpinning a pinned tool unless the blocking reason is
 verified gone in the new version — the pin exists because an upgrade broke
-something. Treat a pin as a signal that this tool needs a real look, not a
+something. A pinned tool whose release carries a positively identified
+security fix is shown first on the page ("pinned; lift the pin to take the
+fix") and never accepted by default — say in the item what the pin is
+holding back. Treat a pin as a signal that this tool needs a real look, not a
 reason to skip it (collection includes pinned formulae for exactly this
 reason — see `references/collection.md` §Version Sources).

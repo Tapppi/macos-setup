@@ -1,0 +1,1343 @@
+[
+	{
+		"id": "brew:tier-required",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-required 1.0.1",
+				"url": "https://example.invalid/tier-required/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41001"
+				},
+				"title": "Fixes a request-smuggling flaw in the listener",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix HTTP request smuggling in the listener (CVE-2026-41001)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41001",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "config-key-renamed"
+				},
+				"title": "The `listen` config key is renamed `bind`; the old key now refuses to start",
+				"tags": [
+					"breaking"
+				],
+				"severity": "incompatible",
+				"change": {
+					"version": "1.0.1",
+					"citation": "BREAKING: `listen` is renamed `bind`; configs using `listen` fail to load",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "The Brewfile installs it and the tracked config still sets `listen`, so the upgraded daemon refuses to start until the key is renamed.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								27
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-required.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [
+			{
+				"id": "brew:tier-required:rename-listen",
+				"kind": "edit",
+				"title": "Rename `listen` to `bind` in the tracked config",
+				"requirement": "required",
+				"serves": [
+					"slug:config-key-renamed"
+				],
+				"target_files": [],
+				"rationale": "The upgrade does not start here without it.",
+				"needs_sudo": false
+			}
+		]
+	},
+	{
+		"id": "brew:tier-pinned",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-pinned 1.0.1",
+				"url": "https://example.invalid/tier-pinned/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41002"
+				},
+				"title": "Fixes a path traversal in the archive extractor",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix path traversal in archive extraction (CVE-2026-41002)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41002",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-pinned.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-incompatible",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-incompatible 1.0.1",
+				"url": "https://example.invalid/tier-incompatible/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41003"
+				},
+				"title": "Fixes a heap overflow in the image decoder",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix heap overflow in the image decoder (CVE-2026-41003)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41003",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "drops-macos-15"
+				},
+				"title": "The new build drops support for the macOS release this machine runs",
+				"tags": [
+					"packaging"
+				],
+				"severity": "incompatible",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Minimum supported macOS is now 26.1",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "This machine runs an older point release; the upgraded binary will not launch here, and no config edit changes that.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								28
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-incompatible.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-proposed",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-proposed 1.0.1",
+				"url": "https://example.invalid/tier-proposed/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41004"
+				},
+				"title": "Fixes a token leak in debug logging",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix bearer tokens written to the debug log (CVE-2026-41004)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41004",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-proposed.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [
+			{
+				"id": "brew:tier-proposed:rotate-log",
+				"kind": "edit",
+				"title": "Delete the debug log the old version may have written tokens to",
+				"requirement": "proposed",
+				"serves": [
+					"cve:CVE-2026-41004"
+				],
+				"target_files": [],
+				"rationale": "Worth doing; the upgrade works without it.",
+				"needs_sudo": false
+			}
+		]
+	},
+	{
+		"id": "brew:tier-config",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-config 1.0.1",
+				"url": "https://example.invalid/tier-config/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41005"
+				},
+				"title": "Fixes a weak default cipher list",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Tighten the default cipher list (CVE-2026-41005)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41005",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "needs_attention",
+			"detail": "The tracked config pins the old cipher list, which now overrides the fixed default. Nothing here proposes the edit.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:libpq",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "libpq 1.0.1",
+				"url": "https://example.invalid/libpq/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41006"
+				},
+				"title": "Fixes a buffer overread in service-file parsing",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix buffer overread parsing pg_service.conf (CVE-2026-41006)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41006",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "benefit",
+					"statement": "Every psql session here reads the tracked service file, which is exactly the parser this fixes.",
+					"evidence": [
+						{
+							"path": "dotfiles/home/.pg_service.conf",
+							"role": "usage",
+							"quote": "host=db.internal"
+						},
+						{
+							"path": "Brewfile",
+							"lines": [
+								25
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures libpq.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:duckdb",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "duckdb 1.0.1",
+				"url": "https://example.invalid/duckdb/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41007"
+				},
+				"title": "Fixes an out-of-bounds read in the dot-command parser",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix out-of-bounds read in CLI dot-command parsing (CVE-2026-41007)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41007",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "benefit",
+					"statement": "The tracked init file drives the CLI's dot-command parser on every interactive session.",
+					"evidence": [
+						{
+							"path": "dotfiles/home/.duckdbrc",
+							"lines": [
+								2
+							],
+							"role": "usage",
+							"quote": ".timer on"
+						},
+						{
+							"path": "Brewfile",
+							"lines": [
+								26
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures duckdb.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-breaking",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-breaking 1.0.1",
+				"url": "https://example.invalid/tier-breaking/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41008"
+				},
+				"title": "Fixes a denial of service in the query planner",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix planner DoS on crafted queries (CVE-2026-41008)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41008",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "flag-removed"
+				},
+				"title": "The deprecated `--legacy` flag is removed",
+				"tags": [
+					"breaking"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Removed the deprecated --legacy flag",
+					"link_index": 0
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-breaking.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-risk",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-risk 1.0.1",
+				"url": "https://example.invalid/tier-risk/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41009"
+				},
+				"title": "Fixes an integer overflow in the chunk reader",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix integer overflow in the chunk reader (CVE-2026-41009)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41009",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "new-telemetry"
+				},
+				"title": "Telemetry is now on by default",
+				"tags": [
+					"feature"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Telemetry is enabled by default",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "Nothing here opts out, so the upgraded tool starts reporting usage from this machine.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								29
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-risk.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "cask:tier-vendor",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-vendor 1.0.1",
+				"url": "https://example.invalid/tier-vendor/CHANGELOG.md"
+			}
+		],
+		"items": [],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-vendor.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [],
+		"vendor_silent_categories": [
+			"security"
+		]
+	},
+	{
+		"id": "brew:tier-fix",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-fix 1.0.1",
+				"url": "https://example.invalid/tier-fix/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41010"
+				},
+				"title": "Fixes a race in the lock file",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix a TOCTOU race creating the lock file (CVE-2026-41010)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41010",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "benefit",
+					"statement": "The Brewfile installs it; the usage entries below do not show a use.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								30
+							],
+							"role": "usage",
+							"quote": "tier-fix"
+						},
+						{
+							"path": "dotfiles/home/.duckdbrc",
+							"role": "usage",
+							"quote": "a line that is not in the file"
+						},
+						{
+							"path": "tieto/konehuone/sysmi/notes.md",
+							"role": "usage",
+							"quote": "A note in a real repo"
+						},
+						{
+							"path": "Brewfile",
+							"lines": [
+								30
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-fix.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:elevated-fix",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "elevated-fix 1.0.1",
+				"url": "https://example.invalid/elevated-fix/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-32002"
+				},
+				"title": "Fixes a credential leak through the local socket",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "warning",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix a credential leak reachable through the local control socket",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-32002",
+					"advisory_id": null,
+					"rating": "high",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "benefit",
+					"statement": "The Brewfile installs this formula and the socket is enabled by default, so the fix lands on a surface this machine exposes.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								24
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures elevated-fix.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-held-p2",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-held-p2 1.0.1",
+				"url": "https://example.invalid/tier-held-p2/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41011"
+				},
+				"title": "Fixes a signature bypass in the updater",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix updater signature bypass (CVE-2026-41011)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41011",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "config-format"
+				},
+				"title": "The config file format changes from INI to TOML",
+				"tags": [
+					"breaking"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Config is now TOML",
+					"link_index": 0
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "keychain-scope"
+				},
+				"title": "Credentials move to a broader Keychain access group",
+				"tags": [
+					"security"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Credentials now use the shared access group",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "The shared group widens which apps on this machine can read the stored credential.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								31
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				},
+				"security": {
+					"cve_id": null,
+					"advisory_id": null,
+					"rating": "unknown",
+					"rating_basis": "unrated",
+					"exploited_in_wild": false,
+					"nature": "boundary"
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-held-p2.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-held-p1",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-held-p1 1.0.1",
+				"url": "https://example.invalid/tier-held-p1/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41012"
+				},
+				"title": "Fixes a sandbox escape in the plugin host",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix plugin-host sandbox escape (CVE-2026-41012)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41012",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "plugin-api"
+				},
+				"title": "The plugin API gains a filesystem capability",
+				"tags": [
+					"feature"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Plugins may request filesystem access",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "unclear",
+					"effect": "none",
+					"statement": "Whether any installed plugin requests it is not decidable here.",
+					"evidence": [],
+					"citations": []
+				},
+				"watch_hit": {
+					"topic": "plugin permissions"
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-held-p1.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [
+			{
+				"id": "brew:tier-held-p1:review-plugins",
+				"kind": "edit",
+				"title": "Pin the plugin allow-list before the new capability lands",
+				"requirement": "proposed",
+				"target_files": [],
+				"rationale": "Worth doing; the upgrade works without it.",
+				"needs_sudo": false
+			}
+		]
+	},
+	{
+		"id": "brew:tier-enum",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-enum 1.0.1",
+				"url": "https://example.invalid/tier-enum/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41013"
+				},
+				"title": "Fixes an XML entity expansion",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix XML entity expansion (CVE-2026-41013)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41013",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "stale",
+			"detail": "The tracked config may be stale.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-container",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-container 1.0.1",
+				"url": "https://example.invalid/tier-container/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41014"
+				},
+				"title": "Fixes a format-string bug in logging",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix format-string bug in log output (CVE-2026-41014)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41014",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "local-as-string"
+				},
+				"title": "Log rotation now defaults to daily",
+				"tags": [
+					"fix"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Log rotation defaults to daily",
+					"link_index": 0
+				},
+				"local": "risk"
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-container.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-research",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-research 1.0.1",
+				"url": "https://example.invalid/tier-research/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41015"
+				},
+				"title": "Fixes a use-after-free in the resolver",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix resolver use-after-free (CVE-2026-41015)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41015",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-research.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": [],
+		"research_error": "The release notes page timed out after its first section."
+	},
+	{
+		"id": "standalone:tier-manual",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-manual 1.0.1",
+				"url": "https://example.invalid/tier-manual/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41016"
+				},
+				"title": "Fixes an auth bypass in the local API",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix local API authentication bypass (CVE-2026-41016)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41016",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-manual.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:tier-p0-lost",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "tier-p0-lost 1.0.1",
+				"url": "https://example.invalid/tier-p0-lost/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "cve",
+					"value": "CVE-2026-41017"
+				},
+				"title": "Fixes a stack overflow in the parser",
+				"tags": [
+					"security",
+					"fix"
+				],
+				"severity": "notable",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix stack overflow on deeply nested input (CVE-2026-41017)",
+					"link_index": 0
+				},
+				"security": {
+					"cve_id": "CVE-2026-41017",
+					"advisory_id": null,
+					"rating": "medium",
+					"rating_basis": "nvd",
+					"exploited_in_wild": false,
+					"nature": "fix"
+				},
+				"local": {
+					"direction": "does_not_reach",
+					"effect": "benefit",
+					"statement": "The vulnerable code path is not one this setup exercises.",
+					"evidence": [],
+					"citations": []
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "abi-break"
+				},
+				"title": "The plugin ABI changes; every installed plugin stops loading",
+				"tags": [
+					"breaking"
+				],
+				"severity": "incompatible",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Plugin ABI version 3; v2 plugins fail to load",
+					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "risk",
+					"statement": "The two plugins installed here are v2 and stop loading after the upgrade.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								32
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
+				}
+			},
+			"and a third change the checker wrote as a bare string"
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures tier-p0-lost.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	},
+	{
+		"id": "brew:routine-unreadable",
+		"links": [
+			{
+				"type": "changelog",
+				"label": "routine-unreadable 1.0.1",
+				"url": "https://example.invalid/routine-unreadable/CHANGELOG.md"
+			}
+		],
+		"items": [
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "minor-fix"
+				},
+				"title": "Fixes a crash on empty input",
+				"tags": [
+					"fix"
+				],
+				"severity": "minor",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Fix crash on empty input",
+					"link_index": 0
+				}
+			},
+			{
+				"anchor": {
+					"kind": "none",
+					"value": null,
+					"slug": "local-none"
+				},
+				"title": "Progress output is quieter",
+				"tags": [
+					"chore"
+				],
+				"severity": "info",
+				"change": {
+					"version": "1.0.1",
+					"citation": "Quieter progress output",
+					"link_index": 0
+				},
+				"local": "none"
+			}
+		],
+		"config_status": {
+			"state": "up_to_date",
+			"detail": "Nothing in these repos configures routine-unreadable.",
+			"evidence": [],
+			"citations": []
+		},
+		"suggestions": []
+	}
+]

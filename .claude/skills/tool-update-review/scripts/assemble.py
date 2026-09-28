@@ -49,6 +49,7 @@ from __future__ import annotations  # keeps `X | None` annotations legal on
                                      # same constraint as server.py)
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -87,7 +88,9 @@ def note(message: str) -> None:
 # distinction under the same name (`NON_VERSION_SOURCES`/`isNonVersion`).
 # Branches that mean "this *specific* source" (the per-source label maps) stay
 # written as `== "..."`.
-NON_VERSION_SOURCES = frozenset({"brew-health", "skill-drift"})
+# The model owns the spelling (`items.NON_VERSION_SOURCES`) since G-SEC: the
+# security tier applies to version sources only and is computed there.
+NON_VERSION_SOURCES = frozenset(model.NON_VERSION_SOURCES)
 
 # ── sources scripts/check_pin.py can preflight/verify against (WP5/I2:
 # references/apply.md §Pinning the reviewed version) ─────────────────────────
@@ -710,59 +713,45 @@ def apply_pre_accept(tool: dict) -> None:
 	un-pre-accept nearly every cask (the heuristic defaults casks to true), and
 	it isn't silent: the card renders visibly as ACCEPTED before submit and
 	apply routes through the askpass prompt the user answers interactively.
-	The old `or review_bucket == "security_auto"` disjunct is gone (D2): it
-	meant any tool reaching `security_auto` was pre-accepted regardless of
-	elevated risk, and the bucket clause returned before risk was read. A
-	tool at elevated risk is never pre-accepted now, whatever bucket it is
-	in, and the shared bar (`model.pre_accept_bars`) is asked here as the
-	second call site of the same function the bucket's security_auto clause
-	asks — so the bucket and the checkbox cannot tell two stories."""
+
+	Everything else is `items.accepts_baseline(tool)` — ONE predicate, the
+	same function `converge.initial_pre_accept` calls, so the bucket, the
+	checkbox and convergence's differential recomputation cannot tell two
+	stories (G-SEC, CONTRACT 4). It reads the tool's `security_tier` and
+	`pre_accept_bars` as FIELDS, bracket access on purpose: both are the
+	validator's, copied by `finalize_tool` from the view — the same inputs
+	the bucket's clause 2 read — because the assembled tool's items[] can
+	hold items the view never had (`build_health_tool` synthesizes a reaching
+	`security`-tagged item for an untrusted tap), and a tier or bar recomputed
+	here from those would be the two-layers-two-stories divergence. A tool
+	nobody computed them for raises KeyError rather than silently diverging.
+
+	Not G-SEC: bucket != attention, risk low, nothing content-losing, no bar,
+	not forced (D1, D2, E3, R7 — unchanged in meaning). G-SEC: an accepted
+	tier (P1, P2, P3), nothing content-losing, no bar, not forced — a
+	positively identified security fix is taken by default even at elevated
+	risk (R6); the priority panel is how the user sees the ones that matter.
+	A degraded-gate run's `forced_conservative` record is honoured either way
+	(references/convergence.md §6)."""
 	baseline = baseline_upgrade(tool)
+	accepted = model.accepts_baseline(tool)
 	for sug in tool.get("suggestions", []):
-		sug["pre_accept"] = bool(
-			sug is baseline
-			and sug.get("auto_runnable")
-			# A tool on the "needs you" list never starts accepted.
-			and tool["review_bucket"] != "attention"
-			and tool["risk_level"] == "low"
-			# D1 — belt and braces: `compute_risk_level` already elevates every
-			# content-losing tool, but this is a second CALL SITE of one shared
-			# function, not a second implementation, so an edit to
-			# compute_risk_level cannot silently re-open the auto-approval hole.
-			and not model.content_losing(tool)
-			# D2 (narrowed) + E3 — elevated risk, a reaching security ITEM
-			# (one that itself carries security content), or a watch hit.
-			# Read off the tool as a FIELD, bracket access on purpose: the
-			# bars are computed once in finalize_tool from the VALIDATOR'S
-			# view — the same inputs the bucket's clause 2 read — because the
-			# assembled tool's items[] can hold items the view never had
-			# (build_health_tool synthesizes a reaching item, `security`-tagged
-			# for untrusted_tap), and a bar recomputed here from those would
-			# be the two-layers-two-stories divergence the shared predicate
-			# exists to prevent. A tool nobody computed the bars for raises
-			# KeyError rather than silently diverging.
-			and not tool["pre_accept_bars"]
-			# A degraded-gate run forced this tool out of the auto set
-			# (references/convergence.md §6). "forced_pre_accept: False" is
-			# part of that record, and assembly's own predicate must not
-			# quietly re-accept what the gate just held: a forced tool is
-			# security_mixed at low risk, which every conjunct above passes.
-			and not tool.get("forced_conservative"))
+		sug["pre_accept"] = bool(sug is baseline and sug.get("auto_runnable") and accepted)
 
 
 def finalize_tool(tool: dict, view: dict) -> None:
 	"""Compute every derived field, in dependency order. Mutates in place.
 
-	Three of the five now come straight off the validation view — `impact`,
-	`risk_level` and the bucket are stage V5/V6 output, and recomputing them
-	here would be a second implementation of the one thing `REDESIGN.md` §C3
-	says must have exactly one. What is left is the version delta (assembly's,
-	because the page renders it), the CVE rollup, and `pre_accept`, which needs
-	the baseline suggestion the validator has never seen.
+	The axes come straight off the validation view — `impact`, `risk_level`,
+	the bucket, the security tier and the pre-acceptance bars are stage V5/V6
+	output, and recomputing them here would be a second implementation of the
+	one thing `REDESIGN.md` §C3 says must have exactly one. What is left is
+	the version delta (assembly's, because the page renders it), the CVE
+	rollup, and `pre_accept`, which needs the baseline suggestion the
+	validator has never seen.
 
-	`bucket_inputs` rides along on the tool so a reader — and, once C4 exists,
-	convergence — can see *why* a card carries the bucket it does without
-	re-deriving it."""
+	`bucket_inputs` rides along on the tool so a reader — and convergence —
+	can see *why* a card carries the bucket it does without re-deriving it."""
 	delta, scheme, delta_note = compute_version_delta(
 		tool.get("current_version"), tool.get("latest_version"), tool["source"], tool.get("id"))
 	tool["version_delta"] = delta
@@ -772,12 +761,17 @@ def finalize_tool(tool: dict, view: dict) -> None:
 	tool["risk_level"] = view.get("risk_level", "elevated")
 	tool["review_bucket"] = view.get("initial_review_bucket", "attention")
 	tool["bucket_inputs"] = dict(view.get("bucket_inputs") or {})
-	# The pre-acceptance bar, computed from the VIEW — the same inputs the
-	# bucket's clause 2 read — and carried on the tool for the page. Never
-	# from the assembled tool: its items[] can hold synthesized items the
-	# validator never saw (a health finding's reaching `security`-tagged
-	# item), and the two layers would then tell two stories.
-	tool["pre_accept_bars"] = model.pre_accept_bars(view)
+	# G-SEC: the tier, the bars and the usage export are COPIED from the view,
+	# never recomputed from the assembled tool — its items[] can hold
+	# synthesized items the validator never saw (a health finding's reaching
+	# `security`-tagged item), and the two layers would then tell two stories.
+	# A view without them (built by nothing in this pipeline) fails closed:
+	# an uncomputed tier and a `tier-uncomputed` bar.
+	tool["security_tier"] = copy.deepcopy(view.get("security_tier")) \
+		if "security_tier" in view else copy.deepcopy(model.TIER_UNCOMPUTED)
+	tool["pre_accept_bars"] = copy.deepcopy(view["pre_accept_bars"]) \
+		if "pre_accept_bars" in view else ["tier-uncomputed"]
+	tool["usage_item_ids"] = list(view.get("usage_item_ids") or [])
 	apply_pre_accept(tool)
 
 
@@ -898,8 +892,13 @@ def _flag_edits(session_dir: str) -> tuple:
 
 # The view fields `converge.build_corpus_pre` adds on top of the validator's
 # own; a fresh validation lacks exactly these and must otherwise be identical.
+# `pre_accept_bars` is NOT one of them since G-SEC: the validator stores it
+# (and `security_tier`, `usage_evidence`, `usage_item_ids`), build_corpus_pre
+# keeps the validator's values, so both sides carry it and must compare equal
+# — excluding it would strip it from the frozen side only and every
+# comparison would fail (technical round-2 finding 2).
 CORPUS_PRE_VIEW_FIELDS = frozenset(
-	("current_version", "latest_version", "pre_accept_bars", "initial_pre_accept"))
+	("current_version", "latest_version", "initial_pre_accept"))
 
 
 def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
@@ -939,6 +938,15 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	if pre is None:
 		return inconsistent(f"corpus.pre.json is {pre_problem} — nothing to "
 			f"check the post corpus against")
+	# The corpus-version gate (G-SEC §4.7): a corpus built under another
+	# contract or converge version is refused — its views carry a different
+	# tier and pre-accept predicate, and rendering it would present them as
+	# this contract's.
+	import converge
+	try:
+		converge.check_corpus_versions(pre)
+	except converge.CorpusVersionError as exc:
+		return inconsistent(f"corpus.pre.json is stale: {exc}")
 
 	# One run: the applier stamps corpus_pre's run_id into the effect, and
 	# build_corpus_pre copies it into both corpora.
@@ -957,7 +965,7 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	# views corpus.pre froze — research re-run after convergence, or a
 	# candidate that appeared since, would otherwise render the stale
 	# converged view over the fresh one (run_id is the session id, so it
-	# cannot tell those apart). build_corpus_pre adds exactly four view
+	# cannot tell those apart). build_corpus_pre adds exactly three view
 	# fields on top of the validator's; everything else must match.
 	if set(pre_views) != set(views_by_id):
 		missing = sorted(set(views_by_id) - set(pre_views))
@@ -1806,6 +1814,28 @@ def summarize_by_bucket(tools: list) -> dict:
 	return counts
 
 
+def summarize_security_tiers(tools: list) -> dict:
+	tier_counts = dict.fromkeys(model.SECURITY_TIERS, 0)
+	priority_counts = dict.fromkeys(model.HIGHLIGHT_PRIORITIES, 0)
+	accepted_priority_counts = {"P1": 0, "P2": 0}
+	for tool in tools:
+		tier = tool.get("security_tier")
+		if not model.valid_security_tier(tier):
+			continue
+		tier_counts[tier["tier"]] += 1
+		if tier["priority"] in priority_counts:
+			priority_counts[tier["priority"]] += 1
+		# Accepted means the baseline STARTS accepted — the tier says it may,
+		# and the checkbox says it did (a baseline with nothing runnable to
+		# pin to stays undecided whatever its tier).
+		baseline = baseline_upgrade(tool)
+		if (tier["tier"] in accepted_priority_counts and baseline is not None
+				and baseline.get("pre_accept")):
+			accepted_priority_counts[tier["tier"]] += 1
+	return {"tier_counts": tier_counts, "priority_counts": priority_counts,
+		"accepted_priority_counts": accepted_priority_counts}
+
+
 def summarize_security(tools: list) -> dict:
 	# cve_count is the size of the *union* across tools, not the sum of
 	# per-tool counts: one advisory routinely lands on two tools (openssh and
@@ -1862,6 +1892,13 @@ def summarize_security(tools: list) -> dict:
 		"tools_with_security": sum(1 for t in tools if t["security"]["has_security"]),
 		"auto_count": sum(1 for t in tools if t["review_bucket"] == "security_auto"),
 		"mixed_count": sum(1 for t in tools if t["review_bucket"] == "security_mixed"),
+		# G-SEC. `tier_counts`: one per tool, at its tier. `priority_counts`:
+		# the priority panel's rows — held tools counted AT THEIR PRIORITY (R1:
+		# held means not accepted, never hidden). `accepted_priority_counts`:
+		# the panel rows that START ACCEPTED (tier P1/P2), which is all the
+		# "Security · accepted" tile may count — a held P1/P2 tool is never
+		# counted as accepted.
+		**summarize_security_tiers(tools),
 		# Tools whose vendor claims more advisories than we could extract ids
 		# for, so the header can read "59 CVEs · 6 tools report more without
 		# ids" instead of silently understating.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_validate_items.py — the six validator stages, the eighteen invariants,
+test_validate_items.py — the six validator stages, the twenty-three invariants,
 every normalization, and the degradation contract.
 Usage: python3 test_validate_items.py [-v]
 
@@ -14,7 +14,7 @@ Seven groups:
    `evidence[]`. This is acceptance criterion 1, and it is the group to read
    first — the measured defect is a rule-driven trim that moved `brew:libpq`
    into `security_auto`, pre-accepted, with 10 CVEs.
-2. The eighteen invariants, one test each, by their code.
+2. The twenty-three invariants, one test each, by their code.
 3. The normalizations §5.3 licenses, and only those.
 4. Evidence resolution: the three outcomes, and why `W-EVID-ROOT` is a
    configuration finding rather than a checker defect.
@@ -221,7 +221,7 @@ class NeverMutatesTests(unittest.TestCase):
 			{"has_security", "security_only", "impact", "version_delta", "runnable"})
 
 
-# ── 2. The eighteen invariants ──────────────────────────────────────────────
+# ── 2. The twenty-three invariants ────────────────────────────────────────
 class InvariantTests(unittest.TestCase):
 	def assertCode(self, code, research, **kw):
 		got = codes(research, **kw)
@@ -640,8 +640,12 @@ class RootResolverTests(unittest.TestCase):
 # ── 5. The structural outlet ────────────────────────────────────────────────
 class StructuralTests(unittest.TestCase):
 	def _sug(self, block, sid="brew:x:s"):
+		# `requirement` is part of a conforming action suggestion since G-SEC
+		# (CONTRACT 4); without it every case here would carry an
+		# E-FIELD-MISSING unrelated to the precondition it is about.
 		return {"id": "brew:x", "links": [], "items": [_item()], "suggestions": [
-			{"id": sid, "kind": "structural", "structural": block, "target_files": []}]}
+			{"id": sid, "kind": "structural", "structural": block, "target_files": [],
+				"requirement": "proposed"}]}
 
 	def test_a_clean_task_add_passes_every_precondition(self):
 		self.assertEqual(codes(self._sug({
@@ -1076,14 +1080,16 @@ class ImpactAndBucketTests(unittest.TestCase):
 
 		view, findings = drifted("reaches", "risks")
 		self.assertEqual(enum_fields(findings), [("local.effect", "risks")])
-		self.assertIn("local-enum-invalid", model.pre_accept_bars(view))
+		self.assertIn("enum-invalid", model.pre_accept_bars(view))
 		view, findings = drifted("reachs", "risk")
 		self.assertEqual(enum_fields(findings), [("local.direction", "reachs")])
-		self.assertIn("local-enum-invalid", model.pre_accept_bars(view))
+		self.assertIn("enum-invalid", model.pre_accept_bars(view))
 		# Both drifted: the reaches-item bar cannot read the claim, so this
-		# bar is the only thing between the tool and `security_auto`.
+		# bar (renamed from `local-enum-invalid` and widened to every
+		# tier-input enum, R7) is the only thing between the tool and
+		# `security_auto`.
 		view, findings = drifted("reachs", "risks")
-		self.assertEqual(model.pre_accept_bars(view), ["local-enum-invalid"])
+		self.assertEqual(model.pre_accept_bars(view), ["enum-invalid"])
 		self.assertEqual(view["initial_review_bucket"], "security_mixed")
 		self.assertEqual(enum_fields(findings),
 			[("local.direction", "reachs"), ("local.effect", "risks")])
@@ -1096,10 +1102,10 @@ class ImpactAndBucketTests(unittest.TestCase):
 		view, _ = validate_one({"id": "brew:x", "links": [], "items": [
 			_item(local={"direction": "does_not_reach", "effect": "benefit",
 				"statement": "s", "evidence": []})]})
-		self.assertNotIn("local-enum-invalid", model.pre_accept_bars(view))
+		self.assertNotIn("enum-invalid", model.pre_accept_bars(view))
 		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
 			_item(local={"statement": "s", "evidence": []})]})
-		self.assertNotIn("local-enum-invalid", model.pre_accept_bars(view))
+		self.assertNotIn("enum-invalid", model.pre_accept_bars(view))
 		self.assertIn("E-FIELD-MISSING", {f["code"] for f in findings.entries})
 
 	def test_a_non_version_finding_source_short_circuits(self):
@@ -1353,7 +1359,9 @@ class MemoryProposalTests(unittest.TestCase):
 				codes_seen = {f["code"] for f in findings.entries}
 				self.assertNotIn("E-VALIDATOR-CRASH", codes_seen)
 				self.assertIn("E-ENUM-INVALID", codes_seen)
-				self.assertIn(real, view["suggestions"])
+				# The validator's I-22 resolution record rides on every action
+				# suggestion (G-SEC); the authored fields are all still there.
+				self.assertIn(dict(real, serves_item_ids=[]), view["suggestions"])
 				self.assertEqual(len(view["suggestions"]), 2)
 
 	def test_an_unhashable_kind_carrying_a_tag_is_reported_by_type(self):
@@ -1762,7 +1770,13 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 		view = self._view(vendor_silent_categories=["security"],
 			items=[_item(tags=["feature"], severity="notable")])
 		self.assertTrue(view["bucket_inputs"]["has_security"])
-		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+		# Since G-SEC the user's ruling decides where it lands (§7.28: a
+		# vendor-declared but unread security release is ACCEPTED and
+		# HIGHLIGHTED): a P2 `vendor-unread` tier, in security_auto — a
+		# security bucket either way, never routine.
+		self.assertEqual(view["security_tier"]["reasons"], ["vendor-unread"])
+		self.assertEqual(view["security_tier"]["tier"], "P2")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
 		# The tag-only flag is unchanged, and must be: it is the comparison
 		# basis for E-FLAG-DISAGREE.
 		self.assertFalse(view["flags"]["has_security"])
@@ -1789,14 +1803,17 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 			items=[_item(tags=["chore"], severity="info")])
 		inputs = view["bucket_inputs"]
 		self.assertTrue(inputs["has_security"])
-		# chore/info is allowed for security_only, and nothing disqualifies —
-		# but unread security content elevates the tool's risk, and D2 bars an
-		# elevated tool from the pre-accepting bucket: it falls through to
-		# security_mixed, visible and undecided.
+		# chore/info is allowed for security_only, and nothing disqualifies;
+		# unread security content still elevates the tool's risk. Since G-SEC
+		# the bucket is explained by the recorded TIER, which the same view
+		# carries: a vendor-declared unread security release is P2
+		# `vendor-unread`, accepted (§7.28), and elevated risk does not bar it
+		# (R6) — the priority panel is how the user sees it.
 		self.assertTrue(inputs["security_only"])
 		self.assertEqual(inputs["impact"], "none")
 		self.assertEqual(view["risk_level"], "elevated")
-		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+		self.assertEqual(view["security_tier"]["tier"], "P2")
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
 
 	def test_nothing_security_shaped_stays_out_of_a_security_bucket(self):
 		view = self._view(vendor_silent_categories=["features"],
@@ -1983,9 +2000,13 @@ class PreAcceptBarTests(unittest.TestCase):
 	"accepted" around an undecided tool)."""
 
 	def _sec_item(self, **kw):
+		# `nature: boundary` — security content that is NOT a positively
+		# identified fix, which is the population D2 and the reaches limb still
+		# govern after G-SEC (criterion 24). A fix takes the tier route
+		# (GSecTierTests).
 		base = dict(tags=["security"], severity="notable",
 			security={"cve_id": None, "advisory_id": None, "rating": "medium",
-				"rating_basis": "nvd", "exploited_in_wild": False})
+				"rating_basis": "nvd", "exploited_in_wild": False, "nature": "boundary"})
 		base.update(kw)
 		return _item(**base)
 
@@ -1997,7 +2018,7 @@ class PreAcceptBarTests(unittest.TestCase):
 		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
 			self._sec_item(tags=["security", "fix"], severity="warning",
 				security={"cve_id": None, "advisory_id": None, "rating": "high",
-					"rating_basis": "nvd", "exploited_in_wild": False},
+					"rating_basis": "nvd", "exploited_in_wild": False, "nature": "boundary"},
 				local={"direction": "reaches", "effect": "benefit", "statement": "s",
 					"evidence": [{"path": "Brewfile"}], "citations": []})]})
 		self.assertEqual(findings.entries, [])
@@ -2069,7 +2090,9 @@ class PreAcceptBarTests(unittest.TestCase):
 		bars = {v["id"]: model.pre_accept_bars(v) for v in document["tools"]}
 		self.assertEqual(bars["brew:openssh"], [])
 		self.assertEqual(bars["brew:elevated"], ["elevated-risk", "reaches-item"])
-		self.assertEqual(bars["brew:watched"], ["watch-hit"])
+		# brew:watched item 6 carries `watch_hit: "a bare string"` — a
+		# container of the wrong type, which bars every tool since G-SEC (R7).
+		self.assertEqual(bars["brew:watched"], ["watch-hit", "container-unreadable"])
 
 	def test_a_clean_security_only_tool_still_reaches_security_auto(self):
 		"""The bucket the bar must not swallow: no reaching item, no watch
@@ -2279,6 +2302,558 @@ class WatchHitTests(unittest.TestCase):
 		found = self._codes(_hit_item("a bare string", severity="info", local=False))
 		self.assertNotIn("E-WATCH-HIT-NOLOCAL", found)
 		self.assertNotIn("W-WATCH-HIT-UNRAISED", found)
+
+
+# ── 8. G-SEC: I-21, I-22, I-23, config_status.state, and the tier's storage ──
+def _gsec_fix(**kw):
+	"""A conforming, positively identified fix (I-21 grounded)."""
+	base = dict(
+		anchor={"kind": "cve", "value": "CVE-2026-50001"},
+		title="Fixes a heap overflow",
+		tags=["security", "fix"], severity="notable",
+		change={"version": "1.0.1", "citation": "Fix a heap overflow (CVE-2026-50001)",
+			"link_index": None},
+		security={"cve_id": "CVE-2026-50001", "advisory_id": None, "rating": "medium",
+			"rating_basis": "nvd", "exploited_in_wild": False, "nature": "fix"})
+	base.update(kw)
+	return _item(**base)
+
+
+def _found(findings, code):
+	return [f for f in findings.entries if f["code"] == code]
+
+
+class NatureTests(unittest.TestCase):
+	"""I-21 — `security.nature`, and what makes a fix positively identified."""
+
+	def test_a_grounded_fix_is_clean_and_makes_the_tool_g_sec(self):
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [_gsec_fix()]})
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+
+	def test_nature_absent_invalid_or_wrong_typed(self):
+		for nature, code in ((None, "E-FIELD-MISSING"), ("fixed", "E-ENUM-INVALID"),
+				(["fix"], "E-FIELD-TYPE"), (1, "E-FIELD-TYPE")):
+			with self.subTest(nature=nature):
+				security = {"cve_id": None, "advisory_id": None, "rating": "medium",
+					"rating_basis": "nvd", "exploited_in_wild": False}
+				if nature is not None:
+					security["nature"] = nature
+				view, findings = validate_one({"id": "brew:x", "links": [],
+					"items": [_gsec_fix(security=security)]})
+				self.assertEqual([f["field"] for f in _found(findings, code)],
+					["security.nature"])
+				self.assertIsNone(view["security_tier"])
+				if code != "E-FIELD-MISSING":
+					self.assertIn("enum-invalid", view["pre_accept_bars"])
+
+	def test_an_ungrounded_fix_counts_for_nothing(self):
+		"""Promoting claim → unverified it counts for nothing (§2.0)."""
+		for kw, why in (
+				(dict(change=None, local={"direction": "unclear", "effect": "none",
+					"statement": "s", "evidence": []}), "citation"),
+				(dict(change={"version": "1.0.1", "citation": " ", "link_index": None}),
+					"citation"),
+				(dict(tags=["fix"]), "tag")):
+			with self.subTest(why=why, kw=kw):
+				view, findings = validate_one({"id": "brew:x", "links": [],
+					"items": [_gsec_fix(**kw)]})
+				hits = _found(findings, "E-SEC-FIX-UNGROUNDED")
+				self.assertEqual(len(hits), 1)
+				self.assertIn(why, hits[0]["message"])
+				self.assertIsNone(view["security_tier"])
+
+	def test_a_grounded_fix_with_no_identifier_is_noted_not_refused(self):
+		"""brew:iproute2mac's 1.7.5 command-injection fix: no CVE by the
+		maintainer's choice. W-SEC-FIX-NOID counts it; it is still a fix."""
+		security = {"cve_id": None, "advisory_id": None, "rating": "unknown",
+			"rating_basis": "unrated", "exploited_in_wild": False, "nature": "fix"}
+		view, findings = validate_one({"id": "brew:x", "links": [], "items": [
+			_gsec_fix(anchor={"kind": "none", "value": None, "slug": "cmd-injection"},
+				security=security)]})
+		self.assertEqual([f["code"] for f in findings.entries], ["W-SEC-FIX-NOID"])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+		# an advisory id or an anchored anchor kind is an id
+		for kw in (dict(security=dict(security, advisory_id="GHSA-xxxx")),
+				dict(anchor={"kind": "commit", "value": "abcdef1"}, security=security)):
+			_, findings = validate_one({"id": "brew:x", "links": [],
+				"items": [_gsec_fix(**kw)]})
+			self.assertEqual(_found(findings, "W-SEC-FIX-NOID"), [])
+
+
+class RequirementTests(unittest.TestCase):
+	"""I-22 — `requirement`/`serves` on an action suggestion."""
+
+	INC = dict(anchor={"kind": "none", "value": None, "slug": "key-renamed"},
+		tags=["breaking"], severity="incompatible",
+		local={"direction": "reaches", "effect": "risk", "statement": "s",
+			"evidence": [{"path": "Brewfile"}], "citations": []})
+
+	def _run(self, sug, items=None):
+		sug = dict({"id": "brew:x:e", "kind": "edit", "title": "t", "target_files": []}, **sug)
+		research = {"id": "brew:x", "links": [], "items": items if items is not None
+			else [_gsec_fix(), _item(**self.INC)], "suggestions": [sug]}
+		return validate_one(research)
+
+	def test_a_grounded_required_edit(self):
+		view, findings = self._run({"requirement": "required", "serves": ["slug:key-renamed"]})
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["suggestions"][0]["serves_item_ids"], ["brew:x#slug:key-renamed"])
+		self.assertEqual(view["security_tier"]["reasons"][0], "required-edit")
+
+	def test_every_ref_spelling_resolves(self):
+		for ref in ("slug:key-renamed", "brew:x#slug:key-renamed"):
+			view, findings = self._run({"requirement": "required", "serves": [ref]})
+			self.assertEqual(view["suggestions"][0]["serves_item_ids"],
+				["brew:x#slug:key-renamed"], ref)
+		# the unquoted anchor spelling of a url-quoted id
+		items = [_gsec_fix(), _item(anchor={"kind": "issue", "value": "org/repo#9"},
+			**{k: v for k, v in self.INC.items() if k != "anchor"})]
+		view, findings = self._run({"requirement": "required",
+			"serves": ["issue:org/repo#9"]}, items=items)
+		self.assertEqual(view["suggestions"][0]["serves_item_ids"],
+			["brew:x#issue:org%2Frepo%239"])
+		self.assertEqual(findings.entries, [])
+
+	def test_requirement_absent_invalid_wrong_typed(self):
+		_, findings = self._run({})
+		self.assertEqual([f["field"] for f in _found(findings, "E-FIELD-MISSING")],
+			["requirement"])
+		for value, code in (("mandatory", "E-ENUM-INVALID"), (["required"], "E-FIELD-TYPE")):
+			view, findings = self._run({"requirement": value})
+			self.assertEqual([f["field"] for f in _found(findings, code)], ["requirement"])
+			# unreadable reads REQUIRED, and holds as enum-invalid
+			self.assertEqual(view["security_tier"]["reasons"][0], "required-edit")
+			self.assertIn("enum-invalid", view["security_tier"]["holds"])
+
+	def test_serves_wrong_typed_and_unresolved(self):
+		view, findings = self._run({"requirement": "proposed", "serves": "slug:key-renamed"})
+		self.assertEqual([f["field"] for f in _found(findings, "E-FIELD-TYPE")], ["serves"])
+		self.assertIn("container-unreadable", view["security_tier"]["holds"])
+		view, findings = self._run({"requirement": "proposed",
+			"serves": ["slug:nope", 7, "slug:key-renamed"]})
+		self.assertEqual([f["value"] for f in _found(findings, "E-SUG-SERVES-UNRESOLVED")],
+			["slug:nope", "7"])
+		self.assertEqual(view["suggestions"][0]["serves_item_ids"], ["brew:x#slug:key-renamed"])
+
+	def test_an_ungrounded_required_edit_still_reads_required(self):
+		for serves in ([], ["slug:nope"], ["cve:CVE-2026-50001"]):
+			with self.subTest(serves=serves):
+				view, findings = self._run({"requirement": "required", "serves": serves})
+				self.assertEqual(len(_found(findings, "E-SUG-REQUIRED-UNGROUNDED")), 1)
+				self.assertEqual(view["security_tier"]["priority"], "P0")
+				self.assertIn("required-edit", view["security_tier"]["reasons"])
+
+	def test_a_proposed_edit_serving_an_incompatible_item_is_contradicted(self):
+		view, findings = self._run({"requirement": "proposed", "serves": ["slug:key-renamed"]})
+		self.assertEqual(len(_found(findings, "E-REQUIREMENT-CONTRADICTED")), 1)
+		self.assertEqual(view["security_tier"]["reasons"][0], "required-edit")
+		self.assertNotIn("incompatible-unfixed", view["security_tier"]["reasons"])
+
+	def test_memory_and_upgrade_suggestions_are_not_read(self):
+		for kind in ("watch-item", "method-note", "upgrade"):
+			research = {"id": "brew:x", "links": [], "items": [_gsec_fix()],
+				"suggestions": [{"id": "brew:x:m", "kind": kind, "requirement": "mandatory",
+					"serves": "x", "watch_topic": "t", "watch_note": "n", "method_topic": "t",
+					"method_note": "n", "rationale": "r"}]}
+			view, findings = validate_one(research)
+			self.assertEqual([f for f in findings.entries
+				if f["field"] in ("requirement", "serves")], [], kind)
+			self.assertNotIn("serves_item_ids", view["suggestions"][0])
+
+	def test_the_research_input_is_never_mutated(self):
+		sug = {"id": "brew:x:e", "kind": "edit", "requirement": "required",
+			"serves": ["slug:key-renamed"]}
+		research = {"id": "brew:x", "links": [], "items": [_gsec_fix(), _item(**self.INC)],
+			"suggestions": [sug]}
+		snapshot = copy.deepcopy(research)
+		validate_one(research)
+		self.assertEqual(research, snapshot)
+
+
+class ConfigStatusStateTests(unittest.TestCase):
+	"""§2.4 — the five rows, each with its own reading."""
+
+	def _run(self, config_status):
+		return validate_one({"id": "brew:x", "links": [], "items": [_gsec_fix()],
+			"config_status": config_status})
+
+	def test_absent_is_no_claim(self):
+		view, findings = self._run(None)
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["config_status"]["state"], "unknown")
+		self.assertEqual(view["security_tier"]["holds"], [])
+
+	def test_a_scalar_or_list_is_content_losing(self):
+		for raw in ("needs_attention", ["needs_attention"]):
+			view, findings = self._run(raw)
+			self.assertEqual([f["code"] for f in findings.entries], ["W-SHAPE-COERCED"])
+			self.assertEqual(view["security_tier"]["holds"], ["content-losing"])
+			self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_an_object_with_no_state_is_missing_and_reads_unknown(self):
+		view, findings = self._run({"detail": "d", "evidence": [], "citations": []})
+		self.assertEqual([f["field"] for f in _found(findings, "E-FIELD-MISSING")],
+			["config_status.state"])
+		self.assertEqual(view["security_tier"]["holds"], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+
+	def test_invalid_and_wrong_typed_state_are_kept_and_hold(self):
+		for state, code in (("stale", "E-ENUM-INVALID"), (["x"], "E-FIELD-TYPE"),
+				(3, "E-FIELD-TYPE")):
+			with self.subTest(state=state):
+				view, findings = self._run({"state": state, "detail": "", "evidence": [],
+					"citations": []})
+				self.assertEqual([f["field"] for f in _found(findings, code)],
+					["config_status.state"])
+				self.assertEqual(view["config_status"]["state"], state)   # verbatim
+				self.assertEqual(view["security_tier"]["holds"], ["enum-invalid"])
+				self.assertEqual(view["initial_review_bucket"], "security_mixed")
+
+
+def _usage(path, quote, **kw):
+	entry = {"path": path, "role": "usage", "quote": quote}
+	entry.update(kw)
+	return entry
+
+
+class UsageGroundingTests(unittest.TestCase):
+	"""I-23 — a `usage` quote grounded in its file, judged by the full source
+	lines in their file and section, never by the quote text alone."""
+
+	def _run(self, *entries, tool="brew:libpq", roots=None, unconfigured=None):
+		source, name = tool.split(":", 1)
+		item = _gsec_fix(local={"direction": "reaches", "effect": "benefit",
+			"statement": "s", "evidence": list(entries), "citations": []})
+		return validate_one({"id": tool, "links": [], "items": [item]},
+			candidate=_candidate(id=tool, name=name, source=source),
+			roots=roots, unconfigured=unconfigured)
+
+	def assertGrounds(self, result, matched_lines=None):
+		view, findings = result
+		codes_seen = {f["code"] for f in findings.entries}
+		self.assertFalse(codes_seen & {"E-USAGE-UNGROUNDED", "W-USAGE-INSTALL-ONLY"},
+			findings.entries)
+		self.assertEqual(len(view["usage_evidence"]), 1)
+		if matched_lines is not None:
+			self.assertEqual(view["usage_evidence"][0]["matched_lines"], matched_lines)
+		self.assertEqual(view["usage_item_ids"], [view["items"][0]["id"]])
+		self.assertEqual(view["security_tier"]["reasons"], ["relevant-fix", "fix"])
+
+	def assertInstallOnly(self, result):
+		view, findings = result
+		self.assertEqual(len(_found(findings, "W-USAGE-INSTALL-ONLY")), 1, findings.entries)
+		self.assertEqual(_found(findings, "E-USAGE-UNGROUNDED"), [])
+		self.assertEqual(view["usage_evidence"], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+
+	def assertUngrounded(self, result, step):
+		view, findings = result
+		hits = _found(findings, "E-USAGE-UNGROUNDED")
+		self.assertEqual(len(hits), 1, findings.entries)
+		self.assertIn("step {}".format(step), hits[0]["message"])
+		self.assertEqual(view["usage_evidence"], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+
+	# — against the fixture roots —
+	def test_a_real_usage_line_grounds(self):
+		self.assertGrounds(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.internal")), [3])
+
+	def test_the_quote_must_lie_within_lines_when_given(self):
+		self.assertGrounds(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.internal", lines=[[2, 4]])), [3])
+		self.assertUngrounded(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.internal", lines=[5])), 3)
+
+	def test_an_absent_quote_or_an_absent_line(self):
+		self.assertUngrounded(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.elsewhere")), 3)
+		self.assertUngrounded(self._run({"path": "dotfiles/home/.pg_service.conf",
+			"role": "usage"}), 3)
+		self.assertUngrounded(self._run(_usage("dotfiles/home/.pg_service.conf", "  ")), 3)
+		self.assertUngrounded(self._run(_usage("dotfiles/home/.pg_service.conf", 42)), 3)
+
+	def test_an_unconfigured_root_and_a_404_ground_nothing(self):
+		result = self._run(_usage("tieto/konehuone/sysmi/notes.md", "A note in a real repo"))
+		self.assertUngrounded(result, 1)
+		self.assertEqual(len(_found(result[1], "W-EVID-ROOT")), 1)
+		result = self._run(_usage("dotfiles/home/.no-such-file", "x"))
+		self.assertUngrounded(result, 1)
+		self.assertEqual(len(_found(result[1], "E-EVID-404")), 1)
+
+	def test_the_install_line_in_a_brewfile_a_task_and_mise_tools(self):
+		self.assertInstallOnly(self._run(_usage("Brewfile", 'brew "libpq"')))
+		self.assertInstallOnly(self._run(_usage("tasks/install.sh", "brew install libpq")))
+		self.assertInstallOnly(self._run(_usage("dotfiles/config/mise/config.toml",
+			'python = "3.12"'), tool="mise:python"))
+
+	def test_a_usage_line_in_the_same_mise_file_grounds(self):
+		"""Usage configured in the same file still grounds — the test is the
+		line in its section, not the path."""
+		self.assertGrounds(self._run(_usage("dotfiles/config/mise/config.toml",
+			"python_compile = false"), tool="mise:python"), [7])
+		# the task's usage line (the env export) grounds; its install line does not
+		self.assertGrounds(self._run(_usage("tasks/install.sh",
+			'export PGSERVICEFILE="${HOME}/.pg_service.conf"')), [5])
+
+	# — the round-2 counterexamples (technical finding 3), in a scratch root —
+	def _scratch(self, files):
+		td = tempfile.mkdtemp()
+		self.addCleanup(shutil.rmtree, td, True)
+		root = os.path.join(td, "repo")
+		for rel, text in files.items():
+			path = os.path.join(root, rel)
+			os.makedirs(os.path.dirname(path), exist_ok=True)
+			with open(path, "w", encoding="utf-8") as fh:
+				fh.write(text)
+		return [root]
+
+	def test_a_partial_quote_of_the_install_line_is_install_only(self):
+		roots = self._scratch({"Brewfile": 'brew "coreutils"\nbrew "libpq"\n'})
+		self.assertInstallOnly(self._run(_usage("Brewfile", "libpq"), roots=roots))
+
+	def test_a_mise_excerpt_omitting_its_tools_header_is_install_only(self):
+		roots = self._scratch({"mise.toml": '[tools]\nnode = "22"\npython = "3.12"\n'})
+		self.assertInstallOnly(self._run(_usage("mise.toml", 'python = "3.12"'),
+			tool="mise:python", roots=roots))
+
+	def test_the_same_key_under_env_or_settings_grounds(self):
+		for section in ("env", "settings"):
+			roots = self._scratch({"mise.toml": '[{}]\npython = "3.12"\n'.format(section)})
+			self.assertGrounds(self._run(_usage("mise.toml", 'python = "3.12"'),
+				tool="mise:python", roots=roots), [2])
+
+	def test_a_top_level_dotted_tools_key_is_install_only(self):
+		roots = self._scratch({"mise.toml": 'tools.python = "3.12"\n'})
+		self.assertInstallOnly(self._run(_usage("mise.toml", 'tools.python = "3.12"'),
+			tool="mise:python", roots=roots))
+
+	def test_a_multi_line_quote_spanning_the_install_line_is_install_only(self):
+		roots = self._scratch({"Brewfile": '## Databases\nbrew "libpq"\nbrew "duckdb"\n'})
+		self.assertInstallOnly(self._run(_usage("Brewfile",
+			'## Databases\nbrew "libpq"'), roots=roots))
+
+	def test_a_quote_on_the_install_line_and_a_usage_line_grounds_on_the_usage_line(self):
+		roots = self._scratch({"setup.sh":
+			"brew install libpq\npg_isready --service=libpq\n"})
+		self.assertGrounds(self._run(_usage("setup.sh", "libpq"), roots=roots), [2])
+
+	def test_a_quote_found_only_on_a_comment_is_install_only(self):
+		roots = self._scratch({"notes.conf": "# host=db.internal (old)\n"})
+		self.assertInstallOnly(self._run(_usage("notes.conf", "host=db.internal"),
+			roots=roots))
+
+	def test_crlf_is_normalized_and_nothing_else_is(self):
+		roots = self._scratch({"svc.conf": "[a]\r\nhost=db\r\n"})
+		self.assertGrounds(self._run(_usage("svc.conf", "[a]\nhost=db"), roots=roots), [1, 2])
+		self.assertUngrounded(self._run(_usage("svc.conf", "HOST=db"), roots=roots), 3)
+
+	def test_unreadable_files_ground_nothing_and_never_raise(self):
+		td = tempfile.mkdtemp()
+		self.addCleanup(shutil.rmtree, td, True)
+		root = os.path.join(td, "repo")
+		os.makedirs(os.path.join(root, "adir"))
+		with open(os.path.join(root, "bin.dat"), "wb") as fh:
+			fh.write(b"host=db\x00\x01")
+		with open(os.path.join(root, "latin.conf"), "wb") as fh:
+			fh.write(b"host=db \xe9\n")
+		with open(os.path.join(root, "big.conf"), "w", encoding="utf-8") as fh:
+			fh.write("host=db\n" + "x" * (model.USAGE_FILE_MAX_BYTES + 1))
+		for rel in ("adir", "bin.dat", "latin.conf", "big.conf"):
+			with self.subTest(rel):
+				self.assertUngrounded(self._run(_usage(rel, "host=db"), roots=[root]), 2)
+
+	# — §12 A-R3-1: membership is the AUTHORED entry —
+	def test_the_record_is_keyed_on_the_authored_entry(self):
+		for extra in ({}, {"lines": [[1, 5]]}, {"note": "the homelab service"}):
+			with self.subTest(extra=extra):
+				entry = _usage("dotfiles/home/.pg_service.conf", "host=db.internal", **extra)
+				view, _ = self._run(entry)
+				self.assertEqual(view["usage_evidence"],
+					[{"entry": entry, "matched_lines": [3]}])
+				self.assertTrue(model.usage_confirmed(view["items"][0], view["usage_evidence"]))
+		# several occurrences: the record is still the one entry, and it names
+		# the occurrence that grounded
+		roots = self._scratch({"a.conf": "# x=1\nx=1\nx=1\n"})
+		view, _ = self._run(_usage("a.conf", "x=1"), roots=roots)
+		self.assertEqual(view["usage_evidence"][0]["matched_lines"], [2])
+		self.assertEqual(len(view["usage_evidence"]), 1)
+
+	def test_role_absent_invalid_or_wrong_typed(self):
+		view, findings = self._run({"path": "dotfiles/home/.pg_service.conf",
+			"quote": "host=db.internal"})
+		self.assertEqual(findings.entries, [])
+		self.assertEqual(view["usage_evidence"], [])
+		for role, code in (("uses", "E-ENUM-INVALID"), (["usage"], "E-FIELD-TYPE")):
+			view, findings = self._run({"path": "dotfiles/home/.pg_service.conf",
+				"role": role, "quote": "host=db.internal"})
+			self.assertEqual([f["field"] for f in _found(findings, code)],
+				["local.evidence.role"])
+			self.assertIn("enum-invalid", view["security_tier"]["holds"])
+
+	def test_the_no_io_resolver_grounds_nothing_and_resolves_nothing(self):
+		item = _gsec_fix(local={"direction": "reaches", "effect": "benefit",
+			"statement": "s", "evidence": [_usage("dotfiles/home/.pg_service.conf",
+				"host=db.internal"), "no/such/path"], "citations": []})
+		findings, sink = V.Findings(), []
+		V.validate_item(item, "brew:libpq", "brew:libpq#cve:CVE-2026-50001", 0, findings,
+			V.NO_IO_RESOLVER, usage_sink=sink)
+		self.assertEqual(sink, [])
+		self.assertEqual([f["code"] for f in findings.entries], [])
+
+
+class TierStorageTests(unittest.TestCase):
+	"""§4.2 — the tier is computed once per view, stored before the bucket,
+	and the final act makes stored == security_tier(final view) whichever
+	stage failed, with every conservative axis finalized."""
+
+	RESEARCH = {"id": "brew:x", "links": [], "items": [_gsec_fix()]}
+
+	def test_a_clean_fix_is_stored_p3_and_auto(self):
+		view, _ = validate_one(copy.deepcopy(self.RESEARCH))
+		self.assertEqual(view["security_tier"], model.security_tier(view))
+		self.assertEqual(view["pre_accept_bars"], model.pre_accept_bars(view))
+		self.assertEqual(view["initial_review_bucket"], "security_auto")
+		self.assertEqual(view["risk_level"], "low")
+
+	def test_the_conservative_constants_are_what_the_compute_functions_return(self):
+		view, _ = validate_one(copy.deepcopy(self.RESEARCH))
+		view["validator_error"] = "derived axes: RuntimeError"
+		self.assertEqual(V.CONSERVATIVE_AXES["initial_review_bucket"],
+			V.compute_initial_bucket(view, True, True, "none", "low", True))
+		self.assertEqual(V.CONSERVATIVE_AXES["risk_level"], V.compute_risk_level(view))
+		self.assertEqual(V.CONSERVATIVE_AXES["impact"], V.compute_impact(view))
+
+	def _inject(self, target):
+		"""Run the fixture fix tool with `target` raising; → the view."""
+		with mock.patch(target, side_effect=RuntimeError("injected")):
+			view, findings = validate_one(copy.deepcopy(self.RESEARCH))
+		self.assertIn("E-VALIDATOR-CRASH", {f["code"] for f in findings.entries})
+		return view
+
+	def test_stored_tier_equals_the_function_of_the_final_view_under_every_failure(self):
+		import converge
+		for target in (
+				"validate_items.compute_impact",           # before the tier line
+				"items.pre_accept_bars",                  # between the tier and the bucket
+				"validate_items._self_test_tagged_ids",    # after the bucket
+				"items.security_display_items"):           # after the bucket
+			with self.subTest(target):
+				view = self._inject(target) if target != "items.pre_accept_bars" \
+					else self._inject_once(target)
+				self.assertEqual(view["security_tier"], model.security_tier(view))
+				self.assertEqual(view["initial_review_bucket"], "attention")
+				self.assertEqual(view["risk_level"], "elevated")
+				self.assertEqual(view["impact"], "unknown")
+				self.assertEqual(view["security_tier"]["tier"], "held")
+				self.assertIn("content-losing", view["security_tier"]["holds"])
+				self.assertEqual(view["security_tier"]["priority"], "P3")
+				self.assertFalse(converge.initial_pre_accept(view))
+
+	def _inject_once(self, target):
+		"""`pre_accept_bars` raises only on its FIRST call — inside
+		_derive_axes, between the tier and the bucket — so the final act's
+		own call (the recovery) runs."""
+		real = model.pre_accept_bars
+		calls = []
+
+		def once(view):
+			calls.append(1)
+			if len(calls) == 1:
+				raise RuntimeError("injected")
+			return real(view)
+		with mock.patch(target, side_effect=once):
+			view, findings = validate_one(copy.deepcopy(self.RESEARCH))
+		self.assertIn("E-VALIDATOR-CRASH", {f["code"] for f in findings.entries})
+		return view
+
+	def test_a_surviving_incompatible_item_keeps_p0_through_a_failure(self):
+		"""Adversarial 6: holding is not demoting."""
+		research = copy.deepcopy(self.RESEARCH)
+		research["items"].append(_item(anchor={"kind": "none", "value": None, "slug": "inc"},
+			tags=["breaking"], severity="incompatible",
+			local={"direction": "reaches", "effect": "risk", "statement": "s",
+				"evidence": [{"path": "Brewfile"}], "citations": []}))
+		with mock.patch("validate_items._self_test_tagged_ids",
+				side_effect=RuntimeError("injected")):
+			view, _ = validate_one(research)
+		self.assertEqual((view["security_tier"]["tier"], view["security_tier"]["priority"]),
+			("P0", "P0"))
+		self.assertEqual(view["initial_review_bucket"], "attention")
+
+	def test_the_view_default_is_uncomputed_and_held(self):
+		self.assertEqual(model.TIER_UNCOMPUTED["holds"], ["tier-uncomputed"])
+		self.assertEqual(model.pre_accept_bars({"security_tier": model.TIER_UNCOMPUTED}),
+			["tier-uncomputed"])
+
+	def test_every_fixture_view_stores_the_function_of_itself(self):
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		for view in document["tools"]:
+			with self.subTest(view["id"]):
+				self.assertEqual(view["security_tier"], model.security_tier(view))
+				self.assertEqual(view["pre_accept_bars"], model.pre_accept_bars(view))
+				self.assertEqual(view["usage_item_ids"], model.usage_item_ids(view))
+				tier = view["security_tier"]
+				if model.valid_security_tier(tier):
+					if tier["tier"] in model.ACCEPTED_TIERS:
+						self.assertEqual(view["initial_review_bucket"], "security_auto")
+					else:
+						self.assertIn(view["initial_review_bucket"],
+							("security_mixed", "attention"))
+					if view["initial_review_bucket"] == "attention":
+						self.assertIn("content-losing", tier["holds"])
+
+	def test_the_fixture_routes_are_the_planned_ones(self):
+		"""The §7.3 pairs, pinned on the golden corpus: 06-elevated's
+		boundary item stays under D2; its fix twin in 08 is P3, accepted,
+		elevated; every reason and hold in 08 lands where the plan says."""
+		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,
+			manifest_root=MANIFEST_ROOT, unconfigured_roots=FIXTURE_UNCONFIGURED)
+		by_id = {v["id"]: v for v in document["tools"]}
+		elevated, twin = by_id["brew:elevated"], by_id["brew:elevated-fix"]
+		self.assertIsNone(elevated["security_tier"])
+		self.assertEqual(elevated["pre_accept_bars"], ["elevated-risk", "reaches-item"])
+		self.assertEqual(elevated["initial_review_bucket"], "security_mixed")
+		self.assertEqual(twin["security_tier"]["tier"], "P3")
+		self.assertEqual(twin["risk_level"], "elevated")
+		self.assertEqual(twin["initial_review_bucket"], "security_auto")
+		expected = {
+			"brew:tier-required": ("P0", "P0", "required-edit", None),
+			"brew:tier-pinned": ("P0", "P0", "pinned", None),
+			"brew:tier-incompatible": ("P0", "P0", "incompatible-unfixed", None),
+			"brew:tier-p0-lost": ("P0", "P0", "incompatible-unfixed", "content-losing"),
+			"brew:tier-proposed": ("P1", "P1", "edit-proposed", None),
+			"brew:tier-config": ("P1", "P1", "config-attention", None),
+			"brew:libpq": ("P2", "P2", "relevant-fix", None),
+			"brew:duckdb": ("P2", "P2", "relevant-fix", None),
+			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking", None),
+			"brew:tier-risk": ("P2", "P2", "fix-with-risk", None),
+			"cask:tier-vendor": ("P2", "P2", "vendor-unread", None),
+			"brew:tier-fix": ("P3", "P3", "fix", None),
+			"brew:tier-held-p2": ("held", "P2", "fix-with-breaking", "security-item-risk"),
+			"brew:tier-held-p1": ("held", "P1", "edit-proposed", "watch-hit"),
+			"brew:tier-enum": ("held", "P3", "fix", "enum-invalid"),
+			"brew:tier-container": ("held", "P3", "fix", "container-unreadable"),
+			"brew:tier-research": ("held", "P3", "fix", "research-incomplete"),
+			"standalone:tier-manual": ("held", "P3", "fix", "not-runnable"),
+			"brew:quarantined": ("held", "P3", "fix", "content-losing"),
+		}
+		for tool_id, (tier, priority, reason, hold) in expected.items():
+			with self.subTest(tool_id):
+				got = by_id[tool_id]["security_tier"]
+				self.assertEqual((got["tier"], got["priority"], got["reasons"][0]),
+					(tier, priority, reason))
+				if hold:
+					self.assertIn(hold, got["holds"])
+				else:
+					self.assertEqual(got["holds"], [])
+		routine = by_id["brew:routine-unreadable"]
+		self.assertIsNone(routine["security_tier"])
+		self.assertEqual(routine["pre_accept_bars"], ["enum-invalid", "container-unreadable"])
+		self.assertEqual(routine["initial_review_bucket"], "routine")
 
 
 if __name__ == "__main__":

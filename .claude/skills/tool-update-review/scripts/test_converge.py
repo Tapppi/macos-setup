@@ -359,8 +359,14 @@ class CorpusPreTests(unittest.TestCase):
 				lambda v: v["bucket_inputs"].__setitem__("runnable", False),
 				lambda v: v.__setitem__("quarantine", [{"field": "x",
 					"item_id": None, "value": 1}]),
-				lambda v: v["items"].append({"local": {"direction": "reachs",
-					"effect": "none"}})):
+				# The EXPORTED bars, never recomputed (G-SEC: one predicate,
+				# items.accepts_baseline) — so the bar conjunct is the field.
+				lambda v: v.__setitem__("pre_accept_bars", ["enum-invalid"]),
+				lambda v: v.__setitem__("pre_accept_bars", "not a list"),
+				lambda v: v.pop("pre_accept_bars"),
+				lambda v: v.pop("security_tier"),
+				lambda v: v.__setitem__("security_tier", {}),
+				lambda v: v.__setitem__("forced_conservative", {"code": "x"})):
 			view = copy.deepcopy(base)
 			mutate(view)
 			self.assertFalse(C.initial_pre_accept(view))
@@ -449,8 +455,8 @@ class TablesTests(unittest.TestCase):
 		self.assertEqual(
 			sorted({f["code"] for f in tables["evidence_findings"]}),
 			sorted({"E-EVID-MALFORMED", "E-EVID-404", "W-EVID-ROOT",
-				"E-REACHES-UNEVIDENCED"}))
-		self.assertEqual(len(tables["evidence_findings"]), 5)
+				"E-REACHES-UNEVIDENCED", "E-USAGE-UNGROUNDED", "W-USAGE-INSTALL-ONLY"}))
+		self.assertEqual(len(tables["evidence_findings"]), 9)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1361,7 +1367,8 @@ class TerminalDegradationTests(unittest.TestCase):
 		self.assertEqual(status["state"], "degraded_gate")
 		self.assertEqual(status["degraded_tools"][0]["tool_id"], "brew:auto")
 		self.assertEqual(status["degraded_tools"][0]["would_have_been"],
-			{"bucket": "security_auto", "pre_accept": True})
+			{"bucket": "security_auto", "pre_accept": True, "priority": None})
+		self.assertEqual(status["degraded_tools"][0]["kind"], "permissive")
 		# a degraded tool carries NO auto_update_label (§4.4)
 		self.assertNotIn("auto_update_label",
 			result["effect"]["tools"]["brew:auto"])
@@ -1705,6 +1712,476 @@ class ContractSurfaceTests(unittest.TestCase):
 	def test_flag_scope_is_empty(self):
 		self.assertEqual(C.OPS["flag"]["scope"],
 			"EMPTY — writes nothing to the corpus")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# G-SEC — the tier survives convergence, and prominence cannot be lost silently
+def _usage_entry(n):
+	return {"path": "dotfiles/home/.conf{}".format(n), "role": "usage",
+		"quote": "line {} that uses it".format(n)}
+
+
+def _gfix(tool_id, n, usage=False, direction=None, severity="notable", statement=None):
+	"""A positively identified fix; with `usage`, its local block carries a
+	usage entry (grounded only if the view's record names it)."""
+	# with `usage`, an install entry rides beside it, so moving the usage
+	# entry out leaves a reaching claim that still has evidence (I-14)
+	evidence = [_usage_entry(n), {"path": "Brewfile", "role": "install"}] if usage else []
+	local = plain_local(direction=direction or ("reaches" if usage else "does_not_reach"),
+		effect="benefit", statement=statement or "Fix {} statement to quote.".format(n))
+	local["evidence"] = evidence
+	return make_item(tool_id, n, tags=("security", "fix"), severity=severity,
+		security={"cve_id": None, "advisory_id": None, "rating": "medium",
+			"rating_basis": "nvd", "exploited_in_wild": False, "nature": "fix"},
+		local=local)
+
+
+def _gview(tool_id, items, suggestions=None, grounded=(), version_delta="patch"):
+	view = make_view(tool_id, items, suggestions, version_delta=version_delta)
+	view["usage_evidence"] = [{"entry": _usage_entry(n), "matched_lines": [1]}
+		for n in grounded]
+	C.derive_tool_state(view, None)
+	return view
+
+
+def _incompat(tool_id, n, statement="Incompatible statement to quote."):
+	local = plain_local(direction="reaches", effect="risk", statement=statement)
+	local["evidence"] = [{"path": "Brewfile"}]
+	return make_item(tool_id, n, tags=("breaking",), severity="incompatible", local=local)
+
+
+def _edit(tool_id, requirement, serves=(), sid=None, title="An edit title to quote."):
+	sug = {"id": sid or tool_id + ":edit", "kind": "edit", "title": title,
+		"target_files": [], "rationale": "r", "serves_item_ids": list(serves)}
+	if requirement is not None:
+		sug["requirement"] = requirement
+	return sug
+
+
+def _redirect(tool_id, item, after="unclear", body=None, edit_id="cv-001",
+		bucket="security_auto"):
+	return {"edit_id": edit_id, "check": "C2-tags-visibility", "op": "redirect",
+		"target": {"tool_id": tool_id, "kind": "item", "id": item["id"],
+			"field": "local.direction"},
+		"precondition": {"before": item["local"]["direction"]},
+		"quote": item["local"]["statement"], "after": after,
+		"bucket_claim": lateral(bucket),
+		"reason": cut_reason(body=body)}
+
+
+def _move(tool_id, item, n, body=None, edit_id="cv-002"):
+	reason = {"headline": "The quoted line is a setting, not a use."}
+	if body:
+		reason["body"] = body
+	return {"edit_id": edit_id, "check": "C1-evidence", "op": "move_evidence",
+		"target": {"tool_id": tool_id, "kind": "item", "id": item["id"],
+			"field": "local.evidence"},
+		"precondition": {"before": _usage_entry(n)},
+		"after": {"citation": {"kind": "observation", "text": "a setting line"}},
+		"reason": reason}
+
+
+PRIORITY_BODY = ("The quoted line does not show the vulnerable path is used here; "
+	"this lowers the fix's security priority out of the highlight panel.")
+
+
+class GSecConvergenceTests(unittest.TestCase):
+	def test_the_fixture_run_keeps_libpq_and_lowers_duckdb_with_its_reason(self):
+		"""The hand-written submission's reasoned demotion (cv-014) and the
+		carried record: libpq's usage confirmation survives convergence
+		without re-grounding; duckdb's P2 → P3 is attributed and disclosed."""
+		result = run(FIXTURE_PRE, fixture_submission())
+		self.assertEqual(result["critical"], [])
+		post = {v["id"]: v for v in result["corpus_post"]["tools"]}
+		self.assertEqual(model.security_priority(post["brew:libpq"]), "P2")
+		self.assertEqual(model.security_priority(post["brew:duckdb"]), "P3")
+		self.assertEqual(result["prominence"], {"brew:duckdb":
+			{"from": "P2", "to": "P3", "lost": True}})
+		effect = model.load_fixture("expected_converge_effect.json")["effect"]
+		block = effect["tools"]["brew:duckdb"]["security_priority"]
+		self.assertEqual(block["attributed_to"], ["cv-014"])
+		self.assertTrue(block["lost"])
+		self.assertEqual(block["reasons_from"], ["relevant-fix", "fix"])
+		self.assertEqual(block["reasons_to"], ["fix"])
+		# MOVED_AXES unchanged: the demotion is not a bucket move
+		self.assertNotIn("brew:duckdb", result["moved"])
+		# the rule label names the tier for a G-SEC tool accepted by rule
+		label = effect["tools"]["brew:libpq"]["auto_update_label"]
+		self.assertEqual(label["source"], "rule")
+		self.assertIn("security tier P2", label["reasoning"])
+
+	def test_the_tier_and_bars_are_self_checked(self):
+		view = _gview("brew:g", [_gfix("brew:g", 1)])
+		for field, value in (("security_tier", copy.deepcopy(model.TIER_UNCOMPUTED)),
+				("pre_accept_bars", ["watch-hit"])):
+			with self.subTest(field):
+				pre = build_pre([copy.deepcopy(view)])
+				pre["tools"][0][field] = value
+				result = run(pre, make_submission(pre, []))
+				internal = [f for f in result["critical"] if f["code"] == "E-APPLY-INTERNAL"]
+				self.assertTrue(any(field in f["detail"] for f in internal), result["critical"])
+
+	def test_a_reasoned_redirect_demotion_is_recorded_and_attributed(self):
+		item = _gfix("brew:g", 1, usage=True)
+		view = _gview("brew:g", [item], grounded=[1])
+		self.assertEqual(model.security_priority(view), "P2")
+		pre = build_pre([view])
+		submission = make_submission(pre, [_redirect("brew:g", item, body=PRIORITY_BODY)])
+		result = run(pre, submission)
+		self.assertEqual(codes_of(result), [])
+		self.assertEqual(result["prominence"]["brew:g"],
+			{"from": "P2", "to": "P3", "lost": True})
+		self.assertEqual(result["moved"], {})
+		self.assertEqual(result["attribution"]["brew:g"][C.PRIORITY_AXIS]["attributed_to"],
+			["cv-001"])
+		effect = apply_converge.finalize_clean(pre, submission, result, 1, [])
+		self.assertEqual(effect["tools"]["brew:g"]["security_priority"]["attributed_to"],
+			["cv-001"])
+
+	def test_an_unreasoned_demotion_bounces_and_is_forced_at_attempt_five(self):
+		item = _gfix("brew:g", 1, usage=True)
+		view = _gview("brew:g", [item], grounded=[1])
+		pre = build_pre([view])
+		submission = make_submission(pre, [_redirect("brew:g", item)])
+		result = run(pre, submission)
+		self.assertIn("E-GATE-UNREASONED", codes_of(result))
+		self.assertEqual({g["kind"] for g in result["gate"]}, {"demotion"})
+		# at the terminal attempt: forced conservative, prominence kept
+		result = run(pre, submission, terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+		post = result["corpus_post"]["tools"][0]
+		forced = post["forced_conservative"]
+		self.assertEqual(forced["kind"], "demotion")
+		self.assertEqual(forced["would_have_been"]["priority"], "P3")
+		self.assertEqual(forced["forced_display"]["priority"], "P2")
+		self.assertEqual(forced["forced_display"]["reasons"], ["relevant-fix", "fix"])
+		self.assertEqual(forced["forced_display"]["labels"]["relevant-fix"],
+			model.TIER_LABELS["relevant-fix"]["text"])
+		self.assertFalse(post["initial_pre_accept"])
+		self.assertEqual(post["initial_review_bucket"], C.FORCED_BUCKET)
+		# the stored tier stays the PURE recomputation, holding
+		self.assertEqual(post["security_tier"], model.security_tier(post))
+		self.assertIn("forced-conservative", post["security_tier"]["holds"])
+		self.assertEqual(post["security_tier"]["tier"], "held")
+		self.assertIn("forced-conservative", post["pre_accept_bars"])
+
+	def test_a_forced_tool_whose_sole_fix_was_deleted_keeps_its_display(self):
+		"""§12 A-R3-3: the snapshot is carried even when G-SEC applicability
+		disappears — the recomputed tier is null, the display is not."""
+		item = _gfix("brew:g", 1, usage=True)
+		view = _gview("brew:g", [item], grounded=[1])
+		pre = build_pre([view])
+		delete = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": item["id"], "field": None},
+			"quote": item["local"]["statement"], "bucket_claim": lateral("security_auto"),
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [delete]), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+		post = result["corpus_post"]["tools"][0]
+		self.assertIsNone(post["security_tier"])
+		self.assertEqual(post["forced_conservative"]["forced_display"]["priority"], "P2")
+		self.assertFalse(post["initial_pre_accept"])
+
+	def test_move_evidence_removes_the_confirmation_and_is_attributed(self):
+		item = _gfix("brew:g", 1, usage=True)
+		view = _gview("brew:g", [item], grounded=[1])
+		pre = build_pre([view])
+		result = run(pre, make_submission(pre, [_move("brew:g", item, 1)]))
+		self.assertEqual(result["prominence"]["brew:g"]["to"], "P3")
+		self.assertEqual(result["attribution"]["brew:g"][C.PRIORITY_AXIS]["attributed_to"],
+			["cv-002"])
+		# move_evidence needs no reason.body as an op — as a demotion it does
+		self.assertIn("E-GATE-UNREASONED", codes_of(result))
+		result = run(pre, make_submission(pre,
+			[_move("brew:g", item, 1, body=PRIORITY_BODY)]))
+		self.assertEqual(codes_of(result), [])
+
+	def test_two_necessary_causes_are_both_attributed(self):
+		"""Two usage-confirmed fixes; a redirect of one and a move of the
+		other — neither alone demotes, so each omission restores and both
+		are attributed."""
+		one, two = _gfix("brew:g", 1, usage=True), _gfix("brew:g", 2, usage=True)
+		view = _gview("brew:g", [one, two], grounded=[1, 2])
+		pre = build_pre([view])
+		edits = [_redirect("brew:g", one, body=PRIORITY_BODY),
+			_move("brew:g", two, 2, body=PRIORITY_BODY)]
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		attributed = result["attribution"]["brew:g"][C.PRIORITY_AXIS]
+		self.assertEqual(sorted(attributed["attributed_to"]), ["cv-001", "cv-002"])
+		self.assertFalse(attributed["joint"])
+
+	def test_two_redundant_causes_are_attributed_jointly(self):
+		"""Each edit alone removes the one confirmation, so no single omission
+		restores P2 — the subset search attributes both, `joint: true`."""
+		item = _gfix("brew:g", 1, usage=True)
+		view = _gview("brew:g", [item], grounded=[1])
+		pre = build_pre([view])
+		edits = [_redirect("brew:g", item, body=PRIORITY_BODY),
+			_move("brew:g", item, 1, body=PRIORITY_BODY)]
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		attributed = result["attribution"]["brew:g"][C.PRIORITY_AXIS]
+		self.assertEqual(sorted(attributed["attributed_to"]), ["cv-001", "cv-002"])
+		self.assertTrue(attributed["joint"])
+
+	def test_a_merge_carrying_the_grounded_entry_keeps_the_confirmation(self):
+		one = _gfix("brew:g", 1, usage=True)
+		two = _gfix("brew:g", 2, statement="The second fix, to quote.")
+		view = _gview("brew:g", [one, two], grounded=[1])
+		pre = build_pre([view])
+		merged = copy.deepcopy(two)
+		merged["local"]["direction"] = "reaches"
+		merged["local"]["evidence"] = [_usage_entry(1)]
+		merged["body"] = "Absorbs fix 1; the same usage line shows both."
+		edits = [
+			{"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+				"target": {"tool_id": "brew:g", "kind": "item", "id": one["id"], "field": None},
+				"quote": one["local"]["statement"], "bucket_claim": lateral("security_auto"),
+				"reason": cut_reason()},
+			{"edit_id": "cv-002", "check": "C2-tags-visibility", "op": "merge",
+				"target": {"tool_id": "brew:g", "kind": "item", "id": two["id"], "field": None},
+				"quote": "The second fix, to quote.", "after": merged,
+				"changed_fields": ["body", "local.direction", "local.evidence"],
+				"requires": ["cv-001"], "bucket_claim": lateral("security_auto"),
+				"reason": cut_reason()}]
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		self.assertEqual(result["prominence"], {})
+		post = result["corpus_post"]["tools"][0]
+		self.assertEqual(post["usage_item_ids"], [two["id"]])
+
+	def test_a_forged_usage_entry_grounds_nothing(self):
+		item = _gfix("brew:g", 1, statement="The fix, to quote.")
+		view = _gview("brew:g", [item], grounded=[])
+		pre = build_pre([view])
+		forged = copy.deepcopy(item)
+		forged["local"]["direction"] = "reaches"
+		forged["local"]["evidence"] = [_usage_entry(9)]
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "merge",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": item["id"], "field": None},
+			"quote": "The fix, to quote.", "after": forged,
+			"changed_fields": ["local.direction", "local.evidence"],
+			"bucket_claim": lateral("security_auto"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertEqual(result["prominence"], {})
+		self.assertEqual(model.security_priority(result["corpus_post"]["tools"][0]), "P3")
+
+	def test_a_held_to_accepted_edit_trips_the_permissive_gate(self):
+		item = _gfix("brew:g", 1)
+		watch = make_item("brew:g", 2, local=plain_local(statement="Watched, to quote."),
+			watch_hit={"topic": "t"})
+		view = _gview("brew:g", [item, watch])
+		self.assertEqual(view["security_tier"]["tier"], "held")
+		pre = build_pre([view])
+		delete = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": watch["id"], "field": None},
+			"quote": "Watched, to quote.",
+			"bucket_claim": {"moves_bucket": True, "expected_from": "security_mixed",
+				"expected_to": "security_auto", "direction": "permissive"},
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertIn("E-GATE-UNREASONED", codes_of(result))
+		self.assertEqual({g["kind"] for g in result["gate"]}, {"permissive"})
+		delete["reason"] = cut_reason(body="The watch claim was a duplicate; without it "
+			"the fix moves to security_auto and is pre-accepted.")
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertEqual(codes_of(result), [])
+
+	def test_a_p1_to_p2_demotion_with_moved_axes_unchanged(self):
+		"""§12 A-R3-2: ANY strict decrease is a demotion — here the sole
+		proposed edit deleted on a usage-confirmed fix. A major delta keeps
+		the risk elevated, so no MOVED axis changes."""
+		item = _gfix("brew:g", 1, usage=True)
+		edit = _edit("brew:g", "proposed")
+		view = _gview("brew:g", [item], [edit], grounded=[1], version_delta="major")
+		self.assertEqual(model.security_priority(view), "P1")
+		pre = build_pre([view])
+		delete = {"edit_id": "cv-001", "check": "C7-collisions", "op": "delete",
+			"target": {"tool_id": "brew:g", "kind": "suggestion", "id": edit["id"],
+				"field": None},
+			"quote": "An edit title to quote.", "bucket_claim": lateral("security_auto"),
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertEqual(result["moved"], {})
+		self.assertEqual(result["prominence"]["brew:g"],
+			{"from": "P1", "to": "P2", "lost": True})
+		self.assertIn("E-GATE-UNREASONED", codes_of(result))
+		delete["reason"] = cut_reason(body="The edit duplicates another tool's; dropping it "
+			"lowers this fix's priority from P1 to P2, still highlighted.")
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertEqual(codes_of(result), [])
+
+	def test_a_rerate_of_the_served_item_rereads_a_proposed_edit(self):
+		"""Technical round-2 finding 6: the reading is over CURRENT items. A
+		proposed edit serving an incompatible item reads required (P0); rerated
+		to warning, it reads proposed again — P0 → P1, pre-acceptance gained —
+		which the permissive gate and the demotion gate both see."""
+		fix, inc = _gfix("brew:g", 1), _incompat("brew:g", 2)
+		sug = _edit("brew:g", "proposed", [inc["id"]])
+		view = _gview("brew:g", [fix, inc], [sug])
+		self.assertEqual(view["security_tier"]["reasons"][0], "required-edit")
+		pre = build_pre([view])
+		rerate = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "rerate",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": inc["id"],
+				"field": "severity"},
+			"precondition": {"before": "incompatible"},
+			"quote": "Incompatible statement to quote.", "after": "warning",
+			"bucket_claim": {"moves_bucket": True, "expected_from": "security_mixed",
+				"expected_to": "security_auto", "direction": "permissive"},
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [rerate]))
+		self.assertEqual(result["prominence"]["brew:g"],
+			{"from": "P0", "to": "P1", "lost": True})
+		self.assertIn("brew:g", result["moved"])
+		self.assertEqual({g["kind"] for g in result["gate"]}, {"permissive", "demotion"})
+		rerate["reason"] = cut_reason(body="It breaks nothing here, so the upgrade is "
+			"pre-accepted and the fix's priority falls from P0 to P1.")
+		result = run(pre, make_submission(pre, [rerate]))
+		self.assertEqual(codes_of(result), [])
+
+	def test_a_required_edit_stays_required_and_the_note_says_why(self):
+		fix, inc = _gfix("brew:g", 1), _incompat("brew:g", 2)
+		sug = _edit("brew:g", "required", [inc["id"]])
+		view = _gview("brew:g", [fix, inc], [sug])
+		pre = build_pre([view])
+		rerate = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "rerate",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": inc["id"],
+				"field": "severity"},
+			"precondition": {"before": "incompatible"},
+			"quote": "Incompatible statement to quote.", "after": "warning",
+			"bucket_claim": lateral("security_mixed"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [rerate]))
+		self.assertEqual(codes_of(result), [])
+		post = result["corpus_post"]["tools"][0]
+		self.assertEqual(post["security_tier"]["reasons"][0], "required-edit")
+		notes = [n for n in result["notes"] if n["code"] == "W-EDIT-SCHEMA"]
+		self.assertTrue(any("E-SUG-REQUIRED-UNGROUNDED" in n["detail"]
+			and n["edit_id"] == "cv-001" for n in notes), notes)
+
+	def test_deleting_the_served_item_leaves_the_required_edit_p0(self):
+		fix, inc = _gfix("brew:g", 1), _incompat("brew:g", 2)
+		sug = _edit("brew:g", "required", [inc["id"]])
+		view = _gview("brew:g", [fix, inc], [sug])
+		pre = build_pre([view])
+		delete = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": inc["id"], "field": None},
+			"quote": "Incompatible statement to quote.",
+			"bucket_claim": lateral("security_mixed"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertEqual(codes_of(result), [])
+		post = result["corpus_post"]["tools"][0]
+		self.assertEqual(post["security_tier"]["priority"], "P0")
+		self.assertEqual(post["security_tier"]["reasons"][0], "required-edit")
+		notes = " ".join(n["detail"] for n in result["notes"] if n["code"] == "W-EDIT-SCHEMA")
+		self.assertIn("E-SUG-SERVES-UNRESOLVED", notes)
+
+	def test_merging_the_served_item_away_leaves_an_unserved_survivor_p0(self):
+		fix = _gfix("brew:g", 1)
+		served = _incompat("brew:g", 2, statement="The served one, to quote.")
+		other = _incompat("brew:g", 3, statement="The other one, to quote.")
+		sug = _edit("brew:g", "proposed", [served["id"]])
+		view = _gview("brew:g", [fix, served, other], [sug])
+		self.assertEqual(view["security_tier"]["ids"]["incompatible-unfixed"], [other["id"]])
+		pre = build_pre([view])
+		merged = dict(copy.deepcopy(other), body="Absorbs the served incompatible item.")
+		edits = [
+			{"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "delete",
+				"target": {"tool_id": "brew:g", "kind": "item", "id": served["id"],
+					"field": None},
+				"quote": "The served one, to quote.",
+				"bucket_claim": lateral("security_mixed"), "reason": cut_reason()},
+			{"edit_id": "cv-002", "check": "C2-tags-visibility", "op": "merge",
+				"target": {"tool_id": "brew:g", "kind": "item", "id": other["id"],
+					"field": None},
+				"quote": "The other one, to quote.", "after": merged,
+				"changed_fields": ["body"], "requires": ["cv-001"],
+				"bucket_claim": lateral("security_mixed"), "reason": cut_reason()}]
+		result = run(pre, make_submission(pre, edits))
+		self.assertEqual(codes_of(result), [])
+		tier = result["corpus_post"]["tools"][0]["security_tier"]
+		# the merged-away id links nothing, so the proposed edit reads proposed
+		# again — and the survivor, served by no required edit, is P0
+		self.assertEqual(tier["ids"]["incompatible-unfixed"], [other["id"]])
+		self.assertNotIn("required-edit", tier["reasons"])
+		self.assertEqual(tier["priority"], "P0")
+		notes = " ".join(n["detail"] for n in result["notes"] if n["code"] == "W-EDIT-SCHEMA")
+		self.assertIn("E-SUG-SERVES-UNRESOLVED", notes)
+
+
+class NoIOAndCorpusVersionTests(unittest.TestCase):
+	def test_element_revalidation_reads_no_file(self):
+		"""Technical round-2 finding 7: the applier is FORBIDDEN file access.
+		An existing absolute path in a usage entry would be resolved and read
+		by I-14/I-23 under a real resolver; under NO_IO_RESOLVER nothing is."""
+		here = os.path.abspath(__file__)
+		item = _gfix("brew:g", 1)
+		item["local"]["direction"] = "reaches"
+		item["local"]["evidence"] = [{"path": here, "role": "usage", "quote": "import"},
+			here, {"path": "/definitely/not/there"}]
+
+		def forbidden(*args, **kwargs):
+			raise AssertionError("file access from the applier: {!r}".format(args))
+		with mock.patch("builtins.open", side_effect=forbidden), \
+				mock.patch("os.path.exists", side_effect=forbidden), \
+				mock.patch("os.path.isfile", side_effect=forbidden), \
+				mock.patch("os.stat", side_effect=forbidden):
+			codes = apply_converge._element_codes(item, "brew:g", 0, None)
+		self.assertFalse(codes & {"E-EVID-404", "W-EVID-ROOT", "E-USAGE-UNGROUNDED",
+			"W-USAGE-INSTALL-ONLY"}, codes)
+		self.assertFalse(any(c.startswith("E-VALIDATOR-CRASH") for c in codes), codes)
+
+	BAD = ((None, "missing"), (3, "old"), ("4", "a string"), (4.0, "a float"),
+		(True, "a bool"))
+
+	def _stale(self, key, value):
+		pre = fixture_pre()
+		if value is None:
+			del pre[key]
+		else:
+			pre[key] = value
+		return pre
+
+	def test_a_stale_corpus_is_refused_at_every_attempt_and_projection(self):
+		for key in ("contract_version", "converge_version"):
+			for value, why in self.BAD:
+				if key == "converge_version" and value == 3:
+					value = 2
+				with self.subTest(key=key, value=why):
+					pre = self._stale(key, value)
+					submission = fixture_submission()
+					for terminal, attempt in ((False, 1), (True, 5)):
+						with self.assertRaises(C.CorpusVersionError):
+							apply_converge.apply_converge(pre, submission, attempt=attempt,
+								terminal=terminal)
+					with self.assertRaises(C.CorpusVersionError):
+						C.build_view(pre)
+					with self.assertRaises(C.CorpusVersionError):
+						C.build_tables(pre)
+
+	def test_a_stale_submission_on_a_current_corpus_is_still_e_submit_version(self):
+		submission = fixture_submission()
+		submission["converge_version"] = 2
+		result = run(FIXTURE_PRE, submission)
+		self.assertEqual(codes_of(result), ["E-SUBMIT-VERSION"])
+
+	def test_the_cli_refuses_a_stale_corpus_without_consuming_an_attempt(self):
+		tmp = tempfile.mkdtemp(prefix="converge-stale-")
+		self.addCleanup(shutil.rmtree, tmp, True)
+		session = os.path.join(tmp, "session")
+		os.makedirs(session)
+		pre = fixture_pre()
+		pre["converge_version"] = 2
+		with open(os.path.join(session, "corpus.pre.json"), "w", encoding="utf-8") as fh:
+			json.dump(pre, fh)
+		draft = os.path.join(tmp, "draft.json")
+		with open(draft, "w", encoding="utf-8") as fh:
+			json.dump(fixture_submission(), fh)
+		for mode in ("--check", "--submit"):
+			with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+				self.assertEqual(apply_converge.main(["--session", session, mode, draft]), 4)
+			self.assertFalse(os.path.exists(os.path.join(session, "converge-attempts.json")))
+			self.assertFalse(os.path.exists(os.path.join(session, "corpus.post.json")))
 
 
 if __name__ == "__main__":

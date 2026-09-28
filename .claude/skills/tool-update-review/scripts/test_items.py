@@ -396,13 +396,15 @@ class PublishedFixtureTests(unittest.TestCase):
 				self.assertTrue(code in golden or code in source,
 					"{} is declared but nothing exercises it".format(code))
 
-	def test_all_twenty_invariants_have_at_least_one_code(self):
+	def test_all_twenty_three_invariants_have_at_least_one_code(self):
 		"""I-19 is WP2's — the memory-proposal shape and the self-test tag
-		(`REDESIGN.md` §L7). I-20 is the watch-item hit's grounding. An
-		invariant with no code cannot be reported, so the numbering and the
-		code table are asserted equal rather than kept in step by hand."""
+		(`REDESIGN.md` §L7). I-20 is the watch-item hit's grounding. I-21–I-23
+		are G-SEC's: a grounded `nature: fix`, a grounded `required` edit, a
+		grounded usage quote. An invariant with no code cannot be reported, so
+		the numbering and the code table are asserted equal rather than kept in
+		step by hand."""
 		invariants = {inv for _, inv, _ in model.FINDING_CODES.values() if inv}
-		self.assertEqual(invariants, {"I-{}".format(n) for n in range(1, 21)})
+		self.assertEqual(invariants, {"I-{}".format(n) for n in range(1, 24)})
 
 	def test_intel_brewfile_is_never_a_legal_value_anywhere_in_the_contract(self):
 		"""REDESIGN.md §B1: out of this tool entirely — not a candidate source,
@@ -469,6 +471,7 @@ class ContractMirrorTests(unittest.TestCase):
 		block = model.contract()["bucketing"]
 		self.assertEqual(fixture["clause_order"], block["clause_order"])
 		self.assertEqual(fixture["d2_routing"], block["d2_routing"])
+		self.assertEqual(fixture["g_sec_routing"], block["g_sec_routing"])
 		self.assertEqual(fixture["pre_accept"], model.PRE_ACCEPT_PREDICATE)
 		self.assertEqual(fixture["pre_accept_bars"]["order"],
 			list(model.PRE_ACCEPT_BARS))
@@ -657,43 +660,98 @@ class BucketingFixtureTests(unittest.TestCase):
 		returns = len(re.findall(r"^\s*return ", body, re.M))
 		self.assertEqual(len(self.FIXTURE["clause_order"]), returns)
 
+	def _drive(self, case):
+		"""One row, in the validator's order: the tier (or the stored one
+		the row stands for), then the bars, then the bucket — then the
+		assembly half and the convergence half, which must agree."""
+		import converge
+		view = json.loads(json.dumps(case["view"]))
+		view.setdefault("id", "brew:x")
+		axes = case["axes"]
+		view["risk_level"] = axes["risk_level"]
+		view["impact"] = axes["impact"]
+		view["bucket_inputs"] = {
+			"has_security": axes["has_security"],
+			"security_only": axes["security_only"],
+			"impact": axes["impact"],
+			"version_delta": view["version_delta"],
+			"runnable": axes["runnable"],
+		}
+		view["security_tier"] = (case["stored_tier"] if "stored_tier" in case
+			else model.security_tier(view))
+		view["pre_accept_bars"] = model.pre_accept_bars(view)
+		bucket = validate_items.compute_initial_bucket(
+			view, axes["has_security"], axes["security_only"],
+			axes["impact"], axes["risk_level"], axes["runnable"])
+		view["initial_review_bucket"] = bucket
+		# The assemble half: a minimal Tool with a synthesized-shaped baseline
+		# (or, for the non-baseline row, a suggestion whose id does not claim
+		# the baseline slot). As finalize_tool does, the tier and the bars
+		# are COPIED from the view — apply_pre_accept refuses a tool nobody
+		# computed them for (see test below).
+		tool = dict(view, review_bucket=bucket)
+		sug_id = "brew:x:upgrade" if case.get("baseline", True) else "brew:x:sug-1"
+		sug = {"id": sug_id, "kind": "upgrade", "auto_runnable": case["auto_runnable"]}
+		tool["suggestions"] = [sug]
+		assemble.apply_pre_accept(tool)
+		return view, bucket, sug["pre_accept"], converge.initial_pre_accept(view)
+
 	def test_every_truth_table_row_holds_in_both_layers(self):
 		for case in self.FIXTURE["cases"]:
 			with self.subTest(case["name"]):
-				view = json.loads(json.dumps(case["view"]))
-				axes = case["axes"]
-				view["risk_level"] = axes["risk_level"]
-				view["impact"] = axes["impact"]
-				view["bucket_inputs"] = {
-					"has_security": axes["has_security"],
-					"security_only": axes["security_only"],
-					"impact": axes["impact"],
-					"version_delta": view["version_delta"],
-					"runnable": axes["runnable"],
-				}
+				view, bucket, pre_accept, eligible = self._drive(case)
 				expect = case["expect"]
 				self.assertEqual(model.content_losing(view),
 					expect["content_losing"], case["name"])
-				self.assertEqual(model.pre_accept_bars(view),
-					expect["bars"], case["name"])
-				bucket = validate_items.compute_initial_bucket(
-					view, axes["has_security"], axes["security_only"],
-					axes["impact"], axes["risk_level"], axes["runnable"])
+				self.assertEqual(view["pre_accept_bars"], expect["bars"], case["name"])
+				tier = view["security_tier"]
+				valid = model.valid_security_tier(tier)
+				self.assertEqual(tier["tier"] if valid else None, expect["tier"])
+				self.assertEqual(model.security_priority(view), expect["priority"])
 				self.assertEqual(bucket, expect["bucket"], case["name"])
-				# The assemble half: a minimal Tool with a synthesized-shaped
-				# baseline (or, for the non-baseline row, a suggestion whose id
-				# does not claim the baseline slot).
-				tool = dict(view, id="brew:x", review_bucket=bucket)
-				# As finalize_tool does: the bars are computed from the VIEW
-				# and carried — apply_pre_accept refuses a tool nobody
-				# computed them for (see test below).
-				tool["pre_accept_bars"] = model.pre_accept_bars(view)
-				sug_id = "brew:x:upgrade" if case.get("baseline", True) else "brew:x:sug-1"
-				sug = {"id": sug_id, "kind": "upgrade",
-					"auto_runnable": case["auto_runnable"]}
-				tool["suggestions"] = [sug]
-				assemble.apply_pre_accept(tool)
-				self.assertEqual(sug["pre_accept"], expect["pre_accept"], case["name"])
+				self.assertEqual(pre_accept, expect["pre_accept"], case["name"])
+				# One predicate: convergence's view-level eligibility agrees
+				# with assembly wherever the two can be compared (a baseline
+				# whose auto_runnable is what the view says is runnable).
+				if case.get("baseline", True) and \
+						case["auto_runnable"] == case["axes"]["runnable"]:
+					self.assertEqual(eligible, pre_accept, case["name"])
+
+	def test_the_four_coherence_invariants_hold_on_every_row(self):
+		"""§4.3: accepted tier ⟹ security_auto; P0/held ⟹ security_mixed or
+		attention; attention with a tier ⟹ content-losing is a hold; and
+		security_auto with no tier ⟹ clause 2b's conjuncts all hold."""
+		for case in self.FIXTURE["cases"]:
+			with self.subTest(case["name"]):
+				view, bucket, _, _ = self._drive(case)
+				tier = view["security_tier"]
+				axes = case["axes"]
+				if model.valid_security_tier(tier):
+					if tier["tier"] in model.ACCEPTED_TIERS:
+						self.assertEqual(bucket, "security_auto")
+					else:
+						self.assertIn(bucket, ("security_mixed", "attention"))
+					if bucket == "attention":
+						self.assertIn("content-losing", tier["holds"])
+				elif tier is not None:
+					self.assertNotEqual(bucket, "security_auto")
+				elif bucket == "security_auto":
+					self.assertTrue(axes["has_security"] and axes["security_only"]
+						and axes["impact"] == "none" and axes["runnable"]
+						and view["version_delta"] not in ("major", "unknown")
+						and not view["pre_accept_bars"])
+
+	def test_every_reason_and_hold_has_a_row(self):
+		"""A reason or hold no row produces is a claim, not a check."""
+		seen_reasons, seen_holds = set(), set()
+		for case in self.FIXTURE["cases"]:
+			view, _, _, _ = self._drive(case)
+			tier = view["security_tier"]
+			if model.valid_security_tier(tier):
+				seen_reasons.update(tier["reasons"])
+				seen_holds.update(tier["holds"])
+		self.assertEqual(seen_reasons, set(model.TIER_REASONS))
+		self.assertEqual(seen_holds, set(model.TIER_HOLDS))
 
 	def test_apply_pre_accept_refuses_a_tool_with_no_computed_bars(self):
 		"""The divergence-raises half of the finding-6 fix: the bars are
@@ -708,6 +766,397 @@ class BucketingFixtureTests(unittest.TestCase):
 				"auto_runnable": True}]}
 		with self.assertRaises(KeyError):
 			assemble.apply_pre_accept(tool)
+
+
+# ── 7. G-SEC: the security tier, its predicates and the one acceptance check ─
+def _fix(item_id="brew:x#cve:CVE-2026-50001", **kw):
+	item = {"id": item_id, "tags": ["security", "fix"], "severity": "notable",
+		"change": {"citation": "Fix a heap overflow"},
+		"security": {"rating": "medium", "rating_basis": "nvd", "nature": "fix"}}
+	item.update(kw)
+	return item
+
+
+def _gview(items=(), suggestions=(), **kw):
+	view = {"id": "brew:x", "source": "brew", "items": list(items),
+		"suggestions": list(suggestions), "quarantine": [], "spec_violations": [],
+		"validator_error": None, "config_status": {"state": "up_to_date"},
+		"bucket_inputs": {"runnable": True}}
+	view.update(kw)
+	return view
+
+
+class GSecTierTests(unittest.TestCase):
+	"""`items.security_tier` — applicability, every reason and hold, the two
+	axes kept apart (O2), and never raising."""
+
+	def test_applicability_is_a_grounded_fix_or_vendor_unread(self):
+		self.assertIsNone(model.security_tier(_gview([])))
+		self.assertIsNotNone(model.security_tier(_gview([_fix()])))
+		self.assertIsNotNone(model.security_tier(_gview(vendor_silent_categories=["security"])))
+		# Security content that is not a positively identified fix: not G-SEC.
+		for item in (
+				_fix(security={"rating": "medium", "nature": "boundary"}),
+				_fix(security={"rating": "medium", "nature": "unclear"}),
+				_fix(security={"rating": "medium"}),                      # nature absent
+				_fix(change={"citation": "  "}),                          # uncited
+				_fix(change=None),
+				_fix(tags=["fix"]),                                       # orphan block
+				_fix(security=None)):
+			with self.subTest(item=item):
+				self.assertIsNone(model.security_tier(_gview([item])))
+
+	def test_a_finding_source_is_never_g_sec(self):
+		for source in model.NON_VERSION_SOURCES:
+			self.assertIsNone(model.security_tier(_gview([_fix()], source=source)))
+		self.assertEqual(assemble.NON_VERSION_SOURCES, frozenset(model.NON_VERSION_SOURCES))
+
+	def test_p0_required_edit_needs_a_required_action(self):
+		inc = {"id": "brew:x#slug:inc", "tags": ["breaking"], "severity": "incompatible",
+			"local": {"direction": "reaches", "effect": "risk"}}
+		edit = {"id": "brew:x:e", "kind": "edit", "requirement": "required",
+			"serves_item_ids": ["brew:x#slug:inc"]}
+		tier = model.security_tier(_gview([_fix(), inc], [edit]))
+		self.assertEqual((tier["tier"], tier["priority"]), ("P0", "P0"))
+		self.assertIn("required-edit", tier["reasons"])
+		# the incompatible item is SERVED by the required edit, so it is not
+		# also "incompatible-unfixed" (R5)
+		self.assertNotIn("incompatible-unfixed", tier["reasons"])
+		self.assertEqual(tier["ids"]["required-edit"], ["brew:x:e"])
+
+	def test_p0_pinned_and_incompatible_unfixed(self):
+		tier = model.security_tier(_gview([_fix()], pinned=True))
+		self.assertEqual(tier["reasons"][0], "pinned")
+		self.assertEqual(tier["ids"]["pinned"], [])
+		inc = {"id": "brew:x#slug:inc", "tags": ["packaging"], "severity": "incompatible"}
+		tier = model.security_tier(_gview([_fix(), inc]))
+		self.assertEqual(tier["ids"]["incompatible-unfixed"], ["brew:x#slug:inc"])
+		self.assertEqual(tier["tier"], "P0")
+
+	def test_config_attention_and_edit_proposed_never_co_fire(self):
+		"""§7.29 (R2 overridden): needs_attention with NO action suggestion is P1
+		`config-attention`; with a proposed edit it is P1 `edit-proposed` only;
+		with a required edit it is P0."""
+		attention = {"state": "needs_attention"}
+		tier = model.security_tier(_gview([_fix()], config_status=attention))
+		self.assertEqual(tier["reasons"], ["config-attention", "fix"])
+		self.assertEqual((tier["tier"], tier["priority"]), ("P1", "P1"))
+		self.assertEqual(model.TIER_LABELS["config-attention"]["text"],
+			"Accepted — config needs attention — no edit proposed")
+		proposed = {"id": "brew:x:e", "kind": "edit", "requirement": "proposed"}
+		tier = model.security_tier(_gview([_fix()], [proposed], config_status=attention))
+		self.assertEqual(tier["reasons"], ["edit-proposed", "fix"])
+		required = dict(proposed, requirement="required")
+		tier = model.security_tier(_gview([_fix()], [required], config_status=attention))
+		self.assertEqual(tier["priority"], "P0")
+		self.assertNotIn("config-attention", tier["reasons"])
+		# a memory proposal is not an action: config-attention still fires
+		memory = {"id": "brew:x:m", "kind": "method-note"}
+		tier = model.security_tier(_gview([_fix()], [memory], config_status=attention))
+		self.assertEqual(tier["reasons"], ["config-attention", "fix"])
+
+	def test_p1_outranks_p2(self):
+		tier = model.security_tier(_gview([_fix(), {"id": "brew:x#slug:b",
+			"tags": ["breaking"], "severity": "info"}],
+			[{"id": "brew:x:e", "kind": "edit", "requirement": "proposed"}]))
+		self.assertEqual(tier["reasons"], ["edit-proposed", "fix-with-breaking", "fix"])
+		self.assertEqual(tier["priority"], "P1")
+
+	def test_relevant_fix_needs_a_recorded_usage_entry_and_a_benign_effect(self):
+		entry = {"path": "a.conf", "role": "usage", "quote": "x"}
+		record = [{"entry": entry, "matched_lines": [1]}]
+		item = _fix(local={"direction": "reaches", "effect": "benefit", "evidence": [entry]})
+		tier = model.security_tier(_gview([item], usage_evidence=record))
+		self.assertEqual(tier["reasons"], ["relevant-fix", "fix"])
+		self.assertEqual(model.usage_item_ids(_gview([item], usage_evidence=record)),
+			[item["id"]])
+		# no record: nothing grounded, nothing confirmed
+		self.assertEqual(model.security_tier(_gview([item]))["reasons"], ["fix"])
+		# a forged entry (different quote) matches no record
+		forged = _fix(local={"direction": "reaches", "effect": "benefit",
+			"evidence": [dict(entry, quote="y")]})
+		self.assertEqual(model.security_tier(_gview([forged], usage_evidence=record))
+			["reasons"], ["fix"])
+		# not reaching: no confirmation
+		unclear = _fix(local={"direction": "unclear", "effect": "benefit", "evidence": [entry]})
+		self.assertEqual(model.security_tier(_gview([unclear], usage_evidence=record))
+			["reasons"], ["fix"])
+		# the fix's own effect is risk: no relevant-fix — and it is held
+		risky = _fix(local={"direction": "reaches", "effect": "risk", "evidence": [entry]})
+		tier = model.security_tier(_gview([risky], usage_evidence=record))
+		self.assertEqual(tier["reasons"], ["fix"])
+		self.assertEqual(tier["holds"], ["security-item-risk"])
+		# hostile records ground nothing and never raise
+		for hostile in (None, "x", 42, [None], [{"entry": "x"}], {"entry": entry}):
+			self.assertEqual(model.security_tier(_gview([item], usage_evidence=hostile))
+				["reasons"], ["fix"])
+
+	def test_fix_with_breaking_is_any_breaking_item_at_any_severity(self):
+		for severity in ("info", "notable", "warning"):
+			tier = model.security_tier(_gview([_fix(), {"id": "brew:x#slug:b",
+				"tags": ["breaking"], "severity": severity}]))
+			self.assertEqual(tier["reasons"], ["fix-with-breaking", "fix"])
+
+	def test_fix_with_risk_is_a_non_security_risk_item(self):
+		feature = {"id": "brew:x#slug:f", "tags": ["feature"], "severity": "notable",
+			"local": {"direction": "reaches", "effect": "risk"}}
+		self.assertEqual(model.security_tier(_gview([_fix(), feature]))["reasons"],
+			["fix-with-risk", "fix"])
+		boundary = {"id": "brew:x#slug:s", "tags": ["security"], "severity": "notable",
+			"security": {"nature": "boundary"}, "local": {"direction": "reaches", "effect": "risk"}}
+		tier = model.security_tier(_gview([_fix(), boundary]))
+		self.assertEqual(tier["reasons"], ["fix"])
+		self.assertEqual(tier["holds"], ["security-item-risk"])
+
+	def test_vendor_unread_is_p2(self):
+		tier = model.security_tier(_gview(vendor_silent_categories=["security"]))
+		self.assertEqual(tier["reasons"], ["vendor-unread"])
+		self.assertEqual(tier["fix_item_ids"], [])
+		self.assertEqual(tier["tier"], "P2")
+
+	def test_every_hold_fires_and_holds_never_lower_priority(self):
+		"""O2 / R1: acceptance hold and display priority are separate axes."""
+		breaking = {"id": "brew:x#slug:b", "tags": ["breaking"], "severity": "info"}
+		cases = {
+			"content-losing": dict(quarantine=[{"field": "items", "value": 1}]),
+			"watch-hit": dict(items=[_fix(), breaking, {"id": "brew:x#slug:w",
+				"tags": ["fix"], "watch_hit": {"topic": "t"}}]),
+			"enum-invalid": dict(config_status={"state": "stale"}),
+			"container-unreadable": dict(items=[_fix(), breaking, {"id": "brew:x#slug:c",
+				"tags": ["fix"], "local": "risk"}]),
+			"research-incomplete": dict(research_error="timed out"),
+			"not-runnable": dict(bucket_inputs={"runnable": False}),
+			"forced-conservative": dict(forced_conservative={"code": "E-GATE-UNREASONED"}),
+		}
+		for hold, extra in cases.items():
+			with self.subTest(hold):
+				kw = {"items": [_fix(), breaking]}
+				kw.update(extra)
+				tier = model.security_tier(_gview(**kw))
+				self.assertIn(hold, tier["holds"])
+				self.assertEqual(tier["priority"], "P2")
+				self.assertEqual(tier["tier"], "held")
+				self.assertTrue(model.valid_security_tier(tier))
+		# a held P0 stays P0 — never "held"
+		inc = {"id": "brew:x#slug:inc", "tags": ["packaging"], "severity": "incompatible"}
+		tier = model.security_tier(_gview([_fix(), inc], research_error="x"))
+		self.assertEqual((tier["tier"], tier["priority"]), ("P0", "P0"))
+		self.assertEqual(tier["holds"], ["research-incomplete"])
+
+	def test_enum_invalid_reads_every_tier_input(self):
+		cases = [
+			[_fix(severity="critical")],
+			[_fix(local={"direction": "reachs", "effect": "none"})],
+			[_fix(local={"direction": "reaches", "effect": "risks"})],
+			[_fix(security={"nature": "fix", "rating": "high"}),
+				_fix("brew:x#slug:n", security={"nature": "fixed"})],
+			[_fix(local={"direction": "unclear", "effect": "none",
+				"evidence": [{"path": "a", "role": "uses"}]})],
+		]
+		for items in cases:
+			with self.subTest(items=items):
+				self.assertTrue(model.enum_invalid(_gview(items)))
+		self.assertTrue(model.enum_invalid(_gview([_fix()], [{"kind": "edits"}])))
+		self.assertTrue(model.enum_invalid(_gview([_fix()], [{"kind": ["edit"]}])))
+		self.assertTrue(model.enum_invalid(_gview([_fix()],
+			[{"kind": "edit", "requirement": "mandatory"}])))
+		self.assertTrue(model.enum_invalid(_gview([_fix()], config_status={"state": 3})))
+		# absent is no claim, and `requirement` on a memory kind is read by nothing
+		self.assertFalse(model.enum_invalid(_gview([_fix(severity=None)])))
+		self.assertFalse(model.enum_invalid(_gview([_fix()],
+			[{"kind": "method-note", "requirement": "mandatory"}])))
+		self.assertFalse(model.enum_invalid(_gview([_fix()], config_status={})))
+
+	def test_container_unreadable_reads_every_container(self):
+		for field, value in (("local", "risk"), ("security", ["x"]), ("change", "c"),
+				("watch_hit", "a bare string"), ("tags", "security")):
+			with self.subTest(field):
+				item = {"id": "brew:x#slug:c", "tags": ["fix"], field: value}
+				self.assertTrue(model.container_unreadable(_gview([item])))
+		self.assertTrue(model.container_unreadable(_gview([],
+			[{"kind": "edit", "serves": "cve:X"}])))
+		self.assertFalse(model.container_unreadable(_gview([],
+			[{"kind": "watch-item", "serves": "cve:X"}])))
+		self.assertFalse(model.container_unreadable(_gview([{"id": "a", "local": None}])))
+
+	def test_security_tier_never_raises(self):
+		hostile = [None, "a string", 42, True, [], {}, ["x"], [None], [42], [[1]],
+			{"k": "v"}, [{"k": ["v"]}], [{"id": []}], "", [""], {"a": {"b": {"c": 1}}}]
+		keys = ("items", "suggestions", "vendor_silent_categories", "config_status",
+			"pinned", "research_error", "validator_error", "quarantine",
+			"spec_violations", "bucket_inputs", "usage_evidence", "forced_conservative",
+			"id", "source")
+		for key in keys:
+			for shape in hostile:
+				view = _gview([_fix(), {"id": [], "tags": [{"x": 1}], "severity": [1],
+					"local": {"direction": {}, "effect": [], "evidence": [{"role": []}]},
+					"security": {"nature": ["fix"]}}],
+					[{"kind": {"a": 1}, "requirement": [], "serves": {}, "serves_item_ids": [[1]]}])
+				view[key] = shape
+				tier = model.security_tier(view)
+				self.assertTrue(tier is None or model.valid_security_tier(tier),
+					(key, shape, tier))
+				model.pre_accept_bars(dict(view, security_tier=tier))
+		for shape in hostile:
+			if not isinstance(shape, dict):
+				self.assertIsNone(model.security_tier(shape))
+
+
+class GSecRequirementTests(unittest.TestCase):
+	"""`items.suggestion_requirement` over CURRENT items (§2.2)."""
+
+	INC = {"id": "brew:x#slug:inc", "severity": "incompatible"}
+	WARN = {"id": "brew:x#slug:w", "severity": "warning"}
+
+	def read(self, sug, *items):
+		return model.suggestion_requirement(sug, {i["id"]: i for i in items})
+
+	def test_the_reading_table(self):
+		self.assertEqual(self.read({}), "proposed")                       # absent
+		self.assertEqual(self.read({"requirement": None}), "proposed")
+		self.assertEqual(self.read({"requirement": "proposed"}), "proposed")
+		self.assertEqual(self.read({"requirement": "required"}), "required")
+		for bad in ("mandatory", "", ["required"], 1, True, {"a": 1}):
+			with self.subTest(bad=bad):
+				self.assertEqual(self.read({"requirement": bad}), "required")
+
+	def test_an_ungrounded_required_still_reads_required(self):
+		self.assertEqual(self.read({"requirement": "required", "serves_item_ids": []}),
+			"required")
+		self.assertEqual(self.read({"requirement": "required",
+			"serves_item_ids": ["brew:x#slug:w"]}, self.WARN), "required")
+
+	def test_a_proposed_edit_serving_an_incompatible_item_reads_required(self):
+		sug = {"requirement": "proposed", "serves_item_ids": ["brew:x#slug:inc"]}
+		self.assertEqual(self.read(sug, self.INC), "required")
+		# the CURRENT severity decides: rerated to warning, it is proposed again
+		self.assertEqual(self.read(sug, dict(self.INC, severity="warning")), "proposed")
+		# the served item is gone (deleted/merged away): it links nothing
+		self.assertEqual(self.read(sug), "proposed")
+		# absent requirement is proposed, so the contradiction applies too
+		self.assertEqual(self.read({"serves_item_ids": ["brew:x#slug:inc"]}, self.INC),
+			"required")
+
+
+class GSecValidityTests(unittest.TestCase):
+	def test_the_default_is_a_valid_held_p3(self):
+		self.assertTrue(model.valid_security_tier(model.TIER_UNCOMPUTED))
+		self.assertEqual(model.TIER_UNCOMPUTED["tier"], "held")
+
+	def test_every_computed_tier_is_valid(self):
+		tier = model.security_tier(_gview([_fix()]))
+		self.assertTrue(model.valid_security_tier(tier))
+
+	def test_malformed_tiers_are_invalid(self):
+		good = model.security_tier(_gview([_fix(), {"id": "brew:x#slug:b",
+			"tags": ["breaking"], "severity": "info"}], research_error="x"))
+		self.assertTrue(model.valid_security_tier(good))
+		bad = [None, {}, [], "P2", 3]
+		for mutate in (
+				lambda t: t.__setitem__("tier", "P2"),              # held ≠ P2
+				lambda t: t.__setitem__("priority", "P3"),          # not the highest level
+				lambda t: t.__setitem__("priority", "P9"),
+				lambda t: t.__setitem__("reasons", ["fix", "fix-with-breaking"]),  # order
+				lambda t: t.__setitem__("holds", ["no-such-hold"]),
+				lambda t: t["ids"].pop("fix"),
+				lambda t: t.__setitem__("fix_item_ids", "x"),
+				lambda t: t.__setitem__("extra", 1)):
+			t = json.loads(json.dumps(good))
+			mutate(t)
+			bad.append(t)
+		for tier in bad:
+			with self.subTest(tier=tier):
+				self.assertFalse(model.valid_security_tier(tier))
+				self.assertIsNone(model.security_priority({"security_tier": tier}))
+				if tier is not None:
+					self.assertEqual(model.pre_accept_bars({"security_tier": tier}),
+						["tier-uncomputed"])
+
+	def test_the_labels_cover_every_reason_with_text_and_glyph(self):
+		self.assertEqual(set(model.TIER_LABELS), set(model.TIER_REASONS))
+		for code, label in model.TIER_LABELS.items():
+			self.assertTrue(label["text"] and label["glyph"], code)
+
+	def test_the_priority_rank(self):
+		ranks = [model.priority_rank(p) for p in ("P0", "P1", "P2", "P3", None, "x", [])]
+		self.assertEqual(ranks, [4, 3, 2, 1, 0, 0, 0])
+
+
+class AcceptsBaselineTests(unittest.TestCase):
+	"""`items.accepts_baseline` — one normalized input contract (§4.4)."""
+
+	def _tool(self, tier="compute", **kw):
+		view = _gview([_fix()])
+		view["security_tier"] = model.security_tier(view) if tier == "compute" else tier
+		view["pre_accept_bars"] = model.pre_accept_bars(view)
+		view["review_bucket"] = "security_auto"
+		view["risk_level"] = "elevated"
+		view.update(kw)
+		return view
+
+	def test_an_accepted_tier_is_accepted_at_elevated_risk(self):
+		self.assertTrue(model.accepts_baseline(self._tool()))
+
+	def test_each_required_key_missing_raises_independently(self):
+		for key in ("security_tier", "pre_accept_bars"):
+			with self.subTest(key):
+				tool = self._tool()
+				del tool[key]
+				with self.assertRaises(KeyError):
+					model.accepts_baseline(tool)
+
+	def test_none_takes_the_pre_g_sec_predicate(self):
+		tool = self._tool(tier=None, risk_level="low", review_bucket="security_auto",
+			pre_accept_bars=[])
+		self.assertTrue(model.accepts_baseline(tool))
+		self.assertFalse(model.accepts_baseline(dict(tool, risk_level="elevated")))
+		self.assertFalse(model.accepts_baseline(dict(tool, review_bucket="attention")))
+		view = dict(tool)
+		del view["review_bucket"]
+		view["initial_review_bucket"] = "attention"
+		self.assertFalse(model.accepts_baseline(view))
+
+	def test_malformed_tiers_are_never_accepted(self):
+		for tier in ({}, [], "P2", 3, True, {"tier": "P3"},
+				dict(model.TIER_UNCOMPUTED, tier="P3")):
+			with self.subTest(tier=tier):
+				self.assertFalse(model.accepts_baseline(self._tool(tier=tier,
+					pre_accept_bars=[])))
+
+	def test_bars_content_losing_and_forcing_each_refuse(self):
+		self.assertFalse(model.accepts_baseline(self._tool(pre_accept_bars=["watch-hit"])))
+		for bars in ("", None, {}, "x", 0):
+			self.assertFalse(model.accepts_baseline(self._tool(pre_accept_bars=bars)))
+		self.assertFalse(model.accepts_baseline(self._tool(
+			quarantine=[{"field": "items", "value": 1}])))
+		self.assertFalse(model.accepts_baseline(self._tool(
+			forced_conservative={"code": "E-GATE-UNREASONED"})))
+
+	def test_held_and_p0_tiers_are_not_accepted(self):
+		held = self._tool()
+		held["security_tier"] = model.security_tier(dict(held, research_error="x"))
+		self.assertFalse(model.accepts_baseline(held))
+		pinned = self._tool()
+		pinned["security_tier"] = model.security_tier(dict(pinned, pinned=True))
+		self.assertFalse(model.accepts_baseline(pinned))
+
+
+class UsageFileKindTests(unittest.TestCase):
+	def test_kinds_from_the_path(self):
+		for path, kind in (("Brewfile", "brewfile"), ("macos-setup/Brewfile", "brewfile"),
+				(".tool-versions", "tool-versions"), ("mise.toml", "mise-toml"),
+				(".mise.toml", "mise-toml"), ("mise.local.toml", "mise-toml"),
+				("dotfiles/config/mise/config.toml", "mise-toml"),
+				("config.toml", "other"), ("tasks/install.sh", "shell"),
+				("dotfiles/home/.bash_profile", "shell"), (".pg_service.conf", "other"),
+				(None, "other"), (42, "other")):
+			with self.subTest(path):
+				self.assertEqual(model.usage_file_kind(path), kind)
+
+	def test_every_pattern_carries_a_name_slot_and_a_known_kind(self):
+		for spec in model.INSTALL_DECLARATION_PATTERNS:
+			self.assertIn("{name}", spec["pattern"] + (spec["section"] or ""))
+			self.assertIn(spec["kind"], ("brewfile", "tool-versions", "mise-toml", "shell"))
 
 
 if __name__ == "__main__":

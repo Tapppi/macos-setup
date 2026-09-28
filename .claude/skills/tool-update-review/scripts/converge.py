@@ -53,11 +53,18 @@ import validate_items
 # 2 — the WP0 redesign: named corpus.pre/corpus.post artefacts, the derived
 #     diff as the record, the five-phase applier, the recovery loop.
 #     (1 was the rejected edit-list contract that never shipped.)
-CONVERGE_VERSION = 2
+# 3 — G-SEC: corpus.pre carries the validator's `security_tier`,
+#     `usage_evidence`, `usage_item_ids` and `pre_accept_bars`; the effect
+#     carries `security_priority` per tool; the gate covers demotions (any
+#     strict decrease in priority) as well as permissive moves; corpus.pre's
+#     own versions are gated (`check_corpus_versions`).
+CONVERGE_VERSION = 3
 
 # The projection's own version, carried on converge-view.json and echoed by
 # converge.json so a submission written against a stale view is refused.
-VIEW_VERSION = 1
+# 2 — projects `security_tier`, `usage_evidence`, `usage_item_ids`, and
+#     `initial_pre_accept` now means `items.accepts_baseline`.
+VIEW_VERSION = 2
 
 # §L4 / criterion 13: five attempts, then degrade conservatively with a
 # first-class explanation. Never a silent pass, never a dead run.
@@ -139,6 +146,14 @@ OPS = {
 # applier rejects the inverse of either (E-EDIT-OP).
 BUCKET_CAPABLE_OPS = tuple(op for op in OPS if OPS[op]["bucket_capable"])
 
+# The ops that can change a tool's G-SEC display PRIORITY — attribution's
+# candidate set for the "security_priority" pseudo-axis. Priority reads
+# everything the bucket reads PLUS `local.evidence` (a usage confirmation,
+# I-23), which `move_evidence` edits — the op that most directly removes a
+# confirmation. `move_evidence` stays NOT bucket-capable: it still may not
+# carry a `bucket_claim`, so no submission field changes.
+PROMINENCE_CAPABLE_OPS = BUCKET_CAPABLE_OPS + ("move_evidence",)
+
 # §3.1 — a cut is any edit that can remove content or move it down the review
 # surface. Every cut carries the full reason record and a verbatim quote.
 CUT_OPS = tuple(op for op in OPS if OPS[op]["cut"])
@@ -167,6 +182,42 @@ GATE_CONSEQUENCE_TOKENS = (
 	"security_auto", "pre-accept", "pre_accept", "pre-accepted",
 	"auto-accept", "auto-accepted", "auto-update", "auto_update",
 )
+# The demotion gate's twin (G-SEC, O3): an attributed edit that LOWERS a
+# fix's display priority must name that consequence in its reason.body.
+PROMINENCE_CONSEQUENCE_TOKENS = ("priority", "highlight", "prominence")
+
+# The derived fields no edit may write, whatever the op — validator records
+# convergence reads and recomputes, never authors (convergence.md §8's
+# never-write list). Tool-level derived fields are not addressable by any
+# op, and a suggestion takes only text edits, `delete` and `annotate`.
+NEVER_WRITE_FIELDS = ("security_tier", "usage_evidence", "usage_item_ids",
+	"serves_item_ids", "pre_accept_bars")
+
+
+class CorpusVersionError(Exception):
+	"""corpus.pre.json was built by a different contract or converge version
+	than this code's. Raised, never returned: no corpus.post and no effect is
+	ever derived from a stale corpus — a shipping state built from one would
+	present another contract's tier and predicate as this one's."""
+
+
+def check_corpus_versions(corpus_pre) -> None:
+	"""Refuse a corpus.pre whose own `contract_version`/`converge_version`
+	is not exactly this code's — `type(v) is int` and equal, so a missing
+	key, "4", 4.0 or True is refused. The submission's versions are a
+	separate gate (E-SUBMIT-VERSION); neither masks the other."""
+	if not isinstance(corpus_pre, dict):
+		raise CorpusVersionError("corpus.pre.json is {}, not an object".format(
+			type(corpus_pre).__name__))
+	for key, expected in (("contract_version", model.CONTRACT_VERSION),
+			("converge_version", CONVERGE_VERSION)):
+		got = corpus_pre.get(key)
+		if type(got) is not int or got != expected:
+			raise CorpusVersionError(
+				"corpus.pre.json was built by contract/converge {!r}/{!r}; this "
+				"applier is {}/{} — re-run --prepare --force".format(
+					corpus_pre.get("contract_version"), corpus_pre.get("converge_version"),
+					model.CONTRACT_VERSION, CONVERGE_VERSION))
 
 # A store snapshot the session HOLDS but the applier cannot READ is a
 # different fact from one that was never taken — the operator's remedy is
@@ -204,6 +255,9 @@ def store_entries(stores, name):
 # `findings` count can be required EQUAL to the table's length.
 EVIDENCE_FINDING_CODES = (
 	"E-EVID-MALFORMED", "E-EVID-404", "W-EVID-ROOT", "E-REACHES-UNEVIDENCED",
+	# G-SEC (I-23): a usage claim the validator could not ground, or that
+	# quotes only the install line — C1 reviews them with the rest.
+	"E-USAGE-UNGROUNDED", "W-USAGE-INSTALL-ONLY",
 )
 
 
@@ -314,35 +368,39 @@ def initial_pre_accept(view) -> bool:
 	"""The deterministic pre-acceptance ELIGIBILITY of a tool's baseline
 	upgrade, computed from the validation view alone.
 
-	This is `assemble.apply_pre_accept`'s predicate with its two
-	assembly-only conjuncts mapped onto their view-level equivalents: `sug is
-	baseline` becomes "a version source" (assembly synthesizes the baseline
-	for exactly those), and the baseline's `auto_runnable` becomes
-	`bucket_inputs.runnable` (both are `upgrade_command_and_runnable(source,
-	name)[1]`, a pure function of two immutable fields). Everything else is
-	the same clause reading the same view fields, so the two layers cannot
-	tell two stories — and §3.4's differential recomputation compares THIS
-	predicate pre vs post, which is what makes "pre_accept went false→true"
-	a fact about the corpus rather than about assembly's timing."""
+	`assemble.apply_pre_accept`'s predicate with its two assembly-only
+	conjuncts mapped onto their view-level equivalents: `sug is baseline`
+	becomes "a version source" (assembly synthesizes the baseline for exactly
+	those), and the baseline's `auto_runnable` becomes `bucket_inputs.runnable`
+	(both are `upgrade_command_and_runnable(source, name)[1]`, a pure function
+	of two immutable fields). Everything else is `items.accepts_baseline` —
+	the SAME function assembly calls, reading the same view fields — so the
+	two layers cannot tell two stories, and §3.4's differential recomputation
+	compares THIS predicate pre vs post, which is what makes "pre_accept went
+	false→true" a fact about the corpus rather than about assembly's timing.
+
+	A view missing a key `accepts_baseline` requires (`security_tier`,
+	`pre_accept_bars`, the bucket, `risk_level`) is not eligible: False,
+	never a raise and never a recomputation."""
 	if not isinstance(view, dict):
 		return False
 	if view.get("source") in validate_items.NON_VERSION_SOURCES:
 		return False
-	inputs = view.get("bucket_inputs") or {}
-	return bool(
-		inputs.get("runnable")
-		and view.get("initial_review_bucket") != "attention"
-		and view.get("risk_level") == "low"
-		and not model.content_losing(view)
-		and not model.pre_accept_bars(view))
+	inputs = view.get("bucket_inputs")
+	if not (isinstance(inputs, dict) and inputs.get("runnable")):
+		return False
+	try:
+		return model.accepts_baseline(view)
+	except (KeyError, TypeError):
+		return False
 
 
 def build_corpus_pre(validation, collect, stores=None):
 	"""→ corpus.pre.json: the validation document, whole, plus what
 	convergence's stage needs pinned beside it — per-tool versions from
-	collect.json, the deterministic `initial_pre_accept` / `pre_accept_bars`,
-	the memory-store snapshots the ledger is verified against, and the run
-	identity. A pure function; the input documents are not mutated.
+	collect.json, the deterministic `initial_pre_accept`, the memory-store
+	snapshots the ledger is verified against, and the run identity. The
+	validator's `pre_accept_bars` and `security_tier` are kept as recorded. A pure function; the input documents are not mutated.
 
 	`corpus.pre.json` is immutable for the whole run. Nothing between the
 	validator writing it and the renderer reading it mutates it — not
@@ -364,7 +422,10 @@ def build_corpus_pre(validation, collect, stores=None):
 		cand = versions.get(view.get("id"), {})
 		view["current_version"] = cand.get("current_version")
 		view["latest_version"] = cand.get("latest_version")
-		view["pre_accept_bars"] = model.pre_accept_bars(view)
+		# `pre_accept_bars` and `security_tier` are the VALIDATOR'S, kept as
+		# recorded (G-SEC): the applier's self-check compares its own
+		# re-derivation against them, and assembly's fresh-vs-frozen check
+		# requires them to compare equal.
 		view["initial_pre_accept"] = initial_pre_accept(view)
 	return corpus
 
@@ -389,9 +450,10 @@ def derive_tool_state(view, watch_topics) -> dict:
 
 	Mirrors `validate_items._derive_axes` step for step, THROUGH THE SAME
 	FUNCTIONS (`compute_impact`, `compute_security_only`,
-	`compute_risk_level`, `compute_initial_bucket`, `model.pre_accept_bars`,
-	`model.security_display_items`, `model.grounded_watch_hit`), so there is
-	one implementation of every axis, not two. What it does NOT recompute:
+	`compute_risk_level`, `model.security_tier`, `model.pre_accept_bars`,
+	`compute_initial_bucket`, `model.security_display_items`,
+	`model.grounded_watch_hit`, `model.usage_item_ids`), so there is one
+	implementation of every axis, not two. What it does NOT recompute:
 
 	  * `version_delta` and `bucket_inputs.runnable` — pure functions of
 		fields no edit can write (versions, source, name); carried forward.
@@ -399,11 +461,16 @@ def derive_tool_state(view, watch_topics) -> dict:
 		record of what stage 3 saw. An edit cannot repair a degradation, and
 		re-deriving `content_losing` from the carried record is exactly what
 		`model.content_losing` does anyway.
+	  * `usage_evidence` — I-23's grounding record. Grounding reads files, and
+		the applier is forbidden file access; the tier reads the CARRIED
+		record against the current items, so a moved or forged entry confirms
+		nothing and a carried grounded one keeps confirming.
 
 	Mutates `view` in place (callers hand it a deep copy) and returns it.
 	`apply_converge` also runs this over corpus_pre and asserts the result
-	equals the validator's recorded axes (E-APPLY-INTERNAL on divergence), so
-	"same implementation" is checked every run rather than trusted."""
+	equals the validator's recorded axes, tier and bars (E-APPLY-INTERNAL on
+	divergence), so "same implementation" is checked every run rather than
+	trusted."""
 	items_list = [i for i in (view.get("items") or []) if isinstance(i, dict)]
 	flags = model.recompute_flags(items_list)
 	view["flags"] = flags
@@ -425,22 +492,29 @@ def derive_tool_state(view, watch_topics) -> dict:
 		"version_delta": view.get("version_delta"),
 		"runnable": runnable,
 	}
+	view["security_tier"] = model.security_tier(view)
+	view["pre_accept_bars"] = model.pre_accept_bars(view)
 	view["initial_review_bucket"] = validate_items.compute_initial_bucket(
 		view, has_security, security_only, impact, risk_level, runnable)
 	return derive_item_exports(view, watch_topics)
 
 
 def derive_item_exports(view, watch_topics) -> dict:
-	"""The pure item-derived exports — `flags`, the security-display and
-	watch-hit id lists, the pre-acceptance bars and the eligibility —
-	recomputed from `view["items"]` against the axes currently on the view.
+	"""The pure item-derived exports — `flags`, the security-display,
+	watch-hit and usage id lists, the security tier, the pre-acceptance bars
+	and the eligibility — recomputed from `view["items"]` against the axes
+	currently on the view.
 
 	Split out of `derive_tool_state` for the one tool class whose AXES must
 	stay as recorded: a `validator_error` view (see `apply_converge` phase
-	5b). Its bucket/risk are _guard's conservative defaults and are not
-	re-derived — but its id-list exports are pure functions of the items,
-	and after a delete they would otherwise name elements that no longer
-	exist in the artefact the renderer reads. Mutates and returns `view`."""
+	5b). Its bucket/risk/impact are the validator's conservative constants
+	(`validate_items.CONSERVATIVE_AXES`, written in its final act) and are
+	not re-derived — but its id-list exports and its tier are pure functions
+	of the items, and after a delete they would otherwise name elements that
+	no longer exist in the artefact the renderer reads. The tier is
+	recomputed with the `content-losing` hold present (`validator_error` is
+	content-losing), so such a tool is never accepted. Mutates and returns
+	`view`."""
 	items_list = [i for i in (view.get("items") or []) if isinstance(i, dict)]
 	view["flags"] = model.recompute_flags(items_list)
 	view["security_display_item_ids"] = [
@@ -449,14 +523,39 @@ def derive_item_exports(view, watch_topics) -> dict:
 	view["watch_hit_item_ids"] = [i["id"] for i in items_list
 		if model.grounded_watch_hit(i, watch_topics)
 		and isinstance(i.get("id"), str)]
+	view["security_tier"] = model.security_tier(view)
 	view["pre_accept_bars"] = model.pre_accept_bars(view)
+	view["usage_item_ids"] = model.usage_item_ids(view)
 	view["initial_pre_accept"] = initial_pre_accept(view)
 	return view
+
+
+def axis_value(view, axis):
+	"""The one accessor for every axis the applier compares pre vs post:
+	`view.get(axis)` for `MOVED_AXES`, and `items.security_priority(view)`
+	for the pseudo-axis "security_priority" — priority lives INSIDE
+	`security_tier`, so a plain `.get` would read nothing (technical round-2
+	finding 4)."""
+	if axis == PRIORITY_AXIS:
+		return model.security_priority(view)
+	return view.get(axis)
 
 
 # The axes the differential recomputation compares pre vs post. A tool where
 # any of the first three differs is a convergence-moved tool (§3.4a).
 MOVED_AXES = ("initial_review_bucket", "initial_pre_accept", "risk_level")
+# G-SEC's pseudo-axis: display priority, read through `axis_value`. NOT in
+# MOVED_AXES — `corpus_effect.tools_moved` keeps its meaning and the agent is
+# never asked to predict a tier move — but tracked, attributed and gated on
+# its own (the prominence map, the demotion gate).
+PRIORITY_AXIS = "security_priority"
+
+
+def is_demotion(pre_priority, post_priority) -> bool:
+	"""Any STRICT decrease in priority rank — P0 > P1 > P2 > P3 > not G-SEC
+	(§12 A-R3-2). Every one needs attribution, consequence reasoning and the
+	expanded Overview disclosure."""
+	return model.priority_rank(post_priority) < model.priority_rank(pre_priority)
 
 
 def classify_move(pre_view, post_view) -> str:
@@ -511,6 +610,7 @@ def build_view(corpus_pre) -> dict:
 	convergence needs beyond this it reads out of corpus.pre.json by id —
 	and §3.3 REQUIRES that read before any cut of an item whose `has_body`
 	is true."""
+	check_corpus_versions(corpus_pre)
 	tools = []
 	for view in corpus_pre.get("tools") or []:
 		if not isinstance(view, dict):
@@ -540,6 +640,11 @@ def build_view(corpus_pre) -> dict:
 			"watch_hit_item_ids": list(view.get("watch_hit_item_ids") or []),
 			"self_test_tagged_suggestion_ids": list(
 				view.get("self_test_tagged_suggestion_ids") or []),
+			# G-SEC (VIEW 2): the validator's tier, its usage record and the
+			# usage-confirmed items — what C5 and the demotion gate read.
+			"security_tier": copy.deepcopy(view.get("security_tier")),
+			"usage_evidence": copy.deepcopy(view.get("usage_evidence") or []),
+			"usage_item_ids": list(view.get("usage_item_ids") or []),
 		})
 	return {
 		"run_id": corpus_pre.get("run_id"),
@@ -595,6 +700,7 @@ def build_tables(corpus_pre) -> dict:
 	numbers the seven checks' attestations are verified against. The
 	validator computes the raw material and never acts on it; neither does
 	this function."""
+	check_corpus_versions(corpus_pre)
 	sug_tool = _suggestion_tool_map(corpus_pre)
 
 	# C7 (a) — same file, several suggestions. Whether they are one change or
@@ -761,6 +867,7 @@ def contract() -> dict:
 			"scope": spec["scope"],
 		} for op, spec in OPS.items()},
 		"bucket_capable_ops": list(BUCKET_CAPABLE_OPS),
+		"prominence_capable_ops": list(PROMINENCE_CAPABLE_OPS),
 		"cut_ops": list(CUT_OPS),
 		"item_text_fields": list(ITEM_TEXT_FIELDS),
 		"suggestion_text_fields": list(SUGGESTION_TEXT_FIELDS),
@@ -769,6 +876,20 @@ def contract() -> dict:
 		"claim_directions": list(CLAIM_DIRECTIONS),
 		"bucket_restrictiveness": dict(BUCKET_RESTRICTIVENESS),
 		"gate_consequence_tokens": list(GATE_CONSEQUENCE_TOKENS),
+		"prominence_consequence_tokens": list(PROMINENCE_CONSEQUENCE_TOKENS),
+		"never_write_fields": list(NEVER_WRITE_FIELDS),
+		"priority_axis": PRIORITY_AXIS,
+		"demotion": "any strict decrease in priority rank (P0 > P1 > P2 > P3 > not "
+			"G-SEC): attributed over prominence_capable_ops, every attributed edit's "
+			"reason.body names a prominence_consequence_token (else E-GATE-UNREASONED, "
+			"gate kind demotion), disclosed expanded on the Overview; still failing at "
+			"attempt 5 → forced conservative with a forced_display snapshot of the pre "
+			"priority",
+		"corpus_versions": "corpus.pre's contract_version and converge_version must be "
+			"exactly this code's (type int, equal) — else CorpusVersionError: "
+			"apply_converge raises at every attempt, --check/--submit exit 4 recording "
+			"no attempt, build_view/build_tables refuse, assembly renders "
+			"artefacts_inconsistent",
 		"evidence_finding_codes": list(EVIDENCE_FINDING_CODES),
 		"checks": {name: {"ops": list(spec["ops"]), "attests": spec["attests"]}
 			for name, spec in CHECKS},

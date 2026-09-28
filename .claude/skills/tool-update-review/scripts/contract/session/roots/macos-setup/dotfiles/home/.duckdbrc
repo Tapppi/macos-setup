@@ -1,0 +1,3 @@
+-- duckdb CLI init: read by every interactive duckdb session here
+.timer on
+.maxrows 200

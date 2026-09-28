@@ -60,11 +60,22 @@ import converge as contract  # noqa: E402
 import items as model  # noqa: E402
 import validate_items  # noqa: E402
 
-# Path-resolution codes are excluded from the phase-5 element comparison:
-# the applier is a pure function with no roots to resolve against, and path
-# resolution is the stage-3 validator's job. An edit cannot introduce a new
-# path claim invisibly — the touched field is in the derived diff either way.
-_PATH_CODES = frozenset({"E-EVID-404", "W-EVID-ROOT"})
+# Resolver-dependent codes are excluded from the phase-5 element comparison:
+# the applier is a pure function FORBIDDEN file access (it re-validates under
+# `validate_items.NO_IO_RESOLVER`, which raises none of these), and path
+# resolution and usage grounding are the stage-3 validator's job. Subtracting
+# them from the pre side too keeps the comparison like-for-like — otherwise
+# every touched item carrying one would raise E-APPLY-SCHEMA. An edit cannot
+# introduce a new path or usage claim invisibly — the touched field is in the
+# derived diff either way, and a usage entry grounds only by the carried
+# `usage_evidence` record.
+_PATH_CODES = frozenset({"E-EVID-404", "W-EVID-ROOT", "E-USAGE-UNGROUNDED",
+	"W-USAGE-INSTALL-ONLY"})
+
+# I-22's codes, re-checked after edits over every suggestion of every tool
+# whose items changed (phase 5a).
+_I22_CODES = ("E-SUG-REQUIRED-UNGROUNDED", "E-SUG-SERVES-UNRESOLVED",
+	"E-REQUIREMENT-CONTRADICTED")
 
 # Diff granularity: these item fields are compared one level deep when both
 # sides are objects, so declared scope and `merge.changed_fields` can speak
@@ -722,7 +733,10 @@ def _derive_diff(corpus_pre, corpus_post):
 # ── phase 5: element re-validation ──────────────────────────────────────────
 def _element_codes(item, tool_id, link_count, watch_topics) -> set:
 	findings = validate_items.Findings()
-	resolver = validate_items.RootResolver([])
+	# The explicit no-I/O mode: `RootResolver([])` would still answer an
+	# absolute evidence path with `os.path.exists`, and I-23 would read the
+	# file. The applier re-grounds nothing; it reads the carried record.
+	resolver = validate_items.NO_IO_RESOLVER
 	try:
 		validate_items.validate_item(copy.deepcopy(item), tool_id, item.get("id"),
 			link_count, findings, resolver, watch_topics)
@@ -743,6 +757,63 @@ def _suggestion_codes(sug, tool_id) -> set:
 def _pre_codes_for(corpus_pre, element_id) -> set:
 	return {f.get("code") for f in corpus_pre.get("findings") or []
 		if isinstance(f, dict) and f.get("item_id") == element_id} - _PATH_CODES
+
+
+# ── G-SEC: display priority across the edit (§4.7) ─────────────────────────
+def _prominence(corpus_pre, corpus_post) -> dict:
+	"""tool_id → {"from", "to", "lost"} for every tool whose G-SEC display
+	priority differs pre vs post, EITHER direction — read through
+	`converge.axis_value`. `lost` is any strict decrease in rank (§12
+	A-R3-2), leaving G-SEC included."""
+	out = {}
+	pre_views = {v.get("id"): v for v in corpus_pre.get("tools") or []
+		if isinstance(v, dict)}
+	for post_view in corpus_post.get("tools") or []:
+		if not isinstance(post_view, dict):
+			continue
+		pre_view = pre_views.get(post_view.get("id"))
+		if pre_view is None:
+			continue
+		before = contract.axis_value(pre_view, contract.PRIORITY_AXIS)
+		after = contract.axis_value(post_view, contract.PRIORITY_AXIS)
+		if before != after:
+			out[post_view["id"]] = {"from": before, "to": after,
+				"lost": contract.is_demotion(before, after)}
+	return out
+
+
+def _post_edit_i22(corpus_pre, corpus_post, diff) -> list:
+	"""W-EDIT-SCHEMA notes for I-22 codes an item edit newly causes on a
+	suggestion of the same tool (phase 5a'). Both sides computed by the ONE
+	rule, `validate_items.i22_findings`, over the pre and post items."""
+	notes = []
+	item_edits = {}
+	for entry in diff:
+		if entry.get("kind") == "item":
+			item_edits.setdefault(entry["tool_id"], set()).update(entry.get("edit_ids") or ())
+	pre_views = {v.get("id"): v for v in corpus_pre.get("tools") or [] if isinstance(v, dict)}
+	for post_view in corpus_post.get("tools") or []:
+		tool_id = post_view.get("id") if isinstance(post_view, dict) else None
+		if tool_id not in item_edits or tool_id not in pre_views:
+			continue
+		pre_items = _elements_by_id(pre_views[tool_id], "items")
+		post_items = _elements_by_id(post_view, "items")
+		pre_sugs = _elements_by_id(pre_views[tool_id], "suggestions")
+		implicating = sorted(item_edits[tool_id])
+		for sug_id, sug in sorted(_elements_by_id(post_view, "suggestions").items()):
+			if not model.needs_a_decision(assemble.suggestion_kind(sug)):
+				continue
+			before = {code for code, _, _ in validate_items.i22_findings(
+				pre_sugs.get(sug_id, sug), pre_items)}
+			after = validate_items.i22_findings(sug, post_items)
+			for code, message, _ in after:
+				if code in before:
+					continue
+				notes.append(_finding("W-EDIT-SCHEMA",
+					"{} on {} now carries {} after an item edit: {}".format(
+						sug_id, tool_id, code, message),
+					edit_id=implicating[0] if implicating else None, tool_id=tool_id))
+	return notes
 
 
 # ── attribution (§3.4b) ─────────────────────────────────────────────────────
@@ -775,7 +846,8 @@ def _tool_state(corpus_pre, tool_id, edits_by_id, order, index_kind_cache):
 			_apply_edit(shell, edit, index_post)
 			index_post = _Index(shell)
 	contract.derive_tool_state(view, watch_topics_cache(corpus_pre, index_kind_cache, tool_id))
-	return {axis: view.get(axis) for axis in contract.MOVED_AXES}
+	return {axis: contract.axis_value(view, axis)
+		for axis in contract.MOVED_AXES + (contract.PRIORITY_AXIS,)}
 
 
 def watch_topics_cache(corpus_pre, cache, tool_id):
@@ -794,20 +866,25 @@ def _attribute(corpus_pre, tool_id, moved_axes, tool_edit_ids, edits_by_id, orde
 	cannot explain its own output and the gate fails closed."""
 	pre_view = next(v for v in corpus_pre["tools"] if v.get("id") == tool_id)
 	tool_order = [eid for eid in order if eid in tool_edit_ids]
-	# Only a bucket-capable op can change a derived axis: every axis is a
+	# Only a bucket-capable op can change a derived MOVED axis: every one is a
 	# function of tags, severity, `local` enums, `security` blocks and the
 	# suggestion/item sets — text trims, evidence moves, annotations and
-	# flags touch none of those inputs. Restricting the replay to the capable
-	# set keeps leave-one-out at k replays and the subset search tractable.
-	capable = [eid for eid in tool_order
-		if edits_by_id[eid].get("op") in contract.BUCKET_CAPABLE_OPS]
+	# flags touch none of those inputs. Display priority reads one input more,
+	# `local.evidence` (a usage confirmation), so its candidate set adds
+	# `move_evidence` (`PROMINENCE_CAPABLE_OPS`). Restricting the replay to
+	# the capable set keeps leave-one-out at k replays and the subset search
+	# tractable.
 	out = {}
 	for axis, change in moved_axes.items():
+		ops = contract.PROMINENCE_CAPABLE_OPS if axis == contract.PRIORITY_AXIS \
+			else contract.BUCKET_CAPABLE_OPS
+		capable = [eid for eid in tool_order if edits_by_id[eid].get("op") in ops]
+		pre_value = contract.axis_value(pre_view, axis)
 		causes = []
 		for edit_id in capable:
 			kept = _closure_without(edits_by_id, tool_order, {edit_id})
 			state = _tool_state(corpus_pre, tool_id, edits_by_id, kept, topics_cache)
-			if state[axis] == pre_view.get(axis):
+			if state[axis] == pre_value:
 				causes.append(edit_id)
 		joint = False
 		if not causes and capable:
@@ -821,7 +898,7 @@ def _attribute(corpus_pre, tool_id, moved_axes, tool_edit_ids, edits_by_id, orde
 					kept = _closure_without(edits_by_id, tool_order, set(combo))
 					state = _tool_state(corpus_pre, tool_id, edits_by_id, kept,
 						topics_cache)
-					if state[axis] == pre_view.get(axis):
+					if state[axis] == pre_value:
 						found = list(combo)
 						break
 				if found:
@@ -830,7 +907,7 @@ def _attribute(corpus_pre, tool_id, moved_axes, tool_edit_ids, edits_by_id, orde
 				kept = _closure_without(edits_by_id, tool_order, set(capable))
 				state = _tool_state(corpus_pre, tool_id, edits_by_id, kept,
 					topics_cache)
-				if state[axis] == pre_view.get(axis):
+				if state[axis] == pre_value:
 					found = list(capable)
 			if found:
 				causes, joint = found, True
@@ -1241,7 +1318,7 @@ def _counterweight(pre_view, attributed, edits_by_id) -> dict:
 
 
 def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
-		attribution, forced):
+		attribution, forced, prominence=None):
 	"""§4.2's per-tool `convergence` block, written into converge-effect.json
 	for the report stage to merge onto each tool. The label is DERIVED here,
 	never declared by convergence."""
@@ -1259,10 +1336,28 @@ def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 		is_forced = tool_id in forced
 		final_auto = (post_v.get("initial_review_bucket") == "security_auto"
 			or bool(post_v.get("initial_pre_accept")))
-		if not edit_ids and not record and not final_auto and not is_forced:
+		changed_priority = (prominence or {}).get(tool_id)
+		if not edit_ids and not record and not final_auto and not is_forced \
+				and not changed_priority:
 			continue
 		block = {"touched": bool(edit_ids), "edit_ids": edit_ids}
 		attributed = attribution.get(tool_id, {})
+		if changed_priority:
+			# G-SEC: every priority change, either direction, with its
+			# attribution — the page discloses the losses expanded (O3).
+			pre_tier = pre_v.get("security_tier")
+			post_tier = post_v.get("security_tier")
+			block["security_priority"] = {
+				"from": changed_priority["from"],
+				"to": changed_priority["to"],
+				"lost": changed_priority["lost"],
+				"reasons_from": list(pre_tier["reasons"])
+					if model.valid_security_tier(pre_tier) else [],
+				"reasons_to": list(post_tier["reasons"])
+					if model.valid_security_tier(post_tier) else [],
+				"attributed_to": sorted(attributed.get(contract.PRIORITY_AXIS, {})
+					.get("attributed_to", [])),
+			}
 		if record:
 			bucket_attr = attributed.get("initial_review_bucket", {})
 			block["bucket"] = {
@@ -1314,15 +1409,28 @@ def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 				}
 			else:
 				inputs = post_v.get("bucket_inputs") or {}
-				block["auto_update_label"] = {
-					"source": "rule",
-					"headline": "Auto by rule — the deterministic path alone put it here.",
-					"reasoning": ("Reached {} with zero attributed convergence edits: "
+				post_tier = post_v.get("security_tier")
+				if model.valid_security_tier(post_tier):
+					# G-SEC: accepted BY TIER — name the tier and its reasons,
+					# not security_only/impact, which no longer decide it.
+					reasoning = ("Reached {} with zero attributed convergence edits: "
+						"a positively identified security fix, security tier {} "
+						"(priority {}; reasons {}), version_delta={}, risk_level={}, "
+						"no pre-acceptance bars.").format(
+							post_v.get("initial_review_bucket"), post_tier["tier"],
+							post_tier["priority"], ", ".join(post_tier["reasons"]),
+							inputs.get("version_delta"), post_v.get("risk_level"))
+				else:
+					reasoning = ("Reached {} with zero attributed convergence edits: "
 						"security_only={}, impact={}, version_delta={}, risk_level={}, "
 						"no pre-acceptance bars.").format(
 							post_v.get("initial_review_bucket"),
 							inputs.get("security_only"), inputs.get("impact"),
-							inputs.get("version_delta"), post_v.get("risk_level")),
+							inputs.get("version_delta"), post_v.get("risk_level"))
+				block["auto_update_label"] = {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": reasoning,
 					"confidence": "high",
 					"edit_ids": [],
 					"quotes": [],
@@ -1345,7 +1453,13 @@ def apply_converge(corpus_pre, converge, attempt=1, terminal=False,
 	remain. With `terminal=True` (attempt 5) the answer is always one of the
 	three shipping states — implicated edits are excluded rather than
 	bouncing, gate failures force the conservative option, and everything
-	excluded or forced is first-class in `convergence_status`."""
+	excluded or forced is first-class in `convergence_status`.
+
+	A corpus.pre built under another contract or converge version raises
+	`converge.CorpusVersionError` FIRST, at every attempt, the terminal one
+	included — it never returns a shipping state, so no corpus.post and no
+	effect is ever derived from a stale corpus (G-SEC §4.7)."""
+	contract.check_corpus_versions(corpus_pre)
 	submission = _resolve_submission(corpus_pre, converge)
 	if submission:
 		if not terminal:
@@ -1567,6 +1681,17 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 					edit_id=implicating[0] if implicating else None,
 					tool_id=tool_id))
 
+	# phase 5a' — I-22 after edits (G-SEC): a `required`/`proposed` reading
+	# depends on the CURRENT severity of the items a suggestion serves, and a
+	# rerate, merge or delete can change it. Re-run I-22 over every suggestion
+	# of every tool whose items changed: a code present post and not pre is a
+	# W-EDIT-SCHEMA note implicating the item edit — not E-APPLY-SCHEMA: a
+	# reasoned rerate of an `incompatible` item is legitimate convergence
+	# work, the reading already fails safe (an ungrounded `required` stays
+	# required), and any acceptance or prominence change it causes meets the
+	# permissive gate or the demotion gate below.
+	notes.extend(_post_edit_i22(corpus_pre, corpus_post, diff))
+
 	# phase 5b — differential recomputation over every tool (§3.4a), with the
 	# pre side re-derived through the SAME function and checked against the
 	# validator's record (E-APPLY-INTERNAL).
@@ -1593,12 +1718,14 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 			continue
 		topics = watch_topics_cache(corpus_pre, topics_cache, tool_id)
 		pre_check = contract.derive_tool_state(copy.deepcopy(pre_view), topics)
-		for axis in contract.MOVED_AXES:
+		# The self-check covers the G-SEC tier (whole object) and the bars too:
+		# the validator stored both, and the applier re-derives both.
+		for axis in contract.MOVED_AXES + ("security_tier", "pre_accept_bars"):
 			if pre_check.get(axis) != pre_view.get(axis):
 				critical.append(_finding("E-APPLY-INTERNAL",
-					"re-deriving {} on corpus.pre gives {!r}; the validator "
-					"recorded {!r} — an applier bug, not the agent's".format(
-						axis, pre_check.get(axis), pre_view.get(axis)),
+					"re-deriving {} on corpus.pre gives {}; the validator "
+					"recorded {} — an applier bug, not the agent's".format(
+						axis, _short(pre_check.get(axis)), _short(pre_view.get(axis))),
 					tool_id=tool_id))
 		contract.derive_tool_state(post_view, topics)
 		axes = {}
@@ -1608,15 +1735,26 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 		if axes:
 			moved[tool_id] = {"axes": axes,
 				"direction": contract.classify_move(pre_view, post_view)}
+	# G-SEC display priority — its own pass, independent of `moved`
+	# (MOVED_AXES is unchanged, so a priority-only change never enters it).
+	prominence = _prominence(corpus_pre, corpus_post)
 
 	# phase 5c — leave-one-out attribution and the hard gate (§3.4b/c)
 	attribution = {}
 	gate = []
-	for tool_id, record in sorted(moved.items()):
+	for tool_id in sorted(set(prominence) - set(moved)):
 		tool_edit_ids = {eid for eid in order
 			if (edits_by_id[eid].get("target") or {}).get("tool_id") == tool_id}
 		attribution[tool_id] = _attribute(corpus_pre, tool_id,
-			{axis: change for axis, change in record["axes"].items()},
+			{contract.PRIORITY_AXIS: prominence[tool_id]},
+			tool_edit_ids, edits_by_id, order, topics_cache)
+	for tool_id, record in sorted(moved.items()):
+		tool_edit_ids = {eid for eid in order
+			if (edits_by_id[eid].get("target") or {}).get("tool_id") == tool_id}
+		axes_to_attribute = {axis: change for axis, change in record["axes"].items()}
+		if tool_id in prominence:
+			axes_to_attribute[contract.PRIORITY_AXIS] = prominence[tool_id]
+		attribution[tool_id] = _attribute(corpus_pre, tool_id, axes_to_attribute,
 			tool_edit_ids, edits_by_id, order, topics_cache)
 		pre_view = next(v for v in corpus_pre["tools"] if v.get("id") == tool_id)
 		post_view = next(v for v in corpus_post["tools"] if v.get("id") == tool_id)
@@ -1627,7 +1765,8 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 		if not entered_auto and not gained_accept:
 			continue
 		would_have = {"bucket": post_view.get("initial_review_bucket"),
-			"pre_accept": bool(post_view.get("initial_pre_accept"))}
+			"pre_accept": bool(post_view.get("initial_pre_accept")),
+			"priority": model.security_priority(post_view)}
 		for axis in (["initial_review_bucket"] if entered_auto else []) \
 				+ (["initial_pre_accept"] if gained_accept else []):
 			axis_attr = attribution[tool_id].get(axis, {})
@@ -1637,7 +1776,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 					"{} moved permissively on {} with no attributable cause".format(
 						tool_id, axis), tool_id=tool_id))
 				gate.append({"tool_id": tool_id, "code": "E-GATE-UNATTRIBUTED",
-					"would_have_been": would_have})
+					"kind": "permissive", "would_have_been": would_have})
 				continue
 			for edit_id in causes:
 				claim = edits_by_id[edit_id].get("bucket_claim") or {}
@@ -1647,7 +1786,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 						"moves_bucket: false".format(edit_id, tool_id),
 						edit_id=edit_id, tool_id=tool_id))
 					gate.append({"tool_id": tool_id, "code": "E-GATE-UNDECLARED",
-						"would_have_been": would_have})
+						"kind": "permissive", "would_have_been": would_have})
 				body = ((edits_by_id[edit_id].get("reason") or {})
 					.get("body") or "").lower()
 				if not any(token in body for token in contract.GATE_CONSEQUENCE_TOKENS):
@@ -1656,7 +1795,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 						"permissive move it causes on {}".format(edit_id, tool_id),
 						edit_id=edit_id, tool_id=tool_id))
 					gate.append({"tool_id": tool_id, "code": "E-GATE-UNREASONED",
-						"would_have_been": would_have})
+						"kind": "permissive", "would_have_been": would_have})
 		# W-EDIT-CLAIM — the prediction vs the computed truth, non-gated
 		for edit_id in sorted(tool_edit_ids):
 			claim = edits_by_id[edit_id].get("bucket_claim")
@@ -1669,6 +1808,43 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 				notes.append(_finding("W-EDIT-CLAIM",
 					"{} claimed the bucket move on {} but is not attributed for "
 					"it".format(edit_id, tool_id), edit_id=edit_id, tool_id=tool_id))
+	# The demotion gate (G-SEC, O3, §12 A-R3-2): ANY strict decrease in a
+	# fix's display priority is consequential. It must be attributable, and
+	# every attributed edit's reason.body must name the consequence. No new
+	# code and no new submission field: E-GATE-UNATTRIBUTED /
+	# E-GATE-UNREASONED with the gate record's `kind: "demotion"`.
+	# E-GATE-UNDECLARED does not apply — `moves_bucket` is about the bucket,
+	# and `move_evidence` may not carry a claim at all.
+	for tool_id, change in sorted(prominence.items()):
+		if not change["lost"]:
+			continue
+		post_view = next(v for v in corpus_post["tools"] if v.get("id") == tool_id)
+		would_have = {"bucket": post_view.get("initial_review_bucket"),
+			"pre_accept": bool(post_view.get("initial_pre_accept")),
+			"priority": change["to"]}
+		causes = attribution.get(tool_id, {}).get(contract.PRIORITY_AXIS, {}) \
+			.get("attributed_to") or []
+		if not causes:
+			critical.append(_finding("E-GATE-UNATTRIBUTED",
+				"{}'s security priority fell {} → {} with no attributable "
+				"cause".format(tool_id, change["from"], change["to"] or "not G-SEC"),
+				tool_id=tool_id))
+			gate.append({"tool_id": tool_id, "code": "E-GATE-UNATTRIBUTED",
+				"kind": "demotion", "would_have_been": would_have})
+			continue
+		for edit_id in causes:
+			body = ((edits_by_id[edit_id].get("reason") or {}).get("body") or "")
+			body = body.lower() if isinstance(body, str) else ""
+			if not any(token in body for token in contract.PROMINENCE_CONSEQUENCE_TOKENS):
+				critical.append(_finding("E-GATE-UNREASONED",
+					"{} lowers {}'s security priority {} → {} and its reason.body "
+					"does not name that consequence ({})".format(edit_id, tool_id,
+						change["from"], change["to"] or "not G-SEC",
+						"/".join(contract.PROMINENCE_CONSEQUENCE_TOKENS)),
+					edit_id=edit_id, tool_id=tool_id))
+				gate.append({"tool_id": tool_id, "code": "E-GATE-UNREASONED",
+					"kind": "demotion", "would_have_been": would_have})
+
 	# claims of movement on tools that did not move at all
 	for edit_id in order:
 		claim = edits_by_id[edit_id].get("bucket_claim")
@@ -1731,7 +1907,8 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 	return {"state": "converged", "critical": critical, "notes": notes,
 		"rejected": rejected, "applied": list(order),
 		"superseded": sorted(superseded), "corpus_post": corpus_post,
-		"diff": diff, "moved": moved, "attribution": attribution,
+		"diff": diff, "moved": moved, "prominence": prominence,
+		"attribution": attribution,
 		"gate": gate, "computed_effect": computed_effect,
 		"effect": None}
 
@@ -1808,15 +1985,36 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		if tool_id in forced:
 			continue
 		view = next(v for v in corpus_post["tools"] if v.get("id") == tool_id)
+		pre_view = next((v for v in corpus_pre["tools"] if v.get("id") == tool_id), {})
 		forced[tool_id] = {
 			"forced_bucket": contract.FORCED_BUCKET,
 			"forced_pre_accept": False,
 			"would_have_been": entry["would_have_been"],
 			"code": entry["code"],
+			"kind": entry.get("kind", "permissive"),
 		}
+		# §12 A-R3-3 — the forced-display snapshot: the PRE-convergence
+		# priority, its reasons and their labels, so the page keeps the
+		# prominence the gate could not see justified — even when the forced
+		# view is no longer G-SEC (the sole fix deleted). Display only:
+		# acceptance stays off (FORCED_BUCKET, forced_pre_accept False, and
+		# the `forced-conservative` hold/bar), and `security_tier` stays the
+		# PURE recomputation of the forced view — never overwritten by the
+		# snapshot — so `valid_security_tier` and stored == security_tier(view)
+		# both still hold. The page shows the snapshot's priority when present.
+		pre_tier = pre_view.get("security_tier")
+		if model.valid_security_tier(pre_tier):
+			forced[tool_id]["forced_display"] = {
+				"priority": pre_tier["priority"],
+				"reasons": list(pre_tier["reasons"]),
+				"labels": {code: model.TIER_LABELS[code]["text"]
+					for code in pre_tier["reasons"]},
+			}
 		view["initial_review_bucket"] = contract.FORCED_BUCKET
 		view["initial_pre_accept"] = False
 		view["forced_conservative"] = forced[tool_id]
+		view["security_tier"] = model.security_tier(view)
+		view["pre_accept_bars"] = model.pre_accept_bars(view)
 	state = "degraded_gate" if forced else "converged"
 	standing = [r for r in result["rejected"]]
 	standing_findings = [f for f in result["critical"]
@@ -1857,6 +2055,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		if axes:
 			moved[view["id"]] = {"axes": axes,
 				"direction": contract.classify_move(pre_view, view)}
+	result = dict(result, prominence=_prominence(corpus_pre, corpus_post))
 	effect = _build_effect(corpus_pre, corpus_post, converge, result, edits_by_id,
 		attempt, state, moved, forced, status)
 	return {"state": state, "critical": standing_findings, "notes": result["notes"],
@@ -1887,7 +2086,8 @@ def _build_effect(corpus_pre, corpus_post, converge, result, edits_by_id,
 		"moved": moved,
 		"attribution": result["attribution"],
 		"tools": _build_tool_blocks(corpus_pre, corpus_post, result["applied"],
-			edits_by_id, moved, result["attribution"], forced),
+			edits_by_id, moved, result["attribution"], forced,
+			result.get("prominence") or {}),
 		"corpus_effect": shipped_effect,
 		"findings": result["notes"] + [f for f in result["critical"]],
 		"convergence_status": status,
@@ -2038,6 +2238,14 @@ def main(argv=None) -> int:
 			file=sys.stderr)
 		return 4
 	corpus_pre = _read_json(pre_path)
+	# A stale corpus is an operator condition, not the agent's error: refuse
+	# BEFORE the attempt counter is read, so it never consumes one of the
+	# five (G-SEC §4.7).
+	try:
+		contract.check_corpus_versions(corpus_pre)
+	except contract.CorpusVersionError as exc:
+		print("Error: {}".format(exc), file=sys.stderr)
+		return 4
 	draft_path = args.check or args.submit
 	try:
 		converge = _read_json(draft_path)

@@ -17,3 +17,16 @@ cask "cursor-cli"
 ## ============================================================================
 ## Editors
 brew "neovim"
+
+## ============================================================================
+## SECURITY TIERS (contract fixture — G-SEC)
+## ============================================================================
+brew "elevated"
+brew "libpq"
+brew "duckdb"
+brew "tier-required"
+brew "tier-incompatible"
+brew "tier-risk"
+brew "tier-fix"
+brew "tier-held-p2"
+brew "tier-p0-lost"

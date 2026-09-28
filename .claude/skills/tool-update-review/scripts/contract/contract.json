@@ -1,5 +1,5 @@
 {
-	"contract_version": 3,
+	"contract_version": 4,
 	"scope": {
 		"items_are": "outward-facing changes only — project-internal maintenance (repo upkeep, convention changes, documentation updates) never becomes an item (REDESIGN.md L3). This is a scoping rule about what counts as an item, enforced in the schema and the agent guidelines; it is NOT a trimming rule and there is no filter for it in the validator.",
 		"intel_brewfile": "out of this tool entirely (REDESIGN.md B1); I-17 checks it",
@@ -94,6 +94,25 @@
 			"changing-thing",
 			"limb",
 			"unwitnessed"
+		],
+		"security_natures": [
+			"fix",
+			"boundary",
+			"unclear"
+		],
+		"suggestion_requirements": [
+			"required",
+			"proposed"
+		],
+		"evidence_roles": [
+			"usage",
+			"install",
+			"reference"
+		],
+		"config_states": [
+			"up_to_date",
+			"needs_attention",
+			"unknown"
 		]
 	},
 	"memory_proposals": {
@@ -181,23 +200,273 @@
 		"clause_order": [
 			"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
 			"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
-			"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+			"2. security_tier(view) is not None -> security_auto if the stored tier is valid and tier in ACCEPTED_TIERS (P1, P2, P3) else security_mixed   [G-SEC - P0 and held tools are never in the auto strip]",
+			"2b. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [pre-G-SEC, unchanged: D2/E3 - a barred tool falls through to security_mixed]",
 			"3. has_security -> security_mixed",
 			"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
 			"5. -> routine"
 		],
-		"d2_routing": "clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles."
+		"d2_routing": "clause-2b guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles. Since CONTRACT 4 D2 governs every tool that is NOT G-SEC — including one whose only security content is not a positively identified fix.",
+		"g_sec_routing": "a version-source tool with a positively identified security fix (security.nature == fix, grounded by I-21) or a vendor-declared unread security release is G-SEC: security_tier(view) computes its display priority (P0-P3) and its acceptance holds once, the validator stores it, and clause 2 routes it — an accepted tier (P1, P2, P3) to security_auto, P0 and held to security_mixed. D2's elevated bar and the reaches limb do not apply to it; the priority panel is the visibility D2 asked for. enum-invalid and container-unreadable bar every tool, G-SEC or not (R7)."
 	},
 	"pre_accept": {
-		"predicate": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in finalize_tool and carried on the tool; assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
+		"predicate": "sug is baseline AND auto_runnable AND items.accepts_baseline(tool) — one predicate for assembly and convergence, reading security_tier (key required: null or an object), pre_accept_bars (key required: the EXPORTED bars, never recomputed), the bucket, risk_level and forced_conservative. Not G-SEC (security_tier null): bucket != \"attention\" AND risk_level == \"low\" AND not content_losing AND pre_accept_bars == [] AND not forced_conservative. G-SEC: the tier is valid AND tier in ACCEPTED_TIERS AND not content_losing AND pre_accept_bars == [] AND not forced_conservative. A malformed tier ({} included) is never accepted. The bars and the tier are the VALIDATOR'S, copied by finalize_tool — assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
 		"bars": [
+			"required-edit",
+			"pinned",
+			"incompatible-unfixed",
+			"content-losing",
+			"security-item-risk",
+			"watch-hit",
+			"enum-invalid",
+			"container-unreadable",
+			"research-incomplete",
+			"not-runnable",
+			"forced-conservative",
+			"tier-uncomputed",
 			"elevated-risk",
-			"reaches-item",
-			"local-enum-invalid",
-			"watch-hit"
+			"reaches-item"
 		],
-		"bars_source": "the validator's view — finalize_tool computes tool.pre_accept_bars from the same inputs the bucket's clause 2 read, and apply_pre_accept refuses (KeyError) a tool nobody computed them for rather than recomputing from assembled items"
+		"bars_source": "the validator's view — the validator stores view.pre_accept_bars (a G-SEC view's are its tier's P0 reasons and holds, read off the stored tier), finalize_tool COPIES it onto the tool, and accepts_baseline refuses (KeyError) a tool nobody computed them for rather than recomputing from assembled items"
 	},
+	"security_tier": {
+		"tiers": [
+			"P0",
+			"held",
+			"P1",
+			"P2",
+			"P3"
+		],
+		"priorities": [
+			"P0",
+			"P1",
+			"P2",
+			"P3"
+		],
+		"priority_rank": {
+			"P0": 4,
+			"P1": 3,
+			"P2": 2,
+			"P3": 1
+		},
+		"accepted": [
+			"P1",
+			"P2",
+			"P3"
+		],
+		"highlight": [
+			"P0",
+			"P1",
+			"P2"
+		],
+		"reasons": [
+			{
+				"code": "required-edit",
+				"level": "P0"
+			},
+			{
+				"code": "pinned",
+				"level": "P0"
+			},
+			{
+				"code": "incompatible-unfixed",
+				"level": "P0"
+			},
+			{
+				"code": "edit-proposed",
+				"level": "P1"
+			},
+			{
+				"code": "config-attention",
+				"level": "P1"
+			},
+			{
+				"code": "relevant-fix",
+				"level": "P2"
+			},
+			{
+				"code": "fix-with-breaking",
+				"level": "P2"
+			},
+			{
+				"code": "fix-with-risk",
+				"level": "P2"
+			},
+			{
+				"code": "vendor-unread",
+				"level": "P2"
+			},
+			{
+				"code": "fix",
+				"level": "P3"
+			}
+		],
+		"holds": [
+			"content-losing",
+			"security-item-risk",
+			"watch-hit",
+			"enum-invalid",
+			"container-unreadable",
+			"research-incomplete",
+			"not-runnable",
+			"forced-conservative",
+			"tier-uncomputed"
+		],
+		"tool_level_codes": [
+			"pinned",
+			"vendor-unread",
+			"config-attention",
+			"content-losing",
+			"research-incomplete",
+			"not-runnable",
+			"forced-conservative",
+			"tier-uncomputed"
+		],
+		"labels": {
+			"required-edit": {
+				"glyph": "⛔",
+				"text": "Needs you — a config change is required before this upgrade works"
+			},
+			"pinned": {
+				"glyph": "⛔",
+				"text": "Needs you — pinned; lift the pin to take the fix"
+			},
+			"incompatible-unfixed": {
+				"glyph": "⛔",
+				"text": "Needs you — breaks something here; no config fix proposed"
+			},
+			"edit-proposed": {
+				"glyph": "⚙",
+				"text": "Accepted — config edits proposed, not applied unless you accept them"
+			},
+			"config-attention": {
+				"glyph": "⚙",
+				"text": "Accepted — config needs attention — no edit proposed"
+			},
+			"relevant-fix": {
+				"glyph": "◎",
+				"text": "Accepted — the fix touches how you use it"
+			},
+			"fix-with-breaking": {
+				"glyph": "◎",
+				"text": "Accepted — also has a breaking change: take a quick look"
+			},
+			"fix-with-risk": {
+				"glyph": "◎",
+				"text": "Accepted — also carries a risk here"
+			},
+			"vendor-unread": {
+				"glyph": "◎",
+				"text": "Accepted — vendor declares a security release without details"
+			},
+			"fix": {
+				"glyph": "·",
+				"text": "Accepted — a security fix, nothing flagged for this setup"
+			}
+		},
+		"shape": {
+			"tier": "P0|held|P1|P2|P3",
+			"priority": "P0|P1|P2|P3",
+			"reasons": "array<reason>, fixed order — every reason that holds",
+			"holds": "array<hold>, fixed order — every hold that applies",
+			"ids": "{reason or hold: [item or suggestion id]} — [] for tool-level ones",
+			"fix_item_ids": "array<item id> — the grounded fixes"
+		},
+		"precedence": [
+			"applicability: >=1 item is_positive_fix, or vendor_silent_categories contains security; else security_tier is null (not G-SEC)",
+			"priority: the highest level with a reason — computed WITHOUT the holds",
+			"tier: P0 if priority is P0; else held if any hold; else the priority",
+			"accepted iff tier in ACCEPTED_TIERS",
+			"a held tool keeps its priority on the page (R1) and is never counted as accepted"
+		],
+		"default": {
+			"tier": "held",
+			"priority": "P3",
+			"reasons": [],
+			"holds": [
+				"tier-uncomputed"
+			],
+			"ids": {
+				"tier-uncomputed": []
+			},
+			"fix_item_ids": []
+		},
+		"install_declaration_patterns": [
+			{
+				"kind": "brewfile",
+				"section": null,
+				"pattern": "^\\s*(?:brew|cask|tap|mas)\\s+\"(?:[^\"/\\s]+/[^\"/\\s]+/)?{name}\""
+			},
+			{
+				"kind": "tool-versions",
+				"section": null,
+				"pattern": "^\\s*{name}\\s+\\S"
+			},
+			{
+				"kind": "mise-toml",
+				"section": "tools",
+				"pattern": "^\\s*\"?(?:[A-Za-z0-9_-]+:)?{name}(?:@[^\"\\s=]*)?\"?\\s*="
+			},
+			{
+				"kind": "mise-toml",
+				"section": "tools.{name}",
+				"pattern": "^\\s*\\S"
+			},
+			{
+				"kind": "mise-toml",
+				"section": null,
+				"pattern": "^\\s*\\[\\s*tools\\.\\\"?{name}\\\"?\\s*\\]"
+			},
+			{
+				"kind": "mise-toml",
+				"section": "top",
+				"pattern": "^\\s*tools\\.\\\"?{name}\\\"?\\s*="
+			},
+			{
+				"kind": "shell",
+				"section": null,
+				"pattern": "\\bbrew\\s+(?:install|reinstall|upgrade)\\b[^#\\n]*?(?<![\\w./@-]){name}(?![\\w.-])"
+			},
+			{
+				"kind": "shell",
+				"section": null,
+				"pattern": "\\bmise\\s+(?:use|install)\\b[^#\\n]*?(?<![\\w./@:-]){name}(?:@\\S*)?(?![\\w.-])"
+			}
+		],
+		"usage_file_kinds": {
+			"brewfile": "Brewfile",
+			"tool-versions": ".tool-versions",
+			"mise-toml": "mise.toml, .mise.toml, mise.local.toml, mise/config.toml",
+			"shell": "*.sh, .bash*",
+			"other": "anything else — no line is an install declaration; a #-led line is still a comment"
+		},
+		"usage_file_max_bytes": 1000000,
+		"supersedes": [
+			"reaches-item for G-SEC tools",
+			"D2 elevated bar for G-SEC tools",
+			"local-enum-invalid (renamed enum-invalid)"
+		]
+	},
+	"suggestion_fields": [
+		{
+			"name": "requirement",
+			"type": "enum",
+			"required": "no (absent reads proposed)",
+			"note": "required|proposed — on an action suggestion (edit, structural, or any unrecognized kind); read by nothing on a memory or upgrade suggestion"
+		},
+		{
+			"name": "serves",
+			"type": "array<item ref>",
+			"required": "yes if requirement == required (I-22)",
+			"note": "the items this edit answers: the part of the derived item id after `#` (`cve:CVE-2026-1234`, `slug:krun-arm`) or the full id"
+		},
+		{
+			"name": "serves_item_ids",
+			"type": "array<string>",
+			"required": "validator-assigned",
+			"note": "`serves` resolved against the tool's item ids; the original stays verbatim. No convergence op can write it"
+		}
+	],
 	"watch_hit": {
 		"authored_by": "the per-tool checker",
 		"grounded_against": "{session_dir}/watch-items.json — a copy of the machine-global store, taken when {{STANDING_NOTES}} is filled",
@@ -359,6 +628,18 @@
 			"note": "prose, commands, upstream refs"
 		},
 		{
+			"name": "local.evidence[].role",
+			"type": "enum",
+			"required": "no",
+			"note": "usage|install|reference — on an object-form entry; absent makes no usage claim"
+		},
+		{
+			"name": "local.evidence[].quote",
+			"type": "string",
+			"required": "yes iff role == usage",
+			"note": "a VERBATIM excerpt of the whole line(s) showing the use (I-23)"
+		},
+		{
 			"name": "security",
 			"type": "object|null",
 			"required": "yes iff 'security' in tags",
@@ -393,6 +674,12 @@
 			"type": "bool",
 			"required": "yes if security present",
 			"note": "vendor/CISA says so"
+		},
+		{
+			"name": "security.nature",
+			"type": "enum",
+			"required": "yes if security present",
+			"note": "fix|boundary|unclear — only a GROUNDED fix (I-21) makes a tool G-SEC"
 		},
 		{
 			"name": "watch_hit",
@@ -611,6 +898,11 @@
 			"invariant": "I-14",
 			"summary": "`direction: reaches` with no evidence"
 		},
+		"E-REQUIREMENT-CONTRADICTED": {
+			"severity": "error",
+			"invariant": "I-22",
+			"summary": "a `proposed` edit serving an `incompatible` item — it reads `required`"
+		},
 		"E-RESEARCH-NOTARRAY": {
 			"severity": "error",
 			"invariant": null,
@@ -635,6 +927,11 @@
 			"severity": "error",
 			"invariant": "I-4",
 			"summary": "`security` block on an item not tagged `security`"
+		},
+		"E-SEC-FIX-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-21",
+			"summary": "`security.nature: fix` without the `security` tag, a `security` block and a cited `change`"
 		},
 		"E-SEC-RATING-UNBASED": {
 			"severity": "error",
@@ -661,6 +958,16 @@
 			"invariant": "I-16",
 			"summary": "a structural op's precondition does not hold"
 		},
+		"E-SUG-REQUIRED-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-22",
+			"summary": "a `required` edit that serves no resolved `incompatible` item"
+		},
+		"E-SUG-SERVES-UNRESOLVED": {
+			"severity": "error",
+			"invariant": "I-22",
+			"summary": "a `serves` entry naming no item of this tool"
+		},
 		"E-TAG-NONE": {
 			"severity": "error",
 			"invariant": "I-11",
@@ -670,6 +977,11 @@
 			"severity": "error",
 			"invariant": "I-11",
 			"summary": "a tag outside the closed set (kept verbatim)"
+		},
+		"E-USAGE-UNGROUNDED": {
+			"severity": "error",
+			"invariant": "I-23",
+			"summary": "a `usage` evidence entry that does not resolve, cannot be read, or whose `quote` is absent or not in the file"
 		},
 		"E-VALIDATOR-CRASH": {
 			"severity": "error",
@@ -711,6 +1023,11 @@
 			"invariant": null,
 			"summary": "a wrong-typed array member was quarantined, not dropped"
 		},
+		"W-SEC-FIX-NOID": {
+			"severity": "warning",
+			"invariant": "I-21",
+			"summary": "a grounded fix with no CVE, advisory or anchored id"
+		},
 		"W-SHAPE-COERCED": {
 			"severity": "warning",
 			"invariant": null,
@@ -730,6 +1047,11 @@
 			"severity": "warning",
 			"invariant": null,
 			"summary": "title is longer than the glanceable bar; detail belongs in body"
+		},
+		"W-USAGE-INSTALL-ONLY": {
+			"severity": "warning",
+			"invariant": "I-23",
+			"summary": "a `usage` quote whose every occurrence lies on the tool's own install declaration or on comment lines"
 		},
 		"W-WATCH-HIT-UNRAISED": {
 			"severity": "warning",

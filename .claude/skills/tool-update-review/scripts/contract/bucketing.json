@@ -1,26 +1,48 @@
 {
-	"about": "The bucket and the pre-accept predicate, as a truth table. Published for the same reason the comparator is: the field contract was pinned once and two tracks still drifted on the thing the fields feed. clause_order is the strict precedence; cases drive validate_items.compute_initial_bucket() and assemble.apply_pre_accept() directly, and test_items.py asserts clause_order's length equals the number of return statements in the function, so a clause added without a fixture row is caught.",
-	"d2_routing": "clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles.",
+	"about": "The bucket and the pre-accept predicate, as a truth table. Published for the same reason the comparator is: the field contract was pinned once and two tracks still drifted on the thing the fields feed. clause_order is the strict precedence; cases drive items.security_tier(), items.pre_accept_bars(), validate_items.compute_initial_bucket(), assemble.apply_pre_accept() and converge.initial_pre_accept() directly, in the validator's order (tier, bars, bucket), and test_items.py asserts clause_order's length equals the number of return statements in the function, so a clause added without a fixture row is caught. A case's `stored_tier` stands for a tier the validator stored that the harness must NOT recompute (the view default). expect.tier / expect.priority are null for a tool that is not G-SEC.",
+	"d2_routing": "clause-2b guard (orchestrator ruling, overriding the spec's variants A and B): a barred security-only tool falls through to security_mixed — never to attention (A), and never left in security_auto with a cleared checkbox (B). security_mixed already renders an expanded card with an 'affects this setup' badge and correct counters; anything downstream of finalize_tool desyncs the Overview tiles. Since CONTRACT 4 D2 governs every tool that is NOT G-SEC — including one whose only security content is not a positively identified fix.",
+	"g_sec_routing": "a version-source tool with a positively identified security fix (security.nature == fix, grounded by I-21) or a vendor-declared unread security release is G-SEC: security_tier(view) computes its display priority (P0-P3) and its acceptance holds once, the validator stores it, and clause 2 routes it — an accepted tier (P1, P2, P3) to security_auto, P0 and held to security_mixed. D2's elevated bar and the reaches limb do not apply to it; the priority panel is the visibility D2 asked for. enum-invalid and container-unreadable bar every tool, G-SEC or not (R7).",
 	"clause_order": [
 		"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
 		"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
-		"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+		"2. security_tier(view) is not None -> security_auto if the stored tier is valid and tier in ACCEPTED_TIERS (P1, P2, P3) else security_mixed   [G-SEC - P0 and held tools are never in the auto strip]",
+		"2b. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [pre-G-SEC, unchanged: D2/E3 - a barred tool falls through to security_mixed]",
 		"3. has_security -> security_mixed",
 		"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
 		"5. -> routine"
 	],
-	"pre_accept": "sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND risk_level == \"low\" AND not content_losing(tool) AND not tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in finalize_tool and carried on the tool; assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
+	"pre_accept": "sug is baseline AND auto_runnable AND items.accepts_baseline(tool) — one predicate for assembly and convergence, reading security_tier (key required: null or an object), pre_accept_bars (key required: the EXPORTED bars, never recomputed), the bucket, risk_level and forced_conservative. Not G-SEC (security_tier null): bucket != \"attention\" AND risk_level == \"low\" AND not content_losing AND pre_accept_bars == [] AND not forced_conservative. G-SEC: the tier is valid AND tier in ACCEPTED_TIERS AND not content_losing AND pre_accept_bars == [] AND not forced_conservative. A malformed tier ({} included) is never accepted. The bars and the tier are the VALIDATOR'S, copied by finalize_tool — assembly never recomputes them from assembled items, which can hold synthesized reaching security items the bucket never saw",
 	"pre_accept_bars": {
 		"order": [
+			"required-edit",
+			"pinned",
+			"incompatible-unfixed",
+			"content-losing",
+			"security-item-risk",
+			"watch-hit",
+			"enum-invalid",
+			"container-unreadable",
+			"research-incomplete",
+			"not-runnable",
+			"forced-conservative",
+			"tier-uncomputed",
 			"elevated-risk",
-			"reaches-item",
-			"local-enum-invalid",
-			"watch-hit"
+			"reaches-item"
 		],
-		"elevated-risk": "risk_level == \"elevated\" — bars everywhere (D2 core)",
-		"reaches-item": "an item that ITSELF carries security content (the security tag, or a security block) with local.direction == \"reaches\" — the measured case: cask:wireshark-app's reaching item IS the security item. Never any reaching item, and never any reaching item on a security tool: the measurement was taken on security items only, and a re-widened predicate quietly un-compresses the routine population (919 words per decision is the number this redesign exists to kill)",
-		"local-enum-invalid": "an item whose local.direction or local.effect is present but outside the vocabulary — the fail-closed twin of reaches-item: a one-character drift (\"reachs\", \"risks\") on a real CVE item removes the reaches-item bar and the impact signal at once, and E-ENUM-INVALID alone bars nothing. An unverifiable claim fails closed here as everywhere in this contract (an unchecked watch_hit bars for exactly this reason). Mirrors E-ENUM-INVALID's trigger: present and not in the vocabulary; absent is E-FIELD-MISSING's business",
-		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3)"
+		"required-edit": "G-SEC P0: an action suggestion reads required (I-22) — the upgrade does not work here without it",
+		"pinned": "G-SEC P0: the tool is pinned; the fix cannot land",
+		"incompatible-unfixed": "G-SEC P0: an incompatible item no required edit serves",
+		"content-losing": "G-SEC hold: content_losing(view) is non-empty (D1)",
+		"security-item-risk": "G-SEC hold: a security item (tag or block) whose local.effect is risk — the upgrade adds a security risk here (§7.27)",
+		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3); every tool",
+		"enum-invalid": "any tier-input enum present and outside its vocabulary — severity, local.direction, local.effect, security.nature, evidence role, suggestion kind, requirement, config_status.state. The renamed and widened local-enum-invalid: a one-character drift (\"reachs\", \"risks\") on a real CVE item removes the reaches-item bar and the impact signal at once, and E-ENUM-INVALID alone bars nothing. An unverifiable claim fails closed here as everywhere in this contract. Every tool, G-SEC or not (R7)",
+		"container-unreadable": "an item's local/security/change/watch_hit present and not an object, tags present and not an array, or an action suggestion's serves present and not an array — `local: \"risk\"` used to read as no local claim at all. Every tool (R7)",
+		"research-incomplete": "G-SEC hold: the checker reported research_error (R3)",
+		"not-runnable": "G-SEC hold: no runnable upgrade — accepted would claim a run the skill cannot make (R3)",
+		"forced-conservative": "G-SEC hold: written by the applier on a degraded-gate tool (R3)",
+		"tier-uncomputed": "the view default, or a malformed stored tier — never observed unless the tier function could not run on the final view",
+		"elevated-risk": "NOT G-SEC only: risk_level == \"elevated\" (D2 core)",
+		"reaches-item": "NOT G-SEC only: an item that ITSELF carries security content (the security tag, or a security block) with local.direction == \"reaches\" — the measured case: cask:wireshark-app's reaching item IS the security item. Never any reaching item, and never any reaching item on a security tool: the measurement was taken on security items only, and a re-widened predicate quietly un-compresses the routine population"
 	},
 	"cases": [
 		{
@@ -49,7 +71,9 @@
 				"bucket": "routine",
 				"pre_accept": true,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -78,7 +102,9 @@
 				"bucket": "attention",
 				"pre_accept": false,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -107,7 +133,9 @@
 				"bucket": "attention",
 				"pre_accept": false,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -140,7 +168,9 @@
 				"bucket": "routine",
 				"pre_accept": true,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -181,7 +211,9 @@
 				],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -216,7 +248,9 @@
 				],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -258,7 +292,9 @@
 				],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -293,7 +329,9 @@
 				],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -343,7 +381,9 @@
 				"bars": [
 					"elevated-risk",
 					"reaches-item"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -374,7 +414,9 @@
 				"content_losing": [],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -415,7 +457,9 @@
 				],
 				"bars": [
 					"elevated-risk"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -445,7 +489,9 @@
 				"bucket": "routine",
 				"pre_accept": false,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -493,7 +539,9 @@
 				"content_losing": [],
 				"bars": [
 					"reaches-item"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -544,7 +592,9 @@
 				"content_losing": [],
 				"bars": [
 					"watch-hit"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -590,7 +640,9 @@
 				"content_losing": [],
 				"bars": [
 					"watch-hit"
-				]
+				],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -631,7 +683,9 @@
 				"bucket": "routine",
 				"pre_accept": true,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -689,7 +743,9 @@
 				"bucket": "security_mixed",
 				"pre_accept": true,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -746,7 +802,9 @@
 				"bucket": "security_auto",
 				"pre_accept": true,
 				"content_losing": [],
-				"bars": []
+				"bars": [],
+				"tier": null,
+				"priority": null
 			}
 		},
 		{
@@ -799,8 +857,2414 @@
 				"pre_accept": false,
 				"content_losing": [],
 				"bars": [
-					"local-enum-invalid"
+					"enum-invalid"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "G-SEC P0 required-edit — an edit REQUIRED for the upgrade to work; never accepted, first on the page",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "required",
+						"serves_item_ids": [
+							"brew:x#slug:inc"
+						]
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:inc",
+						"tags": [
+							"breaking"
+						],
+						"severity": "incompatible",
+						"change": {
+							"citation": "The old key is refused"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
 				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"required-edit"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC P0 pinned — the fix cannot land while the pin holds",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				],
+				"pinned": true
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"pinned"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC P0 incompatible-unfixed — breaks something here and no required edit serves it",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:inc",
+						"tags": [
+							"breaking"
+						],
+						"severity": "incompatible",
+						"change": {
+							"citation": "The old key is refused"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"incompatible-unfixed"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC P1 edit-proposed — accepted; the proposed edit needs its own click",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "proposed",
+						"serves_item_ids": []
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P1",
+				"priority": "P1"
+			}
+		},
+		{
+			"name": "G-SEC P1 config-attention — needs_attention with NO action suggestion (§7.29), accepted",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "needs_attention"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P1",
+				"priority": "P1"
+			}
+		},
+		{
+			"name": "G-SEC P2 relevant-fix — a fix confirmed against a grounded usage entry",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit",
+							"evidence": [
+								{
+									"path": "dotfiles/home/.pg_service.conf",
+									"role": "usage",
+									"quote": "host=db"
+								}
+							]
+						}
+					}
+				],
+				"usage_evidence": [
+					{
+						"entry": {
+							"path": "dotfiles/home/.pg_service.conf",
+							"role": "usage",
+							"quote": "host=db"
+						},
+						"matched_lines": [
+							3
+						]
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P2",
+				"priority": "P2"
+			}
+		},
+		{
+			"name": "G-SEC P2 fix-with-breaking — any breaking item, at any severity (R4)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:brk",
+						"tags": [
+							"breaking"
+						],
+						"severity": "info",
+						"change": {
+							"citation": "A flag is removed"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P2",
+				"priority": "P2"
+			}
+		},
+		{
+			"name": "G-SEC P2 fix-with-risk — a NON-security item whose effect here is risk (O1)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:feat",
+						"tags": [
+							"feature"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Telemetry on by default"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P2",
+				"priority": "P2"
+			}
+		},
+		{
+			"name": "G-SEC P2 vendor-unread — a vendor-declared, unread security release is accepted and highlighted (§7.28)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [],
+				"vendor_silent_categories": [
+					"security"
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "unknown",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P2",
+				"priority": "P2"
+			}
+		},
+		{
+			"name": "G-SEC P3 fix — nothing flagged for this setup; accepted in the collapsed strip",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P3",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held content-losing — attention (D1), priority kept",
+			"view": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": "x"
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"quarantined-content"
+				],
+				"bars": [
+					"content-losing"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held security-item-risk — a security item whose effect here is risk (§7.27)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:scope",
+						"tags": [
+							"security"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Credentials move to a shared access group"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						},
+						"security": {
+							"rating": "unknown",
+							"rating_basis": "unrated",
+							"nature": "boundary"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"security-item-risk"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held watch-hit — the claim bars (E3), priority kept",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:w",
+						"tags": [
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "c"
+						},
+						"watch_hit": {
+							"topic": "t"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"watch-hit"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held enum-invalid — an unreadable severity on the fix itself",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "critical",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held container-unreadable — `local: \"risk\"` (adversarial 2)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:l",
+						"tags": [
+							"fix"
+						],
+						"severity": "info",
+						"change": {
+							"citation": "c"
+						},
+						"local": "risk"
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"container-unreadable"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held research-incomplete — the checker reported research_error (R3)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				],
+				"research_error": "timed out"
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "unknown",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"research-incomplete"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held not-runnable — nothing can run the upgrade (R3)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "standalone",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": false
+			},
+			"auto_runnable": false,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"not-runnable"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC held forced-conservative — a degraded-gate tool keeps its priority and is not accepted",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:brk",
+						"tags": [
+							"breaking"
+						],
+						"severity": "info",
+						"change": {
+							"citation": "A flag is removed"
+						}
+					}
+				],
+				"forced_conservative": {
+					"code": "E-GATE-UNREASONED"
+				}
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"forced-conservative"
+				],
+				"tier": "held",
+				"priority": "P2"
+			}
+		},
+		{
+			"name": "G-SEC held tier-uncomputed — the stored view default is read, never recomputed",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"tier-uncomputed"
+				],
+				"tier": "held",
+				"priority": "P3"
+			},
+			"stored_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [],
+				"holds": [
+					"tier-uncomputed"
+				],
+				"ids": {
+					"tier-uncomputed": []
+				},
+				"fix_item_ids": []
+			}
+		},
+		{
+			"name": "G-SEC a malformed stored tier ({}) is never accepted and bars as tier-uncomputed",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"tier-uncomputed"
+				],
+				"tier": null,
+				"priority": null
+			},
+			"stored_tier": {}
+		},
+		{
+			"name": "matrix: a security block without `nature` is not a fix — pre-G-SEC, D2's reaches bar holds",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"reaches-item"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix: `nature` out of vocabulary is not a fix, and bars as enum-invalid",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"nature": "fixed"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix: an UNGROUNDED fix (no cited change) counts for nothing — the pre-G-SEC security_auto route",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": ""
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix: an orphan-block fix (no security tag) is not a fix",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix R7: a routine tool with `local` of the wrong type is barred — container-unreadable, every tool",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#slug:r",
+						"tags": [
+							"fix"
+						],
+						"severity": "info",
+						"change": {
+							"citation": "c"
+						},
+						"local": "none"
+					}
+				]
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"container-unreadable"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix R7: a routine tool with an unreadable severity is barred — enum-invalid, every tool",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#slug:r",
+						"tags": [
+							"fix"
+						],
+						"severity": "minor",
+						"change": {
+							"citation": "c"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "matrix R7: a routine tool with an unreadable config_status.state is barred",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "stale"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#slug:r",
+						"tags": [
+							"fix"
+						],
+						"severity": "info",
+						"change": {
+							"citation": "c"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "G-SEC matrix: an unreadable `requirement` reads REQUIRED, and holds as enum-invalid",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "mandatory",
+						"serves_item_ids": []
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"required-edit",
+					"enum-invalid"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC matrix: a `required` edit serving nothing is ungrounded but still required (P0)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "required",
+						"serves_item_ids": []
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"required-edit"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC matrix: a `proposed` edit serving an incompatible item is contradicted and reads required",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "proposed",
+						"serves_item_ids": [
+							"brew:x#slug:inc"
+						]
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:inc",
+						"tags": [
+							"breaking"
+						],
+						"severity": "incompatible",
+						"change": {
+							"citation": "The old key is refused"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"required-edit"
+				],
+				"tier": "P0",
+				"priority": "P0"
+			}
+		},
+		{
+			"name": "G-SEC matrix: an ABSENT requirement reads proposed — upgrade only by default",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit"
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P1",
+				"priority": "P1"
+			}
+		},
+		{
+			"name": "G-SEC matrix: `serves` of the wrong type holds as container-unreadable",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edit",
+						"requirement": "proposed",
+						"serves_item_ids": [],
+						"serves": "cve:CVE-2026-50001"
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"container-unreadable"
+				],
+				"tier": "held",
+				"priority": "P1"
+			}
+		},
+		{
+			"name": "G-SEC matrix: an unrecognized suggestion kind is an action AND holds as enum-invalid",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [
+					{
+						"id": "brew:x:edit",
+						"kind": "edits"
+					}
+				],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": "held",
+				"priority": "P1"
+			}
+		},
+		{
+			"name": "G-SEC matrix: config_status.state wrong-typed holds as enum-invalid",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": [
+						"needs_attention"
+					]
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC matrix: an unreadable evidence `role` holds as enum-invalid",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit",
+							"evidence": [
+								{
+									"path": "dotfiles/home/.pg_service.conf",
+									"role": "uses",
+									"quote": "host=db"
+								}
+							]
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"enum-invalid"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC matrix: a forged usage entry matches no grounded record — no highlight, P3",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit",
+							"evidence": [
+								{
+									"path": "dotfiles/home/.pg_service.conf",
+									"role": "usage",
+									"quote": "host=forged"
+								}
+							]
+						}
+					}
+				],
+				"usage_evidence": [
+					{
+						"entry": {
+							"path": "dotfiles/home/.pg_service.conf",
+							"role": "usage",
+							"quote": "host=db"
+						},
+						"matched_lines": [
+							3
+						]
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P3",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC matrix: a usage-confirmed fix whose OWN effect is risk earns no relevant-fix — and holds",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk",
+							"evidence": [
+								{
+									"path": "dotfiles/home/.pg_service.conf",
+									"role": "usage",
+									"quote": "host=db"
+								}
+							]
+						}
+					}
+				],
+				"usage_evidence": [
+					{
+						"entry": {
+							"path": "dotfiles/home/.pg_service.conf",
+							"role": "usage",
+							"quote": "host=db"
+						},
+						"matched_lines": [
+							3
+						]
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_mixed",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [
+					"security-item-risk"
+				],
+				"tier": "held",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC matrix: config_status with no state makes no claim — P3",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P3",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC route: fix + major version + elevated risk is P3 and accepted — elevated is not a bar on a fix (R6)",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "major",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "warning",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit",
+							"evidence": [
+								{
+									"path": "Brewfile",
+									"role": "install"
+								}
+							]
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P3",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC route: a reaching fix with only install evidence is P3 — the reaches bar is non-G-SEC only",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "benefit",
+							"evidence": [
+								{
+									"path": "Brewfile",
+									"role": "install"
+								}
+							]
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "security_auto",
+				"pre_accept": true,
+				"content_losing": [],
+				"bars": [],
+				"tier": "P3",
+				"priority": "P3"
+			}
+		},
+		{
+			"name": "G-SEC route: a finding source is never G-SEC, whatever its items say",
+			"view": {
+				"quarantine": [],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew-health",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					}
+				],
+				"health_expected": true
+			},
+			"axes": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"risk_level": "low",
+				"runnable": false
+			},
+			"auto_runnable": false,
+			"expect": {
+				"bucket": "routine",
+				"pre_accept": false,
+				"content_losing": [],
+				"bars": [],
+				"tier": null,
+				"priority": null
+			}
+		},
+		{
+			"name": "coherence: attention with a tier implies content-losing — and a surviving incompatible keeps P0 (adversarial 6)",
+			"view": {
+				"quarantine": [
+					{
+						"field": "items",
+						"item_id": null,
+						"value": 7
+					}
+				],
+				"validator_error": null,
+				"spec_violations": [],
+				"source": "brew",
+				"version_delta": "patch",
+				"config_status": {
+					"state": "up_to_date"
+				},
+				"suggestions": [],
+				"items": [
+					{
+						"id": "brew:x#cve:CVE-2026-50001",
+						"tags": [
+							"security",
+							"fix"
+						],
+						"severity": "notable",
+						"change": {
+							"citation": "Fix a heap overflow (CVE-2026-50001)"
+						},
+						"security": {
+							"rating": "medium",
+							"rating_basis": "nvd",
+							"exploited_in_wild": false,
+							"nature": "fix"
+						}
+					},
+					{
+						"id": "brew:x#slug:inc",
+						"tags": [
+							"breaking"
+						],
+						"severity": "incompatible",
+						"change": {
+							"citation": "The old key is refused"
+						},
+						"local": {
+							"direction": "reaches",
+							"effect": "risk"
+						}
+					}
+				]
+			},
+			"axes": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"risk_level": "elevated",
+				"runnable": true
+			},
+			"auto_runnable": true,
+			"expect": {
+				"bucket": "attention",
+				"pre_accept": false,
+				"content_losing": [
+					"quarantined-content"
+				],
+				"bars": [
+					"incompatible-unfixed",
+					"content-losing"
+				],
+				"tier": "P0",
+				"priority": "P0"
 			}
 		}
 	]

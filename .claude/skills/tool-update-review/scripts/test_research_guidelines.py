@@ -756,5 +756,70 @@ class DocumentedScopeTests(GuidelineTestCase):
 		self.assertSays("not in this repo", read("references", "item-schema.md"))
 
 
+# ── G-SEC checker guidance (pass 4b §2.8) ───────────────────────────────────
+class GSecGuidanceTests(GuidelineTestCase):
+	"""The checker-facing contract changed with CONTRACT 4 — `security.nature`,
+	suggestion `requirement`/`serves`, evidence `role`/`quote`, a validated
+	`config_status.state` — and the guidance reaches BOTH documents a checker
+	reads in the same commit, so neither can lag the contract."""
+
+	def _vocab(self):
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		return model
+
+	def test_nature_is_explained_in_both_documents(self):
+		for name, text in (("research.md", RESEARCH), ("template", TEMPLATE)):
+			with self.subTest(name):
+				self.assertSays('"boundary"' if name == "template" else "`boundary`", text)
+				self.assertSays("vulnerability fixed or mitigated" if name == "template"
+					else "fixes or mitigates a vulnerability", text)
+		self.assertSays('nature: "fix"|"boundary"|"unclear"', TEMPLATE)
+		self.assertSays("E-SEC-FIX-UNGROUNDED", RESEARCH)
+		for worked in ("brew:iproute2mac", "brew:libpq` 18.6", "Gatekeeper/notarization"):
+			self.assertSays(worked, RESEARCH)
+
+	def test_requirement_and_serves_are_explained_in_both_documents(self):
+		self.assertSays("`requirement` and `serves` — is the edit needed for the upgrade "
+			"to work?", RESEARCH)
+		self.assertSays("E-REQUIREMENT-CONTRADICTED", RESEARCH)
+		self.assertSays("podman/libkrun's ARM-only build", RESEARCH)
+		self.assertSays("renamed config key", RESEARCH)
+		self.assertSays('"required" — the upgrade stops working here without it', TEMPLATE)
+		self.assertSays('"proposed" — everything else (absent reads proposed)', TEMPLATE)
+
+	def test_role_and_quote_are_explained_in_both_documents(self):
+		self.assertSays("Evidence `role` and `quote` — usage, not installation.", RESEARCH)
+		self.assertSays("`.path:40` putting `psql` on PATH is `install`", RESEARCH)
+		self.assertSays('role: "usage"|"install"|"reference"', TEMPLATE)
+		self.assertSays("{path, lines, note, role, quote}", TEMPLATE)
+
+	def test_the_quote_is_the_whole_line_in_both_documents(self):
+		self.assertSays("Quote the whole line (or lines) that shows the use, not a fragment",
+			RESEARCH)
+		self.assertSays("the WHOLE line(s) showing the use, verbatim", TEMPLATE)
+
+	def test_config_state_is_validated_in_both_documents(self):
+		self.assertSays("The state vocabulary is validated.", RESEARCH)
+		self.assertSays('state is exactly "up_to_date" | "needs_attention" | "unknown"',
+			TEMPLATE)
+
+	def test_a_pinned_fix_is_explained(self):
+		self.assertSays("pinned; lift the pin to take the fix", RESEARCH)
+
+	def test_the_documented_vocabularies_are_the_models(self):
+		"""Live, not text: the values the template prints are the published
+		vocabularies — a widened contract fails here, not in a run."""
+		model = self._vocab()
+		self.assertSays("nature: " + "|".join('"{}"'.format(v)
+			for v in model.SECURITY_NATURES), TEMPLATE)
+		self.assertSays("role: " + "|".join('"{}"'.format(v)
+			for v in model.EVIDENCE_ROLES), TEMPLATE)
+		self.assertSays(" | ".join('"{}"'.format(v) for v in model.CONFIG_STATES), TEMPLATE)
+		for value in model.SUGGESTION_REQUIREMENTS:
+			self.assertSays('"{}" — '.format(value), TEMPLATE)
+
+
 if __name__ == "__main__":
 	unittest.main()

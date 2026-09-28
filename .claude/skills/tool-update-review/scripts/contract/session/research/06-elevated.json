@@ -44,7 +44,8 @@
 					"advisory_id": null,
 					"rating": "high",
 					"rating_basis": "nvd",
-					"exploited_in_wild": false
+					"exploited_in_wild": false,
+					"nature": "boundary"
 				}
 			}
 		],

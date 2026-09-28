@@ -119,7 +119,8 @@
 					"advisory_id": null,
 					"rating": "high",
 					"rating_basis": "unrated",
-					"exploited_in_wild": "yes"
+					"exploited_in_wild": "yes",
+					"nature": "fix"
 				}
 			},
 			"an item written as a bare string"
@@ -145,6 +146,10 @@
 				"id": "brew:nonconforming:no-block",
 				"kind": "structural",
 				"title": "A structural suggestion with no structural block",
+				"requirement": "required",
+				"serves": [
+					"slug:no-such-item"
+				],
 				"target_files": [],
 				"rationale": "The block is the reviewable artifact and it is absent."
 			},

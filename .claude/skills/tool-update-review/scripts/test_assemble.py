@@ -43,14 +43,17 @@ Groups, in the order references/assembly.md documents the computations:
    run.
 """
 import contextlib
+import copy
 import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import assemble  # noqa: E402
@@ -409,15 +412,17 @@ def _fixtures():
 			# pre-accepted**: a field whose entire purpose is "look at this"
 			# would guarantee nobody does.
 			#
-			# Both halves are asserted. `has_security` is what makes it visible;
-			# `risk_level` is what stops it being auto-approved on the way past,
-			# because `apply_pre_accept` accepts on `risk_level == "low"` and
-			# widening `has_security` alone leaves that untouched.
+			# Since G-SEC the USER'S ruling decides the outcome (§7.28: a
+			# vendor-declared but unread security release is ACCEPTED and
+			# HIGHLIGHTED): a P2 `vendor-unread` tier, in security_auto,
+			# pre-accepted — and listed in the priority panel, which is the
+			# "look at this" the field exists for. `has_security` is still
+			# what makes it security work at all.
 			_cand("brew:s13", "s13", "brew", "1.0.0", "1.0.1"),
 			{"id": "brew:s13", "links": [], "vendor_silent_categories": ["security"],
 				"items": [_item("feat", tags=["feature"], severity="notable")]},
 			{"has_security": True, "security_only": False, "risk_level": "elevated",
-				"review_bucket": "security_mixed", "pre_accept": False},
+				"review_bucket": "security_auto", "pre_accept": True},
 		),
 		(
 			"S14 an item whose local effect is a risk at notable is impact",
@@ -515,48 +520,48 @@ class SemanticClassificationTests(unittest.TestCase):
 				if tool["review_bucket"] == "security_mixed":
 					self.assertTrue(inputs["has_security"], label)
 				if tool["review_bucket"] == "security_auto":
-					self.assertTrue(inputs["has_security"] and inputs["security_only"], label)
-					self.assertEqual(inputs["impact"], "none", label)
+					self.assertTrue(inputs["has_security"], label)
+					tier = tool["security_tier"]
+					if tier is None:
+						# pre-G-SEC: clause 2b's own conjuncts explain it
+						self.assertTrue(inputs["security_only"], label)
+						self.assertEqual(inputs["impact"], "none", label)
+					else:
+						# G-SEC: the recorded tier explains it (clause 2)
+						self.assertIn(tier["tier"], model.ACCEPTED_TIERS, label)
 
-	def test_vendor_silent_security_is_never_quietly_pre_accepted(self):
-		"""The named regression, asserted as its consequence rather than its
-		mechanism: a tool whose vendor admitted undetailed security content must
-		be visible as security work AND must not be auto-approved on the way
-		past. Both halves are needed, and the second is easy to miss — moving
-		the tool into a security bucket makes it visible, but `pre_accept`
-		reads `risk_level`, so without the risk limb it arrives already
-		accepted in the section it was just made visible in.
-
-		Since D2, the risk limb reaches everywhere: `pre_accept` requires
-		`risk_level == "low"` outright, and the bucket's security_auto clause
-		asks the same bar, so an elevated tool can neither pre-accept nor
-		land in the pre-accepting bucket. This fixture misses clause 2 anyway
-		because its `feature` item makes `security_only` false — the shape
-		that motivated the has_security widening.
-		`test_security_only_silence_is_barred_from_the_pre_accepting_bucket`
-		pins the security-only side."""
+	def test_vendor_silent_security_is_accepted_and_never_quiet(self):
+		"""The named regression, asserted as its consequence: a tool whose
+		vendor admitted undetailed security content must be VISIBLE as
+		security work. Until G-SEC that also meant "never pre-accepted"; the
+		user then ruled (§7.28) that a vendor-declared but unread security
+		release is ACCEPTED and HIGHLIGHTED. So it starts accepted — and is
+		never quiet: its P2 `vendor-unread` tier puts it in the priority panel,
+		labelled by that reason, one press from rejected."""
 		_, candidate, research, _ = _fixture("S13")
 		tool = build_one(candidate, research)
-		self.assertIn(tool["review_bucket"], ("security_auto", "security_mixed"))
+		self.assertEqual(tool["review_bucket"], "security_auto")
 		self.assertTrue(tool["security"]["has_security"])
 		self.assertTrue(tool["bucket_inputs"]["has_security"])
-		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+		self.assertEqual(tool["security_tier"]["reasons"], ["vendor-unread"])
+		self.assertIn(model.security_priority(tool), model.HIGHLIGHT_PRIORITIES)
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
-	def test_security_only_silence_is_barred_from_the_pre_accepting_bucket(self):
-		"""The corrected precedence (D2). This shape used to pin the opposite:
-		a vendor-silent-security tool whose readable items are all
-		security-only reached `security_auto` and was pre-accepted,
-		`risk_level: elevated` notwithstanding — clause 2 returned before risk
-		was read, and `pre_accept` accepted on the bucket alone. The bar now
-		holds it out of the one bucket whose name means "no decision needed":
-		it falls through to `security_mixed`, renders expanded, and the
-		elevated risk clears `pre_accept`."""
+	def test_security_only_silence_is_accepted_by_tier_at_elevated_risk(self):
+		"""The precedence history, pinned: this shape was pre-accepted before
+		D2 by a clause that returned before risk was read, then held out of
+		`security_auto` by D2's elevated bar. G-SEC supersedes D2 for a
+		vendor-declared unread security release (§7.28): it is accepted BY
+		TIER — the bucket and the checkbox read the P2 tier, not the elevated
+		risk (R6) — and highlighted, so it is never the silent auto-accept the
+		first version was."""
 		tool = build_one(_cand("brew:vs", "vs", "brew", "1.0.0", "1.0.1"),
 			{"id": "brew:vs", "links": [], "vendor_silent_categories": ["security"],
 				"items": [_item("a", tags=["chore"], severity="info")]})
 		self.assertEqual(tool["risk_level"], "elevated")
-		self.assertEqual(tool["review_bucket"], "security_mixed")
-		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+		self.assertEqual(tool["security_tier"]["tier"], "P2")
+		self.assertEqual(tool["review_bucket"], "security_auto")
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_a_content_losing_tool_is_never_pre_accepted(self):
 		"""The quarantine route, end to end: one bare string in items[] used to
@@ -2125,6 +2130,28 @@ class ConvergenceMergeTests(unittest.TestCase):
 			"method_notes_global": {"kept": [], "cut": [], "demoted_to_tool": []},
 		}}
 
+	def test_a_g_sec_tool_converges_and_carries_its_tier(self):
+		"""G-SEC through the merge: the validator now OWNS `pre_accept_bars`
+		and `security_tier`, so the fresh-vs-frozen comparison includes them
+		(CORPUS_PRE_VIEW_FIELDS no longer excludes the bars) — a converged
+		session must stay `converged`, never `artefacts_inconsistent`, and the
+		tool must carry the post view's tier."""
+		collect, research = self._collect_and_research()
+		research[0]["items"][0]["security"]["nature"] = "fix"
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self.assertEqual(corpus_pre["tools"][0]["security_tier"]["tier"], "P3")
+		self.assertNotIn("pre_accept_bars", assemble.CORPUS_PRE_VIEW_FIELDS)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "converged",
+			report["convergence"].get("detail"))
+		tool = report["tools"][0]
+		self.assertEqual(tool["security_tier"], corpus_post["tools"][0]["security_tier"])
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+
 	def test_the_ledgers_memory_dispositions_ride_on_the_report(self):
 		"""Criterion 18's input: render.py routes a promoted note to the
 		global store, and the page marks RE-HOMED / RESTORED provenance —
@@ -2314,6 +2341,176 @@ class ConvergenceMergeTests(unittest.TestCase):
 			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
 			"converge-effect.json": effect2, "converge.json": self._converge_json()})
 		self.assertTrue(assemble.baseline_upgrade(report2["tools"][0])["pre_accept"])
+
+
+# ── G-SEC: the tier through assembly, and the fixture session end to end ────
+def run_fixture_pipeline(tmp, submission=None, terminal=False, attempt=1,
+		mutate_pre=None, patch_validator=None):
+	"""The published fixture session, copied to `tmp`, through the whole
+	pipeline: validate → build_corpus_pre → apply_converge(submission) →
+	assemble.main(). The roots are copied too and `tieto` is given a `.git`,
+	so assemble's own sibling DISCOVERY finds the unconfigured repo the
+	fixture names explicitly — the fresh validation then equals the corpus
+	the hand-written submission was written against, digest included.
+	→ (report, effect, corpus_pre). Never writes the published fixture."""
+	import converge as contract
+	import validate_items
+	import apply_converge
+	src_session, _, _ = validate_items.fixture_session()
+	session = os.path.join(tmp, "session")
+	shutil.copytree(src_session, session)
+	roots_dir = os.path.join(session, "roots")
+	os.makedirs(os.path.join(roots_dir, "tieto", ".git"), exist_ok=True)
+	macos_setup = os.path.join(roots_dir, "macos-setup")
+	roots = [macos_setup, os.path.join(macos_setup, "dotfiles"),
+		os.path.join(roots_dir, "systems")]
+	ctx = patch_validator or contextlib.nullcontext()
+	with ctx:
+		validation = validate_items.validate_session(session, roots,
+			manifest_root=macos_setup)
+	with open(os.path.join(session, "collect.json"), encoding="utf-8") as fh:
+		collect = json.load(fh)
+	with open(os.path.join(session, "watch-items.json"), encoding="utf-8") as fh:
+		stores = {"watch_items": json.load(fh), "method_notes": None}
+	corpus_pre = contract.build_corpus_pre(validation, collect, stores)
+	if mutate_pre:
+		mutate_pre(corpus_pre)
+	if submission is None:
+		submission = model.load_fixture("converge.json")
+	elif callable(submission):
+		submission = submission(corpus_pre)
+	result = apply_converge.apply_converge(copy.deepcopy(corpus_pre), submission,
+		attempt=attempt, terminal=terminal)
+	effect = result["effect"] or apply_converge.finalize_clean(corpus_pre, submission,
+		result, attempt, [])
+	for name, doc in (("corpus.pre.json", corpus_pre),
+			("corpus.post.json", result["corpus_post"]),
+			("converge-effect.json", effect), ("converge.json", submission)):
+		with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+			json.dump(doc, fh)
+	argv, err = sys.argv, io.StringIO()
+	sys.argv = ["assemble.py", session, "--macos-setup-root", macos_setup,
+		"--dotfiles-root", roots[1], "--systems-root", roots[2]]
+	try:
+		with ctx, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+			assemble.main()
+	finally:
+		sys.argv = argv
+	with open(os.path.join(session, "report.json"), encoding="utf-8") as fh:
+		report = json.load(fh)
+	with open(os.path.join(session, "assemble.log"), encoding="utf-8") as fh:
+		report["_log"] = fh.read()
+	return report, effect, corpus_pre
+
+
+class GSecAssemblyTests(unittest.TestCase):
+	"""G-SEC's assembly half: the tier is COPIED from the view, the one
+	acceptance predicate decides the checkbox, and the fixture session
+	converges through assembly (T1's convergence-consuming test)."""
+
+	@classmethod
+	def setUpClass(cls):
+		cls.tmp = tempfile.mkdtemp(prefix="gsec-pipeline-")
+		cls.report, cls.effect, cls.corpus_pre = run_fixture_pipeline(cls.tmp)
+		cls.tools = {t["id"]: t for t in cls.report["tools"]}
+
+	@classmethod
+	def tearDownClass(cls):
+		shutil.rmtree(cls.tmp, True)
+
+	def test_the_fixture_session_converges_through_assembly(self):
+		self.assertEqual(self.report["convergence"]["state"], "converged",
+			self.report["convergence"].get("detail"))
+		self.assertEqual(self.report["contract_version"], model.CONTRACT_VERSION)
+
+	def test_every_tool_carries_the_views_tier_bars_and_usage(self):
+		post = {v["id"]: v for v in json.load(open(os.path.join(self.tmp, "session",
+			"corpus.post.json"), encoding="utf-8"))["tools"]}
+		for tool_id, tool in self.tools.items():
+			with self.subTest(tool_id):
+				view = post[tool_id]
+				self.assertEqual(tool["security_tier"], view["security_tier"])
+				self.assertEqual(tool["pre_accept_bars"], view["pre_accept_bars"])
+				self.assertEqual(tool["usage_item_ids"], view["usage_item_ids"])
+
+	def test_pre_accept_is_the_one_predicate_on_every_tool(self):
+		"""`accepts_baseline` equals `apply_pre_accept` and convergence's
+		`initial_pre_accept` on every fixture tool (§7.5)."""
+		import converge as contract
+		post = {v["id"]: v for v in json.load(open(os.path.join(self.tmp, "session",
+			"corpus.post.json"), encoding="utf-8"))["tools"]}
+		for tool_id, tool in self.tools.items():
+			with self.subTest(tool_id):
+				baseline = assemble.baseline_upgrade(tool)
+				if baseline is None:
+					continue
+				expect = bool(baseline.get("auto_runnable") and model.accepts_baseline(tool))
+				self.assertEqual(baseline["pre_accept"], expect)
+				if baseline.get("auto_runnable"):
+					self.assertEqual(contract.initial_pre_accept(post[tool_id]),
+						baseline["pre_accept"])
+
+	def test_apply_pre_accept_follows_the_views_tier_not_the_tools_items(self):
+		"""Technical 8's observable form: the Tool's items are made to
+		disagree with its view — an injected reaching `incompatible` item
+		that would make the tier P0 if anything recomputed it here."""
+		view = {v["id"]: v for v in self.corpus_pre["tools"]}["brew:tier-fix"]
+		candidate = {"id": "brew:tier-fix", "name": "tier-fix", "source": "brew",
+			"current_version": "1.0.0", "latest_version": "1.0.1", "pinned": False}
+		tool = assemble.build_tool(candidate, {}, view)
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+		tool["items"].append({"id": "brew:tier-fix#slug:injected", "tags": ["breaking"],
+			"severity": "incompatible", "local": {"direction": "reaches", "effect": "risk"}})
+		assemble.finalize_tool(tool, view)
+		self.assertEqual(tool["security_tier"], view["security_tier"])
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+		self.assertEqual(model.security_tier(tool)["priority"], "P0")  # what a recompute says
+
+	def test_a_tool_without_the_exports_is_refused(self):
+		tool = copy.deepcopy(self.tools["brew:tier-fix"])
+		for key in ("security_tier", "pre_accept_bars"):
+			with self.subTest(key):
+				broken = copy.deepcopy(tool)
+				del broken[key]
+				with self.assertRaises(KeyError):
+					assemble.apply_pre_accept(broken)
+
+
+class GSecPipelineFailureTests(unittest.TestCase):
+	"""The pipeline's refusals: a stale corpus on disk is never rendered as
+	this contract's."""
+
+	def setUp(self):
+		self.tmp = tempfile.mkdtemp(prefix="gsec-pipeline-")
+		self.addCleanup(shutil.rmtree, self.tmp, True)
+
+	def _assemble_again(self):
+		session = os.path.join(self.tmp, "session")
+		roots = os.path.join(session, "roots", "macos-setup")
+		argv = sys.argv
+		sys.argv = ["assemble.py", session, "--macos-setup-root", roots,
+			"--dotfiles-root", os.path.join(roots, "dotfiles"),
+			"--systems-root", os.path.join(session, "roots", "systems")]
+		try:
+			with contextlib.redirect_stdout(io.StringIO()), \
+					contextlib.redirect_stderr(io.StringIO()):
+				assemble.main()
+		finally:
+			sys.argv = argv
+		with open(os.path.join(session, "report.json"), encoding="utf-8") as fh:
+			return json.load(fh)
+
+	def test_assembly_refuses_a_stale_corpus_on_disk(self):
+		_, _, corpus_pre = run_fixture_pipeline(self.tmp)
+		corpus_pre["contract_version"] = 3
+		with open(os.path.join(self.tmp, "session", "corpus.pre.json"), "w",
+				encoding="utf-8") as fh:
+			json.dump(corpus_pre, fh)
+		report = self._assemble_again()
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("stale", report["convergence"]["detail"])
+		self.assertIn("3/3", report["convergence"]["detail"])
+
 
 
 if __name__ == "__main__":

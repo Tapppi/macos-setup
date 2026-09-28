@@ -1,30 +1,30 @@
 {
 	"run_id": "session",
-	"converge_version": 2,
-	"view_version": 1,
-	"corpus_digest": "sha256:804ec514b1c7e597f2bcfa4ad2dc7660cb7af5da477045da7480d5a53ea30e66",
+	"converge_version": 3,
+	"view_version": 2,
+	"corpus_digest": "sha256:f95242c6d3a103b52f290009da5ba8a62e87c2c070d29249b37c84330096f3d9",
 	"attempt": 1,
 	"checks": [
 		{
 			"check": "C1-evidence",
 			"scanned": {
-				"tools": 11,
-				"items": 24,
-				"evidence_entries": 11
+				"tools": 31,
+				"items": 53,
+				"evidence_entries": 25
 			},
-			"findings": 5,
+			"findings": 9,
 			"edits": [
 				"cv-001",
 				"cv-002"
 			],
-			"notes": "Five findings: one prose citation re-homed, one 404 path flagged; the unconfigured-root path, the config_status prose and the unevidenced reaches item are the validator's markers and need no corpus write."
+			"notes": "Nine findings: one prose citation re-homed, one 404 path flagged; the unconfigured-root path, the config_status prose and the unevidenced reaches item are the validator's markers and need no corpus write. The four brew:tier-fix usage findings (a quote absent from its file, a usage claim under the unconfigured tieto repo, and a quote that is only the tool's own Brewfile line) are I-23 working as intended: none of those entries is a usage line, so none confirms usage and the tool stays a P3 fix — nothing to move."
 		},
 		{
 			"check": "C2-tags-visibility",
 			"scanned": {
-				"items": 24
+				"items": 53
 			},
-			"clean": 17,
+			"clean": 45,
 			"edits": [
 				"cv-003",
 				"cv-004",
@@ -32,39 +32,90 @@
 				"cv-006",
 				"cv-007",
 				"cv-008",
-				"cv-013"
+				"cv-013",
+				"cv-014"
 			],
-			"notes": "Seven items edited, seventeen clean; the openssh cut is the one bucket-moving edit and carries the full record."
+			"notes": "Eight items edited, forty-five clean; the openssh cut is the one bucket-moving edit and carries the full record, and the duckdb redirect is the one priority-lowering edit and names that consequence."
 		},
 		{
 			"check": "C3-security-only",
 			"security_only_tools": [
 				{
-					"tool_id": "brew:elevated",
-					"cve_count": 1,
-					"verdict": "Label correct: the one item is the CVE fix itself; elevated risk bars pre-acceptance so nothing auto-applies."
-				},
-				{
 					"tool_id": "brew:quarantined",
 					"cve_count": 1,
-					"verdict": "Label correct on the surviving content, and moot for auto-anything: quarantined content is content-losing, so the tool is held at attention/elevated regardless."
+					"verdict": "Label correct on the surviving content, and moot for auto-anything: quarantined content is content-losing, so the tool is held at attention whatever its tier."
+				},
+				{
+					"tool_id": "brew:elevated",
+					"cve_count": 1,
+					"verdict": "Label correct: the one item is the CVE change itself, declared a boundary move rather than a fix, so the pre-G-SEC rules hold it — elevated risk and a reaching security item both bar pre-acceptance."
+				},
+				{
+					"tool_id": "brew:tier-pinned",
+					"cve_count": 1,
+					"verdict": "Label correct; the pin is what matters, and the tier already says so at P0."
+				},
+				{
+					"tool_id": "brew:tier-proposed",
+					"cve_count": 1,
+					"verdict": "Label correct on the items; the proposed edit is an action, which the tier shows at P1."
+				},
+				{
+					"tool_id": "brew:tier-config",
+					"cve_count": 1,
+					"verdict": "Label correct; the stale cipher pin is config_status's to report, and the tier shows it at P1."
+				},
+				{
+					"tool_id": "brew:libpq",
+					"cve_count": 1,
+					"verdict": "Label correct: one grounded fix, confirmed against the tracked service file."
+				},
+				{
+					"tool_id": "brew:duckdb",
+					"cve_count": 1,
+					"verdict": "Label correct; the usage claim is the question, and cv-014 answers it."
+				},
+				{
+					"tool_id": "brew:tier-fix",
+					"cve_count": 1,
+					"verdict": "Label correct: one fix, and its usage entries ground nothing."
+				},
+				{
+					"tool_id": "brew:elevated-fix",
+					"cve_count": 1,
+					"verdict": "Label correct: the one item is a grounded fix, so elevated risk no longer bars it — the strip head names it instead."
+				},
+				{
+					"tool_id": "brew:tier-enum",
+					"cve_count": 1,
+					"verdict": "Label correct on the items; the unreadable config state holds it, which is right."
+				},
+				{
+					"tool_id": "brew:tier-container",
+					"cve_count": 1,
+					"verdict": "Label correct on what can be read; the string-typed local holds the tool."
+				},
+				{
+					"tool_id": "standalone:tier-manual",
+					"cve_count": 1,
+					"verdict": "Label correct; nothing can run the upgrade, so it is held regardless."
 				}
 			],
 			"edits": [
 				"cv-009"
 			],
-			"notes": "Two security_only tools this run, enumerated in full."
+			"notes": "Twelve security_only tools this run, enumerated in full."
 		},
 		{
 			"check": "C4-notable-security",
 			"scanned": {
-				"security_items": 6,
-				"rating_unrated": 2,
-				"direction_does_not_reach": 3,
+				"security_items": 25,
+				"rating_unrated": 3,
+				"direction_does_not_reach": 17,
 				"anchor_duplicates": 0
 			},
 			"edits": [],
-			"notes": "Both unrated items are openssh release-notes entries presented as unrated, which is honest; no duplicate anchors to reconcile."
+			"notes": "The three unrated items are the two openssh release-notes entries and the tier-held-p2 Keychain boundary move, all presented as unrated, which is honest; no duplicate anchors to reconcile."
 		},
 		{
 			"check": "C5-auto-approval",
@@ -73,10 +124,55 @@
 					"tool_id": "brew:openssh",
 					"deciding_input": "risk_level",
 					"verdict": "Eligible at low risk with no bars; if the upgrade broke unattended, the mux use-after-free item in front of the reviewer would have said so. cv-003 moves it to security_auto and the label carries that reasoning."
+				},
+				{
+					"tool_id": "brew:tier-proposed",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix, accepted at P1; the proposed log clean-up is a separate click and nothing breaks without it."
+				},
+				{
+					"tool_id": "brew:tier-config",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix, accepted at P1 with its config-attention label; the upgrade itself is safe and the stale pin is shown first."
+				},
+				{
+					"tool_id": "brew:libpq",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix confirmed against the tracked service file — accepted and highlighted at P2, exactly the case the highlight exists for."
+				},
+				{
+					"tool_id": "brew:duckdb",
+					"deciding_input": "security_tier",
+					"verdict": "Accepted either way; its P2 rests on the .duckdbrc quote, which cv-014 finds does not show the vulnerable path is used, so it is lowered to P3 with the reason recorded."
+				},
+				{
+					"tool_id": "brew:tier-breaking",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix beside a removed flag nothing here uses; accepted at P2 so the breaking change gets its quick look."
+				},
+				{
+					"tool_id": "brew:tier-risk",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix beside default-on telemetry; accepted at P2 with the risk named, which is the user's mixed-release ruling."
+				},
+				{
+					"tool_id": "cask:tier-vendor",
+					"deciding_input": "security_tier",
+					"verdict": "Vendor declares a security release without details; accepted and highlighted at P2, per the user's ruling."
+				},
+				{
+					"tool_id": "brew:tier-fix",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix with nothing flagged for this setup; accepted at P3 in the collapsed strip."
+				},
+				{
+					"tool_id": "brew:elevated-fix",
+					"deciding_input": "security_tier",
+					"verdict": "A grounded fix at elevated risk; accepted at P3 — elevated no longer bars a fix, and the strip head names it."
 				}
 			],
 			"edits": [],
-			"notes": "One pre-accept-eligible tool before convergence; its move is cv-003's and gated."
+			"notes": "Ten pre-accept-eligible tools before convergence: openssh by the pre-G-SEC rules (its move is cv-003's and gated), nine by their security tier. Every verdict holds."
 		},
 		{
 			"check": "C6-memory",
@@ -361,7 +457,7 @@
 				"field": null
 			},
 			"reason": {
-				"headline": "security_only holds: the single item IS the CVE fix; elevated risk already bars pre-acceptance."
+				"headline": "security_only holds: the single item is the CVE change itself; elevated risk and its reach already bar pre-acceptance."
 			}
 		},
 		{
@@ -422,6 +518,34 @@
 				"rule_ref": "references/convergence.md §2 C6",
 				"confidence": "high"
 			}
+		},
+		{
+			"edit_id": "cv-014",
+			"check": "C2-tags-visibility",
+			"op": "redirect",
+			"target": {
+				"tool_id": "brew:duckdb",
+				"kind": "item",
+				"id": "brew:duckdb#cve:CVE-2026-41007",
+				"field": "local.direction"
+			},
+			"precondition": {
+				"before": "reaches"
+			},
+			"quote": "The tracked init file drives the CLI's dot-command parser on every interactive session.",
+			"after": "unclear",
+			"bucket_claim": {
+				"moves_bucket": false,
+				"expected_from": "security_auto",
+				"expected_to": "security_auto",
+				"direction": "lateral"
+			},
+			"reason": {
+				"headline": "The quoted init line is a setting, not the parsing path the fix is in.",
+				"body": "`.timer on` shows the CLI reads an init file, not that the vulnerable dot-command branch runs here; unclear is the honest direction. This lowers duckdb's security priority from P2 to P3 — it leaves the highlight panel and joins the collapsed strip, still accepted — and the Overview discloses the demotion.",
+				"rule_ref": "references/research.md §Local Findings Are the Point",
+				"confidence": "medium"
+			}
 		}
 	],
 	"ledger": {
@@ -481,29 +605,29 @@
 			"flag": 2,
 			"merge": 1,
 			"move_evidence": 1,
-			"redirect": 1,
+			"redirect": 2,
 			"rerate": 1,
 			"retag": 1,
 			"trim": 1
 		},
 		"items": {
-			"before": 24,
-			"after": 22
+			"before": 53,
+			"after": 51
 		},
 		"severity_after": {
-			"info": 8,
-			"notable": 8,
-			"warning": 4,
-			"incompatible": 1
+			"info": 11,
+			"notable": 29,
+			"warning": 5,
+			"incompatible": 4
 		},
 		"severity_at_warning_or_worse": {
-			"before": 5,
-			"after": 5,
+			"before": 9,
+			"after": 9,
 			"pct_change": 0.0
 		},
 		"tag_security_items": {
-			"before": 6,
-			"after": 6
+			"before": 25,
+			"after": 25
 		},
 		"tools_moved": {
 			"permissive": [
@@ -513,9 +637,9 @@
 			"lateral": []
 		},
 		"pre_accept": {
-			"before": 1,
-			"after": 1
+			"before": 10,
+			"after": 10
 		},
-		"narrative": "The one movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
+		"narrative": "The one bucket movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. The one priority movement is brew:duckdb: cv-014 redirects its fix to unclear, lowering it from P2 to P3 with the consequence named; it stays accepted. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
 	}
 }

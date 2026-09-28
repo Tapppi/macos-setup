@@ -138,7 +138,7 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
             is present), link_index indexes your links[]
     local:  {direction: "reaches"|"does_not_reach"|"unclear",
              effect: "risk"|"benefit"|"none", statement,
-             evidence: [{path, lines, note}, ...],
+             evidence: [{path, lines, note, role, quote}, ...],
              citations: [{kind, text, url}, ...]} — the finding about
             this setup; evidence is PATHS ONLY (a "reaches" item must
             carry at least one), prose and commands go in citations
@@ -146,7 +146,18 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
     security: {cve_id, advisory_id,
                rating: "critical"|"high"|"medium"|"low"|"unknown",
                rating_basis: "vendor"|"nvd"|"cvss"|"unrated",
-               exploited_in_wild: bool}
+               exploited_in_wild: bool,
+               nature: "fix"|"boundary"|"unclear"}
+  nature "fix" ONLY for a vulnerability fixed or mitigated, with the
+  upstream text that says so as change.citation (a positively identified
+  fix is accepted by default and may be highlighted); a changed default,
+  a new permission prompt or a new signing requirement is "boundary";
+  cannot tell → "unclear".
+  An evidence object may carry role: "usage"|"install"|"reference". A
+  "usage" entry (this setup USES the affected thing — not "it is
+  installed") carries quote: the WHOLE line(s) showing the use, verbatim;
+  the validator finds the quote in the file, and a quote that is only the
+  install line or a comment grounds nothing.
   Severity consistency: "incompatible" requires direction "reaches" AND
   effect "risk"; "warning" requires a local block.
   An item that answers a stored watch item for its tool additionally
@@ -154,11 +165,19 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
     watch_hit: {topic} — copy the topic string exactly as it appears in
     the standing notes above; do not rewrite it. Such an item must carry
     a local block and at least "notable" severity.
+- config_status — {state, detail, evidence, citations}; state is exactly
+  "up_to_date" | "needs_attention" | "unknown" (validated: anything else
+  holds the tool for review).
 - suggestions[] — always title/target_files/rationale/motivating_link/
   diff_preview, plus per kind:
     "upgrade" — NEVER authored by you; it is synthesized mechanically
       for every tool.
     "edit" (the default) — a concrete Brewfile/dotfiles/config change.
+    Every edit and structural suggestion carries requirement:
+      "required" — the upgrade stops working here without it; then the
+      change it answers is an "incompatible" item and serves: [its ref,
+      e.g. "slug:key-renamed" or "cve:CVE-2026-1234"] names it;
+      "proposed" — everything else (absent reads proposed).
     "structural" — the change re-manages an entity (deprecated cask
       migrated, formula moved between sections, tap trusted/dropped,
       install handed between mechanisms, setup.sh task added/changed):

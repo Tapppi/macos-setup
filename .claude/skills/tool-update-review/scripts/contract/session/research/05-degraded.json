@@ -29,7 +29,8 @@
 					"advisory_id": null,
 					"rating": "medium",
 					"rating_basis": "nvd",
-					"exploited_in_wild": false
+					"exploited_in_wild": false,
+					"nature": "fix"
 				}
 			},
 			"and a second change the checker wrote as a bare string"

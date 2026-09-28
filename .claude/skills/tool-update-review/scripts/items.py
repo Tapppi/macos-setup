@@ -54,13 +54,24 @@ from urllib.parse import quote, urlsplit
 #     fail-closed bucket/pre-accept precedence (content-losing input,
 #     elevated risk, reaching security changes and watch hits can no longer
 #     be pre-accepted).
-CONTRACT_VERSION = 3
+# 4 — G-SEC: `security.nature`, suggestion `requirement`/`serves`, evidence
+#     `role`/`quote` and the recorded `usage_evidence`, `config_status.state`
+#     validated, I-21–I-23, `security_tier` on view and Tool, the
+#     `enum-invalid`/`container-unreadable` bars, and the rewritten bucket
+#     clause and pre-accept predicate (positively identified security fixes
+#     are accepted by tier).
+CONTRACT_VERSION = 4
 
 
 # ── vocabularies ────────────────────────────────────────────────────────────
 # All closed. Closed means the validator recognizes exactly these; an
 # unrecognized value is KEPT verbatim on the item and reported, never dropped
 # and never coerced to a neighbour (`item-schema.md` §2.3).
+
+# The two finding sources — collect.json candidates with no version delta, so
+# no upgrade to accept (assembly's NON_VERSION_SOURCES is this set). The
+# security tier never applies to them.
+NON_VERSION_SOURCES = ("brew-health", "skill-drift")
 
 # The eight tags. One item carries many tags; an item is never repeated per
 # category, which is what killed the headliners/relevancy/notable split.
@@ -96,6 +107,25 @@ CITATION_KINDS = (
 
 CVE_RATINGS = ("critical", "high", "medium", "low", "unknown")
 RATING_BASES = ("vendor", "nvd", "cvss", "unrated")
+
+# G-SEC (CONTRACT 4). The `security` tag covers two different facts — a fixed
+# vulnerability and a moved security boundary — so the tag alone is not "a
+# fix". `security.nature` says which, and only a GROUNDED `fix` (I-21) makes a
+# tool G-SEC. `unclear` is the honest answer when the checker cannot tell.
+SECURITY_NATURES = ("fix", "boundary", "unclear")
+# On an ACTION suggestion: `required` — the upgrade does not work here without
+# this edit (I-22 grounds it against an `incompatible` item it `serves`);
+# `proposed` — worth doing, not needed for the upgrade to work. Absent reads
+# `proposed`: the user's stated default, "upgrade only by default".
+SUGGESTION_REQUIREMENTS = ("required", "proposed")
+# On an object-form `local.evidence[]` entry: `usage` — this setup USES the
+# affected thing (a `quote` of the line that shows it is required, and I-23
+# grounds it in the file); `install` — the tool is installed (the Brewfile
+# line, the install task); `reference` — anything else worth pointing at.
+EVIDENCE_ROLES = ("usage", "install", "reference")
+# `config_status.state` — the vocabulary `references/research.md` §Config
+# Status always documented, validated since CONTRACT 4.
+CONFIG_STATES = ("up_to_date", "needs_attention", "unknown")
 
 STRUCTURAL_OPS = (
 	"manifest_add", "manifest_remove", "manifest_replace", "manifest_move",
@@ -721,89 +751,645 @@ def compute_degradation(tool) -> dict:
 	}
 
 
-# ── the pre-acceptance bar (D2, E3) ─────────────────────────────────────────
-# Emission order, fixed, like DEGRADATION_REASONS and for the same reason.
-PRE_ACCEPT_BARS = ("elevated-risk", "reaches-item", "local-enum-invalid", "watch-hit")
+# ── G-SEC: the security tier (CONTRACT 4) ───────────────────────────────────
+# `REDESIGN.md` §F criterion 24, in the user's words: a security fix REACHING
+# this machine is a good thing and is accepted by default; one whose upgrade
+# needs a config change, or that is confirmed relevant to actual usage, is
+# shown first — in that order — in addition to being accepted; one whose
+# upgrade does not work here without an edit is not accepted at all and is the
+# highest priority there is.
+#
+# Two AXES, kept apart on purpose (orchestrator reading O2, applied at every
+# level — R1): display PRIORITY ("which fixes matter") and the acceptance HOLD
+# ("why it is not taken"). A held tool keeps its priority: held means not
+# accepted, never hidden. `tier` is the §7.28 row both combine into.
+#
+# The tier is computed ONCE per view, here, from fields a validation view and
+# an assembled Tool both carry. The validator stores it; assembly copies it;
+# convergence recomputes it through this same function after every edit; the
+# page reads it. Nothing re-derives it.
+SECURITY_TIERS = ("P0", "held", "P1", "P2", "P3")   # display order
+SECURITY_PRIORITIES = ("P0", "P1", "P2", "P3")
+# The prominence order convergence's demotion gate reads (§12 A-R3-2): any
+# STRICT decrease in this rank is a demotion. Not G-SEC ranks 0.
+PRIORITY_RANK = {"P0": 4, "P1": 3, "P2": 2, "P3": 1}
+ACCEPTED_TIERS = ("P1", "P2", "P3")
+HIGHLIGHT_PRIORITIES = ("P0", "P1", "P2")
+
+# Every priority reason, in its fixed emission order, with its level. Closed
+# and published, like DEGRADATION_REASONS, so the page's chips never reshuffle.
+TIER_REASON_LEVELS = (
+	("required-edit", "P0"),         # an action suggestion reads `required` (I-22)
+	("pinned", "P0"),                # the tool is pinned; the fix cannot land
+	("incompatible-unfixed", "P0"),  # an `incompatible` item no REQUIRED edit serves
+	("edit-proposed", "P1"),         # an action suggestion reads `proposed`
+	("config-attention", "P1"),      # needs_attention with NO action suggestion (§7.29)
+	("relevant-fix", "P2"),          # a positive fix confirmed against actual usage (I-23)
+	("fix-with-breaking", "P2"),     # any `breaking`-tagged item, any severity (R4)
+	("fix-with-risk", "P2"),         # a NON-security item with effect == risk (O1)
+	("vendor-unread", "P2"),         # vendor_silent_categories ∋ "security"
+	("fix", "P3"),                   # a positive fix — always present when one exists
+)
+TIER_REASONS = tuple(code for code, _ in TIER_REASON_LEVELS)
+TIER_REASON_LEVEL = dict(TIER_REASON_LEVELS)
+
+# Every acceptance hold, fixed order. Holds and the P0 reasons are both "not
+# accepted"; `pre_accept_bars` on a G-SEC view is their union.
+TIER_HOLDS = (
+	"content-losing",        # D1 — content_losing(view) is non-empty
+	"security-item-risk",    # a security item (tag or block) with effect == risk (§7.27)
+	"watch-hit",             # E3 — any item CLAIMS a watch hit (claim rule, fail-closed)
+	"enum-invalid",          # a tier-input enum present and unreadable (R7: every tool)
+	"container-unreadable",  # an item/suggestion container of the wrong type (R7)
+	"research-incomplete",   # R3 — the checker reported research_error
+	"not-runnable",          # R3 — no runnable upgrade; "accepted" would claim a run
+	"forced-conservative",   # R3 — written by the applier at a failed terminal gate
+	"tier-uncomputed",       # the view default; observed only if the tier never ran
+)
+# Reasons and holds that belong to the tool rather than to an element, so their
+# `ids` entry is always [].
+TOOL_LEVEL_TIER_CODES = ("pinned", "vendor-unread", "config-attention",
+	"content-losing", "research-incomplete", "not-runnable", "forced-conservative",
+	"tier-uncomputed")
+
+# Text + glyph, never colour alone. The page's copy is pinned against this by
+# test_render.py, so the two cannot drift.
+TIER_LABELS = {
+	"required-edit": {"glyph": "⛔",
+		"text": "Needs you — a config change is required before this upgrade works"},
+	"pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"},
+	"incompatible-unfixed": {"glyph": "⛔",
+		"text": "Needs you — breaks something here; no config fix proposed"},
+	"edit-proposed": {"glyph": "⚙",
+		"text": "Accepted — config edits proposed, not applied unless you accept them"},
+	"config-attention": {"glyph": "⚙",
+		"text": "Accepted — config needs attention — no edit proposed"},
+	"relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"},
+	"fix-with-breaking": {"glyph": "◎",
+		"text": "Accepted — also has a breaking change: take a quick look"},
+	"fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"},
+	"vendor-unread": {"glyph": "◎",
+		"text": "Accepted — vendor declares a security release without details"},
+	"fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"},
+}
+
+# The view default (§4.2): what a view carries until the tier function has run
+# on its final state. Valid by `valid_security_tier` — a held P3 — so a view
+# whose tier was never computed is never accepted and never highlighted.
+TIER_UNCOMPUTED = {"tier": "held", "priority": "P3", "reasons": [],
+	"holds": ["tier-uncomputed"], "ids": {"tier-uncomputed": []}, "fix_item_ids": []}
+
+# I-23's install-declaration test, AS DATA: a pattern per file kind with a
+# `{name}` slot filled with the tool's (regex-escaped) name, and — for TOML —
+# the section it applies in. A usage quote whose every occurrence lies on one
+# of these (or on a comment/blank line) shows the tool is INSTALLED, not USED.
+# `section`: None = anywhere in the file; "tools" = under `[tools]` or
+# `[tools.<x>]`; "top" = before any table header.
+INSTALL_DECLARATION_PATTERNS = (
+	{"kind": "brewfile", "section": None,
+		"pattern": r'^\s*(?:brew|cask|tap|mas)\s+"(?:[^"/\s]+/[^"/\s]+/)?{name}"'},
+	{"kind": "tool-versions", "section": None, "pattern": r"^\s*{name}\s+\S"},
+	{"kind": "mise-toml", "section": "tools",
+		"pattern": r'^\s*"?(?:[A-Za-z0-9_-]+:)?{name}(?:@[^"\s=]*)?"?\s*='},
+	{"kind": "mise-toml", "section": "tools.{name}", "pattern": r"^\s*\S"},
+	{"kind": "mise-toml", "section": None,
+		"pattern": r"^\s*\[\s*tools\.\"?{name}\"?\s*\]"},
+	{"kind": "mise-toml", "section": "top",
+		"pattern": r'^\s*tools\.\"?{name}\"?\s*='},
+	{"kind": "shell", "section": None,
+		"pattern": r"\bbrew\s+(?:install|reinstall|upgrade)\b[^#\n]*?(?<![\w./@-]){name}(?![\w.-])"},
+	{"kind": "shell", "section": None,
+		"pattern": r"\bmise\s+(?:use|install)\b[^#\n]*?(?<![\w./@:-]){name}(?:@\S*)?(?![\w.-])"},
+)
+# The file kinds I-23 classifies a matched line with, from the path.
+MISE_TOML_NAMES = ("mise.toml", ".mise.toml", "mise.local.toml")
+# The size cap on a file I-23 reads to ground a usage quote. Over it, the entry
+# is E-USAGE-UNGROUNDED ("unreadable"), never a crash and never a partial read.
+USAGE_FILE_MAX_BYTES = 1_000_000
+
+
+def usage_file_kind(path) -> str:
+	"""brewfile | tool-versions | mise-toml | shell | other, from the path's
+	basename (and, for `mise/config.toml`, its parent directory)."""
+	if not isinstance(path, str):
+		return "other"
+	norm = path.replace("\\", "/").rstrip("/")
+	base = norm.rsplit("/", 1)[-1]
+	parent = norm.rsplit("/", 2)[-2] if norm.count("/") >= 1 else ""
+	if base == "Brewfile":
+		return "brewfile"
+	if base == ".tool-versions":
+		return "tool-versions"
+	if base in MISE_TOML_NAMES or (base == "config.toml" and parent == "mise"):
+		return "mise-toml"
+	if base.endswith(".sh") or base.startswith(".bash"):
+		return "shell"
+	return "other"
+
+
+def _items_of(view) -> list:
+	raw = view.get("items") if isinstance(view, dict) else None
+	return [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
+
+
+def _suggestions_of(view) -> list:
+	raw = view.get("suggestions") if isinstance(view, dict) else None
+	return [s for s in raw if isinstance(s, dict)] if isinstance(raw, list) else []
+
+
+def _kind_of(sug) -> object:
+	"""`kind` is omittable and defaults to "edit" — assemble.suggestion_kind's
+	rule, spelled here because this module may not import assembly."""
+	return sug.get("kind") or "edit"
+
+
+def _is_action(sug) -> bool:
+	return isinstance(sug, dict) and needs_a_decision(_kind_of(sug))
+
+
+def _str_id(element) -> str:
+	value = element.get("id") if isinstance(element, dict) else None
+	return value if isinstance(value, str) else ""
+
+
+def _sug_ref(sug, tool_id) -> str:
+	sid = _str_id(sug)
+	return sid or "{}:<no id>".format(tool_id)
+
+
+def _local_field(item, field):
+	local = item.get("local") if isinstance(item, dict) else None
+	return local.get(field) if isinstance(local, dict) else None
+
+
+def is_security_content(item) -> bool:
+	"""Security content: the `security` tag OR a `security` block — I-4's
+	orphan case errs toward security here, as it does everywhere."""
+	if not isinstance(item, dict):
+		return False
+	tags = item.get("tags")
+	return bool((isinstance(tags, list) and "security" in tags)
+		or isinstance(item.get("security"), dict))
+
+
+def is_positive_fix(item) -> bool:
+	"""The one predicate for "a positively identified security fix" (I-21).
+
+	`security.nature == "fix"` counts only when GROUNDED: the item is tagged
+	`security`, carries a `security` object (an orphan block is not a fix),
+	and has a `change` with a non-empty verbatim `citation` — a fix is an
+	upstream fact, so it is cited from upstream. An ungrounded `fix` is a
+	PROMOTING claim, so unverified it counts for nothing (E-SEC-FIX-UNGROUNDED
+	says why). A pure function of the item, so convergence recomputes it."""
+	if not isinstance(item, dict):
+		return False
+	tags = item.get("tags")
+	security = item.get("security")
+	change = item.get("change")
+	if not (isinstance(tags, list) and "security" in tags and isinstance(security, dict)):
+		return False
+	if security.get("nature") != "fix":
+		return False
+	citation = change.get("citation") if isinstance(change, dict) else None
+	return isinstance(citation, str) and bool(citation.strip())
+
+
+def suggestion_requirement(sug, items_by_id) -> str:
+	"""→ "required" | "proposed" for an action suggestion, read against the
+	tool's CURRENT items (`items_by_id`) — convergence can rerate, merge or
+	delete the items a suggestion serves, so the reading is never a
+	validator-time flag.
+
+	  * `requirement` absent → proposed (the user's default).
+	  * out of vocabulary / not a string → REQUIRED — the worst reading of an
+	    unreadable restricting claim (the `enum-invalid` hold fires as well).
+	  * `required` → required, grounded or not: a restricting claim stands
+	    unverified (E-SUG-REQUIRED-UNGROUNDED reports it; holding a fix costs a
+	    click, auto-accepting past "this breaks without the edit" is the
+	    defect class).
+	  * `proposed` → required iff an id in `serves_item_ids` names a CURRENT
+	    item whose severity is `incompatible` — an edit that answers something
+	    the upgrade breaks is required by definition (the contradiction,
+	    recomputed; E-REQUIREMENT-CONTRADICTED is its finding). An id naming
+	    no current item links nothing."""
+	if not isinstance(sug, dict):
+		return "proposed"
+	declared = sug.get("requirement")
+	if declared is None:
+		declared = "proposed"
+	elif not (isinstance(declared, str) and declared in SUGGESTION_REQUIREMENTS):
+		return "required"
+	if declared == "required":
+		return "required"
+	served = sug.get("serves_item_ids")
+	for item_id in served if isinstance(served, list) else ():
+		item = items_by_id.get(item_id) if isinstance(item_id, str) else None
+		if isinstance(item, dict) and item.get("severity") == "incompatible":
+			return "required"
+	return "proposed"
+
+
+def _items_by_id(items) -> dict:
+	return {i["id"]: i for i in items if isinstance(i.get("id"), str)}
+
+
+def required_edit_items(view) -> list:
+	"""The ids of CURRENT items served by an action suggestion that reads
+	`required` — the incompatible items a proposed fix exists for. An
+	incompatible item outside this set is P0 `incompatible-unfixed`."""
+	items = _items_of(view)
+	by_id = _items_by_id(items)
+	served = set()
+	for sug in _suggestions_of(view):
+		if not _is_action(sug) or suggestion_requirement(sug, by_id) != "required":
+			continue
+		ids = sug.get("serves_item_ids")
+		for item_id in ids if isinstance(ids, list) else ():
+			if isinstance(item_id, str) and item_id in by_id:
+				served.add(item_id)
+	return [i["id"] for i in items if _str_id(i) in served]
+
+
+def _usage_keys(usage_evidence) -> list:
+	"""The grounded entries of a view's `usage_evidence` record. Hostile input
+	grounds nothing."""
+	if not isinstance(usage_evidence, list):
+		return []
+	return [r.get("entry") for r in usage_evidence
+		if isinstance(r, dict) and isinstance(r.get("entry"), dict)]
+
+
+def usage_confirmed(item, usage_evidence) -> bool:
+	"""Is this item confirmed against actual usage (I-23)?
+
+	`local.direction == "reaches"` and at least one of its `role: "usage"`
+	evidence entries is, as authored (after the validator's shape
+	normalization), a member of the tool's `usage_evidence` — the record the
+	stage-3 validator wrote when it grounded that entry in the file. Keyed on
+	the AUTHORED entry (§12 A-R3-1), not on the matched occurrence, so an entry
+	with no `lines`, or a wider range than the match, is the same entry after
+	convergence carries it. Pure: no file is read here, ever — convergence
+	recomputes this with the record, and a forged entry matches nothing."""
+	if not isinstance(item, dict) or _local_field(item, "direction") != "reaches":
+		return False
+	evidence = _local_field(item, "evidence")
+	if not isinstance(evidence, list):
+		return False
+	keys = _usage_keys(usage_evidence)
+	return any(isinstance(entry, dict) and entry.get("role") == "usage" and entry in keys
+		for entry in evidence)
+
+
+def usage_item_ids(view) -> list:
+	"""The view's usage-confirmed item ids, like `watch_hit_item_ids`."""
+	record = view.get("usage_evidence") if isinstance(view, dict) else None
+	return [i["id"] for i in _items_of(view)
+		if isinstance(i.get("id"), str) and usage_confirmed(i, record)]
+
+
+def _bad_enum(value, vocabulary) -> bool:
+	"""Present and unreadable: not None, and not a string in the vocabulary.
+	Absent is E-FIELD-MISSING's business and makes no claim."""
+	return value is not None and not (isinstance(value, str) and value in vocabulary)
+
+
+def _enum_invalid(view):
+	"""→ (fires, element ids). Every tier-input enum present and unreadable:
+	severity, local.direction, local.effect, security.nature, evidence `role`,
+	suggestion `kind` and (on an action suggestion) `requirement`, and
+	config_status.state (tool-level — it fires with no element id)."""
+	fires, ids = False, []
+	tool_id = view.get("id") if isinstance(view, dict) else None
+	for item in _items_of(view):
+		bad = _bad_enum(item.get("severity"), SEVERITIES)
+		local = item.get("local")
+		if isinstance(local, dict):
+			bad = (bad or _bad_enum(local.get("direction"), DIRECTIONS)
+				or _bad_enum(local.get("effect"), EFFECTS))
+			evidence = local.get("evidence")
+			bad = bad or any(isinstance(e, dict) and _bad_enum(e.get("role"), EVIDENCE_ROLES)
+				for e in (evidence if isinstance(evidence, list) else ()))
+		security = item.get("security")
+		if isinstance(security, dict):
+			bad = bad or _bad_enum(security.get("nature"), SECURITY_NATURES)
+		if bad:
+			fires = True
+			ids.append(_str_id(item))
+	for sug in _suggestions_of(view):
+		kind = _kind_of(sug)
+		bad = not (isinstance(kind, str) and kind in SUGGESTION_KINDS)
+		if _is_action(sug):
+			bad = bad or _bad_enum(sug.get("requirement"), SUGGESTION_REQUIREMENTS)
+		if bad:
+			fires = True
+			ids.append(_sug_ref(sug, tool_id))
+	status = view.get("config_status") if isinstance(view, dict) else None
+	if isinstance(status, dict) and _bad_enum(status.get("state"), CONFIG_STATES):
+		fires = True
+	return fires, ids
+
+
+def enum_invalid(view) -> bool:
+	return _enum_invalid(view)[0]
+
+
+ITEM_CONTAINERS = (("local", dict), ("security", dict), ("change", dict),
+	("watch_hit", dict), ("tags", list))
+
+
+def _container_unreadable(view):
+	"""→ (fires, element ids). An item's `local`/`security`/`change`/
+	`watch_hit` present and not an object, `tags` present and not an array, or
+	an action suggestion's `serves` present and not an array. The adversarial
+	case: `local: "risk"` used to read as an item with no local claim at all."""
+	fires, ids = False, []
+	tool_id = view.get("id") if isinstance(view, dict) else None
+	for item in _items_of(view):
+		if any(item.get(field) is not None and not isinstance(item.get(field), shape)
+				for field, shape in ITEM_CONTAINERS):
+			fires = True
+			ids.append(_str_id(item))
+	for sug in _suggestions_of(view):
+		serves = sug.get("serves")
+		if _is_action(sug) and serves is not None and not isinstance(serves, list):
+			fires = True
+			ids.append(_sug_ref(sug, tool_id))
+	return fires, ids
+
+
+def container_unreadable(view) -> bool:
+	return _container_unreadable(view)[0]
+
+
+def derive_tier(priority, holds) -> str:
+	"""The §7.28 row: P0 wherever the priority is P0 (a P0 tool is never
+	accepted, held or not); else `held` if any hold applies; else the
+	priority."""
+	if priority == "P0":
+		return "P0"
+	return "held" if holds else priority
+
+
+def security_tier(view):
+	"""→ None (not G-SEC) or the tier object (§3.2 of the pass-4b plan).
+
+	A version-source tool is G-SEC iff at least one item is a positive fix
+	(`is_positive_fix`) or its vendor declares an unread security release.
+	Every other tool has no tier and is judged by the pre-G-SEC rules
+	(`pre_accept_bars`' non-G-SEC branch), plus the two universal bars.
+
+	Reads only fields a validation view and an assembled Tool both carry.
+	NEVER RAISES: every read is guarded (fuzz asserts it), because this runs
+	in the validator's final act outside every guarded stage."""
+	if not isinstance(view, dict) or view.get("source") in NON_VERSION_SOURCES:
+		return None
+	items = _items_of(view)
+	fixes = [i for i in items if is_positive_fix(i)]
+	silent = view.get("vendor_silent_categories")
+	vendor_unread = isinstance(silent, list) and any(c == "security" for c in silent)
+	if not fixes and not vendor_unread:
+		return None
+	tool_id = view.get("id") if isinstance(view.get("id"), str) else ""
+	by_id = _items_by_id(items)
+	usage = view.get("usage_evidence")
+	found = {}
+
+	actions = [s for s in _suggestions_of(view) if _is_action(s)]
+	required = [s for s in actions if suggestion_requirement(s, by_id) == "required"]
+	proposed = [s for s in actions if suggestion_requirement(s, by_id) == "proposed"]
+	if required:
+		found["required-edit"] = [_sug_ref(s, tool_id) for s in required]
+	if view.get("pinned"):
+		found["pinned"] = []
+	served = set(required_edit_items(view))
+	unfixed = [_str_id(i) for i in items
+		if i.get("severity") == "incompatible" and _str_id(i) not in served]
+	if unfixed:
+		found["incompatible-unfixed"] = unfixed
+	if proposed:
+		found["edit-proposed"] = [_sug_ref(s, tool_id) for s in proposed]
+	status = view.get("config_status")
+	if (isinstance(status, dict) and status.get("state") == "needs_attention"
+			and not actions):
+		found["config-attention"] = []
+	relevant = [_str_id(i) for i in fixes if usage_confirmed(i, usage)
+		and _local_field(i, "effect") in ("benefit", "none")]
+	if relevant:
+		found["relevant-fix"] = relevant
+	breaking = [_str_id(i) for i in items
+		if isinstance(i.get("tags"), list) and "breaking" in i["tags"]]
+	if breaking:
+		found["fix-with-breaking"] = breaking
+	risky = [_str_id(i) for i in items
+		if not is_security_content(i) and _local_field(i, "effect") == "risk"]
+	if risky:
+		found["fix-with-risk"] = risky
+	if vendor_unread:
+		found["vendor-unread"] = []
+	if fixes:
+		found["fix"] = [_str_id(i) for i in fixes]
+
+	held = {}
+	if content_losing(view):
+		held["content-losing"] = []
+	security_risk = [_str_id(i) for i in items
+		if is_security_content(i) and _local_field(i, "effect") == "risk"]
+	if security_risk:
+		held["security-item-risk"] = security_risk
+	watched = [_str_id(i) for i in items if isinstance(i.get("watch_hit"), dict)]
+	if watched:
+		held["watch-hit"] = watched
+	fires, ids = _enum_invalid(view)
+	if fires:
+		held["enum-invalid"] = ids
+	fires, ids = _container_unreadable(view)
+	if fires:
+		held["container-unreadable"] = ids
+	if view.get("research_error"):
+		held["research-incomplete"] = []
+	inputs = view.get("bucket_inputs")
+	if not (isinstance(inputs, dict) and inputs.get("runnable") is True):
+		held["not-runnable"] = []
+	if view.get("forced_conservative"):
+		held["forced-conservative"] = []
+
+	reasons = [code for code in TIER_REASONS if code in found]
+	holds = [code for code in TIER_HOLDS if code in held]
+	priority = next(level for level in SECURITY_PRIORITIES
+		if any(TIER_REASON_LEVEL[r] == level for r in reasons))
+	ids = {code: found[code] for code in reasons}
+	ids.update({code: held[code] for code in holds})
+	return {
+		"tier": derive_tier(priority, holds),
+		"priority": priority,
+		"reasons": reasons,
+		"holds": holds,
+		"ids": ids,
+		"fix_item_ids": [_str_id(i) for i in fixes],
+	}
+
+
+def _ordered_subset(value, vocabulary) -> bool:
+	if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+		return False
+	if not all(v in vocabulary for v in value):
+		return False
+	positions = [vocabulary.index(v) for v in value]
+	return positions == sorted(set(positions))
+
+
+def valid_security_tier(obj) -> bool:
+	"""Vocabulary membership of every field, the fixed orders, `ids` covering
+	exactly the reasons and holds, the priority equal to the highest reason
+	level (P3 when there is none — the uncomputed default), and `tier ==
+	derive_tier(priority, holds)`. `{}`, a list, a bare "P2", or an internally
+	inconsistent object are all invalid — and an invalid tier is never
+	accepted (`accepts_baseline`) and bars as `tier-uncomputed`."""
+	if not isinstance(obj, dict) or set(obj) != {"tier", "priority", "reasons",
+			"holds", "ids", "fix_item_ids"}:
+		return False
+	tier, priority = obj["tier"], obj["priority"]
+	reasons, holds, ids = obj["reasons"], obj["holds"], obj["ids"]
+	if not (isinstance(priority, str) and priority in SECURITY_PRIORITIES):
+		return False
+	if not (isinstance(tier, str) and tier in SECURITY_TIERS):
+		return False
+	if not _ordered_subset(reasons, TIER_REASONS) or not _ordered_subset(holds, TIER_HOLDS):
+		return False
+	expected = next((level for level in SECURITY_PRIORITIES
+		if any(TIER_REASON_LEVEL[r] == level for r in reasons)), "P3")
+	if priority != expected or tier != derive_tier(priority, holds):
+		return False
+	if not isinstance(ids, dict) or set(ids) != set(reasons) | set(holds):
+		return False
+	if not all(isinstance(v, list) and all(isinstance(x, str) for x in v)
+			for v in ids.values()):
+		return False
+	fixes = obj["fix_item_ids"]
+	return isinstance(fixes, list) and all(isinstance(x, str) for x in fixes)
+
+
+def security_priority(x):
+	"""The one accessor for display priority on a view or a Tool:
+	`security_tier.priority` when the tier is valid, else None (not G-SEC, or
+	malformed). Convergence's attribution, its demotion gate, the effect
+	block and the summary counts all read priority through this."""
+	tier = x.get("security_tier") if isinstance(x, dict) else None
+	return tier["priority"] if valid_security_tier(tier) else None
+
+
+def priority_rank(priority) -> int:
+	"""P0 4 · P1 3 · P2 2 · P3 1 · anything else (not G-SEC) 0."""
+	return PRIORITY_RANK.get(priority, 0) if isinstance(priority, str) else 0
+
+
+# ── the pre-acceptance bar (D2, E3, G-SEC) ──────────────────────────────────
+# Emission order, fixed, like DEGRADATION_REASONS and for the same reason. The
+# first twelve are a G-SEC view's (P0 reasons ∪ holds); the last two are
+# emitted only for a tool that is NOT G-SEC; `watch-hit`, `enum-invalid` and
+# `container-unreadable` apply to both.
+PRE_ACCEPT_BARS = ("required-edit", "pinned", "incompatible-unfixed",
+	"content-losing", "security-item-risk", "watch-hit", "enum-invalid",
+	"container-unreadable", "research-incomplete", "not-runnable",
+	"forced-conservative", "tier-uncomputed", "elevated-risk", "reaches-item")
 
 
 def pre_accept_bars(tool) -> list:
 	"""→ the ordered reasons this tool may not start accepted, or [].
 
-	Reads a validation view and an assembled Tool identically (`risk_level`,
-	`items`), like `content_losing` and for the same reason. The guard site is `compute_initial_bucket`'s security_auto
-	clause: a barred security-only tool falls through to `security_mixed`,
-	whose card renders expanded with an "affects this setup" badge — guarding
-	only in `apply_pre_accept` would leave the tool inside a collapsed strip
-	headed "accepted" while individually undecided. `apply_pre_accept` asks
-	the same function as its second call site, so the bucket and the checkbox
-	cannot tell two stories.
+	Reads a validation view and an assembled Tool identically, like
+	`content_losing`. The bucket's clause 2 and `accepts_baseline` read the
+	value the validator STORED on the view (`view["pre_accept_bars"]`), and
+	assembly copies it — nothing recomputes it from assembled items, which
+	can hold synthesized reaching security items the bucket never saw.
 
-	- ``elevated-risk`` — D2: elevated risk bars pre-acceptance everywhere.
-	  On its own it is an unstable proxy: `brew:duckdb` came out `elevated`
-	  in one recorded run and `low` in the other for the identical upgrade,
-	  because the axis moves with the checker's wording. Hence the next limb.
-	- ``reaches-item`` — D2, widened past `elevated` and then narrowed to the
-	  measured case: an item that ITSELF carries security content (the
-	  `security` tag, or a `security` block — I-4's orphan case errs toward
-	  security here as everywhere) with `local.direction == "reaches"`.
-	  `elevated` alone misses `cask:wireshark-app` (28 advisories, a `sharkd`
-	  flaw reachable from the shell PATH, `config_status: unknown`) — and
-	  there the item that reaches IS the security item; the direction is
-	  already computed (it is what `security_display_item_ids` exports), and
-	  across the 17 recorded `security_auto` instances the limb selects all 3
-	  tools a human would want, with no false positives. Do NOT re-widen it —
-	  not to any reaching item, and not to any reaching item on a security
-	  tool: the measurement that justified going past `elevated` was taken on
-	  security items only, a reaching *feature* item then holds tools like
-	  `brew:openssh` undecided for a change that is a reason to take the
-	  update, and a predicate that quietly un-compresses the routine
-	  population is a regression against a redesign that exists because the
-	  old report cost 919 words per decision, with 373 of 584 items unable to
-	  change any decision.
-	- ``local-enum-invalid`` — the fail-closed twin of ``reaches-item``: an
-	  item whose `local.direction` or `local.effect` is present but outside
-	  the vocabulary is a claim about this setup written in a dialect the
-	  reaches-item limb cannot read. One character of drift ("reachs",
-	  "risks") on a real CVE item used to remove the bar AND the impact
-	  signal at once, landing the tool in `security_auto` with two
-	  E-ENUM-INVALID markers as the only trace. Everywhere else in this
-	  contract an unverifiable claim fails closed — an unchecked `watch_hit`
-	  bars precisely because it cannot be verified — so an unreadable one
-	  does too: holding the tool costs a click. Mirrors E-ENUM-INVALID's
-	  trigger exactly (present and not in the vocabulary; absent is
-	  E-FIELD-MISSING's business and the item then makes no direction
-	  claim), and reads the items directly rather than the findings list so
-	  a view and an assembled Tool answer identically.
+	**A G-SEC tool** (`security_tier` present): the tier's P0 reasons and its
+	holds, read off the stored tier — never recomputed here. A malformed tier
+	bars as `tier-uncomputed` (fail-closed). D2's elevated bar and the
+	reaches limb do NOT apply: a positively identified fix is accepted by
+	tier, and the priority panel is the visibility D2 asked for (§7.27).
+
+	**Every other tool** — no security content, or security content that is
+	not a positively identified fix — keeps the pre-G-SEC bars:
+
+	- ``elevated-risk`` — D2: elevated risk bars pre-acceptance. On its own it
+	  is an unstable proxy: `brew:duckdb` came out `elevated` in one recorded
+	  run and `low` in the other for the identical upgrade, because the axis
+	  moves with the checker's wording. Hence the next limb.
+	- ``reaches-item`` — D2, narrowed to the measured case: an item that
+	  ITSELF carries security content (the `security` tag, or a `security`
+	  block) with `local.direction == "reaches"`. `elevated` alone misses
+	  `cask:wireshark-app` (28 advisories, a `sharkd` flaw reachable from the
+	  shell PATH). Do NOT re-widen it — not to any reaching item, and not to
+	  any reaching item on a security tool: the measurement that justified it
+	  was taken on security items only, and a reaching *feature* item would
+	  hold tools like `brew:openssh` undecided for a change that is a reason
+	  to take the update — a regression against a redesign that exists because
+	  the old report cost 919 words per decision.
 	- ``watch-hit`` — E3: a watch item exists to be told about, and one that
-	  fires into an auto-accepted card is inert — which is the measured
-	  end-state the redesign exists to fix. Bars everywhere, bounded by the
-	  size of a store the user filled deliberately."""
+	  fires into an auto-accepted card is inert. The CLAIM bars (fail-closed).
+	- ``enum-invalid`` — universal (R7), the renamed and widened
+	  `local-enum-invalid`: any tier-input enum present and outside its
+	  vocabulary (`_enum_invalid`). One character of drift ("reachs") on a
+	  real CVE item used to remove the bar AND the impact signal at once;
+	  an unverifiable claim fails closed here as everywhere — holding costs a
+	  click.
+	- ``container-unreadable`` — universal (R7): an item container of the
+	  wrong type (`local: "risk"` read as no local claim at all) is a claim in
+	  a shape nothing can read."""
 	if not isinstance(tool, dict):
 		return []
-	reasons = []
+	tier = tool.get("security_tier")
+	if tier is not None:
+		if not valid_security_tier(tier):
+			return ["tier-uncomputed"]
+		found = {r for r in tier["reasons"] if TIER_REASON_LEVEL[r] == "P0"}
+		found.update(tier["holds"])
+		return [bar for bar in PRE_ACCEPT_BARS if bar in found]
+	found = set()
 	if tool.get("risk_level") == "elevated":
-		reasons.append("elevated-risk")
-	raw = tool.get("items")
-	items = [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
-	if any(
-			isinstance(i.get("local"), dict)
-			and i["local"].get("direction") == "reaches"
-			and ((isinstance(i.get("tags"), list) and "security" in i["tags"])
-				or isinstance(i.get("security"), dict))
+		found.add("elevated-risk")
+	items = _items_of(tool)
+	if any(_local_field(i, "direction") == "reaches" and is_security_content(i)
 			for i in items):
-		reasons.append("reaches-item")
-	if any(
-			isinstance(i.get("local"), dict)
-			and any(
-				i["local"].get(field) is not None
-				and i["local"].get(field) not in vocabulary
-				for field, vocabulary in (("direction", DIRECTIONS),
-					("effect", EFFECTS)))
-			for i in items):
-		reasons.append("local-enum-invalid")
+		found.add("reaches-item")
 	if has_watch_hit(items):
-		reasons.append("watch-hit")
-	return reasons
+		found.add("watch-hit")
+	if enum_invalid(tool):
+		found.add("enum-invalid")
+	if container_unreadable(tool):
+		found.add("container-unreadable")
+	return [bar for bar in PRE_ACCEPT_BARS if bar in found]
+
+
+def accepts_baseline(x) -> bool:
+	"""THE pre-acceptance predicate for a tool's baseline upgrade — one
+	normalized input contract, read identically off a validation view and an
+	assembled Tool. `assemble.apply_pre_accept` and
+	`converge.initial_pre_accept` both call it, so the bucket, the checkbox and
+	convergence's differential recomputation cannot tell two stories.
+
+	Inputs, bracket access: `security_tier` (the key must be present — null
+	or an object), `pre_accept_bars` (must be present — the EXPORTED bars,
+	never recomputed), the bucket (`review_bucket` on a Tool,
+	`initial_review_bucket` on a view), `risk_level`; `forced_conservative`
+	by `.get`. A missing key raises KeyError (the assembly discipline); the
+	convergence caller maps that to False.
+
+	`None` and malformed are distinguished explicitly: `{}` is falsy and must
+	never take the non-security branch."""
+	tier = x["security_tier"]
+	bars = x["pre_accept_bars"]
+	if not isinstance(bars, list) or bars:
+		return False
+	if tier is None:
+		bucket = x["review_bucket"] if "review_bucket" in x else x["initial_review_bucket"]
+		return bool(bucket != "attention" and x["risk_level"] == "low"
+			and not content_losing(x) and not x.get("forced_conservative"))
+	if not valid_security_tier(tier):
+		return False
+	return bool(tier["tier"] in ACCEPTED_TIERS and not content_losing(x)
+		and not x.get("forced_conservative"))
 
 
 # ── which flags a checker may emit (`item-schema.md` §5.1) ──────────────────
@@ -895,7 +1481,7 @@ FINDING_CODES = {
 	"W-MEMBER-QUARANTINED": ("warning", None, "a wrong-typed array member was quarantined, not dropped"),
 	# §L2 — the title/body split
 	"W-TITLE-LONG": ("warning", None, "title is longer than the glanceable bar; detail belongs in body"),
-	# V4 — the twenty invariants
+	# V4 — the twenty-three invariants
 	"E-ITEM-EMPTY": ("error", "I-1", "an item has neither `change` nor `local`"),
 	"E-SEV-INCOMPAT-UNGROUNDED": ("error", "I-2", "`incompatible` without reaches+risk"),
 	"E-SEV-WARNING-UNGROUNDED": ("error", "I-3", "`warning` without a `local` block"),
@@ -933,6 +1519,18 @@ FINDING_CODES = {
 	"E-WATCH-HIT-NOLOCAL": ("error", "I-20", "a watch-item hit with no `local` block"),
 	"W-WATCH-UNCHECKED": ("warning", "I-20", "a watch-item hit could not be checked against the stored watch items"),
 	"W-WATCH-HIT-UNRAISED": ("warning", "I-20", "a watch-item hit left at `info`; a watched topic earns at least `notable`"),
+	# I-21 … I-23 — G-SEC (CONTRACT 4). Each checker-declared G-SEC field is
+	# grounded against something the validator can check, and every failure
+	# mode reports. None is content-losing; all are card markers. A PROMOTING
+	# claim (`fix`, `usage`) counts for nothing unverified; a RESTRICTING one
+	# (`required`) stands unverified.
+	"E-SEC-FIX-UNGROUNDED": ("error", "I-21", "`security.nature: fix` without the `security` tag, a `security` block and a cited `change`"),
+	"W-SEC-FIX-NOID": ("warning", "I-21", "a grounded fix with no CVE, advisory or anchored id"),
+	"E-SUG-REQUIRED-UNGROUNDED": ("error", "I-22", "a `required` edit that serves no resolved `incompatible` item"),
+	"E-SUG-SERVES-UNRESOLVED": ("error", "I-22", "a `serves` entry naming no item of this tool"),
+	"E-REQUIREMENT-CONTRADICTED": ("error", "I-22", "a `proposed` edit serving an `incompatible` item — it reads `required`"),
+	"E-USAGE-UNGROUNDED": ("error", "I-23", "a `usage` evidence entry that does not resolve, cannot be read, or whose `quote` is absent or not in the file"),
+	"W-USAGE-INSTALL-ONLY": ("warning", "I-23", "a `usage` quote whose every occurrence lies on the tool's own install declaration or on comment lines"),
 	# criterion 2 — no per-tool checker emits a bucket or an auto-approval
 	"E-FLAG-FORBIDDEN": ("error", None, "a checker emitted a validator-only flag"),
 	# U1 — the closed top-level key set. Content-losing: the value went into
@@ -986,14 +1584,35 @@ ITEM_FIELDS = (
 	("local.statement", "string", "yes if local present", "the finding in prose"),
 	("local.evidence", "array<Evidence>", "yes if local present, may be []", "PATHS ONLY, objects"),
 	("local.citations", "array<Citation>", "no, default []", "prose, commands, upstream refs"),
+	("local.evidence[].role", "enum", "no", "|".join(EVIDENCE_ROLES)
+		+ " — on an object-form entry; absent makes no usage claim"),
+	("local.evidence[].quote", "string", "yes iff role == usage",
+		"a VERBATIM excerpt of the whole line(s) showing the use (I-23)"),
 	("security", "object|null", "yes iff 'security' in tags", "per-item security detail"),
 	("security.cve_id", "string|null", "no", "CVE-(19|20)dd-dddd+"),
 	("security.advisory_id", "string|null", "no", "vendor id"),
 	("security.rating", "enum", "yes if security present", "|".join(CVE_RATINGS)),
 	("security.rating_basis", "enum", "yes if security present", "|".join(RATING_BASES)),
 	("security.exploited_in_wild", "bool", "yes if security present", "vendor/CISA says so"),
+	("security.nature", "enum", "yes if security present", "|".join(SECURITY_NATURES)
+		+ " — only a GROUNDED fix (I-21) makes a tool G-SEC"),
 	("watch_hit", "object|null", "no", "set iff this item answers a stored watch item for this tool"),
 	("watch_hit.topic", "string", "yes if watch_hit present", "VERBATIM copy of the stored watch item's `topic`"),
+)
+
+
+# Suggestion fields G-SEC reads (CONTRACT 4), beside ITEM_FIELDS.
+SUGGESTION_FIELDS = (
+	("requirement", "enum", "no (absent reads proposed)",
+		"|".join(SUGGESTION_REQUIREMENTS) + " — on an action suggestion (edit, "
+		"structural, or any unrecognized kind); read by nothing on a memory or "
+		"upgrade suggestion"),
+	("serves", "array<item ref>", "yes if requirement == required (I-22)",
+		"the items this edit answers: the part of the derived item id after `#` "
+		"(`cve:CVE-2026-1234`, `slug:krun-arm`) or the full id"),
+	("serves_item_ids", "array<string>", "validator-assigned",
+		"`serves` resolved against the tool's item ids; the original stays "
+		"verbatim. No convergence op can write it"),
 )
 
 
@@ -1002,24 +1621,40 @@ ITEM_FIELDS = (
 BUCKET_CLAUSE_ORDER = (
 	"0. content_losing(view) is non-empty -> attention   [D1 - above the source clause on purpose]",
 	"1. source in NON_VERSION_SOURCES -> routine if expected else attention",
-	"2. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [D2/E3 - a barred tool falls through to security_mixed]",
+	"2. security_tier(view) is not None -> security_auto if the stored tier is valid and tier in ACCEPTED_TIERS (P1, P2, P3) else security_mixed   [G-SEC - P0 and held tools are never in the auto strip]",
+	"2b. has_security and security_only and impact == \"none\" and version_delta not in (major, unknown) and runnable and not pre_accept_bars(view) -> security_auto   [pre-G-SEC, unchanged: D2/E3 - a barred tool falls through to security_mixed]",
 	"3. has_security -> security_mixed",
 	"4. risk_level elevated, or config needs_attention, or an edit/structural suggestion (items.needs_a_decision), or not runnable -> attention",
 	"5. -> routine",
 )
 D2_ROUTING = (
-	"clause-2 guard (orchestrator ruling, overriding the spec's variants A and B): "
+	"clause-2b guard (orchestrator ruling, overriding the spec's variants A and B): "
 	"a barred security-only tool falls through to security_mixed — never to attention (A), "
 	"and never left in security_auto with a cleared checkbox (B). security_mixed already "
 	"renders an expanded card with an 'affects this setup' badge and correct counters; "
-	"anything downstream of finalize_tool desyncs the Overview tiles.")
+	"anything downstream of finalize_tool desyncs the Overview tiles. Since CONTRACT 4 "
+	"D2 governs every tool that is NOT G-SEC — including one whose only security "
+	"content is not a positively identified fix.")
+G_SEC_ROUTING = (
+	"a version-source tool with a positively identified security fix (security.nature "
+	"== fix, grounded by I-21) or a vendor-declared unread security release is G-SEC: "
+	"security_tier(view) computes its display priority (P0-P3) and its acceptance holds "
+	"once, the validator stores it, and clause 2 routes it — an accepted tier (P1, P2, "
+	"P3) to security_auto, P0 and held to security_mixed. D2's elevated bar and the "
+	"reaches limb do not apply to it; the priority panel is the visibility D2 asked "
+	"for. enum-invalid and container-unreadable bar every tool, G-SEC or not (R7).")
 PRE_ACCEPT_PREDICATE = (
-	"sug is baseline AND auto_runnable AND review_bucket != \"attention\" AND "
-	"risk_level == \"low\" AND not content_losing(tool) AND not "
-	"tool.pre_accept_bars — the bars are computed from the VALIDATOR'S view in "
-	"finalize_tool and carried on the tool; assembly never recomputes them from "
-	"assembled items, which can hold synthesized reaching security items the "
-	"bucket never saw")
+	"sug is baseline AND auto_runnable AND items.accepts_baseline(tool) — one "
+	"predicate for assembly and convergence, reading security_tier (key required: "
+	"null or an object), pre_accept_bars (key required: the EXPORTED bars, never "
+	"recomputed), the bucket, risk_level and forced_conservative. Not G-SEC "
+	"(security_tier null): bucket != \"attention\" AND risk_level == \"low\" AND not "
+	"content_losing AND pre_accept_bars == [] AND not forced_conservative. G-SEC: the "
+	"tier is valid AND tier in ACCEPTED_TIERS AND not content_losing AND "
+	"pre_accept_bars == [] AND not forced_conservative. A malformed tier ({} included) "
+	"is never accepted. The bars and the tier are the VALIDATOR'S, copied by "
+	"finalize_tool — assembly never recomputes them from assembled items, which can "
+	"hold synthesized reaching security items the bucket never saw")
 
 # The memory stores (D4, REDESIGN.md §L1). Mirrored by `contract/stores.json`;
 # all are machine-global, all are written only through their write_status.py
@@ -1094,6 +1729,10 @@ def contract() -> dict:
 			"ref_types": list(REF_TYPES),
 			"suggestion_kinds": list(SUGGESTION_KINDS),
 			"self_test_limbs": list(SELF_TEST_LIMBS),
+			"security_natures": list(SECURITY_NATURES),
+			"suggestion_requirements": list(SUGGESTION_REQUIREMENTS),
+			"evidence_roles": list(EVIDENCE_ROLES),
+			"config_states": list(CONFIG_STATES),
 		},
 		"memory_proposals": {
 			"kinds": list(MEMORY_SUGGESTION_KINDS),
@@ -1140,15 +1779,56 @@ def contract() -> dict:
 		"bucketing": {
 			"clause_order": list(BUCKET_CLAUSE_ORDER),
 			"d2_routing": D2_ROUTING,
+			"g_sec_routing": G_SEC_ROUTING,
 		},
 		"pre_accept": {
 			"predicate": PRE_ACCEPT_PREDICATE,
 			"bars": list(PRE_ACCEPT_BARS),
-			"bars_source": "the validator's view — finalize_tool computes "
-				"tool.pre_accept_bars from the same inputs the bucket's clause 2 "
-				"read, and apply_pre_accept refuses (KeyError) a tool nobody "
+			"bars_source": "the validator's view — the validator stores "
+				"view.pre_accept_bars (a G-SEC view's are its tier's P0 reasons and "
+				"holds, read off the stored tier), finalize_tool COPIES it onto the "
+				"tool, and accepts_baseline refuses (KeyError) a tool nobody "
 				"computed them for rather than recomputing from assembled items",
 		},
+		"security_tier": {
+			"tiers": list(SECURITY_TIERS),
+			"priorities": list(SECURITY_PRIORITIES),
+			"priority_rank": dict(PRIORITY_RANK),
+			"accepted": list(ACCEPTED_TIERS),
+			"highlight": list(HIGHLIGHT_PRIORITIES),
+			"reasons": [{"code": code, "level": level} for code, level in TIER_REASON_LEVELS],
+			"holds": list(TIER_HOLDS),
+			"tool_level_codes": list(TOOL_LEVEL_TIER_CODES),
+			"labels": copy.deepcopy(TIER_LABELS),
+			"shape": {"tier": "|".join(SECURITY_TIERS),
+				"priority": "|".join(SECURITY_PRIORITIES),
+				"reasons": "array<reason>, fixed order — every reason that holds",
+				"holds": "array<hold>, fixed order — every hold that applies",
+				"ids": "{reason or hold: [item or suggestion id]} — [] for tool-level ones",
+				"fix_item_ids": "array<item id> — the grounded fixes"},
+			"precedence": [
+				"applicability: >=1 item is_positive_fix, or vendor_silent_categories "
+				"contains security; else security_tier is null (not G-SEC)",
+				"priority: the highest level with a reason — computed WITHOUT the holds",
+				"tier: P0 if priority is P0; else held if any hold; else the priority",
+				"accepted iff tier in ACCEPTED_TIERS",
+				"a held tool keeps its priority on the page (R1) and is never counted "
+				"as accepted",
+			],
+			"default": copy.deepcopy(TIER_UNCOMPUTED),
+			"install_declaration_patterns": [dict(p) for p in INSTALL_DECLARATION_PATTERNS],
+			"usage_file_kinds": {"brewfile": "Brewfile", "tool-versions": ".tool-versions",
+				"mise-toml": ", ".join(MISE_TOML_NAMES) + ", mise/config.toml",
+				"shell": "*.sh, .bash*", "other": "anything else — no line is an "
+				"install declaration; a #-led line is still a comment"},
+			"usage_file_max_bytes": USAGE_FILE_MAX_BYTES,
+			"supersedes": ["reaches-item for G-SEC tools", "D2 elevated bar for G-SEC tools",
+				"local-enum-invalid (renamed enum-invalid)"],
+		},
+		"suggestion_fields": [
+			{"name": n, "type": t, "required": r, "note": note}
+			for n, t, r, note in SUGGESTION_FIELDS
+		],
 		"watch_hit": {
 			"authored_by": "the per-tool checker",
 			"grounded_against": "{session_dir}/watch-items.json — a copy of the "

@@ -1,6 +1,6 @@
 {
-	"converge_version": 2,
-	"view_version": 1,
+	"converge_version": 3,
+	"view_version": 2,
 	"max_attempts": 5,
 	"artifacts": {
 		"corpus.pre.json": "stage 3+prepare — the frozen corpus of record; immutable for the run",
@@ -152,6 +152,15 @@
 		"redirect",
 		"add"
 	],
+	"prominence_capable_ops": [
+		"delete",
+		"merge",
+		"retag",
+		"rerate",
+		"redirect",
+		"add",
+		"move_evidence"
+	],
 	"cut_ops": [
 		"delete",
 		"merge",
@@ -204,11 +213,28 @@
 		"auto-update",
 		"auto_update"
 	],
+	"prominence_consequence_tokens": [
+		"priority",
+		"highlight",
+		"prominence"
+	],
+	"never_write_fields": [
+		"security_tier",
+		"usage_evidence",
+		"usage_item_ids",
+		"serves_item_ids",
+		"pre_accept_bars"
+	],
+	"priority_axis": "security_priority",
+	"demotion": "any strict decrease in priority rank (P0 > P1 > P2 > P3 > not G-SEC): attributed over prominence_capable_ops, every attributed edit's reason.body names a prominence_consequence_token (else E-GATE-UNREASONED, gate kind demotion), disclosed expanded on the Overview; still failing at attempt 5 → forced conservative with a forced_display snapshot of the pre priority",
+	"corpus_versions": "corpus.pre's contract_version and converge_version must be exactly this code's (type int, equal) — else CorpusVersionError: apply_converge raises at every attempt, --check/--submit exit 4 recording no attempt, build_view/build_tables refuse, assembly renders artefacts_inconsistent",
 	"evidence_finding_codes": [
 		"E-EVID-MALFORMED",
 		"E-EVID-404",
 		"W-EVID-ROOT",
-		"E-REACHES-UNEVIDENCED"
+		"E-REACHES-UNEVIDENCED",
+		"E-USAGE-UNGROUNDED",
+		"W-USAGE-INSTALL-ONLY"
 	],
 	"checks": {
 		"C1-evidence": {

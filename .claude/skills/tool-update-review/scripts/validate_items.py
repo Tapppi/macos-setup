@@ -22,7 +22,7 @@ Six stages:
 	V2   spec validation      — required fields, types, closed vocabularies
 	V3   shape normalization  — the normalizations §5.3 licenses, and no others
 	V3b  id assignment and uniqueness, from the checker's declared anchor
-	V4   the twenty invariants
+	V4   the twenty-three invariants
 	V5   impact
 	V6   initial bucketing
 
@@ -53,6 +53,8 @@ loading stage inside a per-file and per-entry one.
 from __future__ import annotations  # Python 3.9 — same constraint as assemble.py
 
 import argparse
+import bisect
+import copy
 import json
 import os
 import re
@@ -386,18 +388,66 @@ class RootResolver:
 			return os.path.exists(os.path.join(root, candidate[len(prefix):]))
 		return False
 
+	@staticmethod
+	def _located(root, candidate):
+		"""The existing path `candidate` names under `root` (with the same
+		own-repo-prefix retry as `_under`), or None."""
+		direct = os.path.join(root, candidate)
+		if os.path.exists(direct):
+			return direct
+		prefix = os.path.basename(os.path.normpath(root)) + "/"
+		if candidate.startswith(prefix):
+			stripped = os.path.join(root, candidate[len(prefix):])
+			if os.path.exists(stripped):
+				return stripped
+		return None
+
 	def resolve(self, path: str):
 		"""→ (outcome, detail) where outcome is "ok" | "unconfigured" | "missing"."""
+		outcome, detail, _ = self.locate(path)
+		return outcome, detail
+
+	def locate(self, path: str):
+		"""→ (outcome, detail, located path). `resolve`, plus the file it
+		resolved to when the outcome is "ok" — the extension I-23 needs to
+		read a usage quote's file (G-SEC). The located path is None for every
+		other outcome: an unconfigured root grounds nothing."""
 		candidate = os.path.expanduser(path)
 		if os.path.isabs(candidate):
-			return ("ok", None) if os.path.exists(candidate) else ("missing", None)
+			return ("ok", None, candidate) if os.path.exists(candidate) \
+				else ("missing", None, None)
 		for root in self.roots:
-			if self._under(root, candidate):
-				return ("ok", None)
+			located = self._located(root, candidate)
+			if located is not None:
+				return ("ok", None, located)
 		for root in self._sibling_roots():
 			if self._under(root, candidate):
-				return ("unconfigured", os.path.basename(os.path.normpath(root)))
-		return ("missing", None)
+				return ("unconfigured", os.path.basename(os.path.normpath(root)), None)
+		return ("missing", None, None)
+
+
+class _NoIOResolver:
+	"""The explicit no-I/O validation mode (G-SEC, technical round-2 finding
+	7). `resolve` answers "skipped" without touching the filesystem, and
+	`validate_item` under it performs NEITHER I-14 path resolution NOR I-23
+	usage grounding and records no path or usage code.
+
+	Convergence's applier re-validates edited items with this — it is a pure
+	function of corpus.pre.json and is FORBIDDEN file access, not merely
+	without roots: `RootResolver([])` still answers an absolute path with
+	`os.path.exists`. Grounding happens once, in the stage-3 validator, and
+	travels as the recorded `usage_evidence`."""
+	no_io = True
+	roots = ()
+
+	def resolve(self, path):
+		return ("skipped", None)
+
+	def locate(self, path):
+		return ("skipped", None, None)
+
+
+NO_IO_RESOLVER = _NoIOResolver()
 
 
 # ── the manifest, for I-16's structural preconditions ───────────────────────
@@ -537,15 +587,24 @@ def _require_string(value, findings, tool_id, item_id, field, allow_empty=False)
 
 
 def validate_item(item, tool_id, item_id, link_count, findings: Findings,
-		resolver: RootResolver, watch_topics=None):
+		resolver: RootResolver, watch_topics=None, usage_sink=None, tool_name=None):
 	"""V2 spec validation, V3 normalization and V4's per-item invariants, on
 	one item. → (normalized item, quarantined members). The input is never
 	mutated, and no field is ever removed from the output.
 
 	Every branch reports. None removes the item, shortens a field or changes a
-	severity."""
+	severity.
+
+	`usage_sink`, when given, receives one grounding record per `usage`
+	evidence entry I-23 grounds (`{"entry", "matched_lines"}`) — the tool's
+	`usage_evidence`. `tool_name` is what I-23's install-declaration test
+	instantiates its patterns with (default: the id after the source). Under
+	`NO_IO_RESOLVER` neither I-14 resolution nor I-23 grounding runs."""
 	out = dict(item)
 	out["id"] = item_id
+	if tool_name is None:
+		tool_name = tool_id.split(":", 1)[-1] if isinstance(tool_id, str) else ""
+	no_io = bool(getattr(resolver, "no_io", False))
 
 	# ── anchor (I-9) ───────────────────────────────────────────────────
 	anchor = item.get("anchor")
@@ -711,6 +770,28 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 				"needs a path",
 				tool_id=tool_id, item_id=item_id, field="local.evidence")
 		_resolve_evidence(evidence, findings, tool_id, item_id, "local.evidence", resolver)
+		# I-23 — evidence `role`/`quote` (G-SEC). A `usage` entry claims this
+		# setup USES the affected thing; it is grounded against the file
+		# itself, once, here — never in the no-I/O mode convergence runs.
+		for entry in evidence:
+			if not isinstance(entry, dict) or entry.get("role") is None:
+				continue
+			role = entry["role"]
+			if not isinstance(role, str):
+				findings.add("E-FIELD-TYPE", "local.evidence[].role is {}, not a string".format(
+					type(role).__name__), tool_id=tool_id, item_id=item_id,
+					field="local.evidence.role", value=role)
+				continue
+			if role not in model.EVIDENCE_ROLES:
+				findings.add("E-ENUM-INVALID",
+					"local.evidence[].role must be one of: {}".format(
+						", ".join(model.EVIDENCE_ROLES)),
+					tool_id=tool_id, item_id=item_id, field="local.evidence.role", value=role)
+				continue
+			if role == "usage" and not no_io:
+				record = _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver)
+				if record is not None and usage_sink is not None:
+					usage_sink.append(record)
 		out["local"] = normalized_local
 		local = normalized_local
 
@@ -783,6 +864,46 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 				"a rating of \"{}\" with basis \"unrated\" — a grade with no issuer is a "
 				"guess".format(rating),
 				tool_id=tool_id, item_id=item_id, field="security.rating_basis")
+		# I-21 — `nature` (G-SEC): a fixed vulnerability, a moved boundary, or
+		# unclear. Only a GROUNDED `fix` makes the tool G-SEC.
+		nature = security.get("nature")
+		if nature is None:
+			findings.add("E-FIELD-MISSING",
+				"security.nature is required — fix, boundary or unclear; without it "
+				"this item is not a positively identified fix",
+				tool_id=tool_id, item_id=item_id, field="security.nature")
+		elif not isinstance(nature, str):
+			findings.add("E-FIELD-TYPE", "security.nature is {}, not a string".format(
+				type(nature).__name__),
+				tool_id=tool_id, item_id=item_id, field="security.nature", value=nature)
+		elif nature not in model.SECURITY_NATURES:
+			findings.add("E-ENUM-INVALID",
+				"security.nature must be one of: {}".format(", ".join(model.SECURITY_NATURES)),
+				tool_id=tool_id, item_id=item_id, field="security.nature", value=nature)
+		elif nature == "fix":
+			missing = []
+			if not tagged_security:
+				missing.append("the `security` tag (an orphan block is not a fix)")
+			citation = change.get("citation") if isinstance(change, dict) else None
+			if not (isinstance(citation, str) and citation.strip()):
+				missing.append("a `change` with a verbatim upstream `citation`")
+			if missing:
+				findings.add("E-SEC-FIX-UNGROUNDED",
+					"`nature: fix` is a claim about an upstream fact and needs {} — "
+					"ungrounded, it counts for nothing and the tool is judged by the "
+					"pre-G-SEC rules".format(" and ".join(missing)),
+					tool_id=tool_id, item_id=item_id, field="security.nature", value=nature)
+			else:
+				cve_id = security.get("cve_id")
+				advisory_id = security.get("advisory_id")
+				if not ((isinstance(cve_id, str) and cve_id.strip())
+						or (isinstance(advisory_id, str) and advisory_id.strip())
+						or (isinstance(anchor, dict)
+							and anchor.get("kind") in model.ANCHORED_KINDS)):
+					findings.add("W-SEC-FIX-NOID",
+						"a grounded fix with no CVE, advisory or anchored id — legitimate "
+						"(some maintainers issue none), counted so pass 6 can measure it",
+						tool_id=tool_id, item_id=item_id, field="security")
 
 	# ── watch_hit (I-20) ───────────────────────────────────────────────
 	# Checker-authored, validator-grounded. `watch_topics` is the stored
@@ -858,6 +979,277 @@ def _resolve_evidence(evidence, findings, tool_id, item_id, field, resolver):
 		elif outcome == "missing":
 			findings.add("E-EVID-404", "well-formed path that resolves under no root",
 				tool_id=tool_id, item_id=item_id, field=field, value=path)
+
+
+# ── I-23: usage grounding (G-SEC) ───────────────────────────────────────────
+_TOML_HEADER = re.compile(r"^\s*\[\[?\s*(.+?)\s*\]\]?\s*(?:#.*)?$")
+
+
+def _allowed_lines(entry):
+	"""→ (ok, allowed) — `allowed` is None when the entry names no `lines`
+	(the quote may be anywhere), else the set of line numbers the quote must
+	lie within. `ok` is False when `lines` is present but unreadable."""
+	lines = entry.get("lines")
+	if lines is None:
+		return True, None
+	if not isinstance(lines, list):
+		return False, None
+	allowed = set()
+	for loc in lines:
+		if isinstance(loc, int) and not isinstance(loc, bool):
+			allowed.add(loc)
+		elif (isinstance(loc, list) and len(loc) == 2
+				and all(isinstance(x, int) and not isinstance(x, bool) for x in loc)):
+			allowed.update(range(loc[0], loc[1] + 1))
+		else:
+			return False, None
+	return True, allowed
+
+
+def _enclosing_toml_section(lines, index):
+	"""The table header at or above line `index` (0-based), normalized
+	(`[tools."python"]` → `tools.python`), or None at top level."""
+	for n in range(index, -1, -1):
+		if lines[n].lstrip().startswith("#"):
+			continue
+		match = _TOML_HEADER.match(lines[n])
+		if match:
+			name = match.group(1).replace('"', "").replace("'", "")
+			return re.sub(r"\s*\.\s*", ".", name).strip()
+	return None
+
+
+def _classify_line(lines, index, kind, name) -> str:
+	"""→ "blank" | "comment" | "install" | "usage" for one source line, read
+	in its file (kind) and — for TOML — its enclosing section. Never the
+	quote text alone: a partial quote (`libpq` out of `brew "libpq"`) or a
+	mise excerpt that omits its `[tools]` header is judged by the full line
+	it came from, in the section it sits in."""
+	line = lines[index]
+	stripped = line.strip()
+	if not stripped:
+		return "blank"
+	if stripped.startswith("#"):
+		return "comment"
+	escaped = re.escape(name)
+	section, section_read = None, False
+	for spec in model.INSTALL_DECLARATION_PATTERNS:
+		if spec["kind"] != kind:
+			continue
+		want = spec["section"]
+		if want is not None:
+			if not section_read:
+				section, section_read = _enclosing_toml_section(lines, index), True
+			if want == "top":
+				if section is not None:
+					continue
+			elif want == "tools":
+				if section is None or not (section == "tools" or section.startswith("tools.")):
+					continue
+			elif section != want.replace("{name}", name):
+				continue
+		if re.search(spec["pattern"].replace("{name}", escaped), line):
+			return "install"
+	return "usage"
+
+
+def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
+	"""I-23 for one `role: "usage"` evidence entry. → the grounding record
+	`{"entry": <the entry as authored, after shape normalization>,
+	"matched_lines": [...]}` or None.
+
+	Grounded iff (1) the path resolves under a configured root or as an
+	existing absolute path; (2) it is a readable UTF-8 text file within
+	`USAGE_FILE_MAX_BYTES`; (3) `quote` occurs VERBATIM — after line-ending
+	normalization only (CRLF and a lone CR become LF, in file and quote) —
+	within `lines` when given, anywhere otherwise; and (4) at least one
+	occurrence spans no line that is the tool's own install declaration and at
+	least one line that is not a comment or blank. 1–3 failing is
+	E-USAGE-UNGROUNDED (naming the step); 4 failing is W-USAGE-INSTALL-ONLY.
+	Neither is a hold, and neither removes, rewrites or re-rates anything: it
+	withholds a derived highlight, which is all it may do (`REDESIGN.md` §A).
+
+	The record is keyed on the AUTHORED entry (§12 A-R3-1) — `matched_lines`
+	is the evidence of why it grounded, not the key."""
+	field = "local.evidence"
+	path = entry.get("path")
+
+	def ungrounded(step, why):
+		findings.add("E-USAGE-UNGROUNDED",
+			"usage evidence is not grounded (step {}: {}) — it confirms nothing".format(
+				step, why), tool_id=tool_id, item_id=item_id, field=field, value=path)
+
+	quote = entry.get("quote")
+	if not isinstance(quote, str) or not quote.strip():
+		ungrounded(3, "`quote` is absent or empty — a usage claim quotes the line "
+			"that shows the use")
+		return None
+	ok, allowed = _allowed_lines(entry)
+	if not ok:
+		ungrounded(3, "its `lines` locator is unreadable")
+		return None
+	try:
+		outcome, detail, located = resolver.locate(path)
+	except OSError as exc:
+		ungrounded(1, "the path could not be resolved ({})".format(type(exc).__name__))
+		return None
+	if outcome != "ok" or not located:
+		ungrounded(1, "the path resolves only under the unconfigured repo {}".format(detail)
+			if outcome == "unconfigured" else
+			"the path does not resolve under a configured root")
+		return None
+	try:
+		if not os.path.isfile(located):
+			ungrounded(2, "not a regular file")
+			return None
+		if os.path.getsize(located) > model.USAGE_FILE_MAX_BYTES:
+			ungrounded(2, "over the {}-byte cap".format(model.USAGE_FILE_MAX_BYTES))
+			return None
+		with open(located, "r", encoding="utf-8") as fh:
+			text = fh.read()
+	except (OSError, UnicodeDecodeError, ValueError) as exc:
+		ungrounded(2, "unreadable as UTF-8 text ({})".format(type(exc).__name__))
+		return None
+	if "\x00" in text:
+		ungrounded(2, "a binary file")
+		return None
+	text = text.replace("\r\n", "\n").replace("\r", "\n")
+	needle = quote.replace("\r\n", "\n").replace("\r", "\n")
+	line_starts = [0] + [k + 1 for k, ch in enumerate(text) if ch == "\n"]
+	source_lines = text.split("\n")
+	spans = []
+	at = text.find(needle)
+	while at != -1:
+		first = bisect.bisect_right(line_starts, at)
+		last = bisect.bisect_right(line_starts, at + len(needle) - 1)
+		span = list(range(first, last + 1))
+		if allowed is None or all(n in allowed for n in span):
+			spans.append(span)
+		at = text.find(needle, at + 1)
+	if not spans:
+		ungrounded(3, "the quote does not occur verbatim in the file"
+			+ (" within its `lines`" if allowed is not None else ""))
+		return None
+	kind = model.usage_file_kind(path)
+	described = set()
+	for span in spans:
+		classes = [_classify_line(source_lines, n - 1, kind, tool_name) for n in span]
+		if "install" not in classes and "usage" in classes:
+			return {"entry": copy.deepcopy(entry), "matched_lines": span}
+		for n, cls in zip(span, classes):
+			if cls != "usage":
+				described.add((n, "install declaration" if cls == "install" else cls))
+	findings.add("W-USAGE-INSTALL-ONLY",
+		"every occurrence of the quote lies on this tool's own install declaration "
+		"or a comment/blank line ({}) — that shows the tool is installed, not used; "
+		"quote the line that uses it".format(
+			"; ".join("line {}: {}".format(n, what) for n, what in sorted(described))),
+		tool_id=tool_id, item_id=item_id, field=field, value=path)
+	return None
+
+
+def _usage_evidence_record(records):
+	"""The tool's `usage_evidence`: unique by the authored entry, sorted by
+	it — byte-identical across runs over one corpus."""
+	by_key = {}
+	for record in records:
+		key = json.dumps(record["entry"], sort_keys=True, ensure_ascii=False, default=str)
+		by_key.setdefault(key, record)
+	return [by_key[k] for k in sorted(by_key)]
+
+
+# ── I-22: required edits and what they serve (G-SEC) ───────────────────────
+def _item_refs(items):
+	"""ref → item id: the full id, the part after `#`, and the unquoted
+	`kind:value` / `slug:<slug>` spelling of the anchor it was derived from
+	(a checker writes the anchor it declared, not its url-quoted form)."""
+	refs = {}
+	for item in items:
+		item_id = item.get("id") if isinstance(item, dict) else None
+		if not isinstance(item_id, str):
+			continue
+		refs.setdefault(item_id, item_id)
+		if "#" in item_id:
+			refs.setdefault(item_id.split("#", 1)[1], item_id)
+		anchor = item.get("anchor")
+		if isinstance(anchor, dict):
+			kind = anchor.get("kind")
+			if kind == "none" and isinstance(anchor.get("slug"), str):
+				refs.setdefault("slug:" + anchor["slug"], item_id)
+			elif isinstance(kind, str) and isinstance(anchor.get("value"), str):
+				refs.setdefault("{}:{}".format(kind, anchor["value"]), item_id)
+	return refs
+
+
+def i22_findings(sug, items_by_id) -> list:
+	"""→ [(code, message, value)] — I-22 read against `items_by_id`, the
+	tool's CURRENT items. Shared by the validator and convergence's post-edit
+	re-check (apply_converge phase 5a), so the two read one rule.
+
+	  * an id in `serves_item_ids` naming no current item →
+	    E-SUG-SERVES-UNRESOLVED (it links nothing)
+	  * a `required` edit is grounded iff it serves ≥1 item and every served
+	    item exists and is `incompatible` — else E-SUG-REQUIRED-UNGROUNDED (it
+	    still reads required)
+	  * a `proposed` (or unstated) edit serving an `incompatible` item →
+	    E-REQUIREMENT-CONTRADICTED (it reads required)"""
+	out = []
+	ids = sug.get("serves_item_ids") if isinstance(sug, dict) else None
+	ids = [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
+	for item_id in ids:
+		if item_id not in items_by_id:
+			out.append(("E-SUG-SERVES-UNRESOLVED",
+				"serves {} — no item of this tool has that id now; it links "
+				"nothing".format(item_id), item_id))
+	present = [items_by_id[i] for i in ids if i in items_by_id]
+	declared = sug.get("requirement") if isinstance(sug, dict) else None
+	if declared == "required":
+		if not ids or len(present) != len(ids) or any(
+				i.get("severity") != "incompatible" for i in present):
+			out.append(("E-SUG-REQUIRED-UNGROUNDED",
+				"a required edit must serve at least one `incompatible` item of this tool, "
+				"and only such items — it still reads required (a restricting claim "
+				"stands unverified)", declared))
+	elif declared is None or declared == "proposed":
+		if any(i.get("severity") == "incompatible" for i in present):
+			out.append(("E-REQUIREMENT-CONTRADICTED",
+				"a proposed edit that answers something the upgrade breaks here is "
+				"required by definition — it reads required", declared))
+	return out
+
+
+def _resolve_serves(view, findings, tool_id):
+	"""I-22 — runs once the items have their ids. Every ACTION suggestion
+	gets `serves_item_ids` (the validator's resolution record, which no
+	convergence op can write; the authored `serves` stays verbatim) and is
+	checked against the items."""
+	items = [i for i in view.get("items") or [] if isinstance(i, dict)]
+	refs = _item_refs(items)
+	by_id = {i["id"]: i for i in items if isinstance(i.get("id"), str)}
+	out = []
+	for sug in view.get("suggestions") or []:
+		if not isinstance(sug, dict) or not model.needs_a_decision(assemble.suggestion_kind(sug)):
+			out.append(sug)
+			continue
+		sug = dict(sug)  # a copy: the research input is never mutated
+		sug_id = sug.get("id") if isinstance(sug.get("id"), str) else None
+		resolved = []
+		serves = sug.get("serves")
+		for ref in serves if isinstance(serves, list) else ():
+			item_id = refs.get(ref) if isinstance(ref, str) else None
+			if item_id is None:
+				findings.add("E-SUG-SERVES-UNRESOLVED",
+					"a `serves` entry names no item of this tool — it links nothing",
+					tool_id=tool_id, item_id=sug_id, field="serves", value=ref)
+			elif item_id not in resolved:
+				resolved.append(item_id)
+		sug["serves_item_ids"] = resolved
+		for code, message, value in i22_findings(sug, by_id):
+			findings.add(code, message, tool_id=tool_id, item_id=sug_id,
+				field="serves" if code == "E-SUG-SERVES-UNRESOLVED" else "requirement",
+				value=value)
+		out.append(sug)
+	view["suggestions"] = out
 
 
 # ── suggestions and the structural outlet (§4) ──────────────────────────────
@@ -1249,6 +1641,17 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 		return "attention"
 	if view["source"] in NON_VERSION_SOURCES:
 		return "routine" if assemble.finding_expected(view) else "attention"
+	# Clause 2 — G-SEC (CONTRACT 4). A tool with a positively identified
+	# security fix is routed by the tier the validator stored on the view:
+	# accepted tiers (P1, P2, P3) to `security_auto`, P0 and held to
+	# `security_mixed` — never the auto strip. A malformed stored tier is
+	# never accepted. The page lists P0-P2 in its priority panel whatever the
+	# bucket; the bucket only decides the strip.
+	tier = view.get("security_tier")
+	if tier is not None:
+		return ("security_auto" if model.valid_security_tier(tier)
+			and tier["tier"] in model.ACCEPTED_TIERS else "security_mixed")
+	# Clause 2b — pre-G-SEC, unchanged for every tool that is not G-SEC.
 	if (has_security and security_only and impact == "none"
 			and view["version_delta"] not in ("major", "unknown") and runnable
 			# D2 (widened) + E3: elevated risk, a reaching change, or a watch
@@ -1317,6 +1720,15 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"security_display_item_ids": [],
 		"watch_hit_item_ids": [],
 		"self_test_tagged_suggestion_ids": [],
+		# G-SEC. The tier default is a held P3 (`tier-uncomputed`): never
+		# accepted, never highlighted, and never observed unless the tier
+		# function could not run on the final view. `usage_evidence` is I-23's
+		# record, `usage_item_ids` its export; `pre_accept_bars` is stored by
+		# the validator (assembly copies it).
+		"security_tier": copy.deepcopy(model.TIER_UNCOMPUTED),
+		"pre_accept_bars": [],
+		"usage_evidence": [],
+		"usage_item_ids": [],
 		"spec_violations": [],
 		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
 	}
@@ -1339,7 +1751,38 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 	# version delta, then the derived axes, in dependency order.
 	_guard(view, findings, "derived axes",
 		lambda: _derive_axes(view, candidate, findings, watch_topics))
+	_finalize(view)
 	return view
+
+
+# The conservative axes a view carries when a validator stage failed — the
+# values `compute_initial_bucket`, `compute_risk_level` and `compute_impact`
+# return for a view carrying `validator_error` (a test pins the equality).
+# Written as constants because the stage that failed may be one of those.
+CONSERVATIVE_AXES = {"initial_review_bucket": "attention", "risk_level": "elevated",
+	"impact": "unknown"}
+
+
+def _finalize(view):
+	"""The final act of `validate_tool`, outside every `_guard` stage.
+
+	`_guard` records `validator_error` and nothing else, and `_derive_axes`
+	assigns risk and the bucket BEFORE the exports, the I-15 check and the
+	tier — so a failure after them used to leave a stale `security_auto`/
+	`low` on a view whose recomputed tier is held: a held tool in the auto
+	strip. So, on a failed view, every conservative axis is finalized first;
+	then — on every view — the tier, the bars and the usage export are
+	recomputed from the FINAL view through the same never-raising functions.
+	Stored tier == `security_tier(final view)` is therefore true by
+	construction, whichever stage failed (G-SEC §4.2)."""
+	if view.get("validator_error"):
+		view.update(CONSERVATIVE_AXES)
+		inputs = view.get("bucket_inputs")
+		if isinstance(inputs, dict):
+			inputs["impact"] = "unknown"
+	view["security_tier"] = model.security_tier(view)
+	view["pre_accept_bars"] = model.pre_accept_bars(view)
+	view["usage_item_ids"] = model.usage_item_ids(view)
 
 
 def _guard(view, findings: Findings, stage, work):
@@ -1410,6 +1853,7 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 	# ordering is applied afterwards and never moves an id.
 	normalized, seen = [], set()
 	view["items"] = normalized
+	usage = []
 	for raw in raw_items:
 		derived = model.derive_item_id(tool_id, raw.get("anchor"))
 		item_id = model.disambiguate(derived, seen)
@@ -1422,7 +1866,7 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 		seen.add(item_id)
 		try:
 			item, item_quarantine = validate_item(raw, tool_id, item_id, len(links),
-				findings, resolver, watch_topics)
+				findings, resolver, watch_topics, usage_sink=usage, tool_name=view["name"])
 		except Exception as exc:  # noqa: BLE001
 			# One item's unanticipated shape costs that item's *checks*, never
 			# the item: it is kept exactly as written, with its assigned id, so
@@ -1436,12 +1880,17 @@ def _read_research(view, research, findings, tool_id, resolver, manifest,
 		normalized.append(item)
 		quarantine.extend(item_quarantine)
 	view["items"] = model.order_items(normalized)
+	# I-23's record: the grounded usage entries, keyed on the entry as
+	# authored. A validator record like spec_violations — no convergence edit
+	# can write it; convergence carries it and never re-grounds.
+	view["usage_evidence"] = _usage_evidence_record(usage)
 	view["config_status"] = _validate_config_status(view, research, findings, tool_id,
 		resolver)
 	suggestions, subject_refs, sug_quarantine = _validate_suggestions(
 		research, findings, tool_id, manifest)
 	view["suggestions"] = suggestions
 	view["subject_refs"] = subject_refs
+	_resolve_serves(view, findings, tool_id)
 	# Every quarantined member ends up on the tool, whichever array it came
 	# from: dropping one is deletion, and a human would have read it.
 	quarantine.extend(sug_quarantine)
@@ -1519,10 +1968,16 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 		"version_delta": view["version_delta"],
 		"runnable": runnable,
 	}
+	# G-SEC: the tier, computed ONCE from the view, stored BEFORE the bucket —
+	# clause 2 routes a G-SEC tool by the tier it reads off the view — then
+	# the bars the tier and the pre-G-SEC rules imply, then the bucket.
+	view["security_tier"] = model.security_tier(view)
+	view["pre_accept_bars"] = model.pre_accept_bars(view)
 	view["initial_review_bucket"] = compute_initial_bucket(view, has_security,
 		security_only, impact, risk_level, runnable)
 	view["security_display_item_ids"] = [
 		i["id"] for i in model.security_display_items(view["items"])]
+	view["usage_item_ids"] = model.usage_item_ids(view)
 	# The GROUNDED hits, exported beside security_display_item_ids and
 	# computed in the same stage deliberately: both are pure functions of
 	# view["items"], and when this one lived in _read_research a crash after
@@ -1568,6 +2023,21 @@ def _validate_config_status(view, research, findings, tool_id, resolver):
 			tool_id=tool_id, field="config_status", value=raw)
 		return default_config_status()
 	out = dict(raw)
+	# §2.4 (G-SEC): the state vocabulary is validated. Absent reads unknown (no
+	# claim); unreadable is kept verbatim and holds the tool (`enum-invalid`).
+	state = raw.get("state")
+	if state is None:
+		findings.add("E-FIELD-MISSING",
+			"config_status.state is required — {}; absent, it reads unknown".format(
+				" | ".join(model.CONFIG_STATES)),
+			tool_id=tool_id, field="config_status.state")
+	elif not isinstance(state, str):
+		findings.add("E-FIELD-TYPE", "config_status.state is {}, not a string".format(
+			type(state).__name__), tool_id=tool_id, field="config_status.state", value=state)
+	elif state not in model.CONFIG_STATES:
+		findings.add("E-ENUM-INVALID",
+			"config_status.state must be one of: {}".format(", ".join(model.CONFIG_STATES)),
+			tool_id=tool_id, field="config_status.state", value=state)
 	if out.get("detail") is None:
 		out["detail"] = ""
 	evidence = normalize_evidence(raw.get("evidence"), findings, tool_id, None,
@@ -1610,6 +2080,29 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 				subject_refs.append({"subject": subject,
 					"suggestion_id": sug_id or (tool_id + ":<no id>")})
 		_validate_memory_proposal(sug, kind, findings, tool_id, sug_id)
+		if model.needs_a_decision(kind):
+			# G-SEC — `requirement`/`serves` on an ACTION suggestion (an
+			# unrecognized kind is one too: needs_a_decision is a negation).
+			requirement = sug.get("requirement")
+			if requirement is None:
+				findings.add("E-FIELD-MISSING",
+					"requirement is required on an action suggestion — required or "
+					"proposed; absent, it reads proposed (upgrade only by default)",
+					tool_id=tool_id, item_id=sug_id, field="requirement")
+			elif not isinstance(requirement, str):
+				findings.add("E-FIELD-TYPE", "requirement is {}, not a string — it reads "
+					"required".format(type(requirement).__name__),
+					tool_id=tool_id, item_id=sug_id, field="requirement", value=requirement)
+			elif requirement not in model.SUGGESTION_REQUIREMENTS:
+				findings.add("E-ENUM-INVALID",
+					"requirement must be one of: {} — unreadable, it reads required".format(
+						", ".join(model.SUGGESTION_REQUIREMENTS)),
+					tool_id=tool_id, item_id=sug_id, field="requirement", value=requirement)
+			serves = sug.get("serves")
+			if serves is not None and not isinstance(serves, list):
+				findings.add("E-FIELD-TYPE", "serves is {}, not an array of item refs".format(
+					type(serves).__name__),
+					tool_id=tool_id, item_id=sug_id, field="serves", value=serves)
 		# I-17, second limb — no target_files[] path is intel.Brewfile.
 		for target in as_list(sug.get("target_files"), findings, tool_id, "target_files", sug_id):
 			path = target.get("path") if isinstance(target, dict) else target

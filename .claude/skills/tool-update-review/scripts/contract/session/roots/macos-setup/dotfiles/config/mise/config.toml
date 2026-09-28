@@ -1,0 +1,7 @@
+[tools]
+python = "3.12"
+node = "22"
+
+[settings]
+# the old interpreter pin was python = "3.11"
+python_compile = false

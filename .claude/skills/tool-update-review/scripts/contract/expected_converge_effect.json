@@ -1,6 +1,6 @@
 {
-	"corpus_pre_digest": "sha256:804ec514b1c7e597f2bcfa4ad2dc7660cb7af5da477045da7480d5a53ea30e66",
-	"corpus_post_digest": "sha256:da2161133f0451140f9e56632fcf11ab40f10cfbe51ea94bb293b12e5538f71a",
+	"corpus_pre_digest": "sha256:f95242c6d3a103b52f290009da5ba8a62e87c2c070d29249b37c84330096f3d9",
+	"corpus_post_digest": "sha256:98e9de03cc4c9889e6b8dbff08361e370566cea9fafe7dc7518f1824083030e6",
 	"effect": {
 		"run_id": "session",
 		"generated_at": "2026-09-07T00:00:00Z",
@@ -18,11 +18,24 @@
 			"cv-010",
 			"cv-011",
 			"cv-013",
+			"cv-014",
 			"cv-007"
 		],
 		"superseded": [],
 		"rejected": [],
 		"diff": [
+			{
+				"tool_id": "brew:duckdb",
+				"kind": "item",
+				"element": "brew:duckdb#cve:CVE-2026-41007",
+				"change": "field",
+				"field": "local.direction",
+				"before": "reaches",
+				"after": "unclear",
+				"edit_ids": [
+					"cv-014"
+				]
+			},
 			{
 				"tool_id": "brew:nonconforming",
 				"kind": "item",
@@ -265,6 +278,15 @@
 			}
 		},
 		"attribution": {
+			"brew:duckdb": {
+				"security_priority": {
+					"attributed_to": [
+						"cv-014"
+					],
+					"joint": false,
+					"unattributed": false
+				}
+			},
 			"brew:openssh": {
 				"initial_review_bucket": {
 					"attributed_to": [
@@ -276,11 +298,82 @@
 			}
 		},
 		"tools": {
+			"brew:duckdb": {
+				"touched": true,
+				"edit_ids": [
+					"cv-014"
+				],
+				"security_priority": {
+					"from": "P2",
+					"to": "P3",
+					"lost": true,
+					"reasons_from": [
+						"relevant-fix",
+						"fix"
+					],
+					"reasons_to": [
+						"fix"
+					],
+					"attributed_to": [
+						"cv-014"
+					]
+				},
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P3 (priority P3; reasons fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
 			"brew:elevated": {
 				"touched": true,
 				"edit_ids": [
 					"cv-009"
 				]
+			},
+			"brew:elevated-fix": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P3 (priority P3; reasons fix), version_delta=patch, risk_level=elevated, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "high",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:libpq": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons relevant-fix, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
 			},
 			"brew:nonconforming": {
 				"touched": true,
@@ -328,6 +421,96 @@
 					}
 				}
 			},
+			"brew:tier-breaking": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons fix-with-breaking, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:tier-config": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P1 (priority P1; reasons config-attention, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:tier-fix": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P3 (priority P3; reasons fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:tier-proposed": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P1 (priority P1; reasons edit-proposed, fix), version_delta=patch, risk_level=elevated, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
+			"brew:tier-risk": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons fix-with-risk, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 1,
+						"worst_rating": "medium",
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
+			},
 			"brew:watched": {
 				"touched": true,
 				"edit_ids": [
@@ -337,6 +520,24 @@
 					"cv-008",
 					"cv-013"
 				]
+			},
+			"cask:tier-vendor": {
+				"touched": false,
+				"edit_ids": [],
+				"auto_update_label": {
+					"source": "rule",
+					"headline": "Auto by rule — the deterministic path alone put it here.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons vendor-unread), version_delta=patch, risk_level=elevated, no pre-acceptance bars.",
+					"confidence": "high",
+					"edit_ids": [],
+					"quotes": [],
+					"counterweight": {
+						"cve_count": 0,
+						"worst_rating": null,
+						"items_removed": 0,
+						"items_retagged": 0
+					}
+				}
 			}
 		},
 		"corpus_effect": {
@@ -346,29 +547,29 @@
 				"flag": 2,
 				"merge": 1,
 				"move_evidence": 1,
-				"redirect": 1,
+				"redirect": 2,
 				"rerate": 1,
 				"retag": 1,
 				"trim": 1
 			},
 			"items": {
-				"before": 24,
-				"after": 22
+				"before": 53,
+				"after": 51
 			},
 			"severity_after": {
-				"info": 8,
-				"notable": 8,
-				"warning": 4,
-				"incompatible": 1
+				"info": 11,
+				"notable": 29,
+				"warning": 5,
+				"incompatible": 4
 			},
 			"severity_at_warning_or_worse": {
-				"before": 5,
-				"after": 5,
+				"before": 9,
+				"after": 9,
 				"pct_change": 0.0
 			},
 			"tag_security_items": {
-				"before": 6,
-				"after": 6
+				"before": 25,
+				"after": 25
 			},
 			"tools_moved": {
 				"permissive": [
@@ -378,10 +579,10 @@
 				"lateral": []
 			},
 			"pre_accept": {
-				"before": 1,
-				"after": 1
+				"before": 10,
+				"after": 10
 			},
-			"narrative": "The one movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
+			"narrative": "The one bucket movement is brew:openssh: cv-003 cuts its feature note, the remaining items are security-only, and the tool enters security_auto with its already-eligible upgrade pre-accepted — gated, attributed and labelled. The one priority movement is brew:duckdb: cv-014 redirects its fix to unclear, lowering it from P2 to P3 with the consequence named; it stays accepted. brew:watched loses one duplicate item to a merge and nothing at warning or worse moved anywhere."
 		},
 		"findings": [
 			{
@@ -403,7 +604,7 @@
 				"critical": false,
 				"edit_id": "cv-009",
 				"tool_id": "brew:elevated",
-				"detail": "security_only holds: the single item IS the CVE fix; elevated risk already bars pre-acceptance."
+				"detail": "security_only holds: the single item is the CVE change itself; elevated risk and its reach already bar pre-acceptance."
 			},
 			{
 				"code": "W-STORE-UNCHECKED",

@@ -1,5 +1,5 @@
 {
-	"contract_version": 3,
+	"contract_version": 4,
 	"generated_at": "2026-09-07T00:00:00Z",
 	"session_id": "session",
 	"clean": false,
@@ -147,6 +147,15 @@
 			"field": "security",
 			"value": "",
 			"message": "a `security` block on an item not tagged `security`"
+		},
+		{
+			"code": "E-SEC-FIX-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming#commit:f2ff0b2a",
+			"field": "security.nature",
+			"value": "fix",
+			"message": "`nature: fix` is a claim about an upstream fact and needs the `security` tag (an orphan block is not a fix) — ungrounded, it counts for nothing and the tool is judged by the pre-G-SEC rules"
 		},
 		{
 			"code": "E-SEC-RATING-UNBASED",
@@ -356,6 +365,15 @@
 			"message": "suggestion kind must be one of: upgrade, edit, structural, watch-item, method-note"
 		},
 		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:bad-kind",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
+		},
+		{
 			"code": "E-INTEL-BREWFILE",
 			"severity": "error",
 			"tool_id": "brew:nonconforming",
@@ -365,6 +383,15 @@
 			"message": "intel.Brewfile is out of this tool entirely — it is not a suggestion target"
 		},
 		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:edit-with-a-self-test-tag",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
+		},
+		{
 			"code": "E-FIELD-TYPE",
 			"severity": "error",
 			"tool_id": "brew:nonconforming",
@@ -372,6 +399,15 @@
 			"field": "self_test_failed",
 			"value": "",
 			"message": "a `self_test_failed` tag on a suggestion of kind \"edit\" — the tag is present iff the kind is one of: watch-item, method-note"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:intel-manifest",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
 		},
 		{
 			"code": "E-FIELD-MISSING",
@@ -428,6 +464,15 @@
 			"message": "a \"method-note\" proposal needs `method_topic` — what the note is about, in a few words"
 		},
 		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:move-to-its-own-section",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
+		},
+		{
 			"code": "E-STRUCT-PRECOND",
 			"severity": "error",
 			"tool_id": "brew:nonconforming",
@@ -444,6 +489,33 @@
 			"field": "structural",
 			"value": "",
 			"message": "a structural suggestion needs its `structural` block — that block, not the diff preview, is the reviewable artifact"
+		},
+		{
+			"code": "E-SUG-REQUIRED-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:no-block",
+			"field": "requirement",
+			"value": "required",
+			"message": "a required edit must serve at least one `incompatible` item of this tool, and only such items — it still reads required (a restricting claim stands unverified)"
+		},
+		{
+			"code": "E-SUG-SERVES-UNRESOLVED",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:no-block",
+			"field": "serves",
+			"value": "slug:no-such-item",
+			"message": "a `serves` entry names no item of this tool — it links nothing"
+		},
+		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "brew:nonconforming:redispatch-install",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
 		},
 		{
 			"code": "E-STRUCT-PRECOND",
@@ -464,6 +536,15 @@
 			"message": "a `self_test_failed` tag with no reason — convergence reviews the tag to decide whether dropping the proposal is right, and cannot do that from the limb name alone"
 		},
 		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:nonconforming",
+			"item_id": "cask:codex:add-quarantine-task",
+			"field": "requirement",
+			"value": "",
+			"message": "requirement is required on an action suggestion — required or proposed; absent, it reads proposed (upgrade only by default)"
+		},
+		{
 			"code": "W-SUG-DUP-ID",
 			"severity": "warning",
 			"tool_id": "brew:nonconforming",
@@ -473,12 +554,120 @@
 			"message": "also used by cask:codex — a collision almost always means an id pattern was copied rather than derived"
 		},
 		{
+			"code": "E-FIELD-MISSING",
+			"severity": "error",
+			"tool_id": "brew:openssh",
+			"item_id": "brew:openssh#release:10.5p1%2Fssh-mux-realloc-uaf",
+			"field": "security.nature",
+			"value": "",
+			"message": "security.nature is required — fix, boundary or unclear; without it this item is not a positively identified fix"
+		},
+		{
 			"code": "W-MEMBER-QUARANTINED",
 			"severity": "warning",
 			"tool_id": "brew:quarantined",
 			"item_id": null,
 			"field": "items",
 			"value": "and a second change the checker wrote as a bare string",
+			"message": "a items entry is str, not an object — quarantined, not dropped"
+		},
+		{
+			"code": "E-FIELD-TYPE",
+			"severity": "error",
+			"tool_id": "brew:routine-unreadable",
+			"item_id": "brew:routine-unreadable#slug:local-none",
+			"field": "local",
+			"value": "none",
+			"message": "local is str, not an object"
+		},
+		{
+			"code": "E-ENUM-INVALID",
+			"severity": "error",
+			"tool_id": "brew:routine-unreadable",
+			"item_id": "brew:routine-unreadable#slug:minor-fix",
+			"field": "severity",
+			"value": "minor",
+			"message": "severity must be one of: info, notable, warning, incompatible"
+		},
+		{
+			"code": "W-ATTENTION-NOSUG",
+			"severity": "warning",
+			"tool_id": "brew:tier-config",
+			"item_id": null,
+			"field": "config_status.state",
+			"value": "",
+			"message": "config_status is needs_attention but no edit or structural suggestion says what to do about it"
+		},
+		{
+			"code": "E-FIELD-TYPE",
+			"severity": "error",
+			"tool_id": "brew:tier-container",
+			"item_id": "brew:tier-container#slug:local-as-string",
+			"field": "local",
+			"value": "risk",
+			"message": "local is str, not an object"
+		},
+		{
+			"code": "E-ENUM-INVALID",
+			"severity": "error",
+			"tool_id": "brew:tier-enum",
+			"item_id": null,
+			"field": "config_status.state",
+			"value": "stale",
+			"message": "config_status.state must be one of: up_to_date, needs_attention, unknown"
+		},
+		{
+			"code": "E-USAGE-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:tier-fix",
+			"item_id": "brew:tier-fix#cve:CVE-2026-41010",
+			"field": "local.evidence",
+			"value": "dotfiles/home/.duckdbrc",
+			"message": "usage evidence is not grounded (step 3: the quote does not occur verbatim in the file) — it confirms nothing"
+		},
+		{
+			"code": "E-USAGE-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:tier-fix",
+			"item_id": "brew:tier-fix#cve:CVE-2026-41010",
+			"field": "local.evidence",
+			"value": "tieto/konehuone/sysmi/notes.md",
+			"message": "usage evidence is not grounded (step 1: the path resolves only under the unconfigured repo tieto) — it confirms nothing"
+		},
+		{
+			"code": "W-EVID-ROOT",
+			"severity": "warning",
+			"tool_id": "brew:tier-fix",
+			"item_id": "brew:tier-fix#cve:CVE-2026-41010",
+			"field": "local.evidence",
+			"value": "tieto/konehuone/sysmi/notes.md",
+			"message": "resolves under \"tieto\", which is a real repo but not a configured root — a configuration finding about the run, not a checker defect"
+		},
+		{
+			"code": "W-USAGE-INSTALL-ONLY",
+			"severity": "warning",
+			"tool_id": "brew:tier-fix",
+			"item_id": "brew:tier-fix#cve:CVE-2026-41010",
+			"field": "local.evidence",
+			"value": "Brewfile",
+			"message": "every occurrence of the quote lies on this tool's own install declaration or a comment/blank line (line 30: install declaration) — that shows the tool is installed, not used; quote the line that uses it"
+		},
+		{
+			"code": "E-WATCH-HIT-UNGROUNDED",
+			"severity": "error",
+			"tool_id": "brew:tier-held-p1",
+			"item_id": "brew:tier-held-p1#slug:plugin-api",
+			"field": "watch_hit.topic",
+			"value": "plugin permissions",
+			"message": "names no stored watch item for this tool — the topic is copied verbatim from the standing notes, never paraphrased"
+		},
+		{
+			"code": "W-MEMBER-QUARANTINED",
+			"severity": "warning",
+			"tool_id": "brew:tier-p0-lost",
+			"item_id": null,
+			"field": "items",
+			"value": "and a third change the checker wrote as a bare string",
 			"message": "a items entry is str, not an object — quarantined, not dropped"
 		},
 		{
@@ -544,11 +733,11 @@
 			"E-CITE-KIND": 1,
 			"E-CITE-URL": 1,
 			"E-CVE-MALFORMED": 1,
-			"E-ENUM-INVALID": 3,
+			"E-ENUM-INVALID": 5,
 			"E-EVID-404": 1,
 			"E-EVID-MALFORMED": 2,
-			"E-FIELD-MISSING": 7,
-			"E-FIELD-TYPE": 3,
+			"E-FIELD-MISSING": 14,
+			"E-FIELD-TYPE": 5,
 			"E-FLAG-DISAGREE": 3,
 			"E-FLAG-FORBIDDEN": 1,
 			"E-INTEL-BREWFILE": 2,
@@ -560,23 +749,28 @@
 			"E-RESEARCH-UNKNOWNKEY": 3,
 			"E-SEC-BLOCK-MISSING": 1,
 			"E-SEC-BLOCK-ORPHAN": 1,
+			"E-SEC-FIX-UNGROUNDED": 1,
 			"E-SEC-RATING-UNBASED": 1,
 			"E-SELFTEST-NOREASON": 1,
 			"E-SEV-INCOMPAT-UNGROUNDED": 1,
 			"E-SEV-WARNING-UNGROUNDED": 1,
 			"E-STRUCT-PRECOND": 2,
+			"E-SUG-REQUIRED-UNGROUNDED": 1,
+			"E-SUG-SERVES-UNRESOLVED": 1,
 			"E-TAG-NONE": 1,
 			"E-TAG-UNKNOWN": 1,
+			"E-USAGE-UNGROUNDED": 2,
 			"E-WATCH-HIT-NOLOCAL": 1,
-			"E-WATCH-HIT-UNGROUNDED": 2,
-			"W-ATTENTION-NOSUG": 1,
+			"E-WATCH-HIT-UNGROUNDED": 3,
+			"W-ATTENTION-NOSUG": 2,
 			"W-ENTRY-UNMATCHED": 1,
-			"W-EVID-ROOT": 1,
-			"W-MEMBER-QUARANTINED": 2,
+			"W-EVID-ROOT": 2,
+			"W-MEMBER-QUARANTINED": 3,
 			"W-SHAPE-COERCED": 1,
 			"W-STRUCT-UNCHECKED": 1,
 			"W-SUG-DUP-ID": 1,
 			"W-TITLE-LONG": 1,
+			"W-USAGE-INSTALL-ONLY": 1,
 			"W-WATCH-HIT-UNRAISED": 1
 		},
 		"by_tool": {
@@ -584,13 +778,21 @@
 			"brew:coerced": 1,
 			"brew:ghost": 1,
 			"brew:legacy-shape": 3,
-			"brew:nonconforming": 45,
+			"brew:nonconforming": 54,
+			"brew:openssh": 1,
 			"brew:quarantined": 1,
+			"brew:routine-unreadable": 2,
+			"brew:tier-config": 1,
+			"brew:tier-container": 1,
+			"brew:tier-enum": 1,
+			"brew:tier-fix": 4,
+			"brew:tier-held-p1": 1,
+			"brew:tier-p0-lost": 1,
 			"brew:watched": 6
 		},
 		"by_severity": {
-			"error": 49,
-			"warning": 10
+			"error": 66,
+			"warning": 14
 		}
 	},
 	"orphans": [],
@@ -783,6 +985,12 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [],
 			"degradation": {
 				"content_losing": [],
@@ -878,7 +1086,8 @@
 						"advisory_id": null,
 						"rating": "unknown",
 						"rating_basis": "unrated",
-						"exploited_in_wild": false
+						"exploited_in_wild": false,
+						"nature": "boundary"
 					},
 					"id": "brew:openssh#release:10.5p1%2Frestrict-covers-tunnel",
 					"id_stability": "slug"
@@ -978,10 +1187,18 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
-			"spec_violations": [],
+			"security_tier": null,
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-FIELD-MISSING"
+			],
 			"degradation": {
 				"content_losing": [],
-				"markers": [],
+				"markers": [
+					"E-FIELD-MISSING"
+				],
 				"quarantined": 0
 			}
 		},
@@ -1040,7 +1257,8 @@
 						"advisory_id": null,
 						"rating": "medium",
 						"rating_basis": "nvd",
-						"exploited_in_wild": false
+						"exploited_in_wild": false,
+						"nature": "boundary"
 					},
 					"watch_hit": {
 						"topic": "cask quarantine after upgrade"
@@ -1098,6 +1316,10 @@
 					"id": "cask:codex:add-quarantine-task",
 					"kind": "structural",
 					"title": "Add a `setup.sh quarantine` task so a plain cask upgrade can re-clear quarantine",
+					"requirement": "proposed",
+					"serves": [
+						"cve:CVE-2026-18408"
+					],
 					"structural": {
 						"op": "task_add",
 						"subjects": [
@@ -1128,7 +1350,10 @@
 						}
 					],
 					"rationale": "Four casks need the quarantine flag cleared after an upgrade and none of them has a home for it today.",
-					"needs_sudo": false
+					"needs_sudo": false,
+					"serves_item_ids": [
+						"cask:codex#cve:CVE-2026-18408"
+					]
 				}
 			],
 			"subject_refs": [
@@ -1165,6 +1390,14 @@
 				"cask:codex#cve:CVE-2026-18408"
 			],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"watch-hit",
+				"elevated-risk",
+				"reaches-item"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [],
 			"degradation": {
 				"content_losing": [],
@@ -1256,6 +1489,10 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"W-ATTENTION-NOSUG"
 			],
@@ -1392,7 +1629,8 @@
 						"advisory_id": null,
 						"rating": "high",
 						"rating_basis": "unrated",
-						"exploited_in_wild": "yes"
+						"exploited_in_wild": "yes",
+						"nature": "fix"
 					},
 					"id": "brew:nonconforming#commit:f2ff0b2a",
 					"id_stability": "anchored"
@@ -1434,8 +1672,13 @@
 					"id": "brew:nonconforming:no-block",
 					"kind": "structural",
 					"title": "A structural suggestion with no structural block",
+					"requirement": "required",
+					"serves": [
+						"slug:no-such-item"
+					],
 					"target_files": [],
-					"rationale": "The block is the reviewable artifact and it is absent."
+					"rationale": "The block is the reviewable artifact and it is absent.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "brew:nonconforming:bad-kind",
@@ -1447,7 +1690,8 @@
 							"description": "the Intel manifest is out of this tool"
 						}
 					],
-					"rationale": "Two findings in one suggestion."
+					"rationale": "Two findings in one suggestion.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "brew:nonconforming:intel-manifest",
@@ -1467,7 +1711,8 @@
 						}
 					},
 					"target_files": [],
-					"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in."
+					"rationale": "intel.Brewfile is out of scope, subjects is empty, and the move is to the section it is already in.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "brew:nonconforming:move-to-its-own-section",
@@ -1492,7 +1737,8 @@
 						}
 					},
 					"target_files": [],
-					"rationale": "The precondition is that its current section differs from the target."
+					"rationale": "The precondition is that its current section differs from the target.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "brew:nonconforming:redispatch-install",
@@ -1517,14 +1763,16 @@
 						}
 					},
 					"target_files": [],
-					"rationale": "The precondition is that the subcommand token is not already dispatched."
+					"rationale": "The precondition is that the subcommand token is not already dispatched.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "cask:codex:add-quarantine-task",
 					"kind": "edit",
 					"title": "A suggestion id already claimed by another tool",
 					"target_files": [],
-					"rationale": "A collision almost always means an id pattern was copied rather than derived."
+					"rationale": "A collision almost always means an id pattern was copied rather than derived.",
+					"serves_item_ids": []
 				},
 				{
 					"id": "brew:nonconforming:watch-no-reason",
@@ -1563,7 +1811,8 @@
 					"self_test_failed": {
 						"limb": "limb",
 						"reason": "An edit has no self-test to fail."
-					}
+					},
+					"serves_item_ids": []
 				}
 			],
 			"subject_refs": [
@@ -1601,6 +1850,13 @@
 				"brew:nonconforming:watch-no-reason",
 				"brew:nonconforming:method-no-payload"
 			],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"enum-invalid",
+				"elevated-risk"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"E-ANCHOR-MALFORMED",
 				"E-CHANGE-UNCITED",
@@ -1622,11 +1878,14 @@
 				"E-REACHES-UNEVIDENCED",
 				"E-SEC-BLOCK-MISSING",
 				"E-SEC-BLOCK-ORPHAN",
+				"E-SEC-FIX-UNGROUNDED",
 				"E-SEC-RATING-UNBASED",
 				"E-SELFTEST-NOREASON",
 				"E-SEV-INCOMPAT-UNGROUNDED",
 				"E-SEV-WARNING-UNGROUNDED",
 				"E-STRUCT-PRECOND",
+				"E-SUG-REQUIRED-UNGROUNDED",
+				"E-SUG-SERVES-UNRESOLVED",
 				"E-TAG-NONE",
 				"E-TAG-UNKNOWN",
 				"W-EVID-ROOT",
@@ -1660,11 +1919,14 @@
 					"E-REACHES-UNEVIDENCED",
 					"E-SEC-BLOCK-MISSING",
 					"E-SEC-BLOCK-ORPHAN",
+					"E-SEC-FIX-UNGROUNDED",
 					"E-SEC-RATING-UNBASED",
 					"E-SELFTEST-NOREASON",
 					"E-SEV-INCOMPAT-UNGROUNDED",
 					"E-SEV-WARNING-UNGROUNDED",
 					"E-STRUCT-PRECOND",
+					"E-SUG-REQUIRED-UNGROUNDED",
+					"E-SUG-SERVES-UNRESOLVED",
 					"E-TAG-NONE",
 					"E-TAG-UNKNOWN",
 					"W-EVID-ROOT",
@@ -1882,6 +2144,13 @@
 				"brew:watched#issue:watched%2Fwatched%23104"
 			],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"watch-hit",
+				"container-unreadable"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"E-FIELD-MISSING",
 				"E-FIELD-TYPE",
@@ -1937,7 +2206,8 @@
 						"advisory_id": null,
 						"rating": "medium",
 						"rating_basis": "nvd",
-						"exploited_in_wild": false
+						"exploited_in_wild": false,
+						"nature": "fix"
 					},
 					"id": "brew:quarantined#cve:CVE-2026-31001",
 					"id_stability": "anchored"
@@ -1978,6 +2248,30 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [
+					"content-losing"
+				],
+				"ids": {
+					"fix": [
+						"brew:quarantined#cve:CVE-2026-31001"
+					],
+					"content-losing": []
+				},
+				"fix_item_ids": [
+					"brew:quarantined#cve:CVE-2026-31001"
+				]
+			},
+			"pre_accept_bars": [
+				"content-losing"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"W-MEMBER-QUARANTINED"
 			],
@@ -2038,6 +2332,12 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"W-SHAPE-COERCED"
 			],
@@ -2100,7 +2400,8 @@
 						"advisory_id": null,
 						"rating": "high",
 						"rating_basis": "nvd",
-						"exploited_in_wild": false
+						"exploited_in_wild": false,
+						"nature": "boundary"
 					},
 					"id": "brew:elevated#cve:CVE-2026-32001",
 					"id_stability": "anchored"
@@ -2137,6 +2438,13 @@
 			],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"elevated-risk",
+				"reaches-item"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [],
 			"degradation": {
 				"content_losing": [],
@@ -2224,6 +2532,12 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"elevated-risk"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [
 				"E-RESEARCH-UNKNOWNKEY"
 			],
@@ -2234,6 +2548,2646 @@
 				],
 				"markers": [],
 				"quarantined": 3
+			}
+		},
+		{
+			"id": "brew:tier-required",
+			"source": "brew",
+			"name": "tier-required",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-required 1.0.1",
+					"url": "https://example.invalid/tier-required/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41001"
+					},
+					"title": "Fixes a request-smuggling flaw in the listener",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix HTTP request smuggling in the listener (CVE-2026-41001)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41001",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-required#cve:CVE-2026-41001",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "config-key-renamed"
+					},
+					"title": "The `listen` config key is renamed `bind`; the old key now refuses to start",
+					"tags": [
+						"breaking"
+					],
+					"severity": "incompatible",
+					"change": {
+						"version": "1.0.1",
+						"citation": "BREAKING: `listen` is renamed `bind`; configs using `listen` fail to load",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The Brewfile installs it and the tracked config still sets `listen`, so the upgraded daemon refuses to start until the key is renamed.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									27
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:tier-required#slug:config-key-renamed",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-required.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "brew:tier-required:rename-listen",
+					"kind": "edit",
+					"title": "Rename `listen` to `bind` in the tracked config",
+					"requirement": "required",
+					"serves": [
+						"slug:config-key-renamed"
+					],
+					"target_files": [],
+					"rationale": "The upgrade does not start here without it.",
+					"needs_sudo": false,
+					"serves_item_ids": [
+						"brew:tier-required#slug:config-key-renamed"
+					]
+				}
+			],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "incompatible",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P0",
+				"priority": "P0",
+				"reasons": [
+					"required-edit",
+					"fix-with-breaking",
+					"fix-with-risk",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"required-edit": [
+						"brew:tier-required:rename-listen"
+					],
+					"fix-with-breaking": [
+						"brew:tier-required#slug:config-key-renamed"
+					],
+					"fix-with-risk": [
+						"brew:tier-required#slug:config-key-renamed"
+					],
+					"fix": [
+						"brew:tier-required#cve:CVE-2026-41001"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-required#cve:CVE-2026-41001"
+				]
+			},
+			"pre_accept_bars": [
+				"required-edit"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-pinned",
+			"source": "brew",
+			"name": "tier-pinned",
+			"pinned": true,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-pinned 1.0.1",
+					"url": "https://example.invalid/tier-pinned/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41002"
+					},
+					"title": "Fixes a path traversal in the archive extractor",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix path traversal in archive extraction (CVE-2026-41002)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41002",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-pinned#cve:CVE-2026-41002",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-pinned.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P0",
+				"priority": "P0",
+				"reasons": [
+					"pinned",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"pinned": [],
+					"fix": [
+						"brew:tier-pinned#cve:CVE-2026-41002"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-pinned#cve:CVE-2026-41002"
+				]
+			},
+			"pre_accept_bars": [
+				"pinned"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-incompatible",
+			"source": "brew",
+			"name": "tier-incompatible",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-incompatible 1.0.1",
+					"url": "https://example.invalid/tier-incompatible/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41003"
+					},
+					"title": "Fixes a heap overflow in the image decoder",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix heap overflow in the image decoder (CVE-2026-41003)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41003",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-incompatible#cve:CVE-2026-41003",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "drops-macos-15"
+					},
+					"title": "The new build drops support for the macOS release this machine runs",
+					"tags": [
+						"packaging"
+					],
+					"severity": "incompatible",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Minimum supported macOS is now 26.1",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "This machine runs an older point release; the upgraded binary will not launch here, and no config edit changes that.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									28
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:tier-incompatible#slug:drops-macos-15",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-incompatible.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "incompatible",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P0",
+				"priority": "P0",
+				"reasons": [
+					"incompatible-unfixed",
+					"fix-with-risk",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"incompatible-unfixed": [
+						"brew:tier-incompatible#slug:drops-macos-15"
+					],
+					"fix-with-risk": [
+						"brew:tier-incompatible#slug:drops-macos-15"
+					],
+					"fix": [
+						"brew:tier-incompatible#cve:CVE-2026-41003"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-incompatible#cve:CVE-2026-41003"
+				]
+			},
+			"pre_accept_bars": [
+				"incompatible-unfixed"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-proposed",
+			"source": "brew",
+			"name": "tier-proposed",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-proposed 1.0.1",
+					"url": "https://example.invalid/tier-proposed/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41004"
+					},
+					"title": "Fixes a token leak in debug logging",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix bearer tokens written to the debug log (CVE-2026-41004)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41004",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-proposed#cve:CVE-2026-41004",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-proposed.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "brew:tier-proposed:rotate-log",
+					"kind": "edit",
+					"title": "Delete the debug log the old version may have written tokens to",
+					"requirement": "proposed",
+					"serves": [
+						"cve:CVE-2026-41004"
+					],
+					"target_files": [],
+					"rationale": "Worth doing; the upgrade works without it.",
+					"needs_sudo": false,
+					"serves_item_ids": [
+						"brew:tier-proposed#cve:CVE-2026-41004"
+					]
+				}
+			],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P1",
+				"priority": "P1",
+				"reasons": [
+					"edit-proposed",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"edit-proposed": [
+						"brew:tier-proposed:rotate-log"
+					],
+					"fix": [
+						"brew:tier-proposed#cve:CVE-2026-41004"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-proposed#cve:CVE-2026-41004"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-config",
+			"source": "brew",
+			"name": "tier-config",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-config 1.0.1",
+					"url": "https://example.invalid/tier-config/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41005"
+					},
+					"title": "Fixes a weak default cipher list",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Tighten the default cipher list (CVE-2026-41005)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41005",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-config#cve:CVE-2026-41005",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "needs_attention",
+				"detail": "The tracked config pins the old cipher list, which now overrides the fixed default. Nothing here proposes the edit.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P1",
+				"priority": "P1",
+				"reasons": [
+					"config-attention",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"config-attention": [],
+					"fix": [
+						"brew:tier-config#cve:CVE-2026-41005"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-config#cve:CVE-2026-41005"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"W-ATTENTION-NOSUG"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"W-ATTENTION-NOSUG"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:libpq",
+			"source": "brew",
+			"name": "libpq",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "libpq 1.0.1",
+					"url": "https://example.invalid/libpq/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41006"
+					},
+					"title": "Fixes a buffer overread in service-file parsing",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix buffer overread parsing pg_service.conf (CVE-2026-41006)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41006",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "Every psql session here reads the tracked service file, which is exactly the parser this fixes.",
+						"evidence": [
+							{
+								"path": "dotfiles/home/.pg_service.conf",
+								"role": "usage",
+								"quote": "host=db.internal"
+							},
+							{
+								"path": "Brewfile",
+								"lines": [
+									25
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:libpq#cve:CVE-2026-41006",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures libpq.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:libpq#cve:CVE-2026-41006"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P2",
+				"priority": "P2",
+				"reasons": [
+					"relevant-fix",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"relevant-fix": [
+						"brew:libpq#cve:CVE-2026-41006"
+					],
+					"fix": [
+						"brew:libpq#cve:CVE-2026-41006"
+					]
+				},
+				"fix_item_ids": [
+					"brew:libpq#cve:CVE-2026-41006"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [
+				{
+					"entry": {
+						"path": "dotfiles/home/.pg_service.conf",
+						"role": "usage",
+						"quote": "host=db.internal"
+					},
+					"matched_lines": [
+						3
+					]
+				}
+			],
+			"usage_item_ids": [
+				"brew:libpq#cve:CVE-2026-41006"
+			],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:duckdb",
+			"source": "brew",
+			"name": "duckdb",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "duckdb 1.0.1",
+					"url": "https://example.invalid/duckdb/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41007"
+					},
+					"title": "Fixes an out-of-bounds read in the dot-command parser",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix out-of-bounds read in CLI dot-command parsing (CVE-2026-41007)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41007",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The tracked init file drives the CLI's dot-command parser on every interactive session.",
+						"evidence": [
+							{
+								"path": "dotfiles/home/.duckdbrc",
+								"lines": [
+									2
+								],
+								"role": "usage",
+								"quote": ".timer on"
+							},
+							{
+								"path": "Brewfile",
+								"lines": [
+									26
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:duckdb#cve:CVE-2026-41007",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures duckdb.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:duckdb#cve:CVE-2026-41007"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P2",
+				"priority": "P2",
+				"reasons": [
+					"relevant-fix",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"relevant-fix": [
+						"brew:duckdb#cve:CVE-2026-41007"
+					],
+					"fix": [
+						"brew:duckdb#cve:CVE-2026-41007"
+					]
+				},
+				"fix_item_ids": [
+					"brew:duckdb#cve:CVE-2026-41007"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [
+				{
+					"entry": {
+						"path": "dotfiles/home/.duckdbrc",
+						"lines": [
+							2
+						],
+						"role": "usage",
+						"quote": ".timer on"
+					},
+					"matched_lines": [
+						2
+					]
+				}
+			],
+			"usage_item_ids": [
+				"brew:duckdb#cve:CVE-2026-41007"
+			],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-breaking",
+			"source": "brew",
+			"name": "tier-breaking",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-breaking 1.0.1",
+					"url": "https://example.invalid/tier-breaking/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41008"
+					},
+					"title": "Fixes a denial of service in the query planner",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix planner DoS on crafted queries (CVE-2026-41008)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41008",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-breaking#cve:CVE-2026-41008",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "flag-removed"
+					},
+					"title": "The deprecated `--legacy` flag is removed",
+					"tags": [
+						"breaking"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Removed the deprecated --legacy flag",
+						"link_index": 0
+					},
+					"id": "brew:tier-breaking#slug:flag-removed",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-breaking.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P2",
+				"priority": "P2",
+				"reasons": [
+					"fix-with-breaking",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"fix-with-breaking": [
+						"brew:tier-breaking#slug:flag-removed"
+					],
+					"fix": [
+						"brew:tier-breaking#cve:CVE-2026-41008"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-breaking#cve:CVE-2026-41008"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-risk",
+			"source": "brew",
+			"name": "tier-risk",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-risk 1.0.1",
+					"url": "https://example.invalid/tier-risk/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41009"
+					},
+					"title": "Fixes an integer overflow in the chunk reader",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix integer overflow in the chunk reader (CVE-2026-41009)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41009",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-risk#cve:CVE-2026-41009",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "new-telemetry"
+					},
+					"title": "Telemetry is now on by default",
+					"tags": [
+						"feature"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Telemetry is enabled by default",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "Nothing here opts out, so the upgraded tool starts reporting usage from this machine.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									29
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:tier-risk#slug:new-telemetry",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-risk.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P2",
+				"priority": "P2",
+				"reasons": [
+					"fix-with-risk",
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"fix-with-risk": [
+						"brew:tier-risk#slug:new-telemetry"
+					],
+					"fix": [
+						"brew:tier-risk#cve:CVE-2026-41009"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-risk#cve:CVE-2026-41009"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "cask:tier-vendor",
+			"source": "cask",
+			"name": "tier-vendor",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-vendor 1.0.1",
+					"url": "https://example.invalid/tier-vendor/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [
+				"security"
+			],
+			"items": [],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-vendor.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": null,
+				"local_findings": 0
+			},
+			"version_delta": "patch",
+			"impact": "unknown",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P2",
+				"priority": "P2",
+				"reasons": [
+					"vendor-unread"
+				],
+				"holds": [],
+				"ids": {
+					"vendor-unread": []
+				},
+				"fix_item_ids": []
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-fix",
+			"source": "brew",
+			"name": "tier-fix",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-fix 1.0.1",
+					"url": "https://example.invalid/tier-fix/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41010"
+					},
+					"title": "Fixes a race in the lock file",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a TOCTOU race creating the lock file (CVE-2026-41010)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41010",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The Brewfile installs it; the usage entries below do not show a use.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									30
+								],
+								"role": "usage",
+								"quote": "tier-fix"
+							},
+							{
+								"path": "dotfiles/home/.duckdbrc",
+								"role": "usage",
+								"quote": "a line that is not in the file"
+							},
+							{
+								"path": "tieto/konehuone/sysmi/notes.md",
+								"role": "usage",
+								"quote": "A note in a real repo"
+							},
+							{
+								"path": "Brewfile",
+								"lines": [
+									30
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:tier-fix#cve:CVE-2026-41010",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-fix.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:tier-fix#cve:CVE-2026-41010"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P3",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"fix": [
+						"brew:tier-fix#cve:CVE-2026-41010"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-fix#cve:CVE-2026-41010"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-USAGE-UNGROUNDED",
+				"W-EVID-ROOT",
+				"W-USAGE-INSTALL-ONLY"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-USAGE-UNGROUNDED",
+					"W-EVID-ROOT",
+					"W-USAGE-INSTALL-ONLY"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:elevated-fix",
+			"source": "brew",
+			"name": "elevated-fix",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "elevated-fix 1.0.1",
+					"url": "https://example.invalid/elevated-fix/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-32002"
+					},
+					"title": "Fixes a credential leak through the local socket",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "warning",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix a credential leak reachable through the local control socket",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-32002",
+						"advisory_id": null,
+						"rating": "high",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "benefit",
+						"statement": "The Brewfile installs this formula and the socket is enabled by default, so the fix lands on a surface this machine exposes.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									24
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:elevated-fix#cve:CVE-2026-32002",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures elevated-fix.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "warning",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_auto",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:elevated-fix#cve:CVE-2026-32002"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P3",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [],
+				"ids": {
+					"fix": [
+						"brew:elevated-fix#cve:CVE-2026-32002"
+					]
+				},
+				"fix_item_ids": [
+					"brew:elevated-fix#cve:CVE-2026-32002"
+				]
+			},
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-held-p2",
+			"source": "brew",
+			"name": "tier-held-p2",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-held-p2 1.0.1",
+					"url": "https://example.invalid/tier-held-p2/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "keychain-scope"
+					},
+					"title": "Credentials move to a broader Keychain access group",
+					"tags": [
+						"security"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Credentials now use the shared access group",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The shared group widens which apps on this machine can read the stored credential.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									31
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"security": {
+						"cve_id": null,
+						"advisory_id": null,
+						"rating": "unknown",
+						"rating_basis": "unrated",
+						"exploited_in_wild": false,
+						"nature": "boundary"
+					},
+					"id": "brew:tier-held-p2#slug:keychain-scope",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41011"
+					},
+					"title": "Fixes a signature bypass in the updater",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix updater signature bypass (CVE-2026-41011)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41011",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-held-p2#cve:CVE-2026-41011",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "config-format"
+					},
+					"title": "The config file format changes from INI to TOML",
+					"tags": [
+						"breaking"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Config is now TOML",
+						"link_index": 0
+					},
+					"id": "brew:tier-held-p2#slug:config-format",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-held-p2.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "notable",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "low",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [
+				"brew:tier-held-p2#slug:keychain-scope"
+			],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P2",
+				"reasons": [
+					"fix-with-breaking",
+					"fix"
+				],
+				"holds": [
+					"security-item-risk"
+				],
+				"ids": {
+					"fix-with-breaking": [
+						"brew:tier-held-p2#slug:config-format"
+					],
+					"fix": [
+						"brew:tier-held-p2#cve:CVE-2026-41011"
+					],
+					"security-item-risk": [
+						"brew:tier-held-p2#slug:keychain-scope"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-held-p2#cve:CVE-2026-41011"
+				]
+			},
+			"pre_accept_bars": [
+				"security-item-risk"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-held-p1",
+			"source": "brew",
+			"name": "tier-held-p1",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-held-p1 1.0.1",
+					"url": "https://example.invalid/tier-held-p1/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41012"
+					},
+					"title": "Fixes a sandbox escape in the plugin host",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix plugin-host sandbox escape (CVE-2026-41012)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41012",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-held-p1#cve:CVE-2026-41012",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "plugin-api"
+					},
+					"title": "The plugin API gains a filesystem capability",
+					"tags": [
+						"feature"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Plugins may request filesystem access",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "unclear",
+						"effect": "none",
+						"statement": "Whether any installed plugin requests it is not decidable here.",
+						"evidence": [],
+						"citations": []
+					},
+					"watch_hit": {
+						"topic": "plugin permissions"
+					},
+					"id": "brew:tier-held-p1#slug:plugin-api",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-held-p1.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [
+				{
+					"id": "brew:tier-held-p1:review-plugins",
+					"kind": "edit",
+					"title": "Pin the plugin allow-list before the new capability lands",
+					"requirement": "proposed",
+					"target_files": [],
+					"rationale": "Worth doing; the upgrade works without it.",
+					"needs_sudo": false,
+					"serves_item_ids": []
+				}
+			],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P1",
+				"reasons": [
+					"edit-proposed",
+					"fix"
+				],
+				"holds": [
+					"watch-hit"
+				],
+				"ids": {
+					"edit-proposed": [
+						"brew:tier-held-p1:review-plugins"
+					],
+					"fix": [
+						"brew:tier-held-p1#cve:CVE-2026-41012"
+					],
+					"watch-hit": [
+						"brew:tier-held-p1#slug:plugin-api"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-held-p1#cve:CVE-2026-41012"
+				]
+			},
+			"pre_accept_bars": [
+				"watch-hit"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-WATCH-HIT-UNGROUNDED"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-WATCH-HIT-UNGROUNDED"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-enum",
+			"source": "brew",
+			"name": "tier-enum",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-enum 1.0.1",
+					"url": "https://example.invalid/tier-enum/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41013"
+					},
+					"title": "Fixes an XML entity expansion",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix XML entity expansion (CVE-2026-41013)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41013",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-enum#cve:CVE-2026-41013",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "stale",
+				"detail": "The tracked config may be stale.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [
+					"enum-invalid"
+				],
+				"ids": {
+					"fix": [
+						"brew:tier-enum#cve:CVE-2026-41013"
+					],
+					"enum-invalid": []
+				},
+				"fix_item_ids": [
+					"brew:tier-enum#cve:CVE-2026-41013"
+				]
+			},
+			"pre_accept_bars": [
+				"enum-invalid"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-ENUM-INVALID"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-ENUM-INVALID"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-container",
+			"source": "brew",
+			"name": "tier-container",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-container 1.0.1",
+					"url": "https://example.invalid/tier-container/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41014"
+					},
+					"title": "Fixes a format-string bug in logging",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix format-string bug in log output (CVE-2026-41014)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41014",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-container#cve:CVE-2026-41014",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "local-as-string"
+					},
+					"title": "Log rotation now defaults to daily",
+					"tags": [
+						"fix"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Log rotation defaults to daily",
+						"link_index": 0
+					},
+					"local": "risk",
+					"id": "brew:tier-container#slug:local-as-string",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-container.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [
+					"container-unreadable"
+				],
+				"ids": {
+					"fix": [
+						"brew:tier-container#cve:CVE-2026-41014"
+					],
+					"container-unreadable": [
+						"brew:tier-container#slug:local-as-string"
+					]
+				},
+				"fix_item_ids": [
+					"brew:tier-container#cve:CVE-2026-41014"
+				]
+			},
+			"pre_accept_bars": [
+				"container-unreadable"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-FIELD-TYPE"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-FIELD-TYPE"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-research",
+			"source": "brew",
+			"name": "tier-research",
+			"pinned": false,
+			"research_error": "The release notes page timed out after its first section.",
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-research 1.0.1",
+					"url": "https://example.invalid/tier-research/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41015"
+					},
+					"title": "Fixes a use-after-free in the resolver",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix resolver use-after-free (CVE-2026-41015)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41015",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-research#cve:CVE-2026-41015",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-research.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "unknown",
+			"risk_level": "elevated",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "unknown",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [
+					"research-incomplete"
+				],
+				"ids": {
+					"fix": [
+						"brew:tier-research#cve:CVE-2026-41015"
+					],
+					"research-incomplete": []
+				},
+				"fix_item_ids": [
+					"brew:tier-research#cve:CVE-2026-41015"
+				]
+			},
+			"pre_accept_bars": [
+				"research-incomplete"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "brew:tier-p0-lost",
+			"source": "brew",
+			"name": "tier-p0-lost",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-p0-lost 1.0.1",
+					"url": "https://example.invalid/tier-p0-lost/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41017"
+					},
+					"title": "Fixes a stack overflow in the parser",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix stack overflow on deeply nested input (CVE-2026-41017)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41017",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "brew:tier-p0-lost#cve:CVE-2026-41017",
+					"id_stability": "anchored"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "abi-break"
+					},
+					"title": "The plugin ABI changes; every installed plugin stops loading",
+					"tags": [
+						"breaking"
+					],
+					"severity": "incompatible",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Plugin ABI version 3; v2 plugins fail to load",
+						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "risk",
+						"statement": "The two plugins installed here are v2 and stop loading after the upgrade.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									32
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
+					},
+					"id": "brew:tier-p0-lost#slug:abi-break",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [
+				{
+					"field": "items",
+					"item_id": null,
+					"value": "and a third change the checker wrote as a bare string"
+				}
+			],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-p0-lost.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": true,
+				"worst_severity": "incompatible",
+				"local_findings": 2
+			},
+			"version_delta": "patch",
+			"impact": "possible",
+			"risk_level": "elevated",
+			"initial_review_bucket": "attention",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": false,
+				"impact": "possible",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "P0",
+				"priority": "P0",
+				"reasons": [
+					"incompatible-unfixed",
+					"fix-with-breaking",
+					"fix-with-risk",
+					"fix"
+				],
+				"holds": [
+					"content-losing"
+				],
+				"ids": {
+					"incompatible-unfixed": [
+						"brew:tier-p0-lost#slug:abi-break"
+					],
+					"fix-with-breaking": [
+						"brew:tier-p0-lost#slug:abi-break"
+					],
+					"fix-with-risk": [
+						"brew:tier-p0-lost#slug:abi-break"
+					],
+					"fix": [
+						"brew:tier-p0-lost#cve:CVE-2026-41017"
+					],
+					"content-losing": []
+				},
+				"fix_item_ids": [
+					"brew:tier-p0-lost#cve:CVE-2026-41017"
+				]
+			},
+			"pre_accept_bars": [
+				"incompatible-unfixed",
+				"content-losing"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"W-MEMBER-QUARANTINED"
+			],
+			"degradation": {
+				"content_losing": [
+					"quarantined-content"
+				],
+				"markers": [
+					"W-MEMBER-QUARANTINED"
+				],
+				"quarantined": 1
+			}
+		},
+		{
+			"id": "brew:routine-unreadable",
+			"source": "brew",
+			"name": "routine-unreadable",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "routine-unreadable 1.0.1",
+					"url": "https://example.invalid/routine-unreadable/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "minor-fix"
+					},
+					"title": "Fixes a crash on empty input",
+					"tags": [
+						"fix"
+					],
+					"severity": "minor",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix crash on empty input",
+						"link_index": 0
+					},
+					"id": "brew:routine-unreadable#slug:minor-fix",
+					"id_stability": "slug"
+				},
+				{
+					"anchor": {
+						"kind": "none",
+						"value": null,
+						"slug": "local-none"
+					},
+					"title": "Progress output is quieter",
+					"tags": [
+						"chore"
+					],
+					"severity": "info",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Quieter progress output",
+						"link_index": 0
+					},
+					"local": "none",
+					"id": "brew:routine-unreadable#slug:local-none",
+					"id_stability": "slug"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures routine-unreadable.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": false,
+				"has_breaking": false,
+				"worst_severity": "info",
+				"local_findings": 0
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "routine",
+			"bucket_inputs": {
+				"has_security": false,
+				"security_only": false,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": true
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [
+				"enum-invalid",
+				"container-unreadable"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [
+				"E-ENUM-INVALID",
+				"E-FIELD-TYPE"
+			],
+			"degradation": {
+				"content_losing": [],
+				"markers": [
+					"E-ENUM-INVALID",
+					"E-FIELD-TYPE"
+				],
+				"quarantined": 0
+			}
+		},
+		{
+			"id": "standalone:tier-manual",
+			"source": "standalone",
+			"name": "tier-manual",
+			"pinned": false,
+			"research_error": null,
+			"validator_error": null,
+			"links": [
+				{
+					"type": "changelog",
+					"label": "tier-manual 1.0.1",
+					"url": "https://example.invalid/tier-manual/CHANGELOG.md"
+				}
+			],
+			"vendor_silent_categories": [],
+			"items": [
+				{
+					"anchor": {
+						"kind": "cve",
+						"value": "CVE-2026-41016"
+					},
+					"title": "Fixes an auth bypass in the local API",
+					"tags": [
+						"security",
+						"fix"
+					],
+					"severity": "notable",
+					"change": {
+						"version": "1.0.1",
+						"citation": "Fix local API authentication bypass (CVE-2026-41016)",
+						"link_index": 0
+					},
+					"security": {
+						"cve_id": "CVE-2026-41016",
+						"advisory_id": null,
+						"rating": "medium",
+						"rating_basis": "nvd",
+						"exploited_in_wild": false,
+						"nature": "fix"
+					},
+					"local": {
+						"direction": "does_not_reach",
+						"effect": "benefit",
+						"statement": "The vulnerable code path is not one this setup exercises.",
+						"evidence": [],
+						"citations": []
+					},
+					"id": "standalone:tier-manual#cve:CVE-2026-41016",
+					"id_stability": "anchored"
+				}
+			],
+			"quarantine": [],
+			"config_status": {
+				"state": "up_to_date",
+				"detail": "Nothing in these repos configures tier-manual.",
+				"evidence": [],
+				"citations": []
+			},
+			"suggestions": [],
+			"subject_refs": [],
+			"flags": {
+				"has_security": true,
+				"has_breaking": false,
+				"worst_severity": "notable",
+				"local_findings": 1
+			},
+			"version_delta": "patch",
+			"impact": "none",
+			"risk_level": "low",
+			"initial_review_bucket": "security_mixed",
+			"bucket_inputs": {
+				"has_security": true,
+				"security_only": true,
+				"impact": "none",
+				"version_delta": "patch",
+				"runnable": false
+			},
+			"security_display_item_ids": [],
+			"watch_hit_item_ids": [],
+			"self_test_tagged_suggestion_ids": [],
+			"security_tier": {
+				"tier": "held",
+				"priority": "P3",
+				"reasons": [
+					"fix"
+				],
+				"holds": [
+					"not-runnable"
+				],
+				"ids": {
+					"fix": [
+						"standalone:tier-manual#cve:CVE-2026-41016"
+					],
+					"not-runnable": []
+				},
+				"fix_item_ids": [
+					"standalone:tier-manual#cve:CVE-2026-41016"
+				]
+			},
+			"pre_accept_bars": [
+				"not-runnable"
+			],
+			"usage_evidence": [],
+			"usage_item_ids": [],
+			"spec_violations": [],
+			"degradation": {
+				"content_losing": [],
+				"markers": [],
+				"quarantined": 0
 			}
 		},
 		{
@@ -2275,6 +5229,10 @@
 			"security_display_item_ids": [],
 			"watch_hit_item_ids": [],
 			"self_test_tagged_suggestion_ids": [],
+			"security_tier": null,
+			"pre_accept_bars": [],
+			"usage_evidence": [],
+			"usage_item_ids": [],
 			"spec_violations": [],
 			"degradation": {
 				"content_losing": [],

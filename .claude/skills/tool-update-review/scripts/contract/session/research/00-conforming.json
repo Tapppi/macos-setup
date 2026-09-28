@@ -216,7 +216,8 @@
 					"advisory_id": null,
 					"rating": "unknown",
 					"rating_basis": "unrated",
-					"exploited_in_wild": false
+					"exploited_in_wild": false,
+					"nature": "boundary"
 				}
 			},
 			{
@@ -375,7 +376,8 @@
 					"advisory_id": null,
 					"rating": "medium",
 					"rating_basis": "nvd",
-					"exploited_in_wild": false
+					"exploited_in_wild": false,
+					"nature": "boundary"
 				},
 				"watch_hit": {
 					"topic": "cask quarantine after upgrade"
@@ -397,6 +399,10 @@
 				"id": "cask:codex:add-quarantine-task",
 				"kind": "structural",
 				"title": "Add a `setup.sh quarantine` task so a plain cask upgrade can re-clear quarantine",
+				"requirement": "proposed",
+				"serves": [
+					"cve:CVE-2026-18408"
+				],
 				"structural": {
 					"op": "task_add",
 					"subjects": [
