@@ -875,6 +875,18 @@ class StructuralTests(unittest.TestCase):
 			self.assertEqual(run("task_change", "./setup.sh:install", "setup.sh"), [])
 			self.assertEqual(run("task_change", "tasks/config.sh:foo", "./tasks/config.sh"), [])
 
+	def test_task_names_require_a_nonempty_task_part(self):
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			for op in ("task_add", "task_change"):
+				for anchor in ("setup.sh", "tasks/install.sh"):
+					with self.subTest(op=op, anchor=anchor):
+						_, findings = validate_one(self._sug(self._task(
+							op, anchor + ":", anchor)), manifest_root=td)
+						self.assertEqual([f["code"] for f in findings.entries],
+							["E-STRUCT-PRECOND"])
+						self.assertIn("non-empty task part", findings.entries[0]["message"])
+
 	def test_a_to_name_mismatch_names_both_files(self):
 		with tempfile.TemporaryDirectory() as td:
 			self._task_root(td)
@@ -900,6 +912,39 @@ class StructuralTests(unittest.TestCase):
 			self.assertEqual(run("task_change", "tasks/install.sh:no_such_fn", script),
 				["E-STRUCT-PRECOND"])
 			self.assertEqual(run("task_change", script + ":install_cursor_agent", script), [])
+
+	def test_symlink_anchor_spellings_have_identical_verdicts(self):
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			os.symlink("../setup.sh", os.path.join(td, "tasks", "link.sh"))
+			for op, token, expected in (
+				("task_add", "install", ["E-STRUCT-PRECOND"]),
+				("task_add", "new_task", []),
+				("task_change", "install", []),
+				("task_change", "new_task", ["E-STRUCT-PRECOND"]),
+			):
+				for anchor in ("tasks/link.sh", os.path.join(td, "tasks", "link.sh")):
+					for prefix in ("setup.sh", "tasks/link.sh", os.path.join(td, "tasks", "link.sh")):
+						with self.subTest(op=op, token=token, anchor=anchor, prefix=prefix):
+							self.assertEqual(codes(self._sug(self._task(
+								op, prefix + ":" + token, anchor)), manifest_root=td), expected)
+
+	def test_symlink_anchors_escaping_the_root_are_refused(self):
+		with tempfile.TemporaryDirectory() as outer:
+			td = os.path.join(outer, "macos-setup")
+			os.makedirs(td)
+			self._task_root(td)
+			with open(os.path.join(outer, "elsewhere.sh"), "w", encoding="utf-8") as fh:
+				fh.write("install() {\n\t:\n}\n")
+			os.symlink("../../elsewhere.sh", os.path.join(td, "tasks", "link.sh"))
+			for op in ("task_add", "task_change"):
+				for anchor in ("tasks/link.sh", os.path.join(td, "tasks", "link.sh")):
+					with self.subTest(op=op, anchor=anchor):
+						_, findings = validate_one(self._sug(self._task(
+							op, anchor + ":install", anchor)), manifest_root=td)
+						self.assertEqual([f["code"] for f in findings.entries],
+							["E-STRUCT-PRECOND"])
+						self.assertIn("outside the macos-setup root", findings.entries[0]["message"])
 
 	def test_an_anchor_outside_the_root_is_refused(self):
 		with tempfile.TemporaryDirectory() as outer:

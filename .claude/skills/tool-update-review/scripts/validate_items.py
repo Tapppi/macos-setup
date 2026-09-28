@@ -481,9 +481,8 @@ def _norm_anchor(anchor_file, root) -> "str | None":
 	climbs out of the root (`../x.sh`, or an absolute path elsewhere) is not a
 	file the task ops can edit, and is refused rather than read."""
 	candidate = os.path.expanduser(str(anchor_file))
-	if os.path.isabs(candidate):
-		base = os.path.realpath(root)
-		candidate = os.path.relpath(os.path.realpath(candidate), base)
+	base = os.path.realpath(root)
+	candidate = os.path.relpath(os.path.realpath(os.path.join(base, candidate)), base)
 	rel = os.path.normpath(candidate).replace(os.sep, "/")
 	if rel == ".." or rel.startswith("../") or os.path.isabs(rel):
 		return None
@@ -1536,6 +1535,10 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 		if not sep or _norm_anchor(prefix, manifest.root) != rel:
 			fail("to.name \"{}\" does not name a task in anchor.file \"{}\" — "
 				"to.name must be \"{}:<task>\"".format(name, anchor_file, rel),
+				"structural.to", to.get("name"))
+			return
+		if not token:
+			fail("to.name \"{}\" must have a non-empty task part after ':'".format(name),
 				"structural.to", to.get("name"))
 			return
 		# The anchor decides what the token is checked against. A `setup.sh`
