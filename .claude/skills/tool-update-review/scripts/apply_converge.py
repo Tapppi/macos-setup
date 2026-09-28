@@ -1970,9 +1970,14 @@ def _degraded_gate_explanation(forced, attempt):
 	happened per gate kind: a permissive failure is a move toward auto-update
 	the gate could not see justified; a demotion failure is a priority
 	lowered without a reason that survived — nothing moved toward
-	auto-update, and the page keeps the tool's PRIOR priority (§12 A-R3-3)."""
-	permissive = sorted(t for t, r in forced.items() if r.get("kind") != "demotion")
-	demoted = sorted(t for t, r in forced.items() if r.get("kind") == "demotion")
+	auto-update, and the page keeps the tool's PRIOR priority (§12 A-R3-3).
+	A tool that failed both is counted and explained under both."""
+	def kinds(record):
+		return record.get("kinds") or [record.get("kind", "permissive")]
+	permissive = sorted(t for t, r in forced.items()
+		if any(k != "demotion" for k in kinds(r)))
+	demoted = sorted(t for t, r in forced.items() if "demotion" in kinds(r))
+	both = sorted(set(permissive) & set(demoted))
 	clauses = []
 	if permissive:
 		clauses.append("{} tool(s) reached auto-update without surviving the "
@@ -1994,6 +1999,10 @@ def _degraded_gate_explanation(forced, attempt):
 		parts.append("{} stays at its pre-convergence priority on the page rather "
 			"than the lowered one, and is held for review rather than "
 			"accepted.".format(", ".join(demoted)))
+	if both:
+		parts.append("{} both reached auto-update and had {} priority lowered, and "
+			"neither survived the gate.".format(", ".join(both),
+				"its" if len(both) == 1 else "their"))
 	parts.append("The reviewer pays one card per tool, which is the safe failure. "
 		"The rest of the corpus keeps its convergence. Standing rejects and "
 		"findings are listed below.")
@@ -2026,7 +2035,15 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 	forced = {}
 	for entry in result["gate"]:
 		tool_id = entry["tool_id"]
+		kind = entry.get("kind", "permissive")
 		if tool_id in forced:
+			# A tool can fail BOTH gates — it entered security_auto AND its
+			# priority fell. Every failed kind is recorded (first code per
+			# kind); `kind`/`code` stay the first entry's for older readers.
+			record = forced[tool_id]
+			if kind not in record["kinds"]:
+				record["kinds"].append(kind)
+				record["code_by_kind"][kind] = entry["code"]
 			continue
 		view = next(v for v in corpus_post["tools"] if v.get("id") == tool_id)
 		pre_view = next((v for v in corpus_pre["tools"] if v.get("id") == tool_id), {})
@@ -2035,7 +2052,9 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 			"forced_pre_accept": False,
 			"would_have_been": entry["would_have_been"],
 			"code": entry["code"],
-			"kind": entry.get("kind", "permissive"),
+			"kind": kind,
+			"kinds": [kind],
+			"code_by_kind": {kind: entry["code"]},
 		}
 		# §12 A-R3-3 — the forced-display snapshot: the PRE-convergence
 		# priority, its reasons and their labels, so the page keeps the

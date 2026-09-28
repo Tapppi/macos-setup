@@ -2303,6 +2303,57 @@ class GSecDegradedPageTests(PageDriveRunner):
 		self.assertNotEqual(out["decision"], "accept")
 		self.assertEqual(out["inStrip"], "false")
 
+	def test_10b_a_tool_failing_both_gates_names_both_on_the_page(self):
+		"""Review round 2: the forced record carries every failed gate kind;
+		a tool that both reached auto-update and had its priority lowered is
+		explained as both — on its card and in the strip — not only the first."""
+		import apply_converge
+		report = _gsec_pipeline(submission=_forced_submission(), terminal=True, attempt=5)
+		seen = []
+
+		def both(node):
+			if isinstance(node, dict):
+				if node.get("forced_bucket") and node.get("kind") == "demotion":
+					node.update(kind="permissive", kinds=["permissive", "demotion"],
+						code="E-GATE-UNDECLARED",
+						code_by_kind={"permissive": "E-GATE-UNDECLARED",
+							"demotion": "E-GATE-UNREASONED"})
+					seen.append(node)
+				for value in node.values():
+					both(value)
+			elif isinstance(node, list):
+				for value in node:
+					both(value)
+		both(report)
+		self.assertTrue(seen)
+		status = report["convergence"]["status"]
+		headline, body = apply_converge._degraded_gate_explanation(
+			{d["tool_id"]: d for d in status["degraded_tools"]}, 5)
+		status["explanation"].update(headline=headline, body=body)
+		out = self.drive(report, """
+		const card = document.querySelector('[data-tool-id="brew:duckdb"]');
+		card.classList.remove('collapsed');
+		const line = card.querySelector('.judge-line.forced');
+		log('kind=' + line.dataset.forcedKind);
+		log('line=' + line.textContent.replace(/\\s+/g, ' ').trim());
+		const strip = document.getElementById('degraded-strip');
+		log('h=' + strip.querySelector('.h').textContent);
+		log('b=' + strip.querySelector('.b').textContent);
+		log('prio=' + document.querySelector('.prow[data-tool="brew:duckdb"]').dataset.priority);
+""")
+		self.assertEqual(out["kind"], "permissive demotion")
+		self.assertIn("could not justify this tool's move to auto-update "
+			"(E-GATE-UNDECLARED)", out["line"])
+		self.assertIn("lowered this fix's priority to P3 without a reason that "
+			"survived the gate (E-GATE-UNREASONED)", out["line"])
+		self.assertIn("keeps its prior priority P2 here", out["line"])
+		self.assertIn("instead of security_auto, accepted, priority P3", out["line"])
+		self.assertIn("reached auto-update without surviving the gate", out["h"])
+		self.assertIn("had their security priority lowered", out["h"])
+		self.assertIn("brew:duckdb both reached auto-update and had its priority "
+			"lowered", out["b"])
+		self.assertEqual(out["prio"], "P2")
+
 	def test_15_a_post_bucket_failure_renders_as_an_attention_card(self):
 		import test_converge as TC
 		import validate_items

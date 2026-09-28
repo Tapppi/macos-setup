@@ -2055,6 +2055,42 @@ class GSecConvergenceTests(unittest.TestCase):
 		result = run(pre, make_submission(pre, [rerate]))
 		self.assertEqual(codes_of(result), [])
 
+	def test_a_tool_failing_both_gates_is_forced_and_explained_for_both(self):
+		"""Review round 2: a tool that entered security_auto AND had its
+		priority lowered, with neither surviving, records BOTH gate kinds —
+		the explanation and the forced record must not keep only the first."""
+		fix, inc = _gfix("brew:g", 1), _incompat("brew:g", 2)
+		sug = _edit("brew:g", "proposed", [inc["id"]])
+		pre = build_pre([_gview("brew:g", [fix, inc], [sug])])
+		rerate = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "rerate",
+			"target": {"tool_id": "brew:g", "kind": "item", "id": inc["id"],
+				"field": "severity"},
+			"precondition": {"before": "incompatible"},
+			"quote": "Incompatible statement to quote.", "after": "warning",
+			"bucket_claim": {"moves_bucket": True, "expected_from": "security_mixed",
+				"expected_to": "security_auto", "direction": "permissive"},
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [rerate]), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+		forced = result["corpus_post"]["tools"][0]["forced_conservative"]
+		self.assertEqual(forced["kinds"], ["permissive", "demotion"])
+		self.assertEqual(forced["kind"], "permissive")  # first kind, for old readers
+		self.assertEqual(forced["code_by_kind"],
+			{"permissive": "E-GATE-UNREASONED", "demotion": "E-GATE-UNREASONED"})
+		self.assertEqual(forced["forced_display"]["priority"], "P0")
+		status = result["effect"]["convergence_status"]
+		self.assertEqual(status["degraded_tools"][0]["kinds"], ["permissive", "demotion"])
+		self.assertEqual(result["effect"]["tools"]["brew:g"]["forced"]["kinds"],
+			["permissive", "demotion"])
+		explanation = status["explanation"]
+		self.assertIn("reached auto-update without surviving the gate",
+			explanation["headline"])
+		self.assertIn("had their security priority lowered", explanation["headline"])
+		self.assertIn("keeps its prior priority", explanation["headline"])
+		self.assertIn("kept out of the auto strip", explanation["body"])
+		self.assertIn("pre-convergence priority", explanation["body"])
+		self.assertIn("brew:g both", explanation["body"])
+
 	def test_a_required_edit_stays_required_and_the_note_says_why(self):
 		fix, inc = _gfix("brew:g", 1), _incompat("brew:g", 2)
 		sug = _edit("brew:g", "required", [inc["id"]])
