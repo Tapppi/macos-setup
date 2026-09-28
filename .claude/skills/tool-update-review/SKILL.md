@@ -40,7 +40,7 @@ it covers, not just when something breaks.
 - `references/item-schema.md` — the per-tool checker's `items[]` output
   contract and the deterministic validator that consumes it: the closed tag
   set, the evidence split, the structural outlet, validator-assigned ids, the
-  six stages and eighteen invariants. The contract itself is code
+  six stages and twenty-three invariants. The contract itself is code
   (`scripts/items.py`, `scripts/validate_items.py`) with published fixtures in
   `scripts/contract/` that a sibling package imports and asserts against.
 - `references/collection.md` — step 1: `collect.sh`'s sources, brew-health
@@ -207,7 +207,8 @@ individual-tier anything you find, grep hit or not. Read
 heuristic lives there.
 
 **Prior findings go into the prompt as hypotheses, never as nominations.**
-Fill `{{HYPOTHESES}}` from the stores mechanically, and hold to
+Fill `{{HYPOTHESES}}` mechanically, by tool id, from `changelog.md` and the two
+stores — never from a previous run's report — and hold to
 `references/research-prompt-template.md` §Writing Hypotheses: state the
 observation and ask for verification, never name an artefact kind ("a watch
 item for..."), a conclusion, or a count. Six of the last run's eight
@@ -216,16 +217,21 @@ are the two that survived review.
 
 Spawn every subagent (both tiers) in one turn. **Each subagent writes its own
 output JSON directly to `{session_dir}/research/{tool-or-batch-slug}.json`**
-— a JSON array, one element per tool in scope, matching `research.md`'s
-Output Contract — rather than returning findings as conversation text.
+— a JSON array, one element per tool in scope, in the closed research-object
+shape the prompt template spells out (`references/research.md` §Spawning and
+the Output-File Contract; the key set is published in
+`scripts/contract/contract.json`) — rather than returning findings as
+conversation text.
 
 **Read `references/research.md` in full before spawning subagents, every
-run** — it holds the complete quality bar (headliner atomicity,
-category/severity axes, link quality, relevancy vs. context vs.
-release_inventory vs. filler, config_status, the three standing-note stores
-and the self-test, prior findings as hypotheses, bespoke-setup
-testing, brew-health enrichment, depth-by-tool) and the
-tiering/dispatch mechanics summarized above.
+run** — it holds the complete quality bar (items as outward-facing changes,
+one change per item, tags vs. severity as independent axes, CVE capture and
+security direction, link quality, local findings vs. `release_inventory` vs.
+filler, the noise floor, suggestion kinds and the structural outlet,
+config_status, the three standing-note stores and the self-test, prior
+findings as hypotheses, bespoke-setup testing, brew-health and skill-drift
+enrichment, depth-by-tool) and the tiering/dispatch mechanics summarized
+above.
 
 On subagent failure/timeout, set `research_error` and keep the tool listed
 with versions only.
@@ -243,8 +249,8 @@ python3 scripts/apply_converge.py --session {session_dir} --prepare \
 
 Read `references/convergence.md` in full, then `converge-view.json` and
 `converge-tables.json`, and write your modification list to
-`converge.draft.json`. Self-check with `--check` (free, writes nothing) until
-clean, then `--submit`. The applier — not you — applies the edits, counts the
+`converge.draft.json`. Self-check with `--check converge.draft.json` (free,
+writes nothing) until clean, then `--submit converge.draft.json`. The applier — not you — applies the edits, counts the
 attempts, and enforces the five-attempt loop: a critical finding bounces the
 submission with coded, resolved-value findings; at attempt 5 the run degrades
 conservatively (`degraded_gate` / `degraded_unapplied`) with a first-class
@@ -258,11 +264,13 @@ block, and `report.convergence` carries the run's `convergence_status`
 
 ### 4. Assemble and render
 
-Run `scripts/assemble.py`. It runs the deterministic validator over
+Run `scripts/assemble.py {session_dir} --macos-setup-root
+{macos_setup_root}`. It runs the deterministic validator over
 `research/*.json` (`references/item-schema.md` — spec validation, shape
-normalization, id assignment, the eighteen invariants, `impact`, `risk_level`
-and the initial bucket), merges the per-tool views it returns with
-`collect.sh`'s output, and writes four files to the session dir:
+normalization, id assignment, the twenty-three invariants, `impact`,
+`risk_level`, the G-SEC `security_tier` and the initial bucket), merges the
+per-tool views it returns with `collect.sh`'s output, and writes four files
+to the session dir:
 
 | File | What |
 |---|---|
@@ -277,7 +285,11 @@ version-source tool (never for a `brew-health` or `skill-drift` finding, which
 has no version — and research-authored `edit`/`structural` suggestions are
 additional to the baseline, never a replacement), the `needs_sudo` heuristic,
 suggestion-id uniqueness, per-suggestion `pre_accept`, `highlights[]`, the
-`summary` rollups, and the tool-level CVE rollup over `items[]`.
+`summary` rollups, and the tool-level CVE rollup over `items[]`. It carries
+the validator's `security_tier` onto each tool and never recomputes it.
+Positively identified security fixes are pre-accepted by tier (P0 and held
+excepted); P0/P1/P2 are listed in the report's "Security fixes for you"
+section; see `references/rendering-report.md`.
 
 **Exit is never fatal for a degraded corpus.** A spec violation costs one
 tool's checks, never the run; the report still renders and says so.
@@ -285,11 +297,15 @@ tool's checks, never the run; the report still renders and says so.
 Run `python3 scripts/test_assemble.py` after changing any of that. Then:
 
 ```sh
-python3 scripts/render.py /tmp/tool-update-review-{report_id}/report.json
+python3 scripts/render.py {session_dir}/report.json
 ```
 
 which injects it into `assets/report-template.html` and writes `index.html`
-plus a copy of `server.py` next to it. **Immediately after**, update
+plus a copy of `server.py` next to it. Render also **persists every
+convergence-reviewed method-note proposal into the store** and records what
+it wrote in `{session_dir}/method-notes.render.json` — step 7's method-note
+actions are planned from that record (`references/rendering-report.md`
+§Method Notes). **Immediately after**, update
 `research-status.json` to `phase: "ready"` — this is what the loading page's
 poll is waiting for to trigger its reload into the now-real report.
 
@@ -366,18 +382,35 @@ Accepted suggestions split by `kind`:
 - **`upgrade`** → execution depends on `auto_runnable` and the
   `auto_run_upgrades` toggle: not-auto-runnable prints the command and polls
   for completion; auto-runnable-and-toggle-on runs it directly (askpass for
-  `needs_sudo`), then polls to confirm the version landed either way.
+  `needs_sudo`), then polls to confirm the version landed either way. It
+  installs the **reviewed** version: `scripts/check_pin.py` preflights and
+  verifies it, `write_status.py record-pin-check` files each result, and
+  `set-action … done` refuses a pin-checkable upgrade with no matching verify
+  (`references/apply.md` §Pinning the reviewed version).
 - **`watch-item`** → not an edit/upgrade; a research-proposed standing
   concern (`references/research.md` §Watch Items (Proposing)). On accept,
   run `scripts/write_status.py add-watch-item` to append the proposal's
   `topic`/`note` to `watch-items.json` — no repo edit, no command runs.
+- **`method-note`** → persisted at render when convergence reviewed it, so
+  a *reject* is the case with work to do; `init` planned one action per store
+  entry from `method-notes.render.json`. **Run the action's `detail[0]`
+  verbatim** — a withdraw is `remove-method-note` (or
+  `remove-global-method-note`) with the exact `--topic` and `--note` the
+  record holds, and that `--note` is what picks the one entry out of several
+  with the same topic, so never retype or drop it; an add is
+  `add-method-note` (or the global variant). A withdraw that finds nothing
+  exits 1: mark the action `failed`, never `done` (`references/apply.md`
+  §Executing `method-note` Suggestions).
 
 `tool_comments`/`discuss` investigation never applies anything directly —
 write a followup object and run `scripts/write_status.py add-followup`
 instead, surfaced live in the Results view for an explicit decision. A
 followup itself can also carry `kind: "watch-item"` when the session notices
 a standing concern mid-apply (`origin: "agent_initiated"`) — same
-accept-writes-to-`watch-items.json` behavior as the report-time proposal.
+accept-writes-to-`watch-items.json` behavior as the report-time proposal — or
+`kind: "method-note"` when it finds this tool's research path itself was
+wrong, whose accept runs `add-method-note` (the one apply-pass route to that
+store).
 
 Full execution rules incl. askpass/auto_run_upgrades/bespoke-setup/
 followups/watch-items: `references/apply.md`.
