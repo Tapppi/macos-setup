@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-converge.py — the convergence output contract (REDESIGN.md §L6, §M; criterion 12).
+converge.py — the convergence output contract.
 
 This module IS the contract for stage 4 (convergence) and stage 5 (apply),
 the way `items.py` is the contract for the item model. Normative prose:
@@ -32,7 +32,8 @@ This module holds no I/O and no judgement. It defines:
 	functions the validator used, so pre and post are graded by one
 	implementation, never two.
 
-Governing constraint, same as everywhere in this layer (`REDESIGN.md` §A):
+Governing constraint, same as everywhere in this layer
+(`references/item-schema.md` §0):
 nothing here deletes, trims or re-rates on a rule. The judgement is the
 agent's; this module makes the judgement checkable.
 """
@@ -48,7 +49,7 @@ import validate_items
 
 # Bumped when a consumer of converge.json / corpus.pre.json /
 # converge-effect.json would have to change. Equality is asserted, not
-# compared — no migration shim exists or ships (`REDESIGN.md` §I9).
+# compared — no migration shim exists or ships.
 #
 # 2 — the WP0 redesign: named corpus.pre/corpus.post artefacts, the derived
 #     diff as the record, the five-phase applier, the recovery loop.
@@ -66,7 +67,7 @@ CONVERGE_VERSION = 3
 #     `initial_pre_accept` now means `items.accepts_baseline`.
 VIEW_VERSION = 2
 
-# §L4 / criterion 13: five attempts, then degrade conservatively with a
+# Five attempts, then degrade conservatively with a
 # first-class explanation. Never a silent pass, never a dead run.
 MAX_ATTEMPTS = 5
 
@@ -768,7 +769,7 @@ def build_tables(corpus_pre) -> dict:
 					if isinstance(item_id, str)),
 			})
 
-	# C6 — the three stores (§L1). Per-tool agents can only propose the two
+	# C6 — the three stores. Per-tool agents can only propose the two
 	# per-tool kinds; the global store is filled by promotion, which is a
 	# convergence-only judgement, so its proposal list is empty by
 	# construction and stays in the shape as the reminder of that.

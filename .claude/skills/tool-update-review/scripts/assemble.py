@@ -13,8 +13,8 @@ per tool, each carrying its own "id" and its own `items[]`), and writes
 loading, spec validation, normalization, id assignment, the eighteen
 invariants, impact and the initial bucket; this file consumes the views it
 returns. That is not a layering nicety — two implementations of "does this
-release touch this setup" is the drift the whole redesign exists to remove
-(`REDESIGN.md` §C3), and one of them would have been a regex away from the
+release touch this setup" is the drift the whole redesign exists to remove,
+and one of them would have been a regex away from the
 `brew:libpq` defect. Everything derived from items — `security`, `impact`,
 `risk_level`, `review_bucket` — is read from the validation view, never
 recomputed here.
@@ -597,7 +597,7 @@ def suggestion_kind(sug: dict) -> str:
 
 
 # A memory proposal changes what we REMEMBER; an action proposal changes the
-# user's system (`REDESIGN.md` §O). Only the second is an authored action, and
+# user's system. Only the second is an authored action, and
 # only the second may push a tool toward a decision.
 #
 # Spelled as a NEGATION on purpose, and this is the part that is easy to get
@@ -745,7 +745,7 @@ def finalize_tool(tool: dict, view: dict) -> None:
 	The axes come straight off the validation view — `impact`, `risk_level`,
 	the bucket, the security tier and the pre-acceptance bars are stage V5/V6
 	output, and recomputing them here would be a second implementation of the
-	one thing `REDESIGN.md` §C3 says must have exactly one. What is left is
+	one thing the deterministic validator owns alone. What is left is
 	the version delta (assembly's, because the page renders it), the CVE
 	rollup, and `pre_accept`, which needs the baseline suggestion the
 	validator has never seen.
@@ -806,7 +806,7 @@ def as_item_list(value, tool_id: str, field: str, member_type=dict) -> list:
 	return kept
 
 
-# ── convergence consumption (criterion 12's renderer half) ──────────────────
+# ── convergence consumption (the renderer's half of the comparison) ─────────
 # Stage 3½/4 (references/convergence.md) writes three artefacts into the
 # session dir: the frozen `corpus.pre.json`, the applier's `corpus.post.json`,
 # and `converge-effect.json` — the derived record of every difference between
@@ -982,7 +982,8 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 
 	# Every moved bucket the effect declares must be visible in the corpora
 	# themselves — the from/to on the record against the two views. This is
-	# the cheap half of criterion 12's comparison: the applier derived the
+	# the cheap half of the pre/post comparison that makes convergence's work
+	# checkable rather than asserted: the applier derived the
 	# record from the corpora, so a disagreement means these files are not
 	# the pair that record was derived from.
 	moved = effect.get("moved") if isinstance(effect.get("moved"), dict) else {}
@@ -1007,15 +1008,15 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	summary = {
 		"state": effect.get("state"),
 		"attempt": effect.get("attempt"),
-		# The first-class explanation (criterion 13) — headline, body,
+		# The first-class explanation of a degraded gate — headline, body,
 		# attempt log, degraded tools, standing rejects. Passed through
 		# whole: trimming it here is exactly the swallowing it forbids.
 		"status": status if isinstance(status, dict) else None,
 		"moved": moved,
 		"findings": list(effect.get("findings") or []),
 		"flags": flags,
-		# Criterion 18's input: what render.py writes to the GLOBAL store,
-		# and the provenance the Method notes tab marks.
+		# The input to render-time note persistence: what render.py writes to
+		# the GLOBAL store, and the provenance the Method notes tab marks.
 		"memory": memory,
 		"applied_count": len(effect.get("applied") or []),
 		"rejected_count": len(effect.get("rejected") or []),
@@ -1428,7 +1429,7 @@ def build_tool(candidate: dict, research_obj: dict | None, view: dict) -> dict:
 	command, auto_runnable, manual_reason, version_pinned = upgrade_command_and_runnable(
 		source, name, tool["latest_version"])
 	# A tool can reach here with no usable latest_version at all — collection
-	# degrading per-tool rather than aborting (§G1) means a source can supply
+	# degrading per-tool rather than aborting means a source can supply
 	# a candidate whose own `latest` came back null (e.g. mise's own
 	# `outdated --json` failing to resolve one), the same "missing version"
 	# shape compute_version_delta already recognizes. Never synthesize a
@@ -1568,8 +1569,8 @@ def score_tool(tool: dict) -> tuple:
 	# invented topic could displace a genuinely-scoring tool from the capped
 	# highlight list — the unvalidated-channel defect the field replaced.
 	add(70, "watch_item_hit", bool(tool.get("watch_hit_item_ids")))
-	# 70 is the documented prior weight; re-weighing it is WP4's deferred
-	# surface question (`REDESIGN.md` §Q2), not this pass's.
+	# 70 is the documented prior weight; re-weighing it for a fleet with many
+	# watch items is a deferred surface-design question, not this pass's.
 	add(60, "config_stale", config_needs_attention(tool))
 	add(45, "warning_finding", any(i.get("severity") == "warning" for i in local))
 	# The old `breaking_change` read "an incompatible-severity headliner", i.e.
@@ -1961,7 +1962,7 @@ def main():
 			f"there is no candidate set to assemble", file=sys.stderr)
 		sys.exit(1)
 
-	# Stage 3 (`REDESIGN.md` §C3), in process. `validate_session` writes
+	# Stage 3, deterministic validation, in process. `validate_session` writes
 	# nothing; the artifacts below are written from the document it returns.
 	try:
 		document = validate_items.validate_session(session_dir, roots,
@@ -1971,10 +1972,11 @@ def main():
 		sys.exit(1)
 	views_by_id = {v["id"]: v for v in document["tools"]}
 
-	# Criterion 12's renderer half: when convergence ran, the report renders
-	# the POST corpus and carries the convergence record; when it did not,
-	# the report says so rather than leaving the reader to infer it from an
-	# absence. validation.json below stays the stage-3 record either way.
+	# The renderer's half of the pre/post comparison: when convergence ran, the
+	# report renders the POST corpus and carries the convergence record; when it
+	# did not, the report says so rather than leaving the reader to infer it
+	# from an absence. validation.json below stays the stage-3 record either
+	# way.
 	convergence, views_by_id = load_convergence(session_dir, views_by_id)
 
 	repo_context_path = os.path.join(session_dir, "repo_context.json")
@@ -2117,7 +2119,7 @@ def main():
 			"security": summarize_security(tools),
 		},
 		"repo_context": repo_context,
-		# Criterion 12/13: the run's convergence record — state, attempt,
+		# The run's convergence record — state, attempt,
 		# the first-class explanation, the moved map, the flag edits and
 		# the applier findings. The per-tool blocks live on each tool's own
 		# `convergence` key rather than being duplicated here.
@@ -2131,7 +2133,8 @@ def main():
 		json.dump(report, fh, ensure_ascii=False, indent="\t")
 		fh.write("\n")
 
-	# The pre-convergence artifact (criterion 12), written here because
+	# The pre-convergence artifact (the renderer receives both corpora),
+	# written here because
 	# assembly is where the validator ran.
 	with open(os.path.join(session_dir, "validation.json"), "w", encoding="utf-8") as fh:
 		json.dump(document, fh, ensure_ascii=False, indent="\t")

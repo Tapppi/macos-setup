@@ -11,16 +11,16 @@ Seven groups:
 1. **The constraint.** Property tests asserting the validator changes nothing
    it is not licensed to change: no item is removed, no severity re-rated, no
    title truncated, no unknown tag dropped, no non-path moved out of
-   `evidence[]`. This is acceptance criterion 1, and it is the group to read
-   first — the measured defect is a rule-driven trim that moved `brew:libpq`
-   into `security_auto`, pre-accepted, with 10 CVEs.
+   `evidence[]`. This is the governing constraint (`item-schema.md` §0), and it
+   is the group to read first — the measured defect is a rule-driven trim that
+   moved `brew:libpq` into `security_auto`, pre-accepted, with 10 CVEs.
 2. The twenty-three invariants, one test each, by their code.
 3. The normalizations §5.3 licenses, and only those.
 4. Evidence resolution: the three outcomes, and why `W-EVID-ROOT` is a
    configuration finding rather than a checker defect.
 5. The structural outlet and its preconditions.
 6. Impact and initial bucketing, including the two heuristics that were
-   removed and the third that §D row 4 dropped.
+   removed and `"watch-item"`, dropped from the suggestion clause.
 7. **Degradation.** Same doctrine as `LoadResearchDegradationTests`: a
    research file is subagent output, so any member can be any shape, and one
    malformed entry must cost that entry — never the run. The fuzz baseline is
@@ -124,7 +124,7 @@ def session_with(research_files, collect=None):
 
 # ── 1. The constraint: it reports, it does not judge ────────────────────────
 class NeverMutatesTests(unittest.TestCase):
-	"""REDESIGN.md §A / §C3 / criterion 1. The deterministic layer validates,
+	"""`item-schema.md` §0. The deterministic layer validates,
 	normalizes, counts, buckets and calculates impact. It never deletes, trims
 	or re-rates an item on a regex or heuristic rule."""
 
@@ -163,8 +163,9 @@ class NeverMutatesTests(unittest.TestCase):
 		self.assertIn("hardening", tags)
 
 	def test_a_non_path_is_never_moved_out_of_evidence(self):
-		"""Auto-moving is a regex deciding what a field means — the class §C3
-		forbids — and it would paper over a broken path that reads like prose."""
+		"""Auto-moving is a regex deciding what a field means — the class of
+		rule this layer forbids — and it would paper over a broken path that
+		reads like prose."""
 		reaching = [i for i in self.view["items"]
 			if (i.get("local") or {}).get("direction") == "reaches"][0]
 		self.assertIn("this is prose, not a path", reaching["local"]["evidence"])
@@ -196,7 +197,7 @@ class NeverMutatesTests(unittest.TestCase):
 			["notable", "warning"])
 
 	def test_a_wrong_typed_member_is_quarantined_not_dropped(self):
-		"""Today's `as_item_list` drops it. Under §C3 nothing deterministic
+		"""Today's `as_item_list` drops it. Here nothing deterministic
 		deletes content a human would have seen."""
 		view, findings = validate_one({"id": "brew:x", "links": [],
 			"items": ["a bare string", _item()]})
@@ -1016,8 +1017,8 @@ class ImpactAndBucketTests(unittest.TestCase):
 		self.assertEqual(view["impact"], "possible")
 
 	def test_a_watch_item_suggestion_is_no_longer_impact(self):
-		"""REDESIGN.md §D row 4. `item-schema.md` §5.5 flags its own draft as
-		wrong against that row; this is the row landing."""
+		"""A proposal to change what we remember is not an impact on this
+		machine (`item-schema.md` §7, Impact)."""
 		view = self._view(suggestions=[{"id": "brew:x:w", "kind": "watch-item"}])
 		self.assertEqual(view["impact"], "none")
 		view = self._view(suggestions=[{"id": "brew:x:e", "kind": "edit",
@@ -1209,7 +1210,7 @@ class ImpactAndBucketTests(unittest.TestCase):
 
 
 
-# ── 6b. Memory proposals (REDESIGN.md L1, L7) ───────────────────────────────
+# ── 6b. Memory proposals ────────────────────────────────────────────────────
 def _memory(kind="method-note", **kw):
 	base = {"id": "brew:x:" + kind, "kind": kind, "title": "A memory proposal",
 		"target_files": [], "command": None, "auto_runnable": False,
@@ -1232,8 +1233,8 @@ def _action(kind="edit", **kw):
 
 
 class MemoryProposalTests(unittest.TestCase):
-	"""`REDESIGN.md` §L1 expects **many** per-tool method notes and watch items,
-	and §L7 makes the self-test tag load-bearing — convergence keys its review
+	"""The memory design expects **many** per-tool method notes and watch items,
+	and the self-test tag is load-bearing — convergence keys its review
 	off it. Both facts are why these are validated rather than waved through as
 	free-floating extra fields: an unvalidated channel is how `Watch item hit:`
 	broke, and a misspelt `self_test_failed` would fail the same silent way."""
@@ -1324,7 +1325,7 @@ class MemoryProposalTests(unittest.TestCase):
 		self.assertEqual(view["self_test_tagged_suggestion_ids"], [])
 
 	def test_a_tag_with_no_reason_is_a_drop_with_extra_steps(self):
-		"""Criterion 17 exists to stop a self-test deleting a proposal. A tag
+		"""The tag exists to stop a self-test deleting a proposal. A tag
 		naming no reason gives convergence nothing to review it against, which
 		is a deletion wearing a tag."""
 		for reason in (None, "", "   ", 7):
@@ -1343,7 +1344,7 @@ class MemoryProposalTests(unittest.TestCase):
 		self.assertEqual([f["field"] for f in bad], ["self_test_failed.limb"])
 
 	def test_a_tagged_proposal_is_still_kept_whole(self):
-		"""§L7's whole point: the agent writes the proposal it failed. Nothing
+		"""The tag's whole point: the agent writes the proposal it failed. Nothing
 		here removes it, empties it, or lowers anything on it."""
 		proposal = _memory("watch-item", self_test_failed={
 			"limb": "scope", "reason": "config_status caught it"})
@@ -1872,7 +1873,8 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 	def test_the_bucket_is_explained_by_its_own_recorded_inputs(self):
 		"""A value that is "security" for bucketing and "not security" for the
 		security-only test is its own auto-accept route, and a bucket its own
-		recorded inputs cannot explain is exactly the opacity §C3 removes."""
+		recorded inputs cannot explain is exactly the opacity a reviewable
+		baseline removes."""
 		view = self._view(vendor_silent_categories=["security"],
 			items=[_item(tags=["chore"], severity="info")])
 		inputs = view["bucket_inputs"]
@@ -1950,7 +1952,7 @@ class DegradationChannelTests(unittest.TestCase):
 		self.assertEqual(view["initial_review_bucket"], "routine")
 
 	def test_the_two_computations_cannot_disagree_on_content_losing(self):
-		"""§S5's lesson: a guarantee that depends on statement order is one
+		"""A guarantee that depends on statement order is one
 		refactor from being false, so it is pinned. The bucket was computed
 		from the FIRST spec_violations assignment (inside _derive_axes); the
 		stored block comes from the second (after run-level checks). The
@@ -2076,7 +2078,7 @@ class PreAcceptBarTests(unittest.TestCase):
 	def _sec_item(self, **kw):
 		# `nature: boundary` — security content that is NOT a positively
 		# identified fix, which is the population D2 and the reaches limb still
-		# govern after G-SEC (criterion 24). A fix takes the tier route
+		# govern after G-SEC. A fix takes the tier route
 		# (GSecTierTests).
 		base = dict(tags=["security"], severity="notable",
 			security={"cve_id": None, "advisory_id": None, "rating": "medium",

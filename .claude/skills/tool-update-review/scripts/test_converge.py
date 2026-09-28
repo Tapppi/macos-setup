@@ -1369,7 +1369,7 @@ class LabelContractTests(unittest.TestCase):
 
 # ═════════════════════════════════════════════════════════════════════════════
 class TerminalDegradationTests(unittest.TestCase):
-	"""§L4 / criterion 13 — the pure function's terminal behavior. The CLI
+	"""Degrading after five attempts — the pure function's terminal behavior. The CLI
 	loop around it is LoopCliTests."""
 
 	def test_degraded_gate_forces_conservative(self):

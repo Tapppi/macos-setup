@@ -513,8 +513,8 @@ class SemanticClassificationTests(unittest.TestCase):
 	def test_the_bucket_is_explained_by_its_own_recorded_inputs(self):
 		"""`bucket_inputs` is what convergence reads instead of re-deriving the
 		bucket. A bucket its own inputs cannot explain is exactly the opacity
-		§C3 exists to remove — so the two must never be computed from different
-		values of `has_security`."""
+		a reviewable baseline exists to remove — so the two must never be
+		computed from different values of `has_security`."""
 		for label, candidate, research, _ in _fixtures():
 			with self.subTest(label):
 				tool = build_one(candidate, research)
@@ -1236,7 +1236,7 @@ class HighlightScoringTests(unittest.TestCase):
 		self.assertGreater(assemble.score_tool(local)[0], assemble.score_tool(release)[0])
 
 	def test_the_watch_hit_signal_is_structured_and_never_a_regex(self):
-		"""§I4 retired the literal-string channel: a paraphrase could silently
+		"""The literal-string channel is retired: a paraphrase could silently
 		cost 70 points. The restored signal reads the structured `watch_hit`
 		field the validator grounds (I-20) — the literal phrase in prose
 		scores nothing whatever it says, and `_WATCH_HIT_RE` is never coming
@@ -1366,7 +1366,7 @@ class HighlightScoringTests(unittest.TestCase):
 		self.assertIn("restates security item", err.getvalue())
 
 	def test_a_memory_proposal_is_not_an_authored_action(self):
-		"""`REDESIGN.md` §O: a memory proposal changes what we REMEMBER, an
+		"""A memory proposal changes what we REMEMBER, an
 		action proposal changes the user's system. Only the second scores
 		`proposed_edit`, and only the second may push a tool toward a decision.
 		`watch_item_proposed` keeps its own 25 points and gets no `method-note`
@@ -1605,7 +1605,7 @@ class ItemAssemblyDegradationTests(unittest.TestCase):
 	"""The item-model twin of LoadResearchDegradationTests: one hostile shape
 	*inside* an entry's `items[]` must cost that item's checks, never the tool
 	and never the run. The item itself is always kept — deleting it is the one
-	thing this layer may not do (criterion 1)."""
+	thing this layer may not do (`item-schema.md` §0)."""
 
 	HOSTILE_ITEMS = [
 		"a bare string",
@@ -2015,7 +2015,7 @@ class GuardedBuildAndHighlightTests(unittest.TestCase):
 
 
 
-# ── 9. Convergence consumption (criterion 12's renderer half) ───────────────
+# ── 9. Convergence consumption (the renderer's half of the comparison) ──────
 # load_convergence() is exercised through main(), the way the merge actually
 # runs: the session dir carries corpus.pre.json / corpus.post.json /
 # converge-effect.json (+ converge.json), and the report that comes out is
@@ -2159,7 +2159,7 @@ class ConvergenceMergeTests(unittest.TestCase):
 		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
 	def test_the_ledgers_memory_dispositions_ride_on_the_report(self):
-		"""Criterion 18's input: render.py routes a promoted note to the
+		"""Render-time persistence's input: render.py routes a promoted note to the
 		global store, and the page marks RE-HOMED / RESTORED provenance —
 		both read this block, so the ledger is parsed once, here."""
 		collect, research = self._collect_and_research()

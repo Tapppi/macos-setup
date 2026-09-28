@@ -1,5 +1,5 @@
 {
-	"about": "The comparator, pinned separately from the ordering. Two parallel implementer tracks once worked against a pinned field contract and still drifted on ordering, which had to be reconciled afterwards (HANDOFF.md §8) — so the comparison itself is published, not just the field names. `pairs` name items from ordering.json by id.",
+	"about": "The comparator, pinned separately from the ordering. Two parallel implementer tracks once worked against a pinned field contract and still drifted on ordering, which had to be reconciled afterwards — so the comparison itself is published, not just the field names. `pairs` name items from ordering.json by id.",
 	"pairs": [
 		{
 			"left": "t#c",

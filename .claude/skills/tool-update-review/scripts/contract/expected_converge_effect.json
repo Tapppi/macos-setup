@@ -1,5 +1,5 @@
 {
-	"corpus_pre_digest": "sha256:f95242c6d3a103b52f290009da5ba8a62e87c2c070d29249b37c84330096f3d9",
+	"corpus_pre_digest": "sha256:34aa682bde48601b3bd329360ce61b3243a87bf2e15aff8c634f110841aa6640",
 	"corpus_post_digest": "sha256:98e9de03cc4c9889e6b8dbff08361e370566cea9fafe7dc7518f1824083030e6",
 	"effect": {
 		"run_id": "session",
@@ -113,7 +113,7 @@
 					"auto_runnable": false,
 					"watch_topic": "the credential format this vendor writes back",
 					"watch_note": "Flag any future release touching the Keychain record.",
-					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"rationale": "The tag is what convergence reviews, so it must say why.",
 					"self_test_failed": {
 						"limb": "scope",
 						"reason": "  "

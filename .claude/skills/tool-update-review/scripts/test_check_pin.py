@@ -367,7 +367,8 @@ class DirectFunctionCallTests(unittest.TestCase):
 	through the CLI, and the module docstring's one contract is "always a
 	line of JSON on stdout", not "unless called wrong". Both used to `raise
 	ValueError` on an unrecognized source; that is exactly the class of bug
-	criterion 4 exists to catch — a crash instead of a structured refusal."""
+	per-tool, loud degradation exists to catch — a crash instead of a
+	structured refusal."""
 
 	def test_do_preflight_never_raises_on_an_unrecognized_source(self):
 		observed, target, reason = check_pin.do_preflight("standalone", "foo", "1.0.0")

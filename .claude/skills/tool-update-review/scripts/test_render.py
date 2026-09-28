@@ -222,7 +222,7 @@ class RenderRefusalTests(RenderRunner):
 
 	def test_a_foreign_contract_version_is_refused_by_value(self):
 		"""Same exact-equality gate as schema_version, same shape, same exit
-		code (deferred from pass 1; REDESIGN §I9 — no shim). A string spelling
+		code (deferred from pass 1; no shim ships). A string spelling
 		of the right number is still a refusal: equality, not coercion."""
 		for version in (items.CONTRACT_VERSION - 1, items.CONTRACT_VERSION + 1,
 				None, str(items.CONTRACT_VERSION)):
@@ -584,7 +584,7 @@ class KeyboardReachabilityTests(PageDriveRunner):
 
 
 class DeepLinkLandingTests(PageDriveRunner):
-	"""REDESIGN §J bug 1, measured at 577.98px: scrollIntoView clamps at max
+	"""A report-page bug, measured at 577.98px: scrollIntoView clamps at max
 	scroll, so a deep link into a tool near the document end landed short
 	and read as broken. The one-viewport tail spacer makes every section's
 	top a reachable scroll offset; the prototype measured the residual at
@@ -1203,7 +1203,7 @@ class JudgementPanelTests(PageDriveRunner):
 
 
 class RenderPersistTests(RenderRunner):
-	"""Criterion 18 / §L5: method notes persist AT RENDER. The store fills
+	"""Method notes persist AT RENDER. The store fills
 	from run one — an abandoned run included — and the page's reject /
 	modify surface is what earns that. render.py owns the write; the
 	record beside the page is what apply withdraws a rejected note from."""
@@ -1371,7 +1371,7 @@ def notes_report():
 
 
 class MethodNotesTabTests(PageDriveRunner):
-	"""report-page.md §6 + criterion 18's surface. The notes are already in
+	"""The review surface render-time persistence depends on. The notes are already in
 	the store (render persisted them); the tab is how a bad one is caught.
 	Veto is a mirror of reject on the canonical card, modification
 	instructions write through to its comment, and a method note never
@@ -1562,12 +1562,12 @@ WRITE_STATUS_PY = os.path.join(SCRIPT_DIR, "write_status.py")
 
 
 class PersistenceLoopTests(PageDriveRunner):
-	"""Criterion 18, driven end to end — the test that closes the pass:
+	"""Render-time persistence, driven end to end — the test that closes the pass:
 	render writes a note; the user vetoes it on the tab and types a
 	modification on another with no decision clicked; Submit's payload
 	(buildFeedbackPayload) becomes feedback.json; `init` synthesizes the
 	actions; the withdraw action's own command runs; the store no longer
-	holds the vetoed note. §L5's bargain — a bad note is visible AND
+	holds the vetoed note. The bargain — a bad note is visible AND
 	correctable — measured, not asserted."""
 
 	STORE = os.path.join("tool-update-review", items.METHOD_NOTES_STORE)

@@ -6,7 +6,7 @@ Usage: render.py <path-to-report.json>
 Reads report.json, validates schema_version, contract_version and
 suggestion-id uniqueness, performs three token replacements in the template,
 writes index.html next to report.json, PERSISTS every surviving method-note
-proposal into the method-note store (criterion 18 — see
+proposal into the method-note store (see
 persist_method_notes), and copies server.py alongside it. Prints the output
 path.
 """
@@ -35,7 +35,7 @@ REVIEWED_STATES = ("converged", "degraded_gate")
 
 
 def persist_method_notes(report: dict, report_dir: str) -> dict:
-	"""Criterion 18 / REDESIGN §L5: method notes persist AT RENDER, not on
+	"""Method notes persist AT RENDER, not on
 	Submit, so the store fills from run one — including a run the user
 	abandons, which is the historical norm. The report page then carries
 	the surface that earns this: every persisted note is visible there, a
@@ -189,7 +189,7 @@ def main():
 		)
 		sys.exit(1)
 
-	# ── Validate contract_version (references/schemas.md §1.1; REDESIGN §I9) ──
+	# ── Validate contract_version (references/schemas.md §1.1) ─────────────
 	# The same exact-equality gate write_status.py init applies, for the same
 	# reason and with no shim: the template renders enum values, id formats
 	# and derived-field shapes this contract pins. A report written against
@@ -201,7 +201,7 @@ def main():
 		print(
 			f"Error: report.json contract_version must be {items.CONTRACT_VERSION}, got "
 			f"{report.get('contract_version')!r} — refusing to render a report written "
-			f"against another contract (no migration shim exists, REDESIGN.md §I9). "
+			f"against another contract (no migration shim exists). "
 			f"Re-run the review, or check out the pipeline this report was written with.",
 			file=sys.stderr,
 		)
@@ -236,7 +236,7 @@ def main():
 		print(f"Error: template not found: {template_path}", file=sys.stderr)
 		sys.exit(1)
 
-	# ── Persist method notes (criterion 18) — BEFORE the payload is built,
+	# ── Persist method notes — BEFORE the payload is built,
 	# because the page must say what is true about storage per note, and
 	# only the render outcome knows that. The record rides into the page
 	# as REPORT.method_notes_render through the same escaped replacement

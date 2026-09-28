@@ -53,7 +53,7 @@ spec validation, normalization, id assignment, the twenty-three invariants,
 `impact`, `risk_level`, the security tier and the initial bucket. Assembly consumes the views it
 returns. That boundary is the point rather than a tidiness preference: two
 implementations of "does this release touch this setup" is exactly the drift
-`REDESIGN.md` §C3 exists to remove, and one of them would have been a regex
+the deterministic validator exists to remove, and one of them would have been a regex
 away from the `brew:libpq` defect.
 
 What assembly still owns, because none of it is a judgement about an item:
@@ -167,7 +167,7 @@ Everything else is reported and left exactly as written. A malformed evidence
 string is not moved to `citations[]`; an unrecognized tag is not dropped; an
 over-long title is not truncated; two items deriving one id are not merged.
 Each of those would be a regex deciding what a field means, which is the
-banned behaviour (criterion 1).
+banned behaviour (`item-schema.md` §0).
 
 Assembly keeps one normalizer, `as_item_list()`, for the two raw research
 fields the item model does not cover (§Loading and Merging). Same doctrine:
@@ -208,7 +208,7 @@ cases at this writing; the matrix derives from the published constants and
 grows with them — and the validator's
 session-level twin at **0 of 282**.
 
-## Consuming Convergence (Criterion 12)
+## Consuming Convergence
 
 When stage 3½/4 ran, the session dir carries three artefacts
 (`references/convergence.md` §1): the frozen `corpus.pre.json`, the applier's
@@ -244,7 +244,7 @@ What the merge does, in order:
    counterweight), or the `forced` record. Absence means convergence had
    nothing to say about that tool.
 5. **Writes the report-level `convergence` object**: `state`, `attempt`, the
-   whole `convergence_status` (criterion 13's first-class explanation —
+   whole `convergence_status` (the first-class explanation of a degraded gate —
    passed through untrimmed), the `moved` map, the applier `findings`, the
    `op: "flag"` edits read from `converge.json` (they feed the page's Report
    notes band), and the applied/rejected counts.
@@ -672,7 +672,7 @@ otherwise                                     → "none"
 ```
 
 Three heuristics present in the pre-item implementation are **gone**, and their
-removal is the point (`REDESIGN.md` criterion 1):
+removal is the point — neither is a rule the deterministic layer may apply:
 
 - **`category != "security"` as a proxy for "not a risk"** → replaced by
   `local.effect == "risk"`. The documented reason for the proxy — "a security
@@ -682,7 +682,7 @@ removal is the point (`REDESIGN.md` criterion 1):
 - **the separate headliner clause**, which existed only because a headliner had
   no local finding. Its real case (`mise:rust`) is now `breaking`-tagged items
   at warning+, which the last clause covers.
-- **`"watch-item"` in the suggestion clause** (`REDESIGN.md` §D row 4). A watch
+- **`"watch-item"` in the suggestion clause**. A watch
   item proposes a change to what we remember, not to the user's system.
 
 Two "never" rules hold the whole thing up:
@@ -752,7 +752,7 @@ object as `review_bucket`, and carried alongside it as `bucket_inputs` —
 and convergence once it exists, can see *why* without re-deriving it.
 
 **It is a baseline for convergence to review, not a decision**
-(`REDESIGN.md` §C3). The name differs between the two files for exactly that
+(`item-schema.md` §0). The name differs between the two files for exactly that
 reason.
 
 Order of evaluation (pinned as data in `contract/bucketing.json`, which
@@ -932,7 +932,7 @@ never pins by accident.
 
 **`build_tool()` refuses to synthesize a runnable or pinned baseline when
 `tool["latest_version"]` is falsy** — collection degrading per-tool rather
-than aborting (§G1) means a candidate can reach here with no usable
+than aborting means a candidate can reach here with no usable
 `latest_version` at all (the same "missing version" shape
 `compute_version_delta` already recognizes for the version-delta axis). In
 that case `command`/`version_pinned` are forced to `None`/`false` and
@@ -1037,7 +1037,7 @@ release-level break from an `incompatible` headliner.
 
 **`watch_item_hit` is back, and it is structured.** The old signal scored 70
 for a regex match on the literal phrase `Watch item hit:` in relevancy prose —
-a magic string `REDESIGN.md` §I4 retired outright, because a subagent that
+a magic string retired outright, because a subagent that
 paraphrased it made the user's own standing concern silently worth nothing.
 The restored signal reads the validator's `watch_hit_item_ids` export — the
 hits that actually GROUNDED against the session's watch-item snapshot (I-20)
@@ -1466,7 +1466,8 @@ because this change is not additive**: `tools[].items[]` replaces
 report and must not try — the page would render a grid of empty cards,
 silently, and look entirely correct — so `render.py` hard-fails on any other
 value. An old session is re-read by checking out the pipeline that wrote it;
-there is no shim, by design (`REDESIGN.md` §I9). `generated_at` is
+there is no shim, by design: the skill ships as one package, so nothing reads
+an old shape. `generated_at` is
 `collect.json`'s own `generated_at` (see `references/collection.md`) when
 present; if `collect.sh` ran before it emitted that field, or the value is
 missing/empty for any other reason, assembly falls back to the current UTC

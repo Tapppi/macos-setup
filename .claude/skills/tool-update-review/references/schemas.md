@@ -226,7 +226,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	// Why that bucket, without re-deriving it — the validator's V6 inputs,
 	// carried through verbatim. `initial_review_bucket` in validation.json is
 	// this same value; the name differs there because it is a baseline for
-	// convergence to review, not a decision (`REDESIGN.md` §C3).
+	// convergence to review, not a decision (`item-schema.md` §0).
 	"bucket_inputs": {
 		"has_security": true, "security_only": false, "impact": "possible",
 		"version_delta": "major", "runnable": true
@@ -908,7 +908,7 @@ different body:
   entry condition is holding across many tools, and a checker that sees one to
   nine of them cannot establish that. A checker that thinks a note generalises
   says so in its `rationale`; convergence, which reads every tool at once,
-  decides. That is why global notes are rare (`REDESIGN.md` §L1) — the evidence
+  decides. That is why global notes are rare — the evidence
   for one exists at exactly one place in the pipeline. **Three stores, two
   files**: global notes live in `method-notes.json` itself, under the reserved
   key `global`. A tool id always contains a colon and that key never does, so a
@@ -922,9 +922,10 @@ different body:
 Both memory kinds — `watch-item` and `method-note` — may carry
 `self_test_failed`. The per-tool agent runs a self-test before proposing
 (`references/research.md` §Before You Propose a Standing Note: the Self-Test), and **a failing
-self-test applies this tag; it never removes the proposal** (`REDESIGN.md`
-§L7). Convergence reviews every tagged proposal and verifies that dropping it
-is appropriate.
+self-test applies this tag; it never removes the proposal**, because a
+proposal the agent never writes is one convergence cannot restore.
+Convergence reviews every tagged proposal and verifies that dropping it is
+appropriate.
 
 ```jsonc
 "self_test_failed": {
@@ -957,7 +958,7 @@ is appropriate.
 `method-note` propose changes to what we remember; `edit` and `structural`
 propose changes to the user's system. Only the latter should raise
 `risk_level`, move a tool into the `attention` bucket, or answer a
-`needs_attention` `config_status`. `REDESIGN.md` §L1 expects *many* method
+`needs_attention` `config_status`. The memory design expects *many* method
 notes and watch items, so any other reading puts most of the fleet on the
 "needs you" list and undoes the compaction this skill exists for.
 
@@ -1126,7 +1127,7 @@ whose `local.effect == "risk"` at `notable`+, or any `breaking`-tagged item at
 `warning`+. Otherwise `"none"`.
 
 Three heuristics are **gone** relative to the pre-item implementation, and
-their removal is the point (`REDESIGN.md` criterion 1):
+their removal is the point — neither is a rule the deterministic layer may apply:
 
 - `category != "security"` as a proxy for "not a risk" — replaced by
   `effect == "risk"`, which the checker states directly in a field built for
@@ -1135,7 +1136,7 @@ their removal is the point (`REDESIGN.md` criterion 1):
 - the separate headliner clause, which existed only because a headliner had no
   local finding.
 - `"watch-item"` in the suggestion clause. A watch item proposes a change to
-  what we remember, not to the user's system (`REDESIGN.md` §D row 4).
+  what we remember, not to the user's system.
 
 Two "never" rules hold the whole thing up:
 

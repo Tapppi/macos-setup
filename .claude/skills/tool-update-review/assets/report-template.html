@@ -348,7 +348,7 @@
 		 * Durable instructions replayed into every future run — a different
 		 * question from everything else on the page ("do I want the
 		 * researcher told this forever?"), so its own tab. Already in the
-		 * store (persisted at render, criterion 18): the tab must not look
+		 * store (persisted at render): the tab must not look
 		 * like work. Grouped by topic, one-off notes first and open — a
 		 * note only one tool needed is where a bad note lives — shared
 		 * notes collapsed. The control is veto / restore. */
@@ -1128,7 +1128,7 @@
 
 		.judge-line.forced { border-left-color: var(--red); background: var(--tint-red); }
 
-		/* ── Convergence degraded (criterion 13) — first-class, never a
+		/* ── Convergence degraded (after five failed attempts) — first-class, never a
 		 * report note. Yellow for degraded_gate (the affected tools were
 		 * FORCED conservative — the safe failure, one card each); red for
 		 * degraded_unapplied and for an inconsistent artefact set, where
@@ -2432,10 +2432,10 @@
 
 		/* ── self_test_failed (references/schemas.md §1.7c) ────────────────
 		 * The agent's own admission that its proposal failed a limb of the
-		 * self-test — written anyway per §L7, reviewed by convergence, and
-		 * rendered HERE because a kept-but-tagged proposal is exactly the
-		 * one the human should read twice. Warning treatment, not error:
-		 * the tag is honesty, not breakage. */
+		 * self-test — written anyway (the tag never removes), reviewed by
+		 * convergence, and rendered HERE because a kept-but-tagged proposal is
+		 * exactly the one the human should read twice. Warning treatment, not
+		 * error: the tag is honesty, not breakage. */
 		.self-test-note {
 			margin: 6px 0 10px;
 			padding: 6px 9px;
@@ -3325,7 +3325,7 @@
 			<textarea id="overall-comment" placeholder="Any overall thoughts, context, or instructions for the session…"></textarea>
 		</div>
 
-		<!-- One-viewport tail spacer (REDESIGN §J bug 1). scrollIntoView
+		<!-- One-viewport tail spacer. scrollIntoView
 		     clamps at max scroll, so without scroll room below the list a
 		     deep link into any tool near the document end lands short —
 		     measured up to 577.98px at a 1400px viewport, scrollY exactly
@@ -3729,7 +3729,7 @@
 
 		/* ── self_test_failed {limb, reason} (references/schemas.md §1.7c) —
 		 * present on either memory kind when the agent's own pre-proposal
-		 * self-test failed and the proposal was written anyway (§L7: the tag
+		 * self-test failed and the proposal was written anyway (the tag
 		 * never removes). Convergence reviewed it; the human still sees it,
 		 * because a kept-but-tagged note is the likeliest to be wrong. Never
 		 * rendered before this function existed — the {limb, reason} reached
@@ -5373,7 +5373,7 @@
 			return `<div class="judge-line">⚑ Auto-update by convergence judgement — ${esc(label.headline || '')} ${jumpHtmlOverview('judgement-section', 'review in the judgement panel →')}</div>`;
 		}
 
-		/* ── Convergence degraded — criterion 13's first-class explanation.
+		/* ── Convergence degraded — the first-class explanation.
 		 * Rendered at the top of the Overview, under the lede: the
 		 * headline and body verbatim, the attempt log, the forced tools as
 		 * jumps, the standing rejects count. Also the one loud case the
@@ -7509,7 +7509,7 @@
 		/* ══ METHOD NOTES TAB (report-page.md §6) ═════════════════════════
 		 * Every kind:"method-note" suggestion on every tool, grouped by
 		 * method_topic. The store already holds them (persisted at render —
-		 * criterion 18), so nothing here needs a decision: the tab exists so
+		 * see render.py), so nothing here needs a decision: the tab exists so
 		 * a bad note is visible and correctable rather than permanent. The
 		 * veto control is a MIRROR of reject on the canonical card in #main
 		 * (§Decision State and Mirrors), and the modification textarea

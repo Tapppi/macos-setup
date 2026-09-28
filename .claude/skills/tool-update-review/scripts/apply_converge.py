@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-apply_converge.py — the only writer of a corpus (REDESIGN.md §L6/§M, criterion 12/13).
+apply_converge.py — the only writer of a corpus (`references/convergence.md`).
 
 Usage:
 	apply_converge.py --session DIR --prepare [--macos-setup-root PATH]
@@ -19,7 +19,7 @@ the session directory, fetches nothing, and iterating against it costs no
 recovery attempt.
 
 `--submit` is an attempt. The durable counter in `converge-attempts.json`
-enforces §L4's loop: a submission with critical findings bounces with the
+enforces the gate's loop: a submission with critical findings bounces with the
 coded findings (exit 1) while attempts remain; at attempt 5 the run DEGRADES
 CONSERVATIVELY instead of dying — `degraded_gate` forces every gate-failing
 tool to `security_mixed` / not pre-accepted, `degraded_unapplied` ships
@@ -1186,7 +1186,7 @@ def verify_c6(entry, corpus_pre, tables, findings, ledger):
 						tool_id, topic, fired)))
 			if not isinstance(row.get("used_correctly"), bool):
 				findings.append(_finding("E-CHECK-ARITH",
-					"C6 ({}, {!r}): used_correctly must be recorded (§I4)".format(
+					"C6 ({}, {!r}): used_correctly must be recorded".format(
 						tool_id, topic)))
 
 
@@ -2011,10 +2011,10 @@ def _degraded_gate_explanation(forced, attempt):
 
 def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		attempt_log, excluded):
-	"""Attempt 5: whatever remains, ship something conservative and explained
-	(§L4 / criterion 13). Gate-failing tools are FORCED to the conservative
-	option — the one place in the design a bucket is written rather than
-	derived, written by the applier, recorded as forced."""
+	"""Attempt 5: whatever remains, ship something conservative and explained —
+	never a silent pass, never a dead run. Gate-failing tools are FORCED to the
+	conservative option — the one place in the design a bucket is written rather
+	than derived, written by the applier, recorded as forced."""
 	corpus_post = result["corpus_post"]
 	if not result["applied"] and (result["critical"] or result["rejected"]):
 		# Nothing survived AND something is wrong — §3.4d row 2. The two

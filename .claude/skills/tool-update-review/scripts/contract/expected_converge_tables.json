@@ -28,7 +28,7 @@
 				"tool_id": "brew:nonconforming",
 				"kind": "watch-item",
 				"payload": {
-					"rationale": "REDESIGN.md L7: the tag is what convergence reviews, so it must say why.",
+					"rationale": "The tag is what convergence reviews, so it must say why.",
 					"watch_note": "Flag any future release touching the Keychain record.",
 					"watch_topic": "the credential format this vendor writes back"
 				},

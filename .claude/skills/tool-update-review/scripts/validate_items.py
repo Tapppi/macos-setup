@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-validate_items.py — the deterministic validator (REDESIGN.md §C3).
+validate_items.py — the deterministic validator.
 
 Usage: validate_items.py <session_dir> [--macos-setup-root PATH]
                                        [--dotfiles-root PATH] [--systems-root PATH]
 
 Reads {session_dir}/collect.json and every {session_dir}/research/*.json, and
 writes {session_dir}/validation.json — the machine-readable primary, and the
-pre-convergence artifact convergence (C4) consumes. A human-readable tail of
+pre-convergence artifact convergence consumes. A human-readable tail of
 the same data, one finding per line and code-prefixed, goes to
 {session_dir}/assemble.warn — the spec-conformance channel for the run and
 nothing else (references/item-schema.md §3.3).
@@ -27,7 +27,7 @@ Six stages:
 	V6   initial bucketing
 
 THE CONSTRAINT, above every other consideration in this file
-(`REDESIGN.md` §A, §C3, acceptance criterion 1):
+(`references/item-schema.md` §0):
 
 	The deterministic layer validates, normalizes, counts, buckets and
 	calculates impact. It NEVER deletes, trims or re-rates an item on a regex
@@ -44,11 +44,11 @@ convergence to review, not a decision.
 The defect this exists to make impossible is measured, not theorised: a
 rule-driven trim silently moved `brew:libpq` into `security_auto`,
 pre-accepted, with 10 CVEs, and nothing on the page said a rule had put it
-there (`HANDOFF.md` §3).
+there.
 
-Second constraint, criterion 4: degradation is per tool and loud. No malformed
-input aborts the run. Each stage runs inside a per-tool boundary, and the
-loading stage inside a per-file and per-entry one.
+Second constraint (`references/item-schema.md` §8): degradation is per tool and
+loud. No malformed input aborts the run. Each stage runs inside a per-tool
+boundary, and the loading stage inside a per-file and per-entry one.
 """
 from __future__ import annotations  # Python 3.9 — same constraint as assemble.py
 
@@ -219,7 +219,7 @@ def split_members(value, findings: Findings, tool_id, field, item_id=None):
 	"""→ (good dict members, quarantined members).
 
 	A wrong-typed member is KEPT, on the tool, under `quarantine`. Today's
-	`as_item_list` drops it; under §C3 nothing deterministic deletes content a
+	`as_item_list` drops it; here nothing deterministic deletes content a
 	human would have seen. The quarantine is the difference between "we could
 	not read this" and "this never existed"."""
 	good, bad = [], []
@@ -248,8 +248,8 @@ def normalize_evidence(raw, findings: Findings, tool_id, item_id, field):
 
 	A non-conforming string raises E-EVID-MALFORMED and is KEPT VERBATIM in the
 	list. It is deliberately not moved to `citations[]`: auto-moving is a regex
-	deciding what a field means — the class §C3 forbids — and it would paper
-	over a broken path that happens to read like prose."""
+	deciding what a field means — the class of rule this layer forbids — and
+	it would paper over a broken path that happens to read like prose."""
 	out = []
 	for entry in as_list(raw, findings, tool_id, field, item_id):
 		if isinstance(entry, dict):
@@ -489,7 +489,7 @@ class Manifest:
 	"""The Brewfile as data: which entries exist, in which section, plus the
 	`setup.sh` subcommands already dispatched.
 
-	`REDESIGN.md` §B1 puts `intel.Brewfile` out of this tool entirely, so this
+	`intel.Brewfile` is out of this tool entirely, so this
 	only ever reads `Brewfile`. I-17 makes citing the other one an error rather
 	than a thing to quietly resolve.
 
@@ -656,7 +656,7 @@ def validate_item(item, tool_id, item_id, link_count, findings: Findings,
 					value=anchor.get("value"))
 	out["id_stability"] = model.id_stability(anchor)
 
-	# ── title / body — the §L2 split ───────────────────────────────────
+	# ── title / body — the split ───────────────────────────────────────
 	title = item.get("title")
 	if _require_string(title, findings, tool_id, item_id, "title"):
 		if len(title) > model.TITLE_MAX_CHARS:
@@ -1099,7 +1099,7 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 	least one line that is not a comment or blank. 1–3 failing is
 	E-USAGE-UNGROUNDED (naming the step); 4 failing is W-USAGE-INSTALL-ONLY.
 	Neither is a hold, and neither removes, rewrites or re-rates anything: it
-	withholds a derived highlight, which is all it may do (`REDESIGN.md` §A).
+	withholds a derived highlight, which is all a deterministic step may do.
 
 	The record is keyed on the AUTHORED entry (§12 A-R3-1) — `matched_lines`
 	is the evidence of why it grounded, not the key."""
@@ -1331,9 +1331,9 @@ def _struct_get(block, dotted):
 
 
 def validate_structural(block, tool_id, sug_id, findings: Findings, manifest: Manifest):
-	"""The typed structural outlet (`REDESIGN.md` §B3). Its load-bearing field
-	is `subjects[]` — the entities the change is *about*, separate from the
-	files it edits.
+	"""The typed structural outlet (`references/item-schema.md` §4). Its
+	load-bearing field is `subjects[]` — the entities the change is *about*,
+	separate from the files it edits.
 
 	The measured case: four groups independently produced quarantine
 	suggestions; three edit CLAUDE.md/AGENTS.md and the fourth adds a
@@ -1550,7 +1550,7 @@ def compute_impact(view) -> str:
 	| "unknown".
 
 	Two heuristics present in the old implementation are gone, and their
-	removal is the point (`REDESIGN.md` §F criterion 1):
+	removal is the point — neither was a rule this layer may apply:
 
 	  * `category != "security"` is replaced by `effect == "risk"`. The
 	    documented reason for the proxy — "a security relevancy is a reason to
@@ -1562,9 +1562,9 @@ def compute_impact(view) -> str:
 	    headliner had no local finding. Its real case (`mise:rust`) is now
 	    `breaking`-tagged items at warning+, which the last clause covers.
 
-	`"watch-item"` is NOT in the suggestion clause: `REDESIGN.md` §D row 4
-	accepts dropping it, and `item-schema.md` §5.5 flags its own draft as wrong
-	against that row. It reads `model.needs_a_decision`, the same negation the
+	`"watch-item"` is NOT in the suggestion clause: a proposal to change what
+	we remember is not an impact on this machine (`references/item-schema.md`
+	§7, Impact). It reads `model.needs_a_decision`, the same negation the
 	bucket clause and `W-ATTENTION-NOSUG` ask, and that matters here more than
 	anywhere: `compute_initial_bucket` tests `security_auto` **before** its own
 	suggestion clause, and `security_auto`'s inputs are `impact` and
@@ -1664,8 +1664,8 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	recomputes it.
 
 	**This is a baseline for convergence to review, not a decision**
-	(`REDESIGN.md` §C3). It is labelled `initial_review_bucket` in the output
-	and carries `bucket_inputs` so convergence can see *why* without
+	(`references/item-schema.md` §7). It is labelled `initial_review_bucket`
+	in the output and carries `bucket_inputs` so convergence can see *why* without
 	re-deriving it.
 
 	**Memory proposals do not force `attention`; action proposals do.**
@@ -1685,11 +1685,12 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 	that reason — they are what hold an unrecognized kind out of the
 	pre-accepting bucket.
 
-	The old spelling was harmless only while watch items were rare. `REDESIGN.md`
-	§L1 now expects **many** per-tool method notes and watch items, so "not an
+	The old spelling was harmless only while watch items were rare. The memory
+	design now expects **many** per-tool method notes and watch items, so "not an
 	upgrade" would put most of the fleet on the "needs you" list — inflating the
-	surface §A and criterion 10 exist to compact, and forcing exactly the review
-	§L5 was designed to make optional. `W-ATTENTION-NOSUG` reads the same tuple,
+	review surface this pipeline exists to compact, and forcing a review that
+	persisting notes at render (rejectable on the page) makes optional.
+	`W-ATTENTION-NOSUG` reads the same tuple,
 	so a bucket and its explanation cannot drift apart."""
 	# Clause 0 — D1(b): content-losing input fails closed. Deliberately ABOVE
 	# the source clause: a content-losing degradation on an `expected`
@@ -1871,11 +1872,11 @@ def _assign_bucket(view):
 def _guard(view, findings: Findings, stage, work):
 	"""Run one stage of a tool's validation, or report that it failed.
 
-	Criterion 4 with the constraint attached: the next unanticipated shape must
-	cost as little as possible and say so. It must NOT cost the items already
-	validated — discarding those is deletion, which is what this whole layer is
-	forbidden to do — so `view` is built up in place and whatever conformed
-	before the failure stays on it.
+	Per-tool, loud degradation with the constraint attached: the next
+	unanticipated shape must cost as little as possible and say so. It must NOT
+	cost the items already validated — discarding those is deletion, which is
+	what this whole layer is forbidden to do — so `view` is built up in place
+	and whatever conformed before the failure stays on it.
 
 	And it must not *promote* the tool either. A stage that failed halfway
 	leaves a view missing exactly the content it had not reached yet — the
@@ -2024,7 +2025,7 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 	# bucket, and `bucket_inputs` — because a value that is "security" for
 	# bucketing and "not security" for the security-only test is its own
 	# auto-accept route, and a bucket its own recorded inputs cannot explain is
-	# exactly the opacity §C3 exists to remove.
+	# exactly the opacity a reviewable baseline exists to remove.
 	# The third limb closes the same hole from the other side. I-4 already
 	# reports a `security` block on an item that forgot the tag
 	# (E-SEC-BLOCK-ORPHAN) — but reporting it while treating the tool as
@@ -2068,7 +2069,7 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 	# still bars pre-acceptance unverified.
 	view["watch_hit_item_ids"] = [i["id"] for i in view["items"]
 		if model.grounded_watch_hit(i, watch_topics)]
-	# Criterion 17 makes convergence responsible for every tagged proposal, so
+	# Convergence is responsible for every tagged proposal, so
 	# the tagged set is exported rather than left to be re-derived from prose.
 	view["self_test_tagged_suggestion_ids"] = _self_test_tagged_ids(
 		view["suggestions"], view["id"])
@@ -2190,21 +2191,21 @@ def _validate_suggestions(research, findings, tool_id, manifest):
 
 
 # I-19 — the memory-proposal shape. Two kinds, one payload pair each, and the
-# self-test tag that `REDESIGN.md` §L7 makes load-bearing.
+# self-test tag, which is load-bearing because it replaces a removal.
 def _validate_memory_proposal(sug, kind, findings, tool_id, sug_id):
 	"""I-19. A memory proposal carries its payload, and a failed self-test
 	carries its reason.
 
 	The tag is validated rather than waved through as a free-floating extra
-	field, because §L7 makes convergence key its review off it. An unvalidated
+	field, because convergence keys its review off it. An unvalidated
 	channel is how `Watch item hit:` broke — a literal string worth 70
 	highlight points that nobody checked, which silently stopped firing the
 	moment it was paraphrased. A misspelt `self_test_failed` would be invisible
 	in exactly the same way.
 
-	A tag with no reason is a drop with extra steps, and criterion 17 exists to
-	prevent precisely that, so the reason is required whenever the tag is
-	present."""
+	A tag with no reason is a drop with extra steps, and a self-test that tags
+	instead of removing exists to prevent precisely that, so the reason is
+	required whenever the tag is present."""
 	# `assemble.suggestion_kind` returns `sug.get("kind")` verbatim, so a
 	# drifted `"kind": ["edit"]` arrives unhashable and `.get()` would raise —
 	# costing this tool its entire suggestions array, which is deletion, which
@@ -2251,7 +2252,7 @@ def _validate_memory_proposal(sug, kind, findings, tool_id, sug_id):
 
 
 def _self_test_tagged_ids(suggestions, tool_id):
-	"""The tagged set, exported per tool so criterion 17 is checkable rather
+	"""The tagged set, exported per tool so tag-never-remove is checkable rather
 	than asserted: convergence has to review every tagged proposal and verify
 	that dropping it is appropriate.
 
@@ -2284,7 +2285,7 @@ def _names_forbidden_manifest(path) -> bool:
 
 
 def _check_flags(research, view, findings, tool_id):
-	"""I-13 plus criterion 2's enforcement.
+	"""I-13 plus the rule that no checker emits a bucket or an auto-approval.
 
 	The four emittable flags are assertions, not inputs: the validator's
 	recomputation wins and the disagreement is reported, because a disagreement

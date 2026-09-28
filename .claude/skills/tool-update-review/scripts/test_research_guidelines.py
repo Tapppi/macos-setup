@@ -5,15 +5,16 @@ guidelines. Usage: python3 test_research_guidelines.py [-v]
 
 Stdlib `unittest` only, same constraint as the other suites here.
 
-**Why a test suite over prose.** Everything a research subagent is told lives
-in `references/research.md` and `references/research-prompt-template.md`, and
-the measured history is that prose rules drift silently: the §Watch Items
+**Why a test suite over prose.** Everything a research subagent is told lives in
+`references/research.md` and `references/research-prompt-template.md`, and the
+measured history is that prose rules drift silently: the §Watch Items
 (Proposing) text was byte-identical across three runs that produced 11, 5 and 8
 proposals, and the single strongest instruction in the last run existed only in
-an untracked scratch file. `REDESIGN.md` §A's corollary — *"anything living in
-a prompt will evaporate"* — is the reason this file exists. Every assertion
-below is a claim the guidelines make that can be checked mechanically, so a
-later edit that quietly removes one fails a test instead of a run.
+an untracked scratch file. *"Anything living in a prompt will evaporate"* —
+every mechanism has to live in the skill itself — is the reason this file
+exists. Every assertion below is a claim the guidelines make that can be checked
+mechanically, so a later edit that quietly removes one fails a test instead of a
+run.
 
 These are text assertions, deliberately. They do not check that an agent obeys
 the guidelines — nothing here can — only that the instruction is still in the
@@ -111,9 +112,9 @@ class GuidelineTestCase(unittest.TestCase):
 		self.assertNotIn(flat(needle), flat(haystack), msg)
 
 
-# ── intel.Brewfile (REDESIGN.md B1, criterion 20) ───────────────────────────
+# ── intel.Brewfile ──────────────────────────────────────────────────────────
 class IntelBrewfileTests(GuidelineTestCase):
-	"""B1 puts the Intel manifest out of this tool entirely. The last run
+	"""The Intel manifest is out of this tool entirely. The last run
 	produced seven `target_files` entries pointing at it, so silence is not
 	enough — the prompt said to scan it. What a checker-facing document may
 	still do is forbid it; what it may not do is send anyone to look."""
@@ -153,18 +154,18 @@ class IntelBrewfileTests(GuidelineTestCase):
 		self.assertNotIn("intel.Brewfile", scan)
 
 
-# ── the orphans (REDESIGN.md A's corollary, criterion 19) ───────────────────
+# ── the orphans: every mechanism lives in the skill ─────────────────────────
 class OrphanedInstructionTests(GuidelineTestCase):
 	"""Seven instructions ran the last review and lived only in an untracked
-	scratch file, `scratch/research-0828b.js`. `REDESIGN.md` §A: *"anything
-	living in a prompt will evaporate."* Each test below is the home one of
+	scratch file, `scratch/research-0828b.js`, and *"anything living in a
+	prompt will evaporate."* Each test below is the home one of
 	them now has.
 
 	One is deliberately absent: the fleet-wide watch-item quota at `:38`
 	(*"across the whole fleet the expected total is one or two ... assume
-	someone else is covering the marginal case"*). §C4 forbids it and
-	criterion 14 checks that it stayed out. `NoVolumeTargetTests` asserts its
-	absence."""
+	someone else is covering the marginal case"*). No numeric quota is handed
+	to per-tool agents, who cannot see each other; convergence sees the whole
+	field and does the cutting. `NoVolumeTargetTests` asserts its absence."""
 
 	def test_the_read_only_discipline_governs_every_checker(self):
 		"""It existed only scoped to bespoke-setup testing; the general form —
@@ -222,7 +223,7 @@ class OrphanedInstructionTests(GuidelineTestCase):
 		self.assertEqual(used - documented, set())
 
 
-# ── the three stores (REDESIGN.md L1, criterion 16) ─────────────────────────
+# ── the three stores ────────────────────────────────────────────────────────
 class ThreeStoresTests(GuidelineTestCase):
 	"""The volume disagreement that stalled this was a category error. There is
 	no single answer to "how many" because there are three different things,
@@ -246,8 +247,8 @@ class ThreeStoresTests(GuidelineTestCase):
 	def test_rare_is_justified_structurally_and_not_by_a_number(self):
 		"""A global note is rare because its entry condition is cross-tool
 		evidence and exactly one reader in the pipeline has it. Stated any
-		other way "rare" reads as a budget, and a budget is what criterion 14
-		forbids."""
+		other way "rare" reads as a budget, and no per-tool agent is handed a
+		numeric quota."""
 		text = self.section()
 		self.assertSays("the entry condition is cross-tool evidence", text)
 		self.assertSays("not a quota anybody enforces", text)
@@ -346,8 +347,8 @@ class ThreeStoresTests(GuidelineTestCase):
 		self.assertSays("read first, before you look anything up", text)
 
 	def test_both_stores_reach_the_checker_through_the_prompt(self):
-		"""REDESIGN.md I4: the per-tool agent is GIVEN its watch items rather
-		than sent to find them."""
+		"""The per-tool agent is GIVEN its watch items rather than sent to find
+		them, and labels a hit in a structured field."""
 		self.assertSays("{{STANDING_NOTES}}", TEMPLATE)
 		self.assertSays("{{STANDING_NOTES}}", RESEARCH)
 		self.assertSays("method-notes.json", RESEARCH)
@@ -358,9 +359,10 @@ class ThreeStoresTests(GuidelineTestCase):
 		self.assertSays("method_note", SCHEMAS)
 
 
-# ── the self-test tags, never removes (REDESIGN.md L7, criterion 17) ────────
+# ── the self-test tags, never removes ───────────────────────────────────────
 class SelfTestTests(GuidelineTestCase):
-	"""§E3 asked for a self-test; §L7 closed the one lossy point in it. A
+	"""The self-test keeps volume sane at the source; making it a tag rather
+	than a removal closes the one lossy point in it. A
 	failing proposal is still written, tagged with the failing limb and the
 	agent's own reason, and convergence verifies that dropping it is
 	appropriate. A proposal the agent never writes is one convergence cannot
@@ -454,12 +456,12 @@ class SelfTestTests(GuidelineTestCase):
 		self.assertSays("Q5 — THE WITNESS", self.section())
 
 	def test_convergence_keeps_final_authority(self):
-		"""E3: the upstream self-test reduces what reaches convergence; it does
+		"""The upstream self-test reduces what reaches convergence; it does
 		not replace or bind it."""
 		self.assertSays("final authority to cut anything", self.section())
 
 
-# ── no volume target (REDESIGN.md C4, criterion 14) ─────────────────────────
+# ── no volume target ────────────────────────────────────────────────────────
 class NoVolumeTargetTests(GuidelineTestCase):
 	"""The fleet quota at `scratch/research-0828b.js:38` is the one orphan that
 	must NOT be ported. Its measured history becomes reasoning in the guideline
@@ -513,8 +515,8 @@ class NoVolumeTargetTests(GuidelineTestCase):
 						"the old one failed".format(name))
 
 	def test_no_numeric_target_is_stated_to_a_per_tool_agent(self):
-		"""Criterion 14. Any sentence pairing a count with a proposal noun is
-		the defect, whatever wording it wears."""
+		"""No numeric quota for a per-tool agent. Any sentence pairing a count
+		with a proposal noun is the defect, whatever wording it wears."""
 		pattern = re.compile(
 			r"(?:at most|no more than|up to|expect|aim for|limit(?:ed)? to)\s+"
 			r"(?:one|two|three|a few|\d+)\b[^.]{0,60}"
@@ -545,7 +547,7 @@ class NoVolumeTargetTests(GuidelineTestCase):
 		self.assertSays("Volume is handled where volume is visible", self.section())
 
 
-# ── the bar (REDESIGN.md C4) ────────────────────────────────────────────────
+# ── the bar ─────────────────────────────────────────────────────────────────
 class WatchItemBarTests(GuidelineTestCase):
 	"""Each limb is a conjunction and each half has to be answerable with an
 	artefact. The undecidable phrasings are what produced five rationales
@@ -582,9 +584,9 @@ class WatchItemBarTests(GuidelineTestCase):
 		self.assertNotIn("no single delta to re-check", self.section())
 
 
-# ── history as hypotheses (REDESIGN.md E2, criterion 15) ────────────────────
+# ── history as hypotheses ───────────────────────────────────────────────────
 class HypothesisTests(GuidelineTestCase):
-	"""E2 reconciles "stop seeding candidates" with the measured value of the
+	"""This reconciles "stop seeding candidates" with the measured value of the
 	hypothesis framing. Both halves are evidenced: the seeding produced six of
 	eight bad proposals, and the framing measurably raised research quality.
 	The difference is that one hands over an answer and the other hands over a
@@ -656,7 +658,7 @@ class HypothesisTests(GuidelineTestCase):
 		self.assertSays("Writing Hypotheses", SKILL_MD)
 
 
-# ── items are outward-facing (REDESIGN.md L3, criterion 7) ──────────────────
+# ── items are outward-facing ────────────────────────────────────────────────
 class OutwardFacingTests(GuidelineTestCase):
 	"""WP1 put the rule in the schema and in `contract.json`'s `scope`, and
 	deliberately did NOT make it a validator filter — a regex that deleted
@@ -747,13 +749,30 @@ class DocumentedScopeTests(GuidelineTestCase):
 		self.assertEqual(assemble._MEMORY_SUGGESTION_KINDS,
 			frozenset(model.MEMORY_SUGGESTION_KINDS))
 
-	def test_the_unresolvable_citations_have_an_address(self):
-		"""`REDESIGN.md`, `HANDOFF.md` and "criterion N" are cited across the
-		skill as the authority for load-bearing decisions and exist nowhere in
-		this repo. One row saying where they live is the difference between a
-		reference and a dead end."""
-		self.assertSays("REDESIGN.md", read("references", "item-schema.md"))
-		self.assertSays("not in this repo", read("references", "item-schema.md"))
+	def test_no_committed_file_cites_a_local_working_file(self):
+		"""The design records the skill was built from live under
+		`$XDG_STATE_HOME`, on one machine, and no reader of this repo has them.
+		A committed file that cites one — by name, by one of its letter-numbered
+		section tags, or by an acceptance-criterion number — points its reader
+		at a dead end, so every rationale is stated here or cited from a
+		committed reference instead. The patterns are assembled so this file
+		does not match itself."""
+		working = "\\b" + "RE" "DESIGN" + "\\b|" + "|".join(re.escape(name + ".md")
+			for name in ("HAND" "OFF", "IMPLEMEN" "TATION"))
+		pattern = re.compile(working
+			+ "|§[A-Z][0-9]*\\b"            # a letter section tag
+			+ "|\\b[Cc]riteri(?:on|a) [0-9]+")  # an acceptance-criterion number
+		hits = []
+		for root, dirs, files in os.walk(SKILL):
+			dirs[:] = [d for d in dirs if d != "__pycache__"]
+			for name in files:
+				path = os.path.join(root, name)
+				with open(path, "r", encoding="utf-8", errors="replace") as fh:
+					for number, line in enumerate(fh, 1):
+						if pattern.search(line):
+							hits.append("{}:{}: {}".format(os.path.relpath(
+								path, SKILL), number, line.strip()[:100]))
+		self.assertEqual(hits, [], "\n".join(hits))
 
 
 # ── G-SEC checker guidance (pass 4b §2.8) ───────────────────────────────────

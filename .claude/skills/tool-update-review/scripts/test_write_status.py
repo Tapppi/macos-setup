@@ -126,7 +126,8 @@ class InitTargetFileDriftTests(unittest.TestCase):
 
 # ── pinning the reviewed version (WP5/I2 — references/apply.md §Pinning the
 #      reviewed version) ────────────────────────────────────────────────────
-# Criterion 22 must be checkable from status.json itself, not merely
+# "An applied upgrade installs the version that was reviewed" must be
+# checkable from status.json itself, not merely
 # documented in apply.md's prose — a session that skips calling
 # check_pin.py must not be able to produce a "done" status.json
 # indistinguishable from one that ran it correctly. These tests exercise the
@@ -157,13 +158,13 @@ def _pin_result(phase, source, name, target_version, observed_version=None, matc
 
 
 class InitMethodNoteTests(unittest.TestCase):
-	"""Criterion 18's apply half. A method note render.py persisted must
-	become the RIGHT action at init: reject → a pending withdraw carrying
-	the exact remover invocation; accept → done (already in store);
+	"""The apply half of render-time persistence. A method note render.py
+	persisted must become the RIGHT action at init: reject → a pending withdraw
+	carrying the exact remover invocation; accept → done (already in store);
 	comment → a pending modification; an UNREVIEWED accept → a pending add.
-	Before this, every reject was `skipped` and the note stayed in the
-	store for every future run — auto-persist with no working review
-	surface, the option §L5 rejected."""
+	Before this, every reject was `skipped` and the note stayed in the store for
+	every future run — auto-persist with no working review surface, the option
+	that was rejected."""
 
 	def _note(self, sid, topic, note):
 		return {"id": sid, "kind": "method-note", "title": f"Method note: {topic}",
@@ -577,7 +578,7 @@ class PinCheckGateTests(unittest.TestCase):
 # `init` does not display report.json, it synthesizes the whole action list
 # from it. A report written against a different contract therefore does not
 # fail visibly — it produces a plausible action list derived from fields that
-# no longer mean what this code thinks they mean. §I9 rules out a shim, so the
+# no longer mean what this code thinks they mean. No shim ships, so the
 # only correct answer is a refusal, and a refusal nobody tested is a refusal
 # nobody has.
 class InitContractVersionGateTests(unittest.TestCase):
@@ -631,7 +632,7 @@ class InitContractVersionGateTests(unittest.TestCase):
 		self.assertIn("Re-run the review", stderr)
 
 
-# ── the three memory stores (REDESIGN.md §L1; contract/stores.json) ────────
+# ── the three memory stores (contract/stores.json) ─────────────────────────
 # `test_items.StoreLayoutTests` drives each writer to its pinned golden state.
 # These cover the other half — what the writers REFUSE — because every one of
 # these refusals stands between an accepted proposal and a store file that has
@@ -685,7 +686,7 @@ class MemoryStoreWriterTests(unittest.TestCase):
 						self.assertFalse(os.path.exists(os.path.join(state_home, "tool-update-review", model.METHOD_NOTES_STORE)))
 
 	def test_each_store_is_created_on_first_use(self):
-		"""No pre-seeding (REDESIGN.md §I3): a fresh XDG_STATE_HOME has no
+		"""No pre-seeding: a fresh XDG_STATE_HOME has no
 		state directory at all, and the first accepted proposal makes both
 		the directory and the file."""
 		for filename, argv in (
@@ -787,7 +788,7 @@ class MemoryStoreWriterTests(unittest.TestCase):
 			self.assertEqual(fh.read(), body)
 
 	# ── remove-method-note / remove-global-method-note ─────────────────────
-	# The apply-side half of render-time persistence (criterion 18): a note
+	# The apply-side half of render-time persistence: a note
 	# render.py wrote and the user rejected on the page is withdrawn here.
 	def _seed(self, state_home, *specs):
 		"""specs: (subcommand, tool_id_or_None, topic, note)."""

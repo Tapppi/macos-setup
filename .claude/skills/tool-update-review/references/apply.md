@@ -53,7 +53,7 @@ worth knowing when debugging this step (not just "run the script"):
 - accepted/discuss → `state: "pending"`; rejected/undecided → `state:
   "skipped"` immediately (they will never run). **One kind is different:**
   a `method-note` suggestion is mapped from `method-notes.render.json` (what
-  `render.py` persisted at render — criterion 18): a *rejected persisted*
+  `render.py` persisted at render): a *rejected persisted*
   note is a **pending withdraw** whose `detail[0]` is the exact
   `remove-method-note` invocation to run; an accepted or undecided persisted
   note is **already `done`**; an accepted *unreviewed* note (convergence did
@@ -494,9 +494,9 @@ which is the point: neither is a parallel system.
 
 `write_status.py init` has already mapped the decision onto the right action
 by reading `{session_dir}/method-notes.render.json` — the record `render.py`
-wrote of exactly what it persisted at render (criterion 18, `REDESIGN.md`
-§L5; the ownership statement is `references/rendering-report.md` §Method
-Notes). Run what the action says; do not re-derive it from the decision:
+wrote of exactly what it persisted at render (the ownership statement is
+`references/rendering-report.md` §Method Notes). Run what the action says;
+do not re-derive it from the decision:
 
 - **Accept, or no decision, on a persisted note** → the action is already
   `done` (`note: "In store — persisted at render under {key}"`). **Nothing to
@@ -702,7 +702,7 @@ skill's state files use and the store has exactly one writer to audit.
 **Two paths that can trigger it, and no comment-driven third one:**
 
 1. **A research-proposed `kind: "method-note"` suggestion** — written **at
-   render, by `render.py`**, not at apply (criterion 18; the ownership
+   render, by `render.py`**, not at apply (the ownership
    statement lives in `references/rendering-report.md` §Method Notes). Apply's
    part is the *disposition*: a rejected note is withdrawn with
    `remove-method-note` (§Executing `method-note` Suggestions above), an
@@ -719,7 +719,7 @@ skill's state files use and the store has exactly one writer to audit.
 
 Path 2 keeps the rule the watch store has — **never written on the strength
 of a proposal alone; always a separate, explicit accept.** Path 1 inverts it
-deliberately (`REDESIGN.md` §L5): the store fills from run one, an abandoned
+deliberately: the store fills from run one, an abandoned
 run included, and the report's Method notes tab is the surface that earns
 that — a bad note is visible and correctable rather than permanent.
 
@@ -737,9 +737,10 @@ by path 2, carrying what actually went wrong.
 
 ### Three stores, two files
 
-`method-notes.json` holds **two** of the three memory stores (`REDESIGN.md`
-§L1). A reader who counts files, finds two, and goes looking for a missing
-third is reading it wrong — the split is by key, not by file:
+`method-notes.json` holds **two** of the three memory stores (global method
+notes, per-tool method notes, watch items). A reader who counts files, finds
+two, and goes looking for a missing third is reading it wrong — the split is
+by key, not by file:
 
 | Store | Where | Written by |
 |---|---|---|
@@ -768,7 +769,8 @@ promotion and takes no `--tool-id` at all.
 
 ### The stores are created on first use
 
-There is no seeding step and no migration machinery (`REDESIGN.md` §I3, §L9).
+There is no seeding step and no migration machinery: the skill ships as one
+package, so nothing at runtime reads an older store format.
 An absent store file **is** an empty store: the first accepted proposal
 creates the state directory and the file. A file that exists but does not
 parse as a JSON object is a **refusal**, not a fresh start — these stores

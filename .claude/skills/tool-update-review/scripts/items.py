@@ -9,7 +9,7 @@ asserts against an import rather than against a paragraph.
 
 Why the ordering is in the contract at all: two parallel implementer tracks
 once worked against a pinned *field* contract and still drifted on ordering,
-and the drift had to be reconciled afterwards (`HANDOFF.md` §8). Field names
+and the drift had to be reconciled afterwards. Field names
 are not enough. `item_sort_key`/`compare_items` and the two CVE rank tables are
 therefore exported, fixtured under `contract/`, and asserted by `test_items.py`.
 
@@ -18,7 +18,7 @@ derivations and orders. Validation lives in `validate_items.py`; every finding
 it can raise is registered in `FINDING_CODES` below so the set of things the
 deterministic layer can *say* is enumerable from one place.
 
-Governing constraint (`REDESIGN.md` §A, §C3, criterion 1):
+Governing constraint:
 
 	The deterministic layer validates, normalizes, counts, buckets and
 	calculates impact. It never deletes, trims or re-rates an item on a regex
@@ -39,14 +39,15 @@ import re
 from urllib.parse import quote, urlsplit
 
 # Bumped when a consumer would have to change. Consumers assert EQUALITY and
-# refuse on mismatch — there is no migration shim and none ships
-# (`REDESIGN.md` §I9). A consumer built for a lower version would silently
+# refuse on mismatch — there is no migration shim and none ships, because
+# the skill ships as one package and nothing reads an old shape. A consumer
+# built for a lower version would silently
 # drop fields and trust a `pre_accept` computed under a different predicate;
 # one built for a higher version would present output produced before a
 # defect class was closed as though it were not.
 #
 # 2 — WP2 admitted memory proposals: the `method-note` suggestion kind, the
-#     `self_test_failed` tag (`REDESIGN.md` §L7), and the rule that a memory
+#     `self_test_failed` tag (a tag, never a removal), and the rule that a memory
 #     proposal never forces a tool onto the attention list.
 # 3 — D1–D4: `watch_hit` on the item (grounded against a per-session
 #     watch-items snapshot), the closed top-level research-key set and
@@ -143,11 +144,11 @@ SUGGESTION_KINDS = ("upgrade", "edit", "structural", "watch-item", "method-note"
 # a decision, so only the latter belongs in a clause that means "a human has to
 # look at this".
 #
-# This is `REDESIGN.md` §D row 4's principle, which WP1 applied to *impact*
-# (see `compute_impact`) but never carried to the bucket clause. It was
-# harmless while watch items were rare; §L1 now expects **many** per-tool
-# method notes and watch items, so leaving it would put most of the fleet on
-# the "needs you" list and undo the compaction §A and criterion 10 exist for.
+# This is the principle that took `"watch-item"` out of `compute_impact`; it
+# was never carried to the bucket clause. It was harmless while watch items
+# were rare; the memory design now expects **many** per-tool method notes and
+# watch items, so leaving it would put most of the fleet on the "needs you"
+# list and undo the compaction to a minimal review surface.
 #
 # `compute_initial_bucket` and `W-ATTENTION-NOSUG` both go through
 # `needs_a_decision` below, so a bucket and its explanation cannot drift apart.
@@ -200,7 +201,7 @@ MEMORY_PAYLOAD_FIELDS = {
 	},
 }
 
-# `REDESIGN.md` §L7: the per-tool agent's self-test applies a **tag**, never a
+# The per-tool agent's self-test applies a **tag**, never a
 # removal. A proposal the agent never writes is one convergence cannot restore,
 # so a failing self-test still writes the proposal and names the limb it failed.
 # Convergence reviews every tagged proposal and decides whether dropping it is
@@ -224,12 +225,12 @@ SELF_TEST_LIMBS = (
 	"unwitnessed",
 )
 
-# `REDESIGN.md` §B1: the Intel Mac is out of this tool entirely. Not a source
+# The Intel Mac is out of this tool entirely. Not a source
 # of candidates, not a compatibility check, not a suggestion target, not on the
 # page. I-17 makes that a runtime check rather than a review item.
 FORBIDDEN_MANIFESTS = ("intel.Brewfile",)
 
-# `REDESIGN.md` §L2 (D2). A title is readable at a glance; detail belongs in
+# A title is readable at a glance; detail belongs in
 # `body`. Measured on the recorded run: median 142 chars, max 578 — a `body`
 # that landed in the title field, and the largest single lever left on the
 # report's default surface. The bar is REPORTED (W-TITLE-LONG), never enforced
@@ -320,9 +321,9 @@ CVE_ORDER_RANK = {"critical": 5, "high": 4, "medium": 3, "unknown": 2, "low": 1}
 # 22 blind checkers minting free-form ids is exactly how suggestion ids collide
 # today, and assembly carries a whole rename pass for it.
 #
-# `REDESIGN.md` §I1 removed cross-run diff from scope, so an id's cross-run
-# stability no longer has to carry weight. Ids remain required for within-run
-# duplicate detection and as convergence's addressing scheme.
+# Every review looks at the standing state, never at what an earlier run said,
+# so an id's cross-run stability does not have to carry weight. Ids remain
+# required for within-run duplicate detection and as convergence's addressing scheme.
 ANCHOR_PATTERNS = {
 	"cve": re.compile(r"^CVE-(?:19|20)\d{2}-\d{4,}$"),
 	"advisory": re.compile(r"^[A-Za-z][A-Za-z0-9._-]{2,}$"),
@@ -434,9 +435,9 @@ def parse_evidence_shorthand(value):
 
 	None is not "move it to citations". The validator raises E-EVID-MALFORMED
 	and keeps the string verbatim on the item: auto-moving a non-path into
-	`citations[]` is a regex deciding what a field means — the class §C3
-	forbids — and it would paper over a broken path that happens to read like
-	prose."""
+	`citations[]` is a regex deciding what a field means — the class of rule
+	the deterministic layer forbids — and it would paper over a broken path
+	that happens to read like prose."""
 	if not isinstance(value, str):
 		return None
 	match = _EVIDENCE_SHORTHAND.match(value)
@@ -479,7 +480,7 @@ def url_is_absolute_http(value) -> bool:
 	return parts.scheme in ("http", "https") and bool(parts.netloc)
 
 
-# ── the ordering, and the comparator (`HANDOFF.md` §8) ──────────────────────
+# ── the ordering, and the comparator ─────────────────────────────────────────
 # One total order over items, so WP2, WP3 and WP4 cannot drift. Read top to
 # bottom, an ordered list answers "what would change my decision?" first:
 #
@@ -609,7 +610,7 @@ def security_display_items(items) -> list:
 # already exists fired on this release". It is checker-authored and
 # validator-grounded against the session's watch-item snapshot — the
 # structured successor to the retired `Watch item hit:` literal, which died
-# of being an unvalidated string (`REDESIGN.md` §O). The WRITE side —
+# of being an unvalidated string. The WRITE side —
 # "please store a new watch item" — is `memory_proposals.watch_topic` /
 # `watch_note` on a suggestion, and conflating the two is what produced the
 # literal channel in the first place.
@@ -752,7 +753,7 @@ def compute_degradation(tool) -> dict:
 
 
 # ── G-SEC: the security tier (CONTRACT 4) ───────────────────────────────────
-# `REDESIGN.md` §F criterion 24, in the user's words: a security fix REACHING
+# In the user's words: a security fix REACHING
 # this machine is a good thing and is accepted by default; one whose upgrade
 # needs a config change, or that is confirmed relevant to actual usage, is
 # shown first — in that order — in addition to being accepted; one whose
@@ -1404,8 +1405,9 @@ CHECKER_FLAGS = ("has_security", "has_breaking", "worst_severity", "local_findin
 
 # These fail (b). `security_only` and `impact` gate `security_auto`, which
 # pre-accepts; `risk_level` gates `pre_accept`; `review_bucket`/`pre_accept`
-# are named outright by §C2. A checker emitting one raises E-FLAG-FORBIDDEN —
-# criterion 2 made a runtime check instead of a review item.
+# are the corpus-level decision a checker, blind to the corpus, cannot make.
+# A checker emitting one raises E-FLAG-FORBIDDEN — a runtime check instead of
+# a review item.
 VALIDATOR_ONLY_FLAGS = ("security_only", "impact", "risk_level", "review_bucket", "pre_accept")
 
 
@@ -1479,7 +1481,7 @@ FINDING_CODES = {
 	# V3 — shape normalization
 	"W-SHAPE-COERCED": ("warning", None, "a field was the wrong shape and was coerced"),
 	"W-MEMBER-QUARANTINED": ("warning", None, "a wrong-typed array member was quarantined, not dropped"),
-	# §L2 — the title/body split
+	# the title/body split
 	"W-TITLE-LONG": ("warning", None, "title is longer than the glanceable bar; detail belongs in body"),
 	# V4 — the twenty-three invariants
 	"E-ITEM-EMPTY": ("error", "I-1", "an item has neither `change` nor `local`"),
@@ -1505,9 +1507,9 @@ FINDING_CODES = {
 	"E-INTEL-BREWFILE": ("error", "I-17", "intel.Brewfile is out of this tool entirely"),
 	"W-SUG-DUP-ID": ("warning", "I-18", "a suggestion id is not unique across the report"),
 	"W-STRUCT-UNCHECKED": ("warning", "I-16", "a structural precondition could not be checked"),
-	# I-19 — the self-test tag is load-bearing (REDESIGN.md L7): convergence
-	# keys its review off it. A tag naming no reason is a drop with extra
-	# steps, which is the one thing criterion 17 exists to prevent.
+	# I-19 — the self-test tag is load-bearing: convergence keys its review
+	# off it. A tag naming no reason is a drop with extra steps, which is the
+	# one thing a tag-never-remove self-test exists to prevent.
 	"E-SELFTEST-NOREASON": ("error", "I-19", "a `self_test_failed` tag with no reason"),
 	# I-20 — a watch-item hit names a stored watch item for this tool and says
 	# what it means here. The checker authors `watch_hit`; the validator
@@ -1531,12 +1533,12 @@ FINDING_CODES = {
 	"E-REQUIREMENT-CONTRADICTED": ("error", "I-22", "a `proposed` edit serving an `incompatible` item — it reads `required`"),
 	"E-USAGE-UNGROUNDED": ("error", "I-23", "a `usage` evidence entry that does not resolve, cannot be read, or whose `quote` is absent or not in the file"),
 	"W-USAGE-INSTALL-ONLY": ("warning", "I-23", "a `usage` quote whose every occurrence lies on the tool's own install declaration or on comment lines"),
-	# criterion 2 — no per-tool checker emits a bucket or an auto-approval
+	# no per-tool checker emits a bucket or an auto-approval
 	"E-FLAG-FORBIDDEN": ("error", None, "a checker emitted a validator-only flag"),
 	# U1 — the closed top-level key set. Content-losing: the value went into
 	# quarantine[] instead of the report, so the tool is held for review.
 	"E-RESEARCH-UNKNOWNKEY": ("error", None, "a research object carries a top-level key outside the closed set (kept in quarantine)"),
-	# criterion 4 — degradation is per tool and loud. The next unknown shape
+	# degradation is per tool and loud. The next unknown shape
 	# costs one tool and says so, rather than costing the run.
 	"E-VALIDATOR-CRASH": ("error", None, "a validator stage failed on this tool; it is kept with what conformed"),
 }
@@ -1656,7 +1658,7 @@ PRE_ACCEPT_PREDICATE = (
 	"finalize_tool — assembly never recomputes them from assembled items, which can "
 	"hold synthesized reaching security items the bucket never saw")
 
-# The memory stores (D4, REDESIGN.md §L1). Mirrored by `contract/stores.json`;
+# The memory stores (D4). Mirrored by `contract/stores.json`;
 # all are machine-global, all are written only through their write_status.py
 # subcommand, and all are read back at research time to fill
 # {{STANDING_NOTES}}.
@@ -1709,10 +1711,10 @@ def contract() -> dict:
 		"scope": {
 			"items_are": "outward-facing changes only — project-internal maintenance "
 				"(repo upkeep, convention changes, documentation updates) never becomes "
-				"an item (REDESIGN.md L3). This is a scoping rule about what counts as "
+				"an item. This is a scoping rule about what counts as "
 				"an item, enforced in the schema and the agent guidelines; it is NOT a "
 				"trimming rule and there is no filter for it in the validator.",
-			"intel_brewfile": "out of this tool entirely (REDESIGN.md B1); I-17 checks it",
+			"intel_brewfile": "out of this tool entirely; I-17 checks it",
 			"deterministic_layer": "validates, normalizes, counts, buckets, calculates "
 				"impact. Never deletes, trims or re-rates.",
 		},
@@ -1750,7 +1752,7 @@ def contract() -> dict:
 			"self_test_failed": {
 				"shape": {"limb": "|".join(SELF_TEST_LIMBS), "reason": "non-empty string"},
 				"absent_means": "the proposal passed its self-test",
-				"rule": "REDESIGN.md L7 — the self-test TAGS, never removes. A failing "
+				"rule": "The self-test TAGS, never removes. A failing "
 					"proposal is still written; convergence reviews every tagged one and "
 					"verifies that dropping it is appropriate. A proposal the agent never "
 					"writes is one convergence cannot restore.",

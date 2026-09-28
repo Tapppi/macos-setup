@@ -779,8 +779,8 @@ change a decision is `notable`. A performance item at `info` is an item to
 
 **The boundary is no longer encoded in code, and that is deliberate.**
 `noise_suppressible()` in `scripts/assemble.py` used to state it as a
-predicate; it is **deleted** (`REDESIGN.md` §G, `item-schema.md` §8.1), because
-under §C3 the deterministic layer does not delete anything, so the predicate
+predicate; it is **deleted** (`item-schema.md` §0), because
+the deterministic layer does not delete anything, so the predicate
 had nothing left to guard — it had zero production call sites and existed only
 for the tests that asserted against it. The rule it encoded belongs to
 convergence, and the `chore` tag is the schema's replacement for it: a checker
@@ -1387,7 +1387,7 @@ asked to be told about earns extra prominence regardless of how minor the
 change looks on its own, and it is the only reason the tool tolerates a
 severity the changelog content alone would not earn.
 
-**The textual channel is retired** (`REDESIGN.md` §I4). `assemble.py` used to
+**The textual channel is retired**. `assemble.py` used to
 match `/watch[\s\-]?item hit/i` against each relevancy item's `summary` +
 `detail` and score a hit at 70 points in `highlights[]` — a magic string, so a
 paraphrase ("this matches a watched topic", "flagged per the watch item") made

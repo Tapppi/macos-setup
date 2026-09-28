@@ -12,7 +12,7 @@ Five groups:
    unrecognized member does (it is kept and reported, never dropped).
 2. Ids — derivation from a declared anchor, the grammars, disambiguation.
 3. **The ordering and the comparator.** This is the group that exists because
-   HANDOFF.md §8 measured the cost of not having it: two implementer tracks
+   the cost of not having it was measured: two implementer tracks
    against a pinned *field* contract drifted on ordering and had to be
    reconciled by hand. Every tier of the sort key is asserted, and the
    published fixture is asserted against the code so it cannot go stale.
@@ -174,7 +174,7 @@ class IdentityTests(unittest.TestCase):
 
 # ── 3. The ordering and the comparator ──────────────────────────────────────
 class OrderingContractTests(unittest.TestCase):
-	"""HANDOFF.md §8 — pin the shared comparator, not just the field names."""
+	"""Pin the shared comparator, not just the field names."""
 
 	def test_the_published_ordering_fixture_is_what_the_code_produces(self):
 		self.assertEqual([i["id"] for i in model.order_items(ORDERING["items"])],
@@ -467,7 +467,7 @@ class PublishedFixtureTests(unittest.TestCase):
 
 	def test_all_twenty_three_invariants_have_at_least_one_code(self):
 		"""I-19 is WP2's — the memory-proposal shape and the self-test tag
-		(`REDESIGN.md` §L7). I-20 is the watch-item hit's grounding. I-21–I-23
+		(a tag, never a removal). I-20 is the watch-item hit's grounding. I-21–I-23
 		are G-SEC's: a grounded `nature: fix`, a grounded `required` edit, a
 		grounded usage quote. An invariant with no code cannot be reported, so
 		the numbering and the code table are asserted equal rather than kept in
@@ -476,7 +476,7 @@ class PublishedFixtureTests(unittest.TestCase):
 		self.assertEqual(invariants, {"I-{}".format(n) for n in range(1, 24)})
 
 	def test_intel_brewfile_is_never_a_legal_value_anywhere_in_the_contract(self):
-		"""REDESIGN.md §B1: out of this tool entirely — not a candidate source,
+		"""Out of this tool entirely — not a candidate source,
 		not a compatibility check, not a suggestion target, not on the page. The
 		one place it may be named is the finding that rejects it."""
 		self.assertEqual(model.FORBIDDEN_MANIFESTS, ("intel.Brewfile",))
@@ -607,7 +607,7 @@ class StoreLayoutTests(unittest.TestCase):
 	`method-notes.json` under a reserved colon-free key. Every one of the three
 	is driven through its live `write_status.py` writer into a fresh temporary
 	`XDG_STATE_HOME` and asserted equal to its golden — so "created on first
-	use" (`REDESIGN.md` §I3) is a measured property of the code, not a claim in
+	use" is a measured property of the code, not a claim in
 	a docstring."""
 
 	FIXTURE = model.load_fixture("stores.json")

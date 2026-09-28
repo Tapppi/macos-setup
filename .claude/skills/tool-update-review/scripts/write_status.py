@@ -111,7 +111,7 @@ def load_status(session_dir: str) -> dict:
 
 
 # ── init ────────────────────────────────────────────────────────────────
-# ── method notes at init (criterion 18's apply half) ───────────────────────
+# ── method notes at init (the apply half of render-time persistence) ───────
 # render.py persisted every convergence-reviewed method-note proposal at
 # render and recorded, per suggestion id, exactly what happened to it in
 # METHOD_NOTES_RENDER_RECORD. init reads that record so a decision on a
@@ -310,7 +310,7 @@ def cmd_init(args):
 		print("Error: feedback.json and report.json must both exist first", file=sys.stderr)
 		sys.exit(1)
 
-	# ── contract_version equality gate (references/schemas.md §1.1; §I9) ──
+	# ── contract_version equality gate (references/schemas.md §1.1) ──────
 	# The same exact-equality rule render.py applies to schema_version, for
 	# the same reason and with no shim: `init` does not read report.json to
 	# display it, it *synthesizes the action list* from it — every suggestion
@@ -324,8 +324,8 @@ def cmd_init(args):
 		print(
 			f"Error: report.json contract_version must be {items.CONTRACT_VERSION}, got "
 			f"{report.get('contract_version')!r} — refusing to synthesize actions from an "
-			f"unknown report shape (references/schemas.md §1.1; no migration shim exists, "
-			f"REDESIGN.md §I9). Re-run the review, or check out the pipeline this report "
+			f"unknown report shape (references/schemas.md §1.1; no migration shim "
+			f"exists). Re-run the review, or check out the pipeline this report "
 			f"was written with.", file=sys.stderr)
 		sys.exit(1)
 
@@ -462,7 +462,7 @@ def cmd_init(args):
 
 
 # ── pinning the reviewed version (WP5/I2) ─────────────────────────────────
-# Criterion 22 ("an applied upgrade installs the version that was reviewed,
+# The requirement ("an applied upgrade installs the version that was reviewed,
 # or refuses") must be checkable from status.json itself, not merely
 # documented in references/apply.md's prose — a prompt instruction a session
 # skips leaves an artifact indistinguishable from one that followed it. This
@@ -736,7 +736,7 @@ def cmd_append_changelog(args):
 	print(f"appended {len(entries)} changelog entries")
 
 
-# ── the three memory stores (REDESIGN.md §L1, contract/stores.json) ───────
+# ── the three memory stores (contract/stores.json) ────────────────────────
 # Three stores in TWO files. Watch items and per-tool method notes are keyed
 # by tool id; global method notes share method-notes.json under the reserved
 # key below. A tool id is always `{source}:{name}` and so always contains a
@@ -767,7 +767,7 @@ def _load_store(path: str):
 	"""(store, None) or (None, reason).
 
 	An **absent** file is an empty store — that is what "memory artifacts are
-	created on first use" means (REDESIGN.md §I3): no pre-seeding, no
+	created on first use" means: no pre-seeding, no
 	migration machinery, the first accepted proposal creates the file.
 
 	A file that **exists but cannot be read as an object** is a refusal, not
@@ -931,7 +931,7 @@ def cmd_add_global_method_note(args):
 
 
 # ── remove-method-note / remove-global-method-note ────────────────────────
-# The apply-side half of criterion 18. render.py persists every surviving
+# The apply-side half of render-time persistence. render.py persists every surviving
 # method-note proposal at render (references/rendering-report.md §Method
 # Notes); a note the user then REJECTS on the page is withdrawn here, by the
 # exact (tool id, topic, note) render recorded in method-notes.render.json.

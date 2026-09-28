@@ -258,7 +258,8 @@ class CollectDegradationTests(CollectRunner):
 
 
 class CollectPinnedRevisionTests(CollectRunner):
-	"""Criterion 22's collect-side half. `brew outdated`'s current_version —
+	"""The collect-side half of installing the reviewed version. `brew
+	outdated`'s current_version —
 	stable composed with the packaging revision ("1.5.5_1") — becomes
 	`latest_version` and so the upgrade suggestion's `target_version`, and
 	check_pin.py's preflight composes `brew info`'s versions.stable with the

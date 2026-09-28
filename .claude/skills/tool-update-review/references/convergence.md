@@ -9,7 +9,6 @@ cannot evaporate into a prompt and cannot drift from what runs:
 | The five-phase applier, the loop, the gate, the label derivation | `scripts/apply_converge.py` |
 | The published fixtures — contract data, view/tables, a full worked submission and its derived effect | `scripts/contract/convergence.json`, `converge.json`, `expected_converge_*.json` |
 | The tests | `scripts/test_converge.py` |
-| The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` §L4/§L6/§M and `scratch/design/convergence.md` — **not in this repo** |
 
 The one-line contract:
 
@@ -162,18 +161,17 @@ and you can never make one ground (the applier re-grounds nothing). Attest
 `scanned.tools/items/evidence_entries` and `findings ==
 len(evidence_findings)`.
 
-**C2 — tags → visibility** (`retag`, `rerate`, `redirect`, `trim`,
-`reword`, `delete`, `merge`, `flag`). Per item: does the tag set describe
-the change, or where the vendor filed it — a trust-boundary move carries
-`security` whatever the heading. Is severity consistent with
-`local.direction` — `notable`+ with `does_not_reach` claims prominence for a
-non-event. Would a reviewer who believed the opposite decide differently —
-if not, `rerate`; deletion is for duplicates and strict subsumption, with
-the full record. Nothing is promoted to fill a slot. No
-project-internal-maintenance filter lives here (§L3 scoped it out at the
-checker); one that escapes is handled by the counterfactual like any other
-item. Attest `scanned.items` and `clean` — clean + your edited items must
-account for every item.
+**C2 — tags → visibility** (`retag`, `rerate`, `redirect`, `trim`, `reword`,
+`delete`, `merge`, `flag`). Per item: does the tag set describe the change, or
+where the vendor filed it — a trust-boundary move carries `security` whatever
+the heading. Is severity consistent with `local.direction` — `notable`+ with
+`does_not_reach` claims prominence for a non-event. Would a reviewer who
+believed the opposite decide differently — if not, `rerate`; deletion is for
+duplicates and strict subsumption, with the full record. Nothing is promoted to
+fill a slot. No project-internal-maintenance filter lives here (the checker is
+told not to emit such items at all); one that escapes is handled by the
+counterfactual like any other item. Attest `scanned.items` and `clean` — clean +
+your edited items must account for every item.
 
 **C3 — security-only labelling** (`retag`, `rerate`, `flag`). For every
 tool with `bucket_inputs.security_only == true`: identify the load-bearing
@@ -214,7 +212,7 @@ Procedure: (1) **route before you judge** — a proposal no future changelog
 delta could surface is a method note; re-home it (`delete` + `add`, ledger
 `rehomed_to_method_note`), never drop it for being mis-filed. (2) **Review
 every self-test-tagged proposal in both directions** — the tag never removed
-anything (§L7); confirming the drop is a `delete` + ledger row with
+anything; confirming the drop is a `delete` + ledger row with
 `restored: false`; disagreeing is a ledger row with `restored: true` and the
 reason the self-test was wrong. Both are first-class. (3) Verify a passing
 self-test rather than re-deriving it. (4) Duplicate against the store on
@@ -306,7 +304,7 @@ permissive gate or the demotion gate.
 The loop: any critical finding bounces the whole submission while attempts
 remain — fix and resubmit; rejects are per-edit and transitively closed over
 `requires`, and nothing is silently dropped. **At attempt 5 the run ships
-anyway** (criterion 13 — never a silent pass, never a dead run):
+anyway** — never a silent pass, never a dead run:
 
 | State | When | What ships |
 |---|---|---|
@@ -386,7 +384,8 @@ exists for the renderer's completeness and never ships while the gate stands. Re
 ## 10. Known boundaries, stated
 
 - Nothing here detects **silent loss** — content a checker never wrote.
-  Cross-run comparison is out of scope for the whole pipeline (§I1); within
+  Cross-run comparison is out of scope for the whole pipeline — every review
+  looks at the standing state; within
   a run, an element no edit names cannot disappear at this stage, and
   §7's aggregate makes a large movement loud even when its cause is
   upstream.
@@ -394,7 +393,8 @@ exists for the renderer's completeness and never ships while the gate stands. Re
   `convergence` blocks — assembly and the report page read the
   pre-convergence corpus until the report-page pass wires
   `corpus.post.json` and `converge-effect.json` through. The artefacts and
-  their shapes are final; the merge is the renderer's half of criterion 12.
+  their shapes are final; the merge is the renderer's half of the pre/post
+  comparison that makes convergence's work checkable.
 - A tool whose `validator_error` is set keeps its recorded conservative
   axes; edits to its items cannot move it anywhere, in either direction.
   Its item-derived id exports (`security_display_item_ids`,

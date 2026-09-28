@@ -2,8 +2,8 @@
 
 **This directory is WP1's deliverable to WP2, WP3 and WP4.** It exists because
 the last time two implementer tracks worked against a pinned *field* contract,
-they still drifted on ordering and had to be reconciled afterwards
-(`HANDOFF.md` §8). Field names are not enough, so the comparator and the
+they still drifted on ordering and had to be reconciled afterwards.
+Field names are not enough, so the comparator and the
 ordering are published here as things you can import and assert against.
 
 Normative prose: `references/item-schema.md`. Code: `scripts/items.py` (model,
@@ -28,7 +28,7 @@ items.derive_item_id(tool, anchor)
 items.FINDING_CODES             # every code the deterministic layer can raise
 items.MEMORY_SUGGESTION_KINDS   # watch-item, method-note — proposals about MEMORY
 items.ACTION_SUGGESTION_KINDS   # edit, structural — proposals about the SYSTEM
-items.SELF_TEST_LIMBS           # the limbs a self-test tag may name (REDESIGN.md L7)
+items.SELF_TEST_LIMBS           # the limbs a self-test tag may name
 items.security_tier(view)       # G-SEC: THE tier computation — None, or the tier
                                 #   object; the validator stores it, nothing else
                                 #   recomputes it but convergence
@@ -138,13 +138,13 @@ first-class `convergence_status` explanation. Prose:
 `watch-item` and `method-note` propose changes to **what we remember**; `edit`
 and `structural` propose changes to **the user's system**. Only the latter needs
 a decision, so only the latter raises `risk_level`, moves a tool into
-`attention`, or answers a `needs_attention` config status. `REDESIGN.md` §L1
+`attention`, or answers a `needs_attention` config status. The memory design
 expects *many* per-tool method notes and watch items, so the older spelling of
 that clause — "anything that is not an upgrade" — would have put most of the
 fleet on the "needs you" list.
 
 A memory proposal may carry `self_test_failed: {limb, reason}`. **The self-test
-tags, it never removes** (§L7): a failing proposal is still written, and
+tags, it never removes**: a failing proposal is still written, and
 convergence reviews every tagged one to verify that dropping it is appropriate —
 a proposal the agent never writes is one convergence cannot restore. The tagged
 ids are exported per tool as `self_test_tagged_suggestion_ids` so convergence
@@ -155,7 +155,7 @@ works from a list rather than re-reading prose. Prose: `references/schemas.md`
 
 The deterministic layer validates, normalizes, counts, buckets and calculates
 impact. **It never deletes, trims or re-rates an item on a regex or heuristic
-rule** (`REDESIGN.md` §A, §C3, criterion 1). Judgement is convergence's.
+rule** (`references/item-schema.md` §0). Judgement is convergence's.
 
 So: a malformed evidence string is reported and kept, not moved to
 `citations[]`. A duplicate id is reported and suffixed, not merged. An

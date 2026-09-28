@@ -366,7 +366,8 @@ This is the five-second answer; everything below it is the evidence.
 ### Convergence Degraded — the first-class explanation
 
 Directly under the lede, before the tiles, when `REPORT.convergence.state` is
-`degraded_gate` or `degraded_unapplied` (criterion 13, `REDESIGN.md` §L4):
+`degraded_gate` or `degraded_unapplied` (after five failed attempts the run
+degrades conservatively, and says so first-class):
 `#degraded-strip`, `renderDegradedStrip()`. The `convergence_status`
 explanation renders **verbatim** — headline, body — then the attempt count,
 the attempt log (`#1 rejected (E-GATE-UNREASONED) · #5 degraded_gate`), the
@@ -547,7 +548,8 @@ convergence block carries `security_priority`.
 
 `#judgement-section` / `#jpanel`, `renderJudgementPanel()`, between the tiles
 and the security section — **above the auto strip**, which is the point
-(`report-page.md` §3, criterion 11). A tool whose `convergence.auto_update_label`
+(`report-page.md` §3: a judgement that moved a tool to auto-update carries a
+readable label). A tool whose `convergence.auto_update_label`
 has `source: "judgement"` (or `judgement_unattributed`) was moved to
 auto-update by convergence's judgement rather than by the deterministic path.
 It **leaves the collapsed auto strip** and gets an always-visible row here:
@@ -1303,8 +1305,8 @@ one-at-a-time walk).
 
 **There is no separate "headliners" bullet list and no separate "links row"
 wall of buttons — `items[]` renders entirely inside the card**, and the card
-is **evidence for a decision, not a changelog digest** (`report-page.md` §4,
-`REDESIGN.md` §J). Measured on the fixture bundle before this: 52,392 words
+is **evidence for a decision, not a changelog digest** (`report-page.md` §4).
+Measured on the fixture bundle before this: 52,392 words
 to make 57 decisions, and 373 of 584 items could not change any of them. The
 rule that follows, applied at the item level:
 
@@ -1487,7 +1489,7 @@ for an entry several tools share, which tools and that a reject on any of
 them withdraws it for all. This kind used to fall through to `renderDiff(undefined)` and render
 an **empty body**. **Both memory kinds render `self_test_failed`** as a
 `--yellow`-railed block, `⚠ self-test failed — {limb}: {reason}`: a proposal
-the agent wrote despite a failed self-test (§L7 — the tag never removes) and
+the agent wrote despite a failed self-test (the tag never removes) and
 convergence kept is exactly the one a human should read twice, and the
 `{limb, reason}` had never reached the page. Accept/Reject/Discuss buttons
 and the comment textarea are otherwise identical to an `edit` card — same
@@ -1667,8 +1669,8 @@ Three states, all rendered (`report-page.md` §8.1):
 
 ## Method Notes
 
-Criterion 18 / `REDESIGN.md` §L5: *"Method notes persist at render, and the
-report provides a way to reject one or attach modification instructions."*
+*Method notes persist at render, and the report provides a way to reject one
+or attach modification instructions.*
 The condition is the point — the store fills from run one, an abandoned run
 included (abandonment is the historical norm), and a bad note is visible and
 correctable rather than permanent.
@@ -2046,7 +2048,7 @@ as `method-notes.render.json`.
 
 `render.py` refuses before it writes anything: `schema_version != 2`, then
 `contract_version != items.CONTRACT_VERSION` (exact equality, no shim —
-`REDESIGN.md` §I9; the same gate `write_status.py init` applies, for the
+the same gate `write_status.py init` applies, for the
 same reason: a report from another contract would not fail visibly, it would
 render a plausible page whose fields no longer mean what the template
 thinks), then a duplicate suggestion id. A refusal never leaves a stale

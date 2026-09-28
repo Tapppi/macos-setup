@@ -11,10 +11,9 @@ evaporate into a prompt and cannot drift from what actually runs:
 | The six stages, the twenty-three invariants, the finding codes | `scripts/validate_items.py` |
 | The published fixtures a sibling package imports and asserts against | `scripts/contract/` (see its `README.md`) |
 | The tests | `scripts/test_items.py`, `scripts/test_validate_items.py` |
-| The design authority | `$XDG_STATE_HOME/tool-update-review/REDESIGN.md` and `HANDOFF.md` — **not in this repo.** Every `§A`/`§C3`/`§L1`/`criterion N` citation in the skill resolves there |
 
-Design record and the measurements behind every rule below:
-`~/.local/state/tool-update-review/scratch/design/item-schema.md`.
+This document states the reason for each rule where the rule is made; it cites
+no design record outside the repo.
 
 ---
 
@@ -570,7 +569,7 @@ can be run, and its output diffed, on its own. Assembly consumes the views:
 `items`, `links`, `config_status`, `suggestions`, `vendor_silent_categories`,
 `impact`, `risk_level` and the bucket are all read off the view, never
 recomputed — two implementations of "does this release touch this setup" is the
-drift §C3 exists to remove.
+drift this layer exists to remove.
 
 Exit codes: **0** clean, **3** degraded, **>3** only for a genuine
 I/O/environment failure. **3 is not a failure** — everything downstream still
@@ -613,12 +612,12 @@ I-15 and the bucket clause read one tuple, `model.ACTION_SUGGESTION_KINDS`:
 **memory proposals do not force `attention`; action proposals do.**
 `watch-item` and `method-note` propose changes to what we remember, `edit` and
 `structural` to the user's system, and only the latter needs a decision.
-`REDESIGN.md` §L1 expects *many* per-tool method notes and watch items, so the
+The memory design expects *many* per-tool method notes and watch items, so the
 older spelling — "anything that is not an upgrade" — would put most of the
 fleet on the "needs you" list.
 
 I-19 validates the `self_test_failed` tag rather than letting it ride as an
-extra field the validator happens to tolerate. §L7 makes convergence key its
+extra field the validator happens to tolerate. Convergence keys its
 review off that tag, and an unvalidated channel is exactly how `Watch item
 hit:` broke: a literal string worth 70 highlight points that nobody checked,
 which stopped firing the moment it was paraphrased. See `references/schemas.md`
@@ -763,7 +762,7 @@ disagreeing. The widening happens at the point of use, once, and the same value
 feeds `security_only`, the bucket and `bucket_inputs` — a value that is
 "security" for bucketing and "not security" for the security-only test is its
 own auto-accept route, and a bucket its own recorded inputs cannot explain is
-exactly the opacity §C3 removes.
+exactly the opacity a reviewable baseline removes.
 
 ### Security display
 
