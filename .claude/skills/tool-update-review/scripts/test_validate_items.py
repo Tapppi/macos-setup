@@ -852,6 +852,85 @@ class StructuralTests(unittest.TestCase):
 				["E-STRUCT-PRECOND"])
 			self.assertEqual(run("task_add", "setup.sh:install"), ["E-STRUCT-PRECOND"])
 
+	def test_to_name_must_name_a_task_in_the_anchor_file(self):
+		"""Review finding: only the token after the last `:` was checked, so
+		the file `to.name` names was never compared with the anchor — which
+		file was read depended on the anchor alone."""
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			with open(os.path.join(td, "tasks", "config.sh"), "w", encoding="utf-8") as fh:
+				fh.write("foo() {\n\t:\n}\n")
+			run = lambda op, name, anchor: codes(self._sug(
+				self._task(op, name, anchor)), manifest_root=td)
+			# `install` is a function of install.sh, but the name says setup.sh
+			self.assertEqual(run("task_change", "setup.sh:install", "tasks/install.sh"),
+				["E-STRUCT-PRECOND"])
+			# `foo` is defined in config.sh; checking it against install.sh is wrong
+			self.assertEqual(run("task_change", "tasks/config.sh:foo", "tasks/install.sh"),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_change", "tasks/install.sh:install", "setup.sh"),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_add", "quarantine", "setup.sh"), ["E-STRUCT-PRECOND"])
+			# spelling differences of the same file are the same file
+			self.assertEqual(run("task_change", "./setup.sh:install", "setup.sh"), [])
+			self.assertEqual(run("task_change", "tasks/config.sh:foo", "./tasks/config.sh"), [])
+
+	def test_a_to_name_mismatch_names_both_files(self):
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			_, findings = validate_one(self._sug(self._task("task_change",
+				"setup.sh:install", "tasks/install.sh")), manifest_root=td)
+			msgs = [f["message"] for f in _found(findings, "E-STRUCT-PRECOND")]
+			self.assertTrue(any("setup.sh:install" in m and "tasks/install.sh" in m
+				for m in msgs), msgs)
+
+	def test_an_absolute_anchor_inside_the_root_is_checked_like_a_relative_one(self):
+		"""Review finding: an absolute anchor to the real setup.sh normalised
+		to neither `setup.sh` nor `tasks/<name>.sh` and got the existence
+		check alone, so a task_change of a nonexistent task passed."""
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			run = lambda op, name, anchor: codes(self._sug(
+				self._task(op, name, anchor)), manifest_root=td)
+			setup = os.path.join(td, "setup.sh")
+			self.assertEqual(run("task_change", "setup.sh:nosuchtask", setup),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_change", "setup.sh:install", setup), [])
+			script = os.path.join(td, "tasks", "install.sh")
+			self.assertEqual(run("task_change", "tasks/install.sh:no_such_fn", script),
+				["E-STRUCT-PRECOND"])
+			self.assertEqual(run("task_change", script + ":install_cursor_agent", script), [])
+
+	def test_an_anchor_outside_the_root_is_refused(self):
+		with tempfile.TemporaryDirectory() as outer:
+			td = os.path.join(outer, "macos-setup")
+			os.makedirs(td)
+			self._task_root(td)
+			with open(os.path.join(outer, "elsewhere.sh"), "w", encoding="utf-8") as fh:
+				fh.write("install() {\n\t:\n}\n")
+			run = lambda name, anchor: codes(self._sug(
+				self._task("task_change", name, anchor)), manifest_root=td)
+			self.assertEqual(run("../elsewhere.sh:install", "../elsewhere.sh"),
+				["E-STRUCT-PRECOND"])
+			absolute = os.path.join(outer, "elsewhere.sh")
+			self.assertEqual(run(absolute + ":install", absolute), ["E-STRUCT-PRECOND"])
+
+	def test_an_unrecognised_task_anchor_is_unchecked_not_passed(self):
+		"""A nested `tasks/sub/x.sh` (or any file that is not setup.sh or a
+		`tasks/<name>.sh`) has no task list this validator reads — reported
+		unverified, never passed on the existence check alone."""
+		with tempfile.TemporaryDirectory() as td:
+			self._task_root(td)
+			os.makedirs(os.path.join(td, "tasks", "sub"))
+			with open(os.path.join(td, "tasks", "sub", "x.sh"), "w", encoding="utf-8") as fh:
+				fh.write("x() {\n\t:\n}\n")
+			run = lambda op, name, anchor: codes(self._sug(
+				self._task(op, name, anchor)), manifest_root=td)
+			self.assertEqual(run("task_change", "tasks/sub/x.sh:nosuchtask", "tasks/sub/x.sh"),
+				["W-STRUCT-UNCHECKED"])
+			self.assertEqual(run("task_add", "tasks/sub/x.sh:y", "tasks/sub/x.sh"),
+				["W-STRUCT-UNCHECKED"])
+
 	def test_an_unreadable_task_script_is_unchecked(self):
 		with tempfile.TemporaryDirectory() as td:
 			self._task_root(td)

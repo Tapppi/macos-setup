@@ -469,9 +469,25 @@ _SHELL_FUNCTION = re.compile(
 	re.MULTILINE)
 
 
-def _norm_anchor(anchor_file) -> str:
-	"""`./setup.sh` and `setup.sh` are the same anchor."""
-	return os.path.normpath(str(anchor_file)).replace(os.sep, "/")
+def _norm_anchor(anchor_file, root) -> "str | None":
+	"""→ `anchor_file` relative to `root`, or None when it names a path outside
+	it.
+
+	`./setup.sh`, `setup.sh` and `<root>/setup.sh` are the same anchor. The
+	absolute form matters because the task checks key off the *normalised*
+	name: left absolute, an anchor to the real `setup.sh` matched neither
+	`setup.sh` nor `tasks/<name>.sh` and got the existence check alone, so a
+	`task_change` of a task that does not exist passed silently. An anchor that
+	climbs out of the root (`../x.sh`, or an absolute path elsewhere) is not a
+	file the task ops can edit, and is refused rather than read."""
+	candidate = os.path.expanduser(str(anchor_file))
+	if os.path.isabs(candidate):
+		base = os.path.realpath(root)
+		candidate = os.path.relpath(os.path.realpath(candidate), base)
+	rel = os.path.normpath(candidate).replace(os.sep, "/")
+	if rel == ".." or rel.startswith("../") or os.path.isabs(rel):
+		return None
+	return rel
 
 
 def _shell_functions(path):
@@ -1499,34 +1515,54 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 					frm["type"], frm["name"]), "structural.from", frm["name"])
 	elif op in ("task_add", "task_change"):
 		anchor_file = anchor.get("file")
-		path = os.path.join(manifest.root, anchor_file)
+		rel = _norm_anchor(anchor_file, manifest.root)
+		if rel is None:
+			fail("anchor.file \"{}\" is outside the macos-setup root".format(anchor_file),
+				"structural.anchor.file", anchor_file)
+			return
+		path = os.path.join(manifest.root, rel)
 		if not os.path.exists(path):
 			fail("anchor.file \"{}\" does not exist".format(anchor_file),
 				"structural.anchor.file", anchor_file)
 			return
-		# The anchor decides what the name is checked against. A `setup.sh`
+		# `to.name` is `<file>:<task>`, and its file must be the anchor's. Only
+		# the token after the last `:` is checked against the file, so without
+		# this the file prefix was decoration: `setup.sh:install` anchored on
+		# `tasks/install.sh` passed as a function of install.sh, and
+		# `tasks/config.sh:foo` anchored there was checked against install.sh.
+		# The reviewer reads `to.name`; the check read the anchor.
+		name = str(to.get("name", ""))
+		prefix, sep, token = name.rpartition(":")
+		if not sep or _norm_anchor(prefix, manifest.root) != rel:
+			fail("to.name \"{}\" does not name a task in anchor.file \"{}\" — "
+				"to.name must be \"{}:<task>\"".format(name, anchor_file, rel),
+				"structural.to", to.get("name"))
+			return
+		# The anchor decides what the token is checked against. A `setup.sh`
 		# anchor names a dispatched subcommand: a task_add must be new, a
 		# task_change one setup.sh dispatches today — a change to a task that
 		# does not exist is an add under the wrong op, and the reviewer would
 		# be told something is being modified that is in fact being created.
-		# A `tasks/*.sh` anchor names a function in that file, checked the same
-		# way against its function definitions. Any other anchor file gets
-		# only the existence check above.
-		token = str(to.get("name", "")).split(":")[-1]
-		if _norm_anchor(anchor_file) == "setup.sh":
+		# A `tasks/<name>.sh` anchor names a function in that file, checked the
+		# same way against its function definitions. Any other anchor names no
+		# task list this validator can read, so the precondition is reported
+		# unverified — never passed on the existence check alone.
+		if rel == "setup.sh":
 			if not manifest.tasks_readable:
 				unchecked("no readable setup.sh under the configured macos-setup root")
 				return
 			known, has, lacks = manifest.tasks, "setup.sh already dispatches", \
 				"setup.sh does not dispatch"
-		elif _TASK_SCRIPT.match(_norm_anchor(anchor_file)):
+		elif _TASK_SCRIPT.match(rel):
 			known = _shell_functions(path)
 			if known is None:
 				unchecked("anchor.file \"{}\" is not readable".format(anchor_file))
 				return
-			has = "{} already defines".format(anchor_file)
-			lacks = "{} does not define".format(anchor_file)
+			has = "{} already defines".format(rel)
+			lacks = "{} does not define".format(rel)
 		else:
+			unchecked("anchor.file \"{}\" is neither setup.sh nor tasks/<name>.sh, "
+				"so no task list is read".format(anchor_file))
 			return
 		if op == "task_add" and token in known:
 			fail("{} \"{}\"".format(has, token),
@@ -1534,7 +1570,6 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 		elif op == "task_change" and token not in known:
 			fail("{} \"{}\" — nothing to change".format(lacks, token),
 				"structural.to", to.get("name"))
-
 
 # ── V5: impact (§5.5) ───────────────────────────────────────────────────────
 def research_produced_content(view) -> bool:
