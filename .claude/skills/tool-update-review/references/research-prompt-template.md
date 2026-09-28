@@ -74,7 +74,8 @@ say plainly when one no longer holds (`references/research.md` §Prior Findings
 Are Hypotheses):
 {{HYPOTHESES}}
 <!-- one block per tool that has any. Drawn mechanically by tool id from
-     changelog.md, the two standing-note stores and the previous run's report.
+     changelog.md and the two standing-note stores — the durable record, never
+     a previous run's report (the review reads standing state).
      Form rules below in §Writing Hypotheses — they are not optional, and they
      are the difference between raising research quality and nominating an
      answer. -->
@@ -262,9 +263,12 @@ Hard rules:
     observation, not for a verdict on a prior agent's judgement.
   - **Prefer the raw observation to the prior agent's phrasing of it.**
 
-Hypotheses are drawn **mechanically, by tool id**, from `changelog.md`, the two
-standing-note stores and the previous run's report. They are not hand-written
-per run. A hand-written hint is where every one of the last run's nominations
+Hypotheses are drawn **mechanically, by tool id**, from `changelog.md` and the
+two standing-note stores — the durable record, each with one writer
+(`references/apply.md`). A previous run's report is not a source: it lives in a
+swept `/tmp` session dir that nothing records the location of, and the review
+reads standing state rather than what an earlier run said. They are not
+hand-written per run. A hand-written hint is where every one of the last run's nominations
 came from.
 
 ## Batch sizing and tiering
