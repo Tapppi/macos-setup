@@ -1130,6 +1130,28 @@ class GateAndAttributionTests(unittest.TestCase):
 			{"stores": {"watch_items": {C.STORE_UNREADABLE_KEY: "x"}}},
 			"brew:t"))
 
+	def test_a_store_file_carrying_the_sentinel_key_is_not_a_store(self):
+		"""The sentinel rides INSIDE the store value, so a file whose real
+		top-level key is that string used to pass through as `present` data
+		that `store_status` then read as unreadable — quoting the file's own
+		value as the reason. The loader refuses it with its own reason."""
+		with tempfile.TemporaryDirectory() as td:
+			path = os.path.join(td, "method-notes.json")
+			with open(path, "w", encoding="utf-8") as fh:
+				json.dump({C.STORE_UNREADABLE_KEY: "a value the file chose",
+					"brew:t": [{"topic": "t", "note": "n"}]}, fh)
+			loaded = apply_converge._load_store(path)
+			self.assertEqual(list(loaded), [C.STORE_UNREADABLE_KEY])
+			self.assertIn("no store holds", loaded[C.STORE_UNREADABLE_KEY])
+			self.assertNotIn("a value the file chose", loaded[C.STORE_UNREADABLE_KEY])
+			self.assertEqual(C.store_status({"method_notes": loaded}, "method_notes"),
+				"unreadable")
+			# a real store passes through untouched
+			store = {"brew:t": [{"topic": "t", "note": "n"}], "global": []}
+			with open(path, "w", encoding="utf-8") as fh:
+				json.dump(store, fh)
+			self.assertEqual(apply_converge._load_store(path), store)
+
 	def test_fixture_session_flags_only_the_missing_method_store(self):
 		"""The pinned session snapshots watch-items.json and nothing writes
 		method-notes.json — the effect must say so, once."""

@@ -227,7 +227,8 @@ def check_corpus_versions(corpus_pre) -> None:
 # so the absent case's corpus — and every pinned digest — is byte-identical
 # to before the distinction existed. The key cannot collide with a real
 # entry: store keys are tool ids, which always contain a colon, or the
-# reserved "global" section.
+# reserved "global" section — and `apply_converge._load_store` refuses a
+# file that carries the sentinel as a key, so only the loader ever writes it.
 STORE_UNREADABLE_KEY = "__store_unreadable__"
 STORE_STATES = ("present", "absent", "unreadable")
 

@@ -2223,6 +2223,14 @@ def _load_store(path):
 		return {contract.STORE_UNREADABLE_KEY:
 			"the file is {}, not an object keyed by tool id".format(
 				type(snapshot).__name__)}
+	if contract.STORE_UNREADABLE_KEY in snapshot:
+		# The sentinel is only ever written HERE. A file that carries it as a
+		# real key is not a store (store keys are tool ids, which contain a
+		# colon, or "global"); passed through, `store_status` would read it
+		# as unreadable and quote whatever the file held there as the reason.
+		return {contract.STORE_UNREADABLE_KEY:
+			"the file has a top-level key {!r}, which no store holds — store "
+			"keys are tool ids or \"global\"".format(contract.STORE_UNREADABLE_KEY)}
 	return snapshot
 
 
