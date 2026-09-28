@@ -2450,6 +2450,87 @@ class GSecAssemblyTests(unittest.TestCase):
 					self.assertEqual(contract.initial_pre_accept(post[tool_id]),
 						baseline["pre_accept"])
 
+	def test_the_planned_routes_through_assembly(self):
+		accepted = {"brew:tier-proposed", "brew:tier-config", "brew:libpq", "brew:duckdb",
+			"brew:tier-breaking", "brew:tier-risk", "cask:tier-vendor", "brew:tier-fix",
+			"brew:elevated-fix", "brew:openssh"}
+		for tool_id, tool in self.tools.items():
+			with self.subTest(tool_id):
+				baseline = assemble.baseline_upgrade(tool)
+				started = bool(baseline and baseline.get("pre_accept"))
+				self.assertEqual(started, tool_id in accepted)
+		# tier, priority, first reason and holds as the report ships them
+		# (post-convergence: duckdb is P3 after cv-014)
+		expected = {
+			"brew:tier-required": ("P0", "P0", "required-edit", []),
+			"brew:tier-pinned": ("P0", "P0", "pinned", []),
+			"brew:tier-incompatible": ("P0", "P0", "incompatible-unfixed", []),
+			"brew:tier-p0-lost": ("P0", "P0", "incompatible-unfixed", ["content-losing"]),
+			"brew:tier-proposed": ("P1", "P1", "edit-proposed", []),
+			"brew:tier-config": ("P1", "P1", "config-attention", []),
+			"brew:libpq": ("P2", "P2", "relevant-fix", []),
+			"brew:duckdb": ("P3", "P3", "fix", []),
+			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking", []),
+			"brew:tier-risk": ("P2", "P2", "fix-with-risk", []),
+			"cask:tier-vendor": ("P2", "P2", "vendor-unread", []),
+			"brew:tier-fix": ("P3", "P3", "fix", []),
+			"brew:elevated-fix": ("P3", "P3", "fix", []),
+			"brew:tier-held-p2": ("held", "P2", "fix-with-breaking", ["security-item-risk"]),
+			"brew:tier-held-p1": ("held", "P1", "edit-proposed", ["watch-hit"]),
+			"brew:tier-enum": ("held", "P3", "fix", ["enum-invalid"]),
+			"brew:tier-container": ("held", "P3", "fix", ["container-unreadable"]),
+			"brew:tier-research": ("held", "P3", "fix", ["research-incomplete"]),
+			"standalone:tier-manual": ("held", "P3", "fix", ["not-runnable"]),
+			"brew:quarantined": ("held", "P3", "fix", ["content-losing"]),
+		}
+		for tool_id, tool in self.tools.items():
+			with self.subTest(tool_id):
+				tier = tool["security_tier"]
+				if tool_id not in expected:
+					self.assertIsNone(tier)
+					continue
+				self.assertEqual((tier["tier"], tier["priority"], tier["reasons"][0],
+					tier["holds"]), expected[tool_id])
+				if tier["tier"] in model.ACCEPTED_TIERS:
+					self.assertEqual(tool["review_bucket"], "security_auto")
+				elif tool_id not in ("brew:tier-p0-lost", "brew:quarantined"):
+					self.assertEqual(tool["review_bucket"], "security_mixed")
+		self.assertEqual(self.tools["brew:elevated-fix"]["risk_level"], "elevated")
+		self.assertEqual(self.tools["brew:elevated-fix"]["review_bucket"], "security_auto")
+		self.assertEqual(self.tools["brew:elevated"]["review_bucket"], "security_mixed")
+		self.assertEqual(self.tools["brew:tier-p0-lost"]["review_bucket"], "attention")
+		self.assertEqual(self.tools["brew:tier-p0-lost"]["security_tier"]["priority"], "P0")
+
+	def test_the_summary_counts_panel_rows_and_accepted_rows_apart(self):
+		"""Consistency round-2 finding 2: `priority_counts` is the panel's rows
+		(held tools at their priority); `accepted_priority_counts` only the
+		rows that START accepted — a held P2 is in the first and never the
+		second."""
+		sec = self.report["summary"]["security"]
+		# P0: required, pinned, incompatible, p0-lost. held: quarantined,
+		# held-p2, held-p1, enum, container, research, manual. P1: proposed,
+		# config. P2: libpq, breaking, risk, vendor. P3: tier-fix,
+		# elevated-fix, and duckdb (lowered by cv-014).
+		self.assertEqual(sec["tier_counts"],
+			{"P0": 4, "held": 7, "P1": 2, "P2": 4, "P3": 3})
+		self.assertEqual(sec["priority_counts"], {"P0": 4, "P1": 3, "P2": 5})
+		self.assertEqual(sec["accepted_priority_counts"], {"P1": 2, "P2": 4})
+		panel = [t for t in self.tools.values()
+			if model.security_priority(t) in model.HIGHLIGHT_PRIORITIES]
+		self.assertEqual(len(panel), sum(sec["priority_counts"].values()))
+		accepted_rows = [t for t in panel if assemble.baseline_upgrade(t)
+			and assemble.baseline_upgrade(t)["pre_accept"]]
+		self.assertEqual(len(accepted_rows), sum(sec["accepted_priority_counts"].values()))
+		self.assertEqual(sec["auto_count"] + sec["mixed_count"],
+			sum(1 for t in self.tools.values()
+				if t["review_bucket"] in ("security_auto", "security_mixed")))
+
+	def test_the_convergence_block_carries_the_demotion(self):
+		block = self.tools["brew:duckdb"]["convergence"]["security_priority"]
+		self.assertEqual((block["from"], block["to"], block["lost"]), ("P2", "P3", True))
+		self.assertEqual(block["attributed_to"], ["cv-014"])
+		self.assertEqual(self.tools["brew:duckdb"]["security_tier"]["priority"], "P3")
+
 	def test_apply_pre_accept_follows_the_views_tier_not_the_tools_items(self):
 		"""Technical 8's observable form: the Tool's items are made to
 		disagree with its view — an injected reaching `incompatible` item
@@ -2477,8 +2558,9 @@ class GSecAssemblyTests(unittest.TestCase):
 
 
 class GSecPipelineFailureTests(unittest.TestCase):
-	"""The pipeline's refusals: a stale corpus on disk is never rendered as
-	this contract's."""
+	"""T2's carried cases: a stale corpus on disk, and a validator stage
+	failing AFTER the bucket on a tool that would otherwise be P3
+	security_auto — both through the whole pipeline."""
 
 	def setUp(self):
 		self.tmp = tempfile.mkdtemp(prefix="gsec-pipeline-")
@@ -2511,6 +2593,51 @@ class GSecPipelineFailureTests(unittest.TestCase):
 		self.assertIn("stale", report["convergence"]["detail"])
 		self.assertIn("3/3", report["convergence"]["detail"])
 
+	def test_the_applier_refuses_a_stale_corpus_before_anything_ships(self):
+		import converge as contract
+
+		def stale(pre):
+			pre["converge_version"] = 2
+		with self.assertRaises(contract.CorpusVersionError):
+			run_fixture_pipeline(self.tmp, mutate_pre=stale)
+		self.assertFalse(os.path.exists(os.path.join(self.tmp, "session",
+			"corpus.post.json")))
+
+	def test_a_post_bucket_failure_is_held_through_assembly(self):
+		"""Technical round-2 finding 1: a failure AFTER the bucket, on
+		brew:tier-fix (P3 security_auto otherwise), leaves attention /
+		elevated / unknown, a held tier with `content-losing`, no convergence
+		eligibility and no pre-acceptance on the assembled tool."""
+		import converge as contract
+		import validate_items
+		import test_converge as TC
+		real = validate_items._self_test_tagged_ids
+
+		def failing(suggestions, tool_id):
+			if tool_id == "brew:tier-fix":
+				raise RuntimeError("injected after the bucket")
+			return real(suggestions, tool_id)
+		patch = unittest.mock.patch("validate_items._self_test_tagged_ids",
+			side_effect=failing)
+		# the pinned submission's digest belongs to the healthy corpus, so a
+		# zero-edit submission over THIS corpus stands in for convergence
+		report, _, corpus_pre = run_fixture_pipeline(self.tmp,
+			submission=lambda pre: TC.make_submission(pre, []), patch_validator=patch)
+		self.assertEqual(report["convergence"]["state"], "converged",
+			report["convergence"].get("detail"))
+		view = {v["id"]: v for v in corpus_pre["tools"]}["brew:tier-fix"]
+		self.assertTrue(view["validator_error"])
+		self.assertEqual((view["initial_review_bucket"], view["risk_level"], view["impact"]),
+			("attention", "elevated", "unknown"))
+		self.assertEqual(view["security_tier"]["tier"], "held")
+		self.assertIn("content-losing", view["security_tier"]["holds"])
+		self.assertFalse(view["initial_pre_accept"])
+		self.assertFalse(contract.initial_pre_accept(view))
+		tool = {t["id"]: t for t in report["tools"]}["brew:tier-fix"]
+		self.assertEqual(tool["review_bucket"], "attention")
+		self.assertEqual(tool["security_tier"]["priority"], "P3")
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+		self.assertFalse(any(s.get("pre_accept") for s in tool["suggestions"]))
 
 
 if __name__ == "__main__":

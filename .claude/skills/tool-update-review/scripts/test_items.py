@@ -1117,11 +1117,15 @@ class AcceptsBaselineTests(unittest.TestCase):
 		self.assertFalse(model.accepts_baseline(view))
 
 	def test_malformed_tiers_are_never_accepted(self):
+		"""At LOW risk in security_auto, so the non-G-SEC branch WOULD accept:
+		a falsy malformed tier (`{}`, `[]`) that took that branch is caught."""
 		for tier in ({}, [], "P2", 3, True, {"tier": "P3"},
 				dict(model.TIER_UNCOMPUTED, tier="P3")):
 			with self.subTest(tier=tier):
 				self.assertFalse(model.accepts_baseline(self._tool(tier=tier,
-					pre_accept_bars=[])))
+					pre_accept_bars=[], risk_level="low")))
+		self.assertTrue(model.accepts_baseline(self._tool(tier=None, pre_accept_bars=[],
+			risk_level="low")), "the control: None takes the pre-G-SEC branch and accepts")
 
 	def test_bars_content_losing_and_forcing_each_refuse(self):
 		self.assertFalse(model.accepts_baseline(self._tool(pre_accept_bars=["watch-hit"])))
