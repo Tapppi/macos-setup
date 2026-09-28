@@ -987,23 +987,31 @@ _TOML_HEADER = re.compile(r"^\s*\[\[?\s*(.+?)\s*\]\]?\s*(?:#.*)?$")
 
 def _allowed_lines(entry):
 	"""→ (ok, allowed) — `allowed` is None when the entry names no `lines`
-	(the quote may be anywhere), else the set of line numbers the quote must
-	lie within. `ok` is False when `lines` is present but unreadable."""
+	(the quote may be anywhere), else the list of inclusive `(start, end)`
+	ranges the quote must lie within. `ok` is False when `lines` is present
+	but unreadable.
+
+	Ranges, never an expanded set: the bounds are authored, so
+	`[[1, 1000000000]]` must cost two integers, not a billion-element set."""
 	lines = entry.get("lines")
 	if lines is None:
 		return True, None
 	if not isinstance(lines, list):
 		return False, None
-	allowed = set()
+	allowed = []
 	for loc in lines:
 		if isinstance(loc, int) and not isinstance(loc, bool):
-			allowed.add(loc)
+			allowed.append((loc, loc))
 		elif (isinstance(loc, list) and len(loc) == 2
 				and all(isinstance(x, int) and not isinstance(x, bool) for x in loc)):
-			allowed.update(range(loc[0], loc[1] + 1))
+			allowed.append((loc[0], loc[1]))
 		else:
 			return False, None
 	return True, allowed
+
+
+def _within(n, allowed) -> bool:
+	return any(start <= n <= end for start, end in allowed)
 
 
 def _enclosing_toml_section(lines, index):
@@ -1129,7 +1137,7 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 		first = bisect.bisect_right(line_starts, at)
 		last = bisect.bisect_right(line_starts, at + len(needle) - 1)
 		span = list(range(first, last + 1))
-		if allowed is None or all(n in allowed for n in span):
+		if allowed is None or all(_within(n, allowed) for n in span):
 			spans.append(span)
 		at = text.find(needle, at + 1)
 	if not spans:

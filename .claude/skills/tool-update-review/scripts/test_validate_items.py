@@ -35,6 +35,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -2683,6 +2684,16 @@ class UsageGroundingTests(unittest.TestCase):
 				self.assertEqual(view["usage_evidence"], [{"entry": good, "matched_lines": [3]}])
 				self.assertEqual(view["usage_item_ids"], [view["items"][0]["id"]])
 				self.assertEqual(view["security_tier"]["reasons"], ["relevant-fix", "fix"])
+
+	def test_a_huge_lines_range_is_checked_by_bounds_promptly(self):
+		"""`lines` bounds are authored: `[[1, 1000000000]]` is two integers to
+		compare, never a billion-element set to build."""
+		started = time.monotonic()
+		self.assertGrounds(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.internal", lines=[[1, 1000000000]])), [3])
+		self.assertUngrounded(self._run(_usage("dotfiles/home/.pg_service.conf",
+			"host=db.internal", lines=[[4, 10 ** 12], 1])), 3)
+		self.assertLess(time.monotonic() - started, 5.0)
 
 	# — §12 A-R3-1: membership is the AUTHORED entry —
 	def test_the_record_is_keyed_on_the_authored_entry(self):
