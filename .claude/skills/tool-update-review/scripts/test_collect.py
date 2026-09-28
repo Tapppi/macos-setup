@@ -35,23 +35,23 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 COLLECT_SH = os.path.join(SCRIPT_DIR, "collect.sh")
 CHECK_PIN = os.path.join(SCRIPT_DIR, "check_pin.py")
 
-# A stub `brew` that answers only the subcommands collect.sh calls. `outdated`
-# and `list --pinned` read their payload out of the environment so each test
-# supplies its own; `doctor` and everything else stay silent, which collect.sh
-# already treats as "nothing to report".
+# A stub `brew` that answers the subcommands collect.sh and check_pin.py call.
+# `outdated` reads its payload out of the environment so each test supplies its
+# own; `list --pinned` and `info` answer too, so a collector that went back to
+# asking them would be caught (test_brew_list_pinned_is_not_a_candidate_source)
+# and check_pin.py's preflight has a `brew info` to read. `doctor` and
+# everything else stay silent, which collect.sh treats as "nothing to report".
 #
-# STUB_OUTDATED_RC, STUB_OUTDATED_PREFIX and STUB_INFO_PREFIX exist for the
-# degradation tests at the bottom of this file: a real `brew` can print a
-# complete listing and *then* exit non-zero, and can put a deprecation notice
-# on stdout ahead of the JSON (of `brew info` and of `brew outdated` alike).
-# All are ways a healthy brew derails a collector that assumes otherwise.
+# STUB_OUTDATED_RC and STUB_OUTDATED_PREFIX exist for the degradation tests at
+# the bottom of this file: a real `brew` can print a complete listing and
+# *then* exit non-zero, and can put a deprecation notice on stdout ahead of the
+# JSON. Both are ways a healthy brew derails a collector that assumes otherwise.
 BREW_STUB = """#!/usr/bin/env bash
 case "$1" in
 	outdated) [[ -n "${STUB_OUTDATED_PREFIX:-}" ]] && printf '%s\\n' "${STUB_OUTDATED_PREFIX}"
 		cat "${STUB_OUTDATED}"; exit "${STUB_OUTDATED_RC:-0}" ;;
 	list) [[ "${2:-}" == "--pinned" ]] && printf '%s' "${STUB_PINNED:-}" ;;
-	info) [[ -n "${STUB_INFO_PREFIX:-}" ]] && printf '%s\\n' "${STUB_INFO_PREFIX}"
-		[[ -n "${STUB_INFO:-}" ]] && cat "${STUB_INFO}" ;;
+	info) [[ -n "${STUB_INFO:-}" ]] && cat "${STUB_INFO}" ;;
 	*) : ;;
 esac
 exit 0
@@ -71,7 +71,7 @@ class CollectRunner(unittest.TestCase):
 	stubbed brew/mise/softwareupdate executables placed first on PATH."""
 
 	def run_collect(self, brewfile, outdated, pinned="", info=None,
-			outdated_rc=None, info_prefix=None, outdated_prefix=None):
+			outdated_rc=None, outdated_prefix=None):
 		"""Run collect.sh in a throwaway workspace; return the CompletedProcess.
 
 		Most fixture Brewfiles carry both a `brew "` and a `cask "` line — not
@@ -95,8 +95,6 @@ class CollectRunner(unittest.TestCase):
 			env["STUB_PINNED"] = pinned
 			if outdated_rc is not None:
 				env["STUB_OUTDATED_RC"] = str(outdated_rc)
-			if info_prefix is not None:
-				env["STUB_INFO_PREFIX"] = info_prefix
 			if outdated_prefix is not None:
 				env["STUB_OUTDATED_PREFIX"] = outdated_prefix
 			if info is not None:
@@ -174,21 +172,32 @@ class CollectBrewSection(CollectRunner):
 					"current_version": "1.19.4", "pinned": False}], "casks": []})
 		self.assertEqual(self.brew_ids(report), ["brew:krunkit"])
 
-	# ── the pinned path, which does the same match in shell rather than jq ──
+	# ── pinned formulae: `brew outdated` is their only surface ──
 
-	def test_pinned_tapped_formula_uses_the_short_id_once(self):
-		"""A pinned tapped formula is surfaced under the same id the outdated
-		path would emit — two ids for one formula is how it would show up
-		twice on the page."""
+	def test_pinned_tapped_formula_keeps_its_pin_and_the_short_id(self):
+		"""`brew outdated` lists an outdated pinned formula with `pinned: true`
+		(pinning gates `brew upgrade`, never `outdated`), so the pin state the
+		checker and the G-SEC `pinned` reason read arrives on the one surface,
+		under the same short id every other formula gets."""
 		report = self.collect(
 			'tap "slp/krun"\nbrew "krunkit"\ncask "1password"\n',
-			{"formulae": [], "casks": []},
-			pinned="slp/krun/krunkit\n",
-			info={"formulae": [{"installed": [{"version": "1.2.1"}],
-				"versions": {"stable": "1.3.2"}}]})
+			{"formulae": [{"name": "slp/krun/krunkit", "installed_versions": ["1.2.1"],
+				"current_version": "1.3.2", "pinned": True}], "casks": []})
 		self.assertEqual(self.brew_ids(report), ["brew:krunkit"])
-		self.assertTrue(report["brew"][0]["pinned"])
-		self.assertEqual(len(set(self.brew_ids(report))), len(self.brew_ids(report)))
+		self.assertIs(report["brew"][0]["pinned"], True)
+
+	def test_brew_list_pinned_is_not_a_candidate_source(self):
+		"""The second `brew list --pinned` surface is gone (user decision
+		2026-09-28): a pinned formula `brew outdated` does not list is not a
+		candidate, whatever `brew list --pinned` and `brew info` say. Real
+		brew never produces this pair for a formula that is behind — this
+		test pins that collect.sh no longer asks."""
+		report = self.collect('brew "duti"\ncask "1password"\n',
+			{"formulae": [], "casks": []},
+			pinned="duti\n",
+			info={"formulae": [{"installed": [{"version": "1.5.4_1"}],
+				"versions": {"stable": "1.5.5"}, "revision": 1}]})
+		self.assertEqual(report["brew"], [])
 
 
 class CollectDegradationTests(CollectRunner):
@@ -225,30 +234,6 @@ class CollectDegradationTests(CollectRunner):
 		# The listing brew did produce is still read, not discarded.
 		self.assertEqual(self.brew_ids(report), ["brew:curl"])
 
-	def test_an_unparseable_brew_info_costs_one_pinned_formula(self):
-		"""`brew info --json=v2` with a notice on stdout ahead of the JSON. The
-		per-entry jq failed, became the loop's exit status, and pipefail carried
-		it to the `jq -s .` pipeline — so `set -e` killed the collector at the
-		assignment. One pinned formula, the entire run."""
-		p = self.run_collect(
-			'brew "curl"\ncask "1password"\n',
-			{"formulae": [{"name": "1password", "installed_versions": ["8.1"],
-				"current_version": "8.2", "pinned": False}], "casks": []},
-			pinned="curl\n",
-			info={"formulae": [{"installed": [{"version": "8.1.0"}],
-				"versions": {"stable": "8.2.0"}}]},
-			info_prefix="Warning: curl has been deprecated")
-		self.assertEqual(p.returncode, 0, p.stderr)
-		report = json.loads(p.stdout)
-		# The pinned formula is the only casualty…
-		self.assertNotIn("brew:curl", self.brew_ids(report))
-		# …the rest of the run is intact…
-		self.assertEqual(set(report), {"generated_at", "machine", "brew", "mise",
-			"standalone", "macos", "brew_health", "skill_drift"})
-		# …and the operator is told which formula was dropped.
-		self.assertIn("brew info", p.stderr)
-		self.assertIn("curl", p.stderr)
-
 	def test_a_notice_ahead_of_the_outdated_json_costs_the_brew_section_not_the_run(self):
 		"""`brew outdated` putting a notice on stdout ahead of its JSON makes
 		the jq it is piped into emit nothing at all — zero bytes, not partial
@@ -273,52 +258,25 @@ class CollectDegradationTests(CollectRunner):
 
 
 class CollectPinnedRevisionTests(CollectRunner):
-	"""Criterion 22's collect-side half. The pinned block's `latest_version`
-	becomes the upgrade suggestion's `target_version`, and check_pin.py's
-	preflight compares it against `brew info`'s versions.stable composed with
-	the packaging revision — the same composition `brew outdated`'s
-	current_version uses. Emitting the bare stable here made the two sides of
-	the pin check different strings for every pinned formula whose current
-	version carries a revision. Dormant while `brew list --pinned` is empty,
-	but six Brewfile formulae sit at a revisioned current version today, so a
-	single `brew pin` reaches it."""
+	"""Criterion 22's collect-side half. `brew outdated`'s current_version —
+	stable composed with the packaging revision ("1.5.5_1") — becomes
+	`latest_version` and so the upgrade suggestion's `target_version`, and
+	check_pin.py's preflight composes `brew info`'s versions.stable with the
+	revision the same way. The two sides must be the same string for a
+	revisioned pinned formula, or `set-action done` is permanently refused."""
 
-	INFO_CURRENT_AT_REVISION = {"formulae": [{
-		"installed": [{"version": "1.5.4_1"}],
-		"versions": {"stable": "1.5.4"}, "revision": 1}]}
+	OUTDATED_BEHIND_AT_REVISION = {"formulae": [{"name": "duti",
+		"installed_versions": ["1.5.4_1"], "current_version": "1.5.5_1",
+		"pinned": True}], "casks": []}
 	INFO_BEHIND_AT_REVISION = {"formulae": [{
 		"installed": [{"version": "1.5.4_1"}],
 		"versions": {"stable": "1.5.5"}, "revision": 1}]}
 
-	def test_pinned_and_current_at_a_revision_is_not_a_phantom_downgrade(self):
-		"""Measured before the fix: `duti` emitted "1.5.4_1 → 1.5.4" — a
-		downgrade card that survives the current != latest filter — for a
-		pinned formula with nothing to report. Current brew's `brew outdated`
-		DOES list pinned formulae (pinning gates `brew upgrade`, never
-		`outdated` — see the comment on collect.sh's pinned block), so a
-		pinned-and-behind formula already arrives via brew_json and dedupes;
-		pinned-and-current is the one shape only the pinned block emits, and
-		it must emit nothing that survives the filter."""
-		report = self.collect('brew "duti"\ncask "1password"\n',
-			{"formulae": [], "casks": []},
-			pinned="duti\n", info=self.INFO_CURRENT_AT_REVISION)
-		self.assertEqual(report["brew"], [])
-
-	def test_pinned_and_behind_composes_the_revision_into_latest_version(self):
-		report = self.collect('brew "duti"\ncask "1password"\n',
-			{"formulae": [], "casks": []},
-			pinned="duti\n", info=self.INFO_BEHIND_AT_REVISION)
-		self.assertEqual(self.brew_ids(report), ["brew:duti"])
-		self.assertEqual(report["brew"][0]["current_version"], "1.5.4_1")
-		self.assertEqual(report["brew"][0]["latest_version"], "1.5.5_1")
-
 	def test_both_sides_of_the_pin_check_compute_the_same_string(self):
-		"""The criterion itself, across the two scripts: run collect.sh and
-		`check_pin.py preflight` against the *same* stubbed `brew info` and
-		require preflight to call collect's `latest_version` a match. While
-		the two sides composed differently, preflight could never match for a
-		revisioned pinned formula and `set-action done` was permanently
-		refused."""
+		"""The criterion itself, across the two scripts: run collect.sh
+		against a stubbed `brew outdated` and `check_pin.py preflight` against
+		the matching stubbed `brew info`, and require preflight to call
+		collect's `latest_version` a match."""
 		with tempfile.TemporaryDirectory(prefix="collect-test-") as root:
 			bindir = os.path.join(root, "bin")
 			work = os.path.join(root, "work")
@@ -329,18 +287,20 @@ class CollectPinnedRevisionTests(CollectRunner):
 			_write(os.path.join(bindir, "softwareupdate"), SOFTWAREUPDATE_STUB, 0o755)
 			_write(os.path.join(work, "Brewfile"), 'brew "duti"\ncask "1password"\n')
 			_write(os.path.join(root, "outdated.json"),
-				json.dumps({"formulae": [], "casks": []}))
+				json.dumps(self.OUTDATED_BEHIND_AT_REVISION))
 			_write(os.path.join(root, "info.json"),
 				json.dumps(self.INFO_BEHIND_AT_REVISION))
 			env = dict(os.environ)
 			env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
 			env["STUB_OUTDATED"] = os.path.join(root, "outdated.json")
-			env["STUB_PINNED"] = "duti\n"
 			env["STUB_INFO"] = os.path.join(root, "info.json")
 			collected = subprocess.run(["bash", COLLECT_SH, "Brewfile"], cwd=work,
 				env=env, capture_output=True, text=True, timeout=180)
 			self.assertEqual(collected.returncode, 0, collected.stderr)
-			target = json.loads(collected.stdout)["brew"][0]["latest_version"]
+			collected_duti = json.loads(collected.stdout)["brew"][0]
+			self.assertIs(collected_duti["pinned"], True)
+			target = collected_duti["latest_version"]
+			self.assertEqual(target, "1.5.5_1")
 			preflight = subprocess.run([sys.executable, CHECK_PIN, "preflight",
 				"--source", "brew", "--name", "duti", "--target-version", target],
 				env=env, capture_output=True, text=True, timeout=60)

@@ -24,7 +24,11 @@ memory. It emits a `generated_at` (ISO-8601 UTC, via `date -u
 version sources:
 
 - **Brewfile-manifested brew/cask packages** — transitive deps excluded,
-  pinned formulae included. A pin usually marks a *known* incompatibility
+  pinned formulae included: `brew outdated` lists an outdated pinned formula
+  with `pinned: true` (pinning gates `brew upgrade`, not `outdated`), so that
+  one listing is the whole surface — `collect.sh` does not also ask `brew list
+  --pinned`, which could only add a pinned formula that is already current.
+  A pin usually marks a *known* incompatibility
   worth re-checking, not a tool to skip; never treat a pin as a reason to
   drop the tool from the candidate list. A package from a third-party tap is
   manifested however either side spells it: `brew outdated --json=v2` names a
@@ -55,7 +59,7 @@ Report Object's Tool shape — see `references/schemas.md` §Report Object.
 `collect.sh` runs under `set -euo pipefail`, which turns any one command's
 shrug into the death of the whole collector — and because every `brew` call
 sends its stderr to `/dev/null`, that death is frequently silent: exit 1,
-empty stdout, empty stderr, no collect.json and so no report. Three ordinary
+empty stdout, empty stderr, no collect.json and so no report. Two ordinary
 things used to do exactly that, and each is now contained to the section it
 belongs to, with a warning on stderr naming what was lost:
 
@@ -63,12 +67,9 @@ belongs to, with a warning on stderr naming what was lost:
   1 when it matches nothing, which under `pipefail` is the pipeline's status;
 - a **`brew outdated` that prints a complete listing and then exits non-zero**
   — `… | jq … || echo '[]'` fired *in addition to* jq's valid output and left
-  the variable holding two concatenated JSON documents;
-- a **`brew info` with a notice on stdout ahead of the JSON** — the per-entry
-  `jq` became the pinned loop's exit status, and one pinned formula took the
-  run with it.
+  the variable holding two concatenated JSON documents.
 
-The pattern for all three is the one the `mise_json` block documents inline:
+The pattern for both is the one the `mise_json` block documents inline:
 absorb the status with `|| true` at the assignment so the script survives to
 check, then validate the captured text with `jq -e .` and fall back — never
 `|| echo '[]'` inside the pipeline, which fires alongside good output rather

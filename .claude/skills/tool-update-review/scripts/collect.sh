@@ -99,67 +99,12 @@ if ! printf '%s' "${brew_json}" | jq -e . >/dev/null 2>&1; then
 	brew_json='[]'
 fi
 
-# A second surface for pinned formulae. Current brew's `brew outdated` DOES
-# list them (verified against Homebrew/Library/Homebrew/cmd/outdated.rb:
-# an outdated pinned formula prints with a "[pinned at ...]" suffix and
-# carries `pinned:` in the JSON read above), so a pinned-and-behind formula
-# already arrives via brew_json and `unique_by(.id)` below keeps that entry;
-# the one shape only this block emits is a pinned-and-CURRENT formula, which
-# the current != latest filter at the end then drops. Kept as a belt anyway:
-# pinning is exactly where a silently missed update hurts most, and
-# outdated's inclusion of pinned formulae is brew behaviour, not our
-# contract. Filtered to Brewfile-manifested formulae only, same scope as brew_json
-# above — a pin on a transitive dependency (not in the Brewfile) isn't ours
-# to track and shouldn't pollute the report.
-pinned_json="[]"
-pinned_names="$(brew list --pinned 2>/dev/null || true)"
-if [[ -n "${pinned_names}" ]]; then
-	pinned_json="$(while IFS= read -r name; do
-		# Same normalisation as brew_json above: `brew list --pinned` names a
-		# tapped formula in full, the Brewfile list holds short names, and the
-		# emitted id has to be the one brew_json would emit or `unique_by(.id)`
-		# below stops deduping and a pinned tapped formula lands in the report
-		# twice. Lookups still use the name brew gave us.
-		short_name="${name##*/}"
-		printf '%s' "${brewfile_formulae}" | jq -e --arg n "${short_name}" 'index($n)' >/dev/null || continue
-		info="$(brew info --json=v2 "${name}" 2>/dev/null)" || continue
-		# Contained per pinned formula. `brew info` can put a line jq cannot
-		# parse on *stdout* (a deprecation notice ahead of the JSON), and
-		# without this the failing jq became the loop's exit status, pipefail
-		# carried it to the `jq -s .` pipeline, and `set -e` killed the whole
-		# collector at this assignment — one pinned formula costing the entire
-		# run, with only `jq: parse error` on stderr to explain it.
-		# `versions.stable` never carries the packaging revision, but the
-		# `.installed` version above does ("1.5.4_1") and so does `brew
-		# outdated`'s current_version — the composition check_pin.py mirrors
-		# (its brew_formula_candidate_version). Emitting the bare stable here
-		# made the two sides of the pin check different strings: a pinned
-		# formula *current* at a revision rendered as the phantom downgrade
-		# "1.5.4_1 → 1.5.4" (surviving the current!=latest filter below), and
-		# a pinned-and-behind one carried a target_version no preflight could
-		# ever match, so `set-action done` was permanently refused. Compose
-		# stable_revision exactly as brew itself does, revision 0/absent
-		# meaning no suffix.
-		printf '%s' "${info}" | jq --arg name "${short_name}" '
-			.formulae[0] | {
-				id: ("brew:" + $name), name: $name, source: "brew",
-				current_version: (.installed | last | .version),
-				latest_version: (.versions.stable as $s
-					| if $s != null and ((.revision // 0) > 0)
-						then "\($s)_\(.revision)" else $s end),
-				pinned: true
-			}' 2>/dev/null || {
-			echo "warning: could not read \`brew info\` output for pinned formula ${name}; leaving it out" >&2
-			continue
-		}
-	done <<< "${pinned_names}" | jq -s .)" || true
-	# Second layer, same reasoning as brew_json above: the per-entry guard
-	# covers the shape we have actually seen, this covers the next one.
-	if ! printf '%s' "${pinned_json}" | jq -e . >/dev/null 2>&1; then
-		echo "warning: could not assemble the pinned-formula list as JSON; no pinned formula will be reported" >&2
-		pinned_json='[]'
-	fi
-fi
+# Pinned formulae need no second surface: `brew outdated` lists an outdated
+# pinned formula (pinning gates `brew upgrade`, never `outdated` — verified
+# against Homebrew/Library/Homebrew/cmd/outdated.rb) and carries `pinned:` in
+# the JSON read above, so a pinned-and-behind formula arrives in brew_json
+# with its pin state intact. The one shape a separate `brew list --pinned`
+# pass could add is a pinned-and-CURRENT formula, which has nothing to review.
 
 # mise runtimes. `mise outdated --json` reports current:null for
 # alias-pinned runtimes (e.g. node pinned to "lts") even though the actually
@@ -437,14 +382,14 @@ fi
 jq -n \
 	--arg arch "${arch}" --arg os "${os_name}" --arg host "${hostname}" \
 	--arg generated_at "${generated_at}" \
-	--argjson brew "${brew_json}" --argjson pinned "${pinned_json}" \
+	--argjson brew "${brew_json}" \
 	--argjson mise "${mise_json}" --argjson standalone "${standalone_json}" \
 	--argjson macos "${macos_json}" --argjson brew_health "${brew_health_json}" \
 	--argjson skill_drift "${skill_drift_json}" '
 	{
 		generated_at: $generated_at,
 		machine: { arch: $arch, os: $os, hostname: $host },
-		brew: (($brew + $pinned) | unique_by(.id)
+		brew: ($brew | unique_by(.id)
 			| map(select(.current_version != .latest_version))),
 		mise: ($mise | map(select(.current_version != .latest_version))),
 		standalone: ($standalone
