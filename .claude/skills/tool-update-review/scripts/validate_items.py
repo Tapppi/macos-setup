@@ -1480,14 +1480,21 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 			fail("anchor.file \"{}\" does not exist".format(anchor_file),
 				"structural.anchor.file", anchor_file)
 			return
-		if op == "task_add":
-			if not manifest.tasks_readable:
-				unchecked("no readable setup.sh under the configured macos-setup root")
-				return
-			token = str(to.get("name", "")).split(":")[-1]
-			if token in manifest.tasks:
-				fail("setup.sh already dispatches \"{}\"".format(token),
-					"structural.to", to.get("name"))
+		# Both task ops read the dispatch list: a task_add must name a new
+		# subcommand, a task_change one setup.sh dispatches today — a change
+		# to a task that does not exist is not a change, it is an add under
+		# the wrong op, and the reviewer would be told something is being
+		# modified that is in fact being created.
+		if not manifest.tasks_readable:
+			unchecked("no readable setup.sh under the configured macos-setup root")
+			return
+		token = str(to.get("name", "")).split(":")[-1]
+		if op == "task_add" and token in manifest.tasks:
+			fail("setup.sh already dispatches \"{}\"".format(token),
+				"structural.to", to.get("name"))
+		elif op == "task_change" and token not in manifest.tasks:
+			fail("setup.sh does not dispatch \"{}\" — nothing to change".format(token),
+				"structural.to", to.get("name"))
 
 
 # ── V5: impact (§5.5) ───────────────────────────────────────────────────────

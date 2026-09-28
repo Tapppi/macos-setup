@@ -459,7 +459,7 @@ suggestion are read by nothing.
 | `manifest_move` | `manifest`, `from`, `anchor.section` | entry exists; its current section differs |
 | `tap_add` / `tap_remove` | `manifest`, `to`/`from` (type `tap`) | tap line absent/present as required |
 | `install_method_change` | `from`, `to` with distinct types | `from` resolves in its current mechanism |
-| `task_add` / `task_change` | `to` (type `task`), `anchor.file` | the file exists; for `task_add`, the subcommand token is not already dispatched |
+| `task_add` / `task_change` | `to` (type `task`), `anchor.file` | the file exists; the subcommand token is not yet dispatched by `setup.sh` (`task_add`) or is dispatched today (`task_change`); an unreadable `setup.sh` is `W-STRUCT-UNCHECKED` |
 
 `diff_preview` stays, demoted: it is a **rendering** of the op for the human, not
 its source of truth.

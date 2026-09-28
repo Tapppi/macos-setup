@@ -786,9 +786,8 @@ class StructuralTests(unittest.TestCase):
 				manifest_root=td), ["W-STRUCT-UNCHECKED"])
 
 	def test_task_change_reads_the_anchor_file(self):
-		"""The ninth op, previously zero-covered. Its one precondition is that
-		the anchored file exists; note task_change does NOT verify the token
-		is currently dispatched — only task_add reads the token list."""
+		"""The ninth op, previously zero-covered: the anchored file must
+		exist."""
 		clean = {"op": "task_change",
 			"subjects": [{"type": "task", "name": "setup.sh:install"}],
 			"manifest": None, "from": None,
@@ -797,6 +796,30 @@ class StructuralTests(unittest.TestCase):
 		self.assertEqual(codes(self._sug(clean)), [])
 		self.assertEqual(codes(self._sug(dict(clean,
 			anchor={"file": "tasks/nope.sh"}))), ["E-STRUCT-PRECOND"])
+
+	def test_task_change_requires_the_task_to_be_dispatched_today(self):
+		"""Carried finding: task_change never checked its token, so a
+		"change" to a task setup.sh does not have passed clean — an add
+		presented to the reviewer as a modification."""
+		clean = {"op": "task_change",
+			"subjects": [{"type": "task", "name": "setup.sh:install"}],
+			"manifest": None, "from": None,
+			"to": {"type": "task", "name": "setup.sh:install"},
+			"anchor": {"file": "setup.sh"}}
+		self.assertEqual(codes(self._sug(clean)), [])
+		self.assertEqual(codes(self._sug(dict(clean,
+			to={"type": "task", "name": "setup.sh:nosuchtask"}))), ["E-STRUCT-PRECOND"])
+
+	def test_task_change_against_an_unreadable_setup_is_unchecked(self):
+		with tempfile.TemporaryDirectory() as td:
+			with open(os.path.join(td, "setup.sh"), "wb") as fh:
+				fh.write(b"\xff\xfe not utf-8")
+			self.assertEqual(codes(self._sug({"op": "task_change",
+				"subjects": [{"type": "task", "name": "setup.sh:install"}],
+				"manifest": None, "from": None,
+				"to": {"type": "task", "name": "setup.sh:install"},
+				"anchor": {"file": "setup.sh"}}), manifest_root=td),
+				["W-STRUCT-UNCHECKED"])
 
 	def test_a_missing_required_field_is_named_before_a_precondition_is_claimed(self):
 		got = codes(self._sug({"op": "manifest_move",
