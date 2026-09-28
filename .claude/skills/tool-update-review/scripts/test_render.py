@@ -2084,6 +2084,20 @@ class GSecPriorityPanelTests(PageDriveRunner):
 			self.assertNotIn(gone, out["lede"])
 		self.assertNotIn("security-only, no impact here", out["overview"])
 
+	def test_05b_with_nothing_accepted_the_lede_says_so(self):
+		"""No '0 of them are listed' when nothing starts accepted."""
+		report = json.loads(json.dumps(self.report))
+		for tool in report["tools"]:
+			for sug in tool["suggestions"]:
+				sug["pre_accept"] = False
+		report["summary"]["security"]["accepted_priority_counts"] = {"P1": 0, "P2": 0}
+		out = self.drive(report, """
+		log('lede=' + document.getElementById('lede').textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertIn("No security update starts accepted; 12 fixes are listed in "
+			"“Security fixes for you” (3 held).", out["lede"])
+		self.assertNotIn("0 of them", out["lede"])
+
 	def test_06_tiles_bar_and_filter_carry_the_new_words(self):
 		out = self.drive(self.report, """
 		const tiles = Array.from(document.querySelectorAll('.tile')).map(t => t.querySelector('.l').textContent + '/' + t.querySelector('.s').textContent);

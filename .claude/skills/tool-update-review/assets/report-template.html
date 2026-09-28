@@ -5847,9 +5847,11 @@
 			const p0Lede = p0Rows
 				? `<b class="p0-lede">${p0Rows} security fix${p0Rows === 1 ? ' needs' : 'es need'} you before ${p0Rows === 1 ? 'it' : 'they'} can be accepted — first below.</b> `
 				: '';
-			const secLede = (SEC && (acceptedSec || panelRows.length))
-				? ` <span class="sec-lede">${acceptedSec} security update${acceptedSec === 1 ? ' is' : 's are'} accepted by default; ${APC.P1 + APC.P2} of them ${APC.P1 + APC.P2 === 1 ? 'is' : 'are'} listed in “Security fixes for you”${heldRows ? `, beside ${heldRows} held` : ''}.</span>`
-				: '';
+			const secLede = !SEC || !(acceptedSec || panelRows.length) ? ''
+				: acceptedSec
+					? ` <span class="sec-lede">${acceptedSec} security update${acceptedSec === 1 ? ' is' : 's are'} accepted by default; ${APC.P1 + APC.P2} of them ${APC.P1 + APC.P2 === 1 ? 'is' : 'are'} listed in “Security fixes for you”${heldRows ? `, beside ${heldRows} held` : ''}.</span>`
+					/* Nothing starts accepted: say that, rather than "0 of them". */
+					: ` <span class="sec-lede">No security update starts accepted; ${panelRows.length} fix${panelRows.length === 1 ? ' is' : 'es are'} listed in “Security fixes for you”${heldRows ? ` (${heldRows} held)` : ''}.</span>`;
 			const ledeHtml = p0Lede + (needs === 0
 				? `<b>Nothing needs a decision</b> — all <span class="n">${total}</span> updates are routine${secClause}.`
 				: `<b><span class="n">${needs}</span> of ${total} updates need a decision.</b> ` +
