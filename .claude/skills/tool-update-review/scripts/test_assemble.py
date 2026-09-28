@@ -209,7 +209,8 @@ def _cand(tool_id, name, source, current, latest, **extra):
 	return cand
 
 
-def assemble_session(collect, research_entries, extra_files=None, session_files=None):
+def assemble_session(collect, research_entries, extra_files=None, session_files=None,
+		with_validation=False):
 	"""Write a throwaway session dir, run it through main(), and return
 	(report, stderr). Going through main() rather than build_tool() is the
 	point: it is the only way to exercise validation, the two ordering
@@ -218,7 +219,9 @@ def assemble_session(collect, research_entries, extra_files=None, session_files=
 	`extra_files` maps a research/ filename to raw bytes or text, for the
 	degradation cases where the file itself is the hostile input.
 	`session_files` maps a session-root filename to a JSON-serializable
-	object — e.g. the watch-items.json grounding snapshot."""
+	object — e.g. the watch-items.json grounding snapshot. `with_validation`
+	attaches the run's validation.json as `report["_validation"]` (fuzz.py's
+	semantic assertions read the findings' fields there)."""
 	with tempfile.TemporaryDirectory() as tmp:
 		session = os.path.join(tmp, "tool-update-review-20260822T113344Z")
 		os.makedirs(os.path.join(session, "research"))
@@ -249,6 +252,9 @@ def assemble_session(collect, research_entries, extra_files=None, session_files=
 			report["_warn"] = fh.read()
 		with open(os.path.join(session, "assemble.log"), "r", encoding="utf-8") as fh:
 			report["_log"] = fh.read()
+		if with_validation:
+			with open(os.path.join(session, "validation.json"), "r", encoding="utf-8") as fh:
+				report["_validation"] = json.load(fh)
 		return report, err.getvalue()
 
 

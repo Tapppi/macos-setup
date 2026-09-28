@@ -37,6 +37,21 @@ constant exists, so this file cannot silently under-cover a widened set):
                                               items.VALIDATOR_ONLY_FLAGS)
  13. the watch-items.json session snapshot, at all three depths
  14. a malformed member inside a brew_health/skill_drift findings block
+ 15. every key of an object-form evidence entry (G-SEC: `role`, `quote`)
+ 16. hostile DERIVED inputs, called directly — the pipeline never produces
+     them: `accepts_baseline`, `security_tier`, `pre_accept_bars` and
+     `converge.initial_pre_accept` over hostile `security_tier`,
+     `pre_accept_bars`, `usage_evidence` and `bucket_inputs`, and
+     `converge.check_corpus_versions` over hostile version keys
+
+**Survival is not the gate; semantics are (G-SEC, pass 4b §7.6).** 1613/0
+was the crash baseline. Every case's assembled report is now also read and
+held to the tier's invariants (`semantic_violations`): the four bucket/tier
+coherence rules, no held or P0 tool pre-accepted, no tool with an unreadable
+tier-input enum or item container pre-accepted or in the auto strip, and
+every `security_tier` null or valid. The fuzz corpus makes `brew:openssh` a
+positively identified fix whose baseline starts accepted, so each hostile
+shape is thrown at the ACCEPTING path — the one a hole would open.
 
 Never narrow HOSTILE or a key list to make a case pass: an abort is a
 finding to fix in assemble.py/validate_items.py, not in this file.
@@ -47,6 +62,8 @@ import sys
 import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import assemble  # noqa: E402
+import converge  # noqa: E402
 import items as model  # noqa: E402
 import test_assemble as T  # noqa: E402
 
@@ -64,7 +81,9 @@ UNKNOWN_KEYS = ["headliners", "relevancy", "context", "notable", "a_future_key"]
 # a checker is not supposed to write them, which is exactly why a hostile
 # value there must cost nothing.
 def _item_fields(prefix=None):
-	names = [n for n, _type, _req, _note in model.ITEM_FIELDS]
+	# `local.evidence[].role`-style rows name a key of an ARRAY MEMBER, not of
+	# the container; surface 15 fuzzes those on an evidence entry.
+	names = [n for n, _type, _req, _note in model.ITEM_FIELDS if "[]" not in n]
 	if prefix is None:
 		return [n for n in names if "." not in n]
 	return [n.split(".", 1)[1] for n in names if n.startswith(prefix + ".")]
@@ -81,10 +100,18 @@ for _lst in (ITEM_KEYS, ANCHOR_KEYS, LOCAL_KEYS, SECURITY_KEYS, CHANGE_KEYS,
 	assert _lst, "ITEM_FIELDS stopped exporting a fuzzed container"
 # config_status has no exporting constant; spelled with its section.
 CONFIG_STATUS_KEYS = ["state", "detail", "evidence", "citations"]
-# 10 — an edit/upgrade suggestion's read surface (references/schemas.md §1.2).
+# 10 — an edit/upgrade suggestion's read surface (references/schemas.md §1.2),
+# plus G-SEC's `requirement`/`serves` (items.SUGGESTION_FIELDS, less the
+# validator-assigned `serves_item_ids`, which a checker writing must cost
+# nothing either).
 SUGGESTION_KEYS = ["id", "kind", "title", "target_files", "rationale",
 	"motivating_link", "diff_preview", "command", "auto_runnable", "needs_sudo",
-	"manual_reason", "target_version"]
+	"manual_reason", "target_version"] + [n for n, _t, _r, _note in model.SUGGESTION_FIELDS]
+# 15 — an object-form evidence entry (items.ITEM_FIELDS' `local.evidence[].*`
+# rows, plus the shape keys normalize_evidence reads).
+EVIDENCE_KEYS = ["path", "lines", "note"] + [n.split("[].", 1)[1]
+	for n, _t, _r, _note in model.ITEM_FIELDS if n.startswith("local.evidence[].")]
+USAGE_ENTRY = {"path": "Brewfile", "role": "usage", "quote": "brew"}
 # 11 — the structural outlet (references/item-schema.md §4).
 STRUCTURAL_KEYS = ["op", "subjects", "manifest", "from", "to", "anchor"]
 
@@ -102,29 +129,114 @@ WATCH_SUG = {"id": "brew:podman:watch", "kind": "watch-item",
 # 9, 15 — a snapshot that grounds one topic for the item-level watch_hit runs.
 SNAPSHOT = {"brew:openssh": [{"topic": "agent forwarding"}]}
 
+# The fuzz corpus: test_assemble's, with `brew:openssh`'s one item made a
+# positively identified fix that reaches with benefit and quotes a usage
+# line — a G-SEC tool whose baseline STARTS ACCEPTED (P3), so every hostile
+# shape below is thrown at the accepting path. `brew:ssh-copy-id` is a second,
+# unmutated fix.
+FUZZ_RESEARCH = copy.deepcopy(T.RESEARCH)
+for _entry in FUZZ_RESEARCH:
+	if _entry["id"] in ("brew:openssh", "brew:ssh-copy-id"):
+		for _item in _entry["items"]:
+			_item["security"]["nature"] = "fix"
+	if _entry["id"] == "brew:openssh":
+		_entry["items"][0]["local"]["effect"] = "benefit"
+		_entry["items"][0]["local"]["evidence"] = [copy.deepcopy(USAGE_ENTRY)]
+
 fails = []
 cases = 0
+
+# G-SEC's tier-input enums (their unreadable forms hold/bar as `enum-invalid`)
+# and item/suggestion containers (`container-unreadable`), by finding field.
+TIER_ENUM_FIELDS = frozenset({"severity", "local.direction", "local.effect",
+	"security.nature", "local.evidence.role", "kind", "requirement",
+	"config_status.state"})
+CONTAINER_FIELDS = frozenset({"local", "security", "change", "watch_hit", "tags",
+	"serves"})
+
+
+def unreadable_tools(validation):
+	"""Tool ids carrying E-ENUM-INVALID on a tier-input field, or E-FIELD-TYPE
+	on a tier-input enum or on a CONTAINER itself (its message names the
+	container — a wrong-typed tag MEMBER is not a wrong-typed container)."""
+	out = set()
+	for finding in (validation or {}).get("findings") or []:
+		code, field = finding.get("code"), finding.get("field")
+		if code == "E-ENUM-INVALID" and field in TIER_ENUM_FIELDS:
+			out.add(finding.get("tool_id"))
+		elif code == "E-FIELD-TYPE" and field in TIER_ENUM_FIELDS:
+			out.add(finding.get("tool_id"))
+		elif (code == "E-FIELD-TYPE" and field in CONTAINER_FIELDS
+				and str(finding.get("message", "")).startswith(field + " is ")):
+			out.add(finding.get("tool_id"))
+	return out
+
+
+def semantic_violations(report):
+	"""The tier's invariants over one assembled report → [message]."""
+	out = []
+	unreadable = unreadable_tools(report.get("_validation"))
+	for tool in report.get("tools") or []:
+		tid = tool.get("id")
+		tier = tool.get("security_tier")
+		valid = model.valid_security_tier(tier)
+		bucket = tool.get("review_bucket")
+		baseline = assemble.baseline_upgrade(tool)
+		accepted = bool(baseline and baseline.get("pre_accept"))
+		if tier is not None and not valid:
+			out.append("{}: security_tier is neither null nor valid: {!r}".format(tid, tier))
+		if valid:
+			if tier["tier"] in model.ACCEPTED_TIERS and bucket != "security_auto":
+				out.append("{}: accepted tier {} but bucket {}".format(tid, tier["tier"], bucket))
+			if tier["tier"] not in model.ACCEPTED_TIERS and bucket not in (
+					"security_mixed", "attention"):
+				out.append("{}: tier {} but bucket {}".format(tid, tier["tier"], bucket))
+			if bucket == "attention" and "content-losing" not in tier["holds"]:
+				out.append("{}: attention with a tier but no content-losing hold".format(tid))
+			if (tier["holds"] or tier["priority"] == "P0") and accepted:
+				out.append("{}: held/P0 tier {} but the baseline is pre-accepted".format(
+					tid, tier["tier"]))
+		elif bucket == "security_auto":
+			inputs = tool.get("bucket_inputs") or {}
+			if not (inputs.get("has_security") and inputs.get("security_only")
+					and inputs.get("impact") == "none" and inputs.get("runnable")
+					and inputs.get("version_delta") not in ("major", "unknown")
+					and not tool.get("pre_accept_bars")):
+				out.append("{}: security_auto with no tier but clause 2b's conjuncts "
+					"do not all hold: {!r}".format(tid, inputs))
+		if tid in unreadable:
+			in_panel = valid and tier["priority"] in model.HIGHLIGHT_PRIORITIES
+			if accepted:
+				out.append("{}: an unreadable enum/container, yet pre-accepted".format(tid))
+			if bucket == "security_auto" and not in_panel:
+				out.append("{}: an unreadable enum/container, yet in the auto strip".format(tid))
+	return out
 
 
 def attempt(label, collect, research, session_files=None):
 	global cases
 	cases += 1
 	try:
-		T.assemble_session(collect, research, session_files=session_files)
+		report, _ = T.assemble_session(collect, research, session_files=session_files,
+			with_validation=True)
 	except SystemExit as exc:
 		# A clean, message-bearing exit is the right answer for a collect.json
 		# nothing can be salvaged from; only a traceback is a failure here.
 		if not label.startswith("collect="):
 			fails.append((label, "SystemExit({})".format(exc.code)))
+		return
 	except Exception:
 		fails.append((label, traceback.format_exc().strip().splitlines()[-1]))
+		return
+	for problem in semantic_violations(report):
+		fails.append((label, "SEMANTIC " + problem))
 
 
 def research_with(entry_id, mutate):
 	"""A deep copy of the fixture corpus with `mutate(entry)` applied to the
 	named entry — deep, because most surfaces below sit inside containers the
 	shallow original never had to reach."""
-	entries = copy.deepcopy(T.RESEARCH)
+	entries = copy.deepcopy(FUZZ_RESEARCH)
 	for e in entries:
 		if e["id"] == entry_id:
 			mutate(e)
@@ -225,7 +337,9 @@ def main():
 
 	# 11 — config_status, added well-formed and then broken one key at a time.
 	def set_config_key(e, key, shape):
-		e["config_status"] = {"state": "ok", "detail": "d", "evidence": [],
+		# A VALID base state since G-SEC validates it: every other key's cases
+		# then run on a tool the state alone would not hold.
+		e["config_status"] = {"state": "up_to_date", "detail": "d", "evidence": [],
 			"citations": [], key: shape}
 	for key in CONFIG_STATUS_KEYS:
 		run_key("config_status." + key + "={!r}", "brew:openssh",
@@ -247,6 +361,16 @@ def main():
 			T.RESEARCH,
 			session_files={"watch-items.json": {"brew:openssh": [{"topic": shape}]}})
 
+	# 15 — every key of an object-form evidence entry, on the G-SEC item.
+	def set_evidence_key(e, key, shape):
+		for item in e["items"]:
+			entry = dict(USAGE_ENTRY)
+			entry[key] = shape
+			item.setdefault("local", {})["evidence"] = [entry]
+	for key in EVIDENCE_KEYS:
+		run_key("items[].local.evidence[0]." + key + "={!r}", "brew:openssh",
+			lambda e, s, key=key: set_evidence_key(e, key, s))
+
 	# 14 — one malformed member INSIDE a findings block. A hostile value at
 	# the block level never reaches read_findings_block's entry guards (a
 	# non-object block is ignored whole), so the member level is its own
@@ -259,11 +383,100 @@ def main():
 			attempt("collect.{}.findings[0]={!r}".format(source_key, shape),
 				collect, T.RESEARCH)
 
+	hostile_derived_inputs()
+	self_check()
+
+	aborting = [f for f in fails if not f[1].startswith("SEMANTIC ")]
+	semantic = [f for f in fails if f[1].startswith("SEMANTIC ")]
 	print("cases run:", cases)
-	print("aborting cases:", len(fails))
+	print("aborting cases:", len(aborting))
+	print("semantic violations:", len(semantic))
 	for label, why in fails:
-		print("  ABORT", label, "->", why)
+		print("  ABORT" if not why.startswith("SEMANTIC ") else "  VIOLATION", label, "->", why)
 	return 1 if fails else 0
+
+
+MISSING = object()
+
+
+def hostile_derived_inputs():
+	"""16 — the derived inputs the pipeline never produces, called directly.
+	None may raise (except `accepts_baseline`'s documented KeyError for a
+	missing key), and none may accept a malformed tier."""
+	global cases
+	base = {"id": "brew:x", "source": "brew", "pinned": False, "research_error": None,
+		"validator_error": None, "quarantine": [], "spec_violations": [],
+		"config_status": {"state": "up_to_date"}, "suggestions": [],
+		"items": [{"id": "brew:x#cve:CVE-2026-1", "tags": ["security"],
+			"severity": "notable", "change": {"citation": "a fix"},
+			"security": {"nature": "fix"}}],
+		"risk_level": "low", "initial_review_bucket": "security_auto",
+		"bucket_inputs": {"runnable": True}, "usage_evidence": []}
+	base["security_tier"] = model.security_tier(base)
+	base["pre_accept_bars"] = model.pre_accept_bars(base)
+	assert model.accepts_baseline(base), "the direct-input base must start accepted"
+	for field in ("security_tier", "pre_accept_bars", "usage_evidence", "bucket_inputs"):
+		for shape in HOSTILE + [MISSING]:
+			cases += 1
+			label = "direct {}={!r}".format(field, "<missing>" if shape is MISSING else shape)
+			view = copy.deepcopy(base)
+			if shape is MISSING:
+				del view[field]
+			else:
+				view[field] = copy.deepcopy(shape)
+			try:
+				model.security_tier(view)
+				model.pre_accept_bars(view)
+				eligible = converge.initial_pre_accept(view)
+				try:
+					accepted = model.accepts_baseline(view)
+				except KeyError:
+					if not (shape is MISSING and field in ("security_tier", "pre_accept_bars")):
+						raise
+					accepted = False
+			except Exception:
+				fails.append((label, traceback.format_exc().strip().splitlines()[-1]))
+				continue
+			tier = view.get("security_tier")
+			if tier is not None and not model.valid_security_tier(tier) and (accepted or eligible):
+				fails.append((label, "SEMANTIC a malformed tier was accepted"))
+			bars = view.get("pre_accept_bars", MISSING)
+			if (bars is MISSING or not isinstance(bars, list) or bars) and (accepted or eligible):
+				fails.append((label, "SEMANTIC hostile bars were accepted"))
+	for key in ("contract_version", "converge_version"):
+		for shape in HOSTILE + [MISSING]:
+			cases += 1
+			label = "direct corpus.{}={!r}".format(key, "<missing>" if shape is MISSING else shape)
+			corpus = {"contract_version": model.CONTRACT_VERSION,
+				"converge_version": converge.CONVERGE_VERSION}
+			if shape is MISSING:
+				del corpus[key]
+			else:
+				corpus[key] = shape
+			try:
+				converge.check_corpus_versions(corpus)
+			except converge.CorpusVersionError:
+				continue
+			except Exception:
+				fails.append((label, traceback.format_exc().strip().splitlines()[-1]))
+				continue
+			fails.append((label, "SEMANTIC a hostile corpus version was accepted"))
+
+
+def self_check():
+	"""The semantic checker must catch a planted violation — a pre-accepted
+	tool with a held tier, built directly. Without this, deleting an
+	assertion from `semantic_violations` would leave the fuzz green."""
+	global cases
+	cases += 1
+	held = dict(model.TIER_UNCOMPUTED)
+	planted = {"tools": [{"id": "brew:planted", "security_tier": held,
+		"review_bucket": "security_mixed", "bucket_inputs": {},
+		"suggestions": [{"id": "brew:planted:upgrade", "kind": "upgrade",
+			"pre_accept": True}]}]}
+	if not semantic_violations(planted):
+		fails.append(("self-check", "SEMANTIC the checker missed a planted pre-accepted "
+			"held tool"))
 
 
 if __name__ == "__main__":
