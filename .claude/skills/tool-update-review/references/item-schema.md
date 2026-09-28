@@ -417,7 +417,7 @@ whose body covers **two of the four casks the others document as needing it**. A
 "structural": {
   "op": "task_add",
   "subjects": [{"type": "cask", "name": "codex"}, {"type": "cask", "name": "cursor-cli"}],
-  "manifest": null,                       // "Brewfile", or null. NEVER intel.Brewfile
+  "manifest": null,                       // "Brewfile", or null
   "from": null,
   "to": {"type": "task", "name": "setup.sh:quarantine"},
   "anchor": {"file": "setup.sh", "after": "elif [[ \"${1}\" = \"herdr\" ]]"}

@@ -185,9 +185,9 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
       "manifest_replace"|"manifest_move"|"tap_add"|"tap_remove"|
       "install_method_change"|"task_add"|"task_change",
       subjects: [{type, name}, ...] — the entities the change is ABOUT,
-      manifest: "Brewfile" or null (intel.Brewfile is out of this tool
-      entirely), from, to, anchor} — see `references/research.md`
-      §Suggestion Kinds for each op's required fields.
+      manifest: "Brewfile" or null, from, to, anchor} — see
+      `references/research.md` §Suggestion Kinds for each op's required
+      fields.
     "watch-item" — a proposed watch item: watch_topic/watch_note/
       rationale.
     "method-note" — a proposed method note: method_topic/method_note/

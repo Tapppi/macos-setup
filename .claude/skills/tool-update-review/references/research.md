@@ -998,8 +998,7 @@ carries a typed `structural` block beside the usual
 		"op": "task_add",                   // one of the nine ops below
 		"subjects": [{"type": "cask", "name": "codex"},
 		             {"type": "cask", "name": "cursor-cli"}],
-		"manifest": null,                   // "Brewfile" or null — intel.Brewfile is
-		                                    //   out of this tool entirely (I-17)
+		"manifest": null,                   // "Brewfile" or null
 		"from": null,                       // Ref or null, per op
 		"to": {"type": "task", "name": "setup.sh:quarantine"},
 		"anchor": {"file": "setup.sh", "after": "elif [[ \"${1}\" = \"herdr\" ]]"}
