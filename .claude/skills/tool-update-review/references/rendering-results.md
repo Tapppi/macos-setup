@@ -97,10 +97,11 @@ if (resp.ok) {
 3. Freeze the decisions, and only the decisions. Every decision control gets
    the `disabled` attribute: `.btn-decision`, `.card-comment`,
    `.tool-note-textarea` and `#overall-comment` inside `#main`, plus
-   `#panel-overview`'s mirror controls (`.btn-d`, `.acc-toggle`), which live
-   outside `#main` and so are not reached by that selector. Then add the CSS
-   class `report-frozen` (`opacity: 0.5; pointer-events: none`) to **both**
-   `#main` and `#panel-overview`, each of which carves its readable and
+   `#panel-overview`'s mirror controls (`.btn-d`, `.acc-toggle`) and
+   `#panel-notes`' (`.btn-d`, `.acc-toggle`, `.note-modify`), which live outside `#main` and
+   so are not reached by that selector. Then add the CSS class
+   `report-frozen` (`opacity: 0.5; pointer-events: none`) to `#main`,
+   `#panel-overview` and `#panel-notes`, each of which carves its readable and
    navigable parts back out of that blanket rule — see `rendering-report.md`
    §Transition to Results View for what each panel restores and why.
 
@@ -117,7 +118,7 @@ if (resp.ok) {
    | Overview jumps, stat tiles, band and auto-strip toggles, `show all N →` expanders | live |
    | The judgement panel's `full reasoning →` expansion (`rendering-report.md` §Overview Tab → The Judgement Panel) | live |
    | Method notes tab: band toggles, `open card →` jumps | live |
-   | Method notes tab: `veto`/`restore` buttons and the modification textareas — a vetoed note renders struck through with a `vetoed` label | inert |
+   | Method notes tab: every store-entry control — `veto`/`restore` on a stored entry; on a not-stored one (write failed, unreviewed, no render record) the accept/reject/discuss mirror, or the single accept toggle on a chip — the `v` key, and the modification textareas (`rendering-report.md` §Method Notes). A vetoed stored note renders struck through with a `vetoed` label | inert |
    | Mouse text selection anywhere in the report | live |
    | Accept/Reject/Discuss, per-card comment box, tool-note textarea, overall comment — on the cards **and** on their Overview mirrors | inert |
 
