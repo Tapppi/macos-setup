@@ -185,7 +185,9 @@ class InitMethodNoteTests(unittest.TestCase):
 				"decisions": decisions}
 			files = [("report.json", report), ("feedback.json", feedback)]
 			if record is not None:
-				files.append(("method-notes.render.json", record))
+				# render.py stamps every record with the report it rendered.
+				files.append(("method-notes.render.json",
+					dict({"report_id": report["report_id"]}, **record)))
 			for name, obj in files:
 				with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
 					json.dump(obj, fh)
@@ -281,7 +283,7 @@ class InitMethodNoteTests(unittest.TestCase):
 						{"id": "brew:bb", "name": "bb", "source": "brew", "suggestions": [note("brew:bb:method-s")]}]}
 				for name, obj in (("report.json", report), ("feedback.json",
 						{"report_id": "r", "tool_comments": {}, "decisions": decisions}),
-						("method-notes.render.json", record)):
+						("method-notes.render.json", dict({"report_id": "r"}, **record))):
 					with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
 						json.dump(obj, fh)
 				p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
@@ -391,6 +393,20 @@ class InitMethodNoteTests(unittest.TestCase):
 		self.assertEqual(actions["brew:jq:method-a"]["state"], "pending")
 		self.assertIn("add-method-note", actions["brew:jq:method-a"]["detail"][0])
 		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+
+	def test_a_record_written_for_another_report_is_not_trusted(self):
+		"""A record naming a different report (a re-used session dir, a copied
+		file) must not decide this report's actions: its "written" entry would
+		make a reject withdraw a note this run never stored. It is ignored,
+		loudly, exactly as a missing record is."""
+		actions, err = self._init({"brew:jq:method-a": {"decision": "reject"},
+			"brew:jq:method-g": {"decision": "accept"}},
+			dict(self.PERSISTED, report_id="tool-update-review-20260101T000000Z"))
+		self.assertIn("was written for report", err)
+		self.assertEqual(actions["brew:jq:method-a"]["state"], "skipped")
+		self.assertNotIn("Withdraw", actions["brew:jq:method-a"]["label"])
+		self.assertEqual(actions["brew:jq:method-g"]["state"], "pending")
+		self.assertIn("add-method-note", actions["brew:jq:method-g"]["detail"][0])
 
 	def test_an_upgrade_beside_the_notes_is_untouched(self):
 		actions, _ = self._init({"brew:jq:upgrade": {"decision": "reject"}}, self.PERSISTED)

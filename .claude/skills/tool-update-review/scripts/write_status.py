@@ -127,17 +127,30 @@ METHOD_NOTES_RENDER_RECORD = "method-notes.render.json"
 _RENDER_RECORD_BUCKETS = ("written", "already_present", "failed", "unreviewed")
 
 
-def _load_render_record(session_dir: str):
+def _load_render_record(session_dir: str, report_id: str):
 	"""→ {suggestion_id: (bucket, entry)} from the render record, or None
-	when the record is absent or unreadable (said on stderr: no note is
-	then known to be stored, so an accept writes at apply and anything else
-	writes nothing — the pre-render-persist behaviour)."""
+	when the record is absent, unreadable, or written for a different report
+	(said on stderr: no note is then known to be stored, so an accept writes
+	at apply and anything else writes nothing — the pre-render-persist
+	behaviour).
+
+	The record is trusted only for the report it names. A session dir
+	re-used for a second review, or a record copied in beside the wrong
+	report.json, would otherwise map this report's suggestion ids onto
+	another run's outcomes — a veto withdrawing a note this run never
+	wrote, or an accept read as "already in the store" when nothing was."""
 	path = os.path.join(session_dir, METHOD_NOTES_RENDER_RECORD)
 	record = load_json(path)
 	if not isinstance(record, dict):
 		print(f"warning: no readable {METHOD_NOTES_RENDER_RECORD} in {session_dir} — "
 			f"no method note is known to be stored (accept writes at apply, "
 			f"nothing else writes)", file=sys.stderr)
+		return None
+	if record.get("report_id") != report_id:
+		print(f"warning: {METHOD_NOTES_RENDER_RECORD} in {session_dir} was written for "
+			f"report {record.get('report_id')!r}, not {report_id!r} — ignored; no "
+			f"method note is known to be stored (accept writes at apply, nothing "
+			f"else writes)", file=sys.stderr)
 		return None
 	by_id = {}
 	for bucket in _RENDER_RECORD_BUCKETS:
@@ -338,7 +351,8 @@ def cmd_init(args):
 		if sug.get("kind") == "method-note":
 			dec = decisions.get(sid, {})
 			notes.append((sid, tool, sug, dec if isinstance(dec, dict) else {}))
-	render_record = _load_render_record(session_dir) if notes else None
+	render_record = _load_render_record(session_dir, report.get("report_id", "")) \
+		if notes else None
 	# Method notes are planned per store entry, after the loop, so one
 	# entry shared by several ids yields one withdraw or one add.
 	for sid, entry in suggestions_by_id.items():

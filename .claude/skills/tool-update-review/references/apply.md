@@ -551,8 +551,10 @@ Notes). Run what the action says; do not re-derive it from the decision:
   place** — and say so in the action note. Never leave a discussed note
   silently as written, and never write on the strength of the discuss alone:
   the pair of writes is the explicit act.
-- No render record at all (an older render): `init` warns and falls back to
-  accept-writes / reject-skips, with the `add-method-note` invocation in
+- No render record at all (an older render), or one whose `report_id` is not
+  this report's (a re-used session dir, a copied file — trusting it would map
+  this report's ids onto another run's outcomes): `init` warns and falls back
+  to accept-writes / reject-skips, with the `add-method-note` invocation in
   `detail[0]`.
 
 No repo edit, no command, no commit action is ever synthesized for this kind
