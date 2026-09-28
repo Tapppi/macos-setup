@@ -6859,7 +6859,7 @@
 					else setAll(ids, action, d => d !== action);
 					return;
 				}
-				if (action === 'toggle') setEntryDecision(ids, 'accept');
+				if (action === 'toggle') setEntryDecision(ids, ids.some(sid => noteEntryOf(sid)?.writeByDefault) ? 'reject' : 'accept');
 				else setAll(ids, action, d => d !== action);
 			});
 		}
@@ -7136,8 +7136,9 @@
 				const topic = typeof sug.method_topic === 'string' ? sug.method_topic : '';
 				const note = typeof sug.method_note === 'string' ? sug.method_note : '';
 				const k = [key, topic, note].join('\u0000');
-				if (!byKey.has(k)) byKey.set(k, { key, ids: [], tools: [], sugs: [], buckets: new Set(), reasons: [] });
+				if (!byKey.has(k)) byKey.set(k, { key, ids: [], tools: [], sugs: [], buckets: new Set(), reasons: [], writeByDefault: false });
 				const en = byKey.get(k);
+				if (o && o.bucket === 'failed' && o.key && topic.trim() && note.trim()) en.writeByDefault = true;
 				en.ids.push(sug.id); en.tools.push(tool); en.sugs.push(sug);
 				en.buckets.add(o ? o.bucket : 'norecord');
 				if (o && o.reason && !en.reasons.includes(o.reason)) en.reasons.push(o.reason);

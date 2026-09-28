@@ -1646,7 +1646,8 @@ Controls: one per store entry — `veto` / `restore` (the veto mirror
 variant, §Decision State and Mirrors) on a stored entry, accept on a
 not-stored one (§Method Notes) — and a modification textarea that writes
 through to every canonical card's comment on `input`. `n` opens the tab, `v`
-vetoes the focused row (accepts, on a not-stored entry).
+vetoes the focused row (toggles reject for a failed store write; toggles
+accept for other not-stored entries).
 The count in the tab label wears neutral ink, and a method note is excluded
 from the progress bar, the Submit gate, the header decision badge and the
 needs-decision sort (`DECISION_CARD_SEL`): a memory proposal never forces a
@@ -1767,7 +1768,7 @@ section" to "focused item in the active tab", so `focusedIdx` is per-tab
 | `1` … `5` | switch tab (post-Submit the strip has five) | same | same |
 | `j` / `k` | next / previous Overview card — judgement rows, then the mixed security cards, then the highlight cards | next / previous visible tool section | next / previous note row |
 | `a` / `r` / `c` | act on the focused card's **first undecided mirror**; on a **judgement row only**, the first mirror (below) | act on the focused tool's first undecided suggestion card | `r` vetoes every store entry in the row (all their ids), `a` restores, `c` discusses; on a not-stored entry `a`/`r`/`c` act as everywhere |
-| `v` | — | — | veto / restore the focused row (toggle accept on a not-stored entry) |
+| `v` | — | — | veto / restore the focused row (toggle reject for failed store writes; toggle accept for other not-stored entries) |
 | `n` | switch to Method notes | same | same |
 | `s` | Submit when enabled | same | same |
 | `f` | switch to All tools, then cycle the filter preset | cycle preset All → Incompatible → Relevant | same as Overview |

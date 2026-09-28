@@ -1688,6 +1688,40 @@ class PersistenceLoopTests(PageDriveRunner):
 		self.assertEqual(p.returncode, 0, p.stderr)
 		self.assertEqual(sorted(self._store(state_home)), ["brew:nnn"])
 
+	def test_v_toggles_failed_store_write_veto_through_feedback_and_init(self):
+		for failed in (True, False):
+			for presses in (1, 2):
+				with self.subTest(failed=failed, presses=presses):
+					state_home = tempfile.mkdtemp(prefix="render-veto-state-")
+					self.addCleanup(__import__("shutil").rmtree, state_home, True)
+					report = notes_report()
+					if failed:
+						path = os.path.join(state_home, self.STORE)
+						os.makedirs(os.path.dirname(path))
+						with open(path, "w", encoding="utf-8") as fh:
+							fh.write('{"broken":')
+					else:
+						report["convergence"]["state"] = "not_run"
+					out, payload, actions, _ = self._drive_and_init(report, state_home, """
+		key('n'); key('j');
+		const row = document.querySelector('#panel-notes [data-focused]');
+		log('focused=' + row.dataset.note);
+		for (let i = 0; i < PRESSES; i++) key('v');
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""".replace('PRESSES', str(presses)))
+					sid = 'brew:cc:method-general'
+					self.assertEqual(out['focused'], sid)
+					if presses == 1:
+						self.assertEqual(payload['decisions'][sid]['decision'], 'reject' if failed else 'accept')
+					else:
+						self.assertNotIn(sid, payload['decisions'])
+					should_write = (failed and presses == 2) or (not failed and presses == 1)
+					self.assertEqual(actions[sid]['state'], 'pending' if should_write else 'skipped')
+					if should_write:
+						self.assertIn('add-global-method-note', actions[sid]['detail'][0])
+					else:
+						self.assertEqual(actions[sid]['detail'], [])
+
 	def test_a_failed_write_is_shown_as_not_stored_and_becomes_a_pending_add(self):
 		"""Round-2 finding 1. The store is unreadable at render under
 		`converged`, so every write fails. What the page says about storage
