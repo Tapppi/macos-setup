@@ -1998,9 +1998,8 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 	# the items were populated (order_items, config_status) zeroed it while
 	# its sibling — computed here, from the surviving items — was fine, so a
 	# genuinely grounded hit silently lost its 70-point highlight. That
-	# highlight reads this list, and the item badge (not yet built — the
-	# template renders no watch-hit marker today) must read it too when it
-	# exists: never the raw `watch_hit` claim, whose scoring would let a
+	# highlight reads this list, and so does the page's `⚑ watch hit` item
+	# badge: never the raw `watch_hit` claim, whose scoring would let a
 	# paraphrase displace a genuine highlight — the unvalidated-channel
 	# failure the field exists to kill. The claim itself (has_watch_hit)
 	# still bars pre-acceptance unverified.

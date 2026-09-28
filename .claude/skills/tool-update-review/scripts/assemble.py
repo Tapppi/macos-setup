@@ -1239,10 +1239,9 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 		# and the fields beside it cannot disagree.
 		"degradation": model.compute_degradation(view),
 		# Grounded watch hits only (I-20) — what the 70-point highlight
-		# reads, and what the item badge must read once it exists (not yet
-		# built: the template renders no watch-hit marker today — wiring a
-		# future badge to the raw claim instead would re-open the
-		# unvalidated channel). The raw claim is on the items and bars
+		# reads, and what the page's `⚑ watch hit` item badge reads (wiring
+		# the badge to the raw claim instead would re-open the unvalidated
+		# channel). The raw claim is on the items and bars
 		# pre-acceptance; prominence needs verification.
 		"watch_hit_item_ids": list(view.get("watch_hit_item_ids") or []),
 		# Set by the applier on a degraded-gate run (references/convergence.md

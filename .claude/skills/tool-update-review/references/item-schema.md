@@ -241,10 +241,10 @@ and prominence is delivered by the 70-point `watch_item_hit` highlight,
 which reads the view's `watch_hit_item_ids` export, i.e. **grounded hits
 only** — an ungrounded, malformed or unchecked hit bars pre-acceptance
 (fail-closed) but earns no prominence — never by reordering a card's body.
-An item badge for a hit is **not yet built**: the template renders no
-watch-hit marker today. When it is built it must read the same
-`watch_hit_item_ids` export, never the raw `watch_hit` claim — wiring it to
-the claim would re-open the unvalidated channel this field exists to close.
+The item badge — the `⚑ watch hit` chip (`references/rendering-report.md`
+§Watch hits (D3)) — reads the same `watch_hit_item_ids` export, never the raw
+`watch_hit` claim, which supplies display text only: wiring the badge to the
+claim would re-open the unvalidated channel this field exists to close.
 
 ### 2.6 `security.nature` — a positively identified fix (G-SEC)
 

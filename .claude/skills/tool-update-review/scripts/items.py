@@ -625,8 +625,8 @@ def has_watch_hit(items) -> bool:
 
 	Prominence is the opposite trade. The 70-point `watch_item_hit`
 	highlight reads the view's `watch_hit_item_ids` — `grounded_watch_hit`
-	below — never this predicate, and so must the item badge once it exists
-	(not yet built: the template renders no watch-hit marker today): scoring
+	below — never this predicate, and so does the item badge (the page's
+	`⚑ watch hit` chip, which reads the same export): scoring
 	an unverified claim would let a paraphrased or invented topic displace a
 	genuinely scoring tool from the capped highlight list, which is precisely
 	the unvalidated-channel failure the structured field was introduced to
@@ -644,8 +644,8 @@ def grounded_watch_hit(item, watch_topics) -> bool:
 	(fail-closed, `has_watch_hit`), but earns no prominence, because
 	prominence for an unverifiable claim is the channel the regex died of.
 	The validator exports the grounded ids per view as `watch_hit_item_ids`;
-	the highlight reads that export, and the item badge — not yet built —
-	must read it too when it exists, never the raw claim."""
+	the highlight and the page's `⚑ watch hit` item badge both read that
+	export, never the raw claim."""
 	if not isinstance(item, dict) or watch_topics is None:
 		return False
 	hit = item.get("watch_hit")
