@@ -425,7 +425,7 @@ faking them with alpha reads as "disabled" in Solarized Dark.
 | Tile | Value | Label | Secondary | Accent | Click |
 |---|---|---|---|---|---|
 | 4 | `summary.security.cve_count` | CVEs fixed | two worst non-zero **graded** classes in words (`3 critical · 30 high`), falling back to `across N tools` | `--red` + `--tint-red` | scroll to `#sec-section` |
-| 5 | `summary.security.auto_count` | Security · accepted | `P1 n · P2 n of these in the panel` — from `summary.security.accepted_priority_counts`, the rows that START accepted; a held P1/P2 tool is counted by tile 6, never here | `--cyan` | scroll to `#sec-auto` **and expand it** |
+| 5 | `summary.security.auto_count` | Security · accepted | `P1 n · P2 n of these in the panel` — from `summary.security.accepted_priority_counts`, the rows that START accepted; a held P1/P2 tool is counted by tile 6, never here | `--cyan` | scroll to `#sec-auto` **and expand it**; when the strip has no rows (every accepted tool moved to a panel), scroll to `#sec-priority`, else `#judgement-section` — the count and its destination agree. The bar's `seg-auto` segment targets the same |
 | 6 | `summary.security.mixed_count` | Security · held or needs you | `decide these` | `--yellow` + `--tint-yellow` | scroll to `#sec-mixed` |
 
 The bucket ids are **not** renamed (convergence, the fixtures and the filter

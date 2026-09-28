@@ -5836,6 +5836,17 @@
 			 * tools, accepted with nothing flagged. */
 			const auto = buckets.security_auto.filter(t => !isJudged(t) && !inPriorityPanel(t));
 			const mixed = buckets.security_mixed;
+			/* The accepted tile and bar segment count the whole bucket, so they
+			 * must land where its tools actually are: the strip when it has
+			 * rows, otherwise the panel or the judgement panel the rows moved
+			 * to — never an #sec-auto that did not render. */
+			const autoTarget = auto.length
+				? { act: 'open-auto', arg: 'sec-auto', title: 'Open the accepted security updates' }
+				: buckets.security_auto.some(inPriorityPanel)
+					? { act: 'scroll', arg: 'sec-priority', title: 'Jump to the accepted fixes in “Security fixes for you”' }
+					: buckets.security_auto.some(isJudged)
+						? { act: 'scroll', arg: 'judgement-section', title: 'Jump to the updates accepted by convergence judgement' }
+						: { act: '', arg: '', title: '' };
 
 			const summary = REPORT.summary || {};
 			const total = typeof summary.total_outdated === 'number'
@@ -5919,11 +5930,11 @@
 					<span class="slabel">Security — ${SEC.tools_with_security} of ${total} tools affected</span>
 					<div class="tiles">
 						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: tileSecSecondary(SEC), accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
-						${tileHtml({ v: SEC.auto_count, l: 'Security · accepted', s: `P1 ${APC.P1} · P2 ${APC.P2} of these in the panel`, accent: 'cyan', act: 'open-auto', arg: 'sec-auto', title: 'Open the accepted security updates' })}
+						${tileHtml({ v: SEC.auto_count, l: 'Security · accepted', s: `P1 ${APC.P1} · P2 ${APC.P2} of these in the panel`, accent: 'cyan', act: autoTarget.act, arg: autoTarget.arg, title: autoTarget.title })}
 						${tileHtml({ v: SEC.mixed_count, l: 'Security · held or needs you', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the security updates that are held or need you' })}
 					</div>
 					${total ? `<div class="deltabar">
-						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security · accepted', 'open-auto', 'sec-auto')}
+						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security · accepted', autoTarget.act, autoTarget.arg)}
 						${barSegHtml('seg-mixed', SEC.mixed_count, total, 'Security · held or needs you', 'scroll', 'sec-mixed')}
 						${barSegHtml('seg-rest', Math.max(0, total - SEC.auto_count - SEC.mixed_count), total, 'No security content', '', '')}
 					</div>` : ''}

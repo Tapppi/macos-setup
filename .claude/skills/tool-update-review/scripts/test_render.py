@@ -2216,6 +2216,35 @@ class GSecPriorityPanelTests(PageDriveRunner):
 			sum(1 for t in self.report["tools"]
 				if t["review_bucket"] in ("security_auto", "security_mixed")))
 
+	def test_13b_the_accepted_tile_lands_where_the_accepted_tools_are(self):
+		"""Every accepted security update a P1/P2 panel row: the strip does
+		not render, so the tile and bar must not point at #sec-auto — they
+		land on the panel that holds those tools."""
+		report = json.loads(json.dumps(self.report))
+		report["tools"] = [t for t in report["tools"]
+			if t["review_bucket"] != "security_auto"
+			or (t.get("security_tier") or {}).get("priority") in ("P1", "P2")]
+		kept = [t for t in report["tools"] if t["review_bucket"] == "security_auto"]
+		self.assertTrue(kept)
+		report["summary"]["security"]["auto_count"] = len(kept)
+		out = self.drive(report, """
+		log('strip=' + !!document.getElementById('sec-auto'));
+		const tile = Array.from(document.querySelectorAll('.tile')).find(t => t.querySelector('.l').textContent === 'Security · accepted');
+		log('tile=' + tile.querySelector('.v').textContent + '|' + tile.dataset.act + '|' + tile.dataset.arg);
+		const seg = document.querySelector('.seg-auto');
+		log('seg=' + seg.dataset.act + '|' + seg.dataset.arg);
+		const target = document.getElementById(tile.dataset.arg);
+		log('landsOnKept=' + (target ? [KEPT].every(id => !!target.querySelector('.prow[data-tool="' + id + '"]')) : 'no target'));
+		selectTab('tools');
+		tile.click();
+		log('tab=' + document.querySelector('#panel-overview').hidden);
+""".replace("[KEPT]", json.dumps([t["id"] for t in kept])))
+		self.assertEqual(out["strip"], "false")
+		self.assertEqual(out["tile"], "{}|scroll|sec-priority".format(len(kept)))
+		self.assertEqual(out["seg"], "scroll|sec-priority")
+		self.assertEqual(out["landsOnKept"], "true")
+		self.assertEqual(out["tab"], "false")
+
 	def test_14_config_attention_has_its_own_line(self):
 		out = self.drive(self.report, """
 		const r = document.querySelector('.prow[data-tool="brew:tier-config"]');
