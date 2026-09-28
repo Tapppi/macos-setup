@@ -1516,7 +1516,7 @@ class PageContractTests(unittest.TestCase):
 	def test_the_tag_chips_show_a_second_tag_and_a_lone_unknown_tag(self):
 		"""Two ways to render nothing where something was needed — carried
 		forward from the "Tagged:" line onto the chip row that replaced it
-		(report-page.md §5). A multi-tag item must chip its second known tag
+		(rendering-report.md §Chips). A multi-tag item must chip its second known tag
 		(only the RENDERED group's own tags are elided — an item under
 		Breaking & deprecations still chips `fix`), and an item whose only
 		tag is unrecognised must chip it: the validator kept that tag

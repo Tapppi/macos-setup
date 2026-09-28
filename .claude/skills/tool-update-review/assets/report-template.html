@@ -130,7 +130,7 @@
 			border-bottom: 1px solid var(--base01);
 		}
 
-		/* The two cut controls (Delta, Source — report-page.md §8.3) are
+		/* The two cut controls (Delta, Source — references/rendering-report.md §Filter Bar) are
 		 * [hidden]: the UA's [hidden] rule loses to this selector's
 		 * specificity, so the override is explicit. */
 		#filter-bar label[hidden] { display: none; }
@@ -344,7 +344,7 @@
 			padding: 20px 24px 80px;
 		}
 
-		/* ── Method notes tab (report-page.md §6) ─────────────────────────
+		/* ── Method notes tab (references/rendering-report.md §Method Notes)
 		 * Durable instructions replayed into every future run — a different
 		 * question from everything else on the page ("do I want the
 		 * researcher told this forever?"), so its own tab. Already in the
@@ -935,7 +935,7 @@
 			white-space: nowrap;
 		}
 
-		/* ── The judgement panel (report-page.md §3) ────────────────────────
+		/* ── The judgement panel (references/rendering-report.md §The Judgement Panel)
 		 * A tool that convergence's JUDGEMENT moved to auto-update leaves the
 		 * collapsed auto strip and gets an always-visible row here — the
 		 * label is structural before it is visual, because a badge inside a
@@ -1822,8 +1822,8 @@
 			gap: 3px 6px;
 		}
 
-		/* Collapsed shows the title clamped to two lines (report-page.md
-		 * §4.4). The clamp is a belt: item.title is one glanceable sentence
+		/* Collapsed shows the title clamped to two lines (references/
+		 * rendering-report.md §Per-Item Detail Collapse). The clamp is a belt: item.title is one glanceable sentence
 		 * by contract (L2, W-TITLE-LONG reports the violation), so on
 		 * conforming data the clamp never fires — it exists for the
 		 * over-long title the checker wrote anyway, which must not push the
@@ -1838,7 +1838,7 @@
 
 		.content-item-title .ci-text { min-width: 12ch; flex: 1 1 auto; }
 
-		/* ── Item chips (report-page.md §5) — ink carries the word, the hue
+		/* ── Item chips (references/rendering-report.md §Chips) — ink carries the word, the hue
 		 * only rings it. --orange at chip size on --base02 measured 2.82:1
 		 * (fails AA); --base1 ink inside a 1px colored ring is 4.42:1. No
 		 * chip is ever distinguished by hue alone, which also sidesteps the
@@ -1865,10 +1865,10 @@
 		 * in a group and never satisfy the visibility bar. */
 		.item-chip.unknown { border-color: rgba(211,54,130,0.6); }
 		/* A grounded watch hit — the machine doing what it was asked, so
-		 * cyan, not a warm hue (report-page.md §8.1). */
+		 * cyan, not a warm hue (references/rendering-report.md §Watch hits). */
 		.item-chip.watch   { border-color: rgba(42,161,152,0.6); color: var(--cyan); }
 
-		/* ── The "everything else" fold (report-page.md §4.3) — one control,
+		/* ── The "everything else" fold (references/rendering-report.md §Content Groups) — one control,
 		 * one line that says what is behind it. This is the only place item
 		 * cardinality can hurt, and it absorbs any N: the default surface
 		 * is bounded by the visibility bar, not by the item count. Label
@@ -2042,8 +2042,10 @@
 		}
 
 		/* Header badge: "out of spec", linking to the Report notes band
-		 * where the same codes are aggregated (report-page.md §8.2 rule 3).
-		 * A <button>, since it navigates. */
+		 * where the same codes are aggregated. A report-wide finding stays off
+		 * the cards — naming 22 tools it would render 22 times, each saying
+		 * less than the one aggregate — and this per-tool badge is the one
+		 * exception (references/rendering-report.md §Report Notes). A <button>, since it navigates. */
 		.spec-badge {
 			font-family: var(--mono);
 			font-size: 10px;
@@ -2091,7 +2093,7 @@
 			white-space: nowrap;
 		}
 
-		/* ── D3: the watch mechanism's three states (report-page.md §8.1).
+		/* ── D3: the watch mechanism's three states (references/rendering-report.md §Watch hits).
 		 * A grounded hit is the item chip; the two failure states render
 		 * here as a line at the top of the card, because "never checked"
 		 * and "claimed but ungrounded" are pipeline facts the reader must
@@ -2107,7 +2109,7 @@
 			color: var(--base1);
 		}
 
-		/* ── Report notes band (report-page.md §8.2) — nothing to decide.
+		/* ── Report notes band (references/rendering-report.md §Report Notes) — nothing to decide.
 		 * Rows carry a headline, one line of body, then `code · tools`. A
 		 * loud row (convergence artefacts inconsistent) is the one thing in
 		 * the band that reads as an error. */
@@ -3335,7 +3337,7 @@
 		<div id="tail-spacer" aria-hidden="true"></div>
 	</main>
 
-	<!-- ── Method notes panel (report-page.md §6; built by renderNotes) ─── -->
+	<!-- ── Method notes panel (references/rendering-report.md §Method Notes; built by renderNotes) -->
 	<div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes"></div>
 
 	<!-- ── Back-to-overview pill (visible only after a jump) ───────────── -->
@@ -3987,7 +3989,7 @@
 			return links[0];
 		}
 
-		/* ── The visibility bar (report-page.md §4.1) — DERIVED, never
+		/* ── The visibility bar (references/rendering-report.md §Content Groups) — DERIVED, never
 		 * authored: item-schema.md §2.3 and convergence.md §1.6 both reject
 		 * an authored visibility field because it reintroduces two answers
 		 * to "what is this item". Three clauses, one per way an item can
@@ -4015,7 +4017,7 @@
 			return false;
 		}
 
-		/* ── The card's four groups (report-page.md §4.2): three visible,
+		/* ── The card's four groups (references/rendering-report.md §Content Groups): three visible,
 		 * one fold. Group 1 is the contract's own security-display bar
 		 * (`security.display_item_ids` — a bar, not a cap); group 2 is the
 		 * decisive breaking/deprecation items; group 3 the decisive
@@ -4186,7 +4188,7 @@
 			const motivatingHtml = motivating
 				? `<div class="item-motivating">“${esc(motivating)}”</div>`
 				: '';
-			/* ── Chips (report-page.md §5): always on the line, leading the
+			/* ── Chips (references/rendering-report.md §Chips): always on the line, leading the
 			 * clamped text rather than trailing it — a trailing chip is
 			 * exactly what a two-line clamp eats.
 			 *   · `reaches here` — derived from local.direction/effect; the
@@ -4237,7 +4239,8 @@
 			const refHtml = link ? `<div class="item-ref">→ ${renderLinkAnchor(link, `${esc(link.type)}: ${esc(link.label)} ↗`)}</div>` : '';
 			const hasExtra = !!(body || statement || evidence.length || citations.length
 				|| motivating || link);
-			/* Expanded order per report-page.md §4.4: the body (the title's
+			/* Expanded order per references/rendering-report.md §Per-Item
+			 * Detail Collapse: the body (the title's
 			 * own overflow) first, then what it means HERE (local.statement),
 			 * then what upstream actually said (change.citation, in quotes —
 			 * so the reader can see the difference between the vendor's
@@ -4275,7 +4278,7 @@
 			if (title) title.setAttribute('aria-expanded', String(!expanded));
 		}
 
-		/* ── The card's groups (report-page.md §4.2/§4.3): three visible
+		/* ── The card's groups (references/rendering-report.md §Content Groups): three visible
 		 * groups and one fold, replacing the four tag-derived categories.
 		 * An empty group renders nothing at all — no heading, no pill (the
 		 * vendor-silent compact tag is cut here; "this vendor publishes no
@@ -4575,7 +4578,7 @@
 			const pinnedHtml = tool.pinned ? `<span class="pin-badge">PINNED</span>` : '';
 
 			/* The release-inventory section is folded into the version pair
-			 * (report-page.md §8.3): `18.4 → 18.6 (3)`, versions in the
+			 * (references/rendering-report.md §Release Inventory Section): `18.4 → 18.6 (3)`, versions in the
 			 * title. A section per tool for a two-line list was section
 			 * overhead exceeding content; the links stay reachable from the
 			 * items that cite them. */
@@ -4982,7 +4985,7 @@
 			return parts.join(' · ');
 		}
 
-		/* ── The judgement panel (report-page.md §3) ──────────────────────
+		/* ── The judgement panel (references/rendering-report.md §The Judgement Panel)
 		 * Four lines per row, each earning its pixels: identity + CVE count
 		 * + the mirror (accept already ON); the headline; the verbatim
 		 * quote of what was cut; bucket from → to beside the whole
@@ -5300,7 +5303,7 @@
 		}
 
 		/* The tool card's own copies of the label, so a reader arriving by
-		 * deep link sees it too (report-page.md §2.2). */
+		 * deep link sees it too (references/rendering-report.md §Deep Linking). */
 		function renderJudgeBadge(tool) {
 			const forced = forcedOf(tool);
 			if (forced) return `<span class="judge-badge forced" title="Forced to ${esc(forced.forced_bucket || 'security_mixed')} at attempt 5 — would have been ${esc(wouldHaveText(forced.would_have_been))}">forced conservative</span>`;
@@ -5841,7 +5844,7 @@
 			const attention = buckets.attention.filter(t => !isNonVersion(t));
 			const routine = buckets.routine.filter(t => !isNonVersion(t));
 			/* A judgement-moved tool LEAVES the auto strip for the panel
-			 * (report-page.md §3.1) — the strip is collapsed, and a badge
+			 * (references/rendering-report.md §The Judgement Panel) — the strip is collapsed, and a badge
 			 * inside a closed container is never seen. The tile and the bar
 			 * segment keep counting the full bucket; only the rows move. */
 			/* G-SEC: a tool in "Security fixes for you" leaves the strip too —
@@ -6058,7 +6061,7 @@
 				secSection + hlSection + elseSection + renderNotesSection(tools);
 		}
 
-		/* ── Report notes (report-page.md §8.2) ───────────────────────────
+		/* ── Report notes (references/rendering-report.md §Report Notes) ──
 		 * Bottom of the Overview, collapsed, count in the heading: these
 		 * change how much you TRUST the report, not what you decide, so
 		 * they come after the thing they modify. Rows are convergence
@@ -6397,7 +6400,7 @@
 			strip.innerHTML = Object.entries(PANELS).map(([name, p]) => {
 				const active = name === activeTab;
 				/* Both counts wear neutral ink (.cnt is --base01): the notes
-				 * count must never read as attention (report-page.md §6.4). */
+				 * count must never read as attention (references/rendering-report.md §Method Notes). */
 				const cnt = name === 'tools' ? `<span class="cnt" id="tab-tools-count"></span>`
 					: name === 'notes' ? `<span class="cnt" id="tab-notes-count"></span>` : '';
 				return `<button type="button" class="tab-btn${active ? ' active' : ''}" id="tab-${name}"` +
@@ -7506,7 +7509,7 @@
 			updateProgress();
 		}
 
-		/* ══ METHOD NOTES TAB (report-page.md §6) ═════════════════════════
+		/* ══ METHOD NOTES TAB (references/rendering-report.md §Method Notes) ══
 		 * Every kind:"method-note" suggestion on every tool, grouped by
 		 * method_topic. The store already holds them (persisted at render —
 		 * see render.py), so nothing here needs a decision: the tab exists so
@@ -7873,7 +7876,7 @@
 				.forEach(el => { el.disabled = true; });
 			/* Method-note vetoes freeze with the rest: a vetoed note renders
 			 * struck through with a `vetoed` label rather than a restore
-			 * button (report-page.md §9.4). */
+			 * button (references/rendering-report.md §Transition to Results View). */
 			const notesEl = document.getElementById('panel-notes');
 			notesEl.classList.add('report-frozen');
 			notesEl.querySelectorAll('.btn-d, .acc-toggle, .note-modify')

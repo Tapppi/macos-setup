@@ -547,9 +547,8 @@ convergence block carries `security_priority`.
 ### The Judgement Panel
 
 `#judgement-section` / `#jpanel`, `renderJudgementPanel()`, between the tiles
-and the security section — **above the auto strip**, which is the point
-(`report-page.md` §3: a judgement that moved a tool to auto-update carries a
-readable label). A tool whose `convergence.auto_update_label`
+and the security section — **above the auto strip**, which is the point:
+a judgement that moved a tool to auto-update carries a readable label. A tool whose `convergence.auto_update_label`
 has `source: "judgement"` (or `judgement_unattributed`) was moved to
 auto-update by convergence's judgement rather than by the deterministic path.
 It **leaves the collapsed auto strip** and gets an always-visible row here:
@@ -1111,7 +1110,7 @@ all, the whole section is omitted.
 
 `#notes-section` / `band-notes`, `renderNotesSection()`, at the **bottom** of
 the Overview, **collapsed**, with the count in its heading and the subtitle
-`nothing to decide` (`report-page.md` §8.2). These rows change how much you
+`nothing to decide`. These rows change how much you
 *trust* the report, not what you decide, so they come after the thing they
 modify. Rows (`noteRowHtml`: headline, one line of body, then a mono
 `code · tools` line):
@@ -1181,8 +1180,7 @@ failure mode by construction rather than by adjacency:
 `needs-decision`), and is also what `jumpToTool()` calls when a filter hides
 its target (§Tab Shell).
 
-**The Delta and Source selects are cut from the bar** (`report-page.md`
-§8.3): neither has ever changed a decision; both are browse affordances on a
+**The Delta and Source selects are cut from the bar**: neither has ever changed a decision; both are browse affordances on a
 page that is not a browser. They are `[hidden]` rather than removed
 (`#filter-bar label[hidden] { display: none }` — the UA rule loses to the
 bar's own `display: flex`), because the filter *state* survives: the delta
@@ -1270,7 +1268,7 @@ decision-oriented pair and neither substitutes for the others.
   as the `config_status` "ok" badge) — the badge never disappears, it just
   stops demanding attention. **Method notes are not counted** — they need
   no decision (§Method Notes).
-- **Severity-tier counts are cut** (`report-page.md` §8.3). They counted
+- **Severity-tier counts are cut**. They counted
   *items*, which is precisely the number the decision-surface design tells
   the reader not to care about; the delta pill, the CVE badge and the bucket
   carry "how significant is this tool" three times over, and no decision
@@ -1305,7 +1303,7 @@ one-at-a-time walk).
 
 **There is no separate "headliners" bullet list and no separate "links row"
 wall of buttons — `items[]` renders entirely inside the card**, and the card
-is **evidence for a decision, not a changelog digest** (`report-page.md` §4).
+is **evidence for a decision, not a changelog digest**.
 Measured on the fixture bundle before this: 52,392 words
 to make 57 decisions, and 373 of 584 items could not change any of them. The
 rule that follows, applied at the item level:
@@ -1418,7 +1416,7 @@ authoring time.
 
 ### Release Inventory Section
 
-*(Cut, `report-page.md` §8.3.)* `release_inventory[]` answered "how many
+*(Cut.)* `release_inventory[]` answered "how many
 releases am I jumping", which the version pair now answers with the count
 folded in — `18.4 → 18.6 (3)`, the versions in the `title` — and the links
 stay reachable from the items that cite them. A section per tool for a
@@ -1430,7 +1428,7 @@ without leaving it visually "open" forever.
 
 ### Vendor-Silent Compact Tag
 
-*(Cut on the tool card, `report-page.md` §8.3.)* "This vendor publishes no
+*(Cut on the tool card.)* "This vendor publishes no
 per-release detail" is a durable fact about *how to research the tool*, and
 a method note says it better and says it once (§Method Notes); a per-run pill
 restated it every run in a place nobody could act on. An empty group now
@@ -1444,8 +1442,7 @@ Security Section) — that surface is unchanged.
 An item with real secondary detail shows only its title (clamped to two
 lines while collapsed — a belt: `title` is one glanceable sentence by
 contract and `W-TITLE-LONG` reports the violation, so on conforming data the
-clamp never fires) and its chips; `▸ more` reveals, in this order
-(`report-page.md` §4.4): the `body` (the title's own overflow), what it means
+clamp never fires) and its chips; `▸ more` reveals, in this order: the `body` (the title's own overflow), what it means
 here (`local.statement`), what upstream actually said (`change.citation`, in
 quotes, so the vendor's claim and the researcher's reading can be told
 apart), the checkable paths (`local.evidence[]`), the prose citations
@@ -1653,7 +1650,7 @@ channel with readable `CODE_TEXT`.
 
 ### Watch hits (D3)
 
-Three states, all rendered (`report-page.md` §8.1):
+Three states, all rendered:
 
 - **grounded hit** — the `⚑ watch hit` item chip, for an id in
   `tool.watch_hit_item_ids` **only** (§Chips). The item is decisive and never
@@ -1735,7 +1732,7 @@ The per-tool card keeps the canonical suggestion card (its store line says
 what is true about its entry), so the mirror architecture is untouched; the
 tab is mirrors.
 
-**The tab** (`#panel-notes`, `renderNotes()`, `report-page.md` §6). A method
+**The tab** (`#panel-notes`, `renderNotes()`). A method
 note is a durable instruction replayed into every future run — a different
 question from everything else on the page (*"do I want the researcher told
 this forever?"*), hence its own tab. The lede: **"Nothing here needs your
@@ -1963,7 +1960,7 @@ because they are consequences of the tab shell:
   `.acc-toggle`, and `#panel-notes .btn-d` and `.note-modify`, are disabled
   too, and `.report-frozen` is added to all three panels. On the notes tab a
   vetoed note then renders struck through with a `vetoed` label rather than a
-  restore button (`report-page.md` §9.4); the band toggles and jumps stay
+  restore button; the band toggles and jumps stay
   live.
 - **The judgement panel stays open and stays expandable post-Submit** —
   `.jrow .more` keeps its pointer events. It is the record of why a tool was

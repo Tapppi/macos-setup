@@ -9,7 +9,7 @@ the way `items.py` is the contract for the item model. Normative prose:
 against: `scripts/contract/convergence.json` and the `expected_converge_*`
 set (see `contract/README.md`).
 
-The shape, decided by WP0 (`scratch/design/WP0-DECISION.md`, shape (a)):
+The shape — a modification list a deterministic applier applies:
 
 	Convergence reads the whole normalized corpus and emits an addressed,
 	reasoned modification list — `converge.json` — against it. It never
@@ -17,6 +17,14 @@ The shape, decided by WP0 (`scratch/design/WP0-DECISION.md`, shape (a)):
 	beside the untouched `corpus.pre.json`, and the renderer receives both.
 	Every difference between the two corpora is DERIVED by the applier,
 	never declared by the agent.
+
+The alternative — convergence writes the post corpus and the renderer
+compares the two — was rejected. The agent would still both decide and
+apply, and a diff cannot tell an intended cut from a slip. A rewritten
+corpus must be the whole corpus, past budget in and out, and every retry
+would resubmit all of it rather than a small delta. And an element dropped
+by a rewrite looks exactly like a legitimate change, where here an element
+no edit names cannot disappear.
 
 This module holds no I/O and no judgement. It defines:
 

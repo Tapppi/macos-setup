@@ -706,8 +706,8 @@ class SuggestionCardBodyTests(PageDriveRunner):
 
 
 def decision_surface_tool():
-	"""One tool exercising all four item destinations (report-page.md §4.2)
-	plus every chip kind (§5)."""
+	"""One tool exercising all four item destinations
+	(rendering-report.md §Content Groups) plus every chip kind (§Chips)."""
 	tool = page_tool("brew:surface", "surface", "1.0", "2.0", "security_mixed")
 	tool["items"] = [
 		{"id": "brew:surface#cve:CVE-2026-1111", "title": "Fixes CVE-2026-1111 in the parser",
@@ -1042,7 +1042,7 @@ def converged_report(tools, **over):
 
 
 class JudgementPanelTests(PageDriveRunner):
-	"""report-page.md §3 — the auto-update label is STRUCTURAL: a
+	"""rendering-report.md §The Judgement Panel — the auto-update label is STRUCTURAL: a
 	judgement-moved tool leaves the collapsed auto strip for an always-open
 	panel with four lines (identity + CVE + mirror; the headline; the
 	verbatim cut; from → to beside the counterweight), and Reject is the

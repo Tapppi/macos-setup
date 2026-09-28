@@ -157,11 +157,11 @@ class IntelBrewfileTests(GuidelineTestCase):
 # ── the orphans: every mechanism lives in the skill ─────────────────────────
 class OrphanedInstructionTests(GuidelineTestCase):
 	"""Seven instructions ran the last review and lived only in an untracked
-	scratch file, `scratch/research-0828b.js`, and *"anything living in a
+	scratch prompt script outside the repo, and *"anything living in a
 	prompt will evaporate."* Each test below is the home one of
 	them now has.
 
-	One is deliberately absent: the fleet-wide watch-item quota at `:38`
+	One is deliberately absent: that script's fleet-wide watch-item quota
 	(*"across the whole fleet the expected total is one or two ... assume
 	someone else is covering the marginal case"*). No numeric quota is handed
 	to per-tool agents, who cannot see each other; convergence sees the whole
@@ -463,7 +463,7 @@ class SelfTestTests(GuidelineTestCase):
 
 # ── no volume target ────────────────────────────────────────────────────────
 class NoVolumeTargetTests(GuidelineTestCase):
-	"""The fleet quota at `scratch/research-0828b.js:38` is the one orphan that
+	"""The old script's fleet-wide watch-item quota is the one orphan that
 	must NOT be ported. Its measured history becomes reasoning in the guideline
 	text instead of a number."""
 
@@ -752,13 +752,17 @@ class DocumentedScopeTests(GuidelineTestCase):
 	def test_no_committed_file_cites_a_local_working_file(self):
 		"""The design records the skill was built from live under
 		`$XDG_STATE_HOME`, on one machine, and no reader of this repo has them.
-		A committed file that cites one — by name, by one of its letter-numbered
-		section tags, or by an acceptance-criterion number — points its reader
-		at a dead end, so every rationale is stated here or cited from a
-		committed reference instead. The patterns are assembled so this file
+		A committed file that cites one — by name (the redesign and handoff
+		records, the report-page design, the convergence-shape decision, the
+		old research prompt script, or the design directory itself), by one of
+		its letter-numbered section tags, or by an acceptance-criterion
+		number — points its reader at a dead end, so every rationale is stated
+		here or cited from a committed reference instead. The patterns are assembled so this file
 		does not match itself."""
-		working = "\\b" + "RE" "DESIGN" + "\\b|" + "|".join(re.escape(name + ".md")
-			for name in ("HAND" "OFF", "IMPLEMEN" "TATION"))
+		working = "\\b" + "RE" "DESIGN" + "\\b|" + "|".join(re.escape(name)
+			for name in ("HAND" "OFF.md", "IMPLEMEN" "TATION.md",
+				"report-" "page.md", "WP0-" "DECISION.md", "research-" "0828b",
+				"scratch/" "design"))
 		pattern = re.compile(working
 			+ "|§[A-Z][0-9]*\\b"            # a letter section tag
 			+ "|\\b[Cc]riteri(?:on|a) [0-9]+")  # an acceptance-criterion number
