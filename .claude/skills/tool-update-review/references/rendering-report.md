@@ -210,8 +210,8 @@ unchanged from the flat layout; the counting walks
 `#main .tool-section[data-max-severity="incompatible"]` with
 `DECISION_CARD_SEL` — `.suggestion-card:not([data-kind="method-note"])` —
 so Overview mirrors are structurally excluded (§Decision State and Mirrors)
-and **a method note never counts**: it is already in the store (§Method
-Notes), and a memory proposal must not force a review (`schemas.md` §1.7c).
+and **a method note never counts**: render persists it without a decision
+(§Method Notes), and a memory proposal must not force a review (`schemas.md` §1.7c).
 The same selector drives the progress text, the header decision badge and
 the "Needs decision first" sort, so the four cannot disagree about what a
 decision is.
@@ -1370,10 +1370,13 @@ writes a `watch-items.json` entry (`apply.md` §Executing `watch-item`
 Suggestions). For `kind: "method-note"` (`schemas.md` §1.7b): the body is
 `method_topic` / `method_note` / the `rationale` (*"Why the ordinary path
 fails"*), a `--violet`-railed callout of the same shape
-(`renderMethodNoteBody`), closed by the store line *"In the method-note store
-— persisted at render. Reject to withdraw it; a comment attaches modification
-instructions."* — the render-persist contract stated on the card (§Method
-Notes). This kind used to fall through to `renderDiff(undefined)` and render
+(`renderMethodNoteBody`), closed by the store line (`noteStoreLineHtml`,
+`data-storage`) saying what is true about the note's store entry — *"In the
+method-note store under {key} — persisted at render. Reject to withdraw
+it…"* only when render's record says it is stored; otherwise *"NOT in the
+method-note store"* with the reason and what apply does (§Method Notes), and
+for an entry several tools share, which tools and that a reject on any of
+them withdraws it for all. This kind used to fall through to `renderDiff(undefined)` and render
 an **empty body**. **Both memory kinds render `self_test_failed`** as a
 `--yellow`-railed block, `⚠ self-test failed — {limb}: {reason}`: a proposal
 the agent wrote despite a failed self-test (§L7 — the tag never removes) and
@@ -1481,13 +1484,15 @@ Four mirror variants, all reading the same canonical state:
 | Three-button | `.mirror[data-mirrors]` containing three `.btn-d` | mixed-card feet, highlight suggestion rows, judgement-panel rows |
 | Single toggle | `.acc-toggle[data-mirrors]` — `✓` / `○` | auto-strip rows |
 | Read-only dot | `[data-mirror-dot]` inside a chip | routine / attention bands |
-| Veto | `.veto[data-mirrors]` — `veto` / `restore`; on ⇔ the canonical decision is `reject` | Method notes tab rows and per-tool chips |
+| Veto | `.veto[data-mirrors][data-entry-ids]` — `veto` / `restore`; on ⇔ any id of the store entry is `reject` | Method notes tab: a stored entry's row or chip |
 
 `.btn-d` reuses `.btn-decision`'s active-state colors exactly — accept →
 filled `--cyan`, reject → filled `--base01`, discuss → filled `--yellow` —
 with smaller metrics and no fourth state.
 
-`syncMirrors(sid)` refreshes every node for one id; `syncAllMirrors()` does a
+`syncMirrors(sid)` refreshes every node for one id — including a Method-notes
+control whose `data-entry-ids` lists it, which renders its whole store
+entry's decision; `syncAllMirrors()` does a
 full pass and runs once after the initial render, to pick up everything
 assembly pre-accepted, and after any bulk change.
 
@@ -1551,40 +1556,83 @@ Criterion 18 / `REDESIGN.md` §L5: *"Method notes persist at render, and the
 report provides a way to reject one or attach modification instructions."*
 The condition is the point — the store fills from run one, an abandoned run
 included (abandonment is the historical norm), and a bad note is visible and
-correctable rather than permanent. **Which path owns what:**
+correctable rather than permanent.
+
+**The model: three units, kept apart.** Every surface of the loop — the
+page, render's record, `init` — follows this one model; the rest of this
+section only says where each applies it.
+
+| Unit | What it is | Role |
+|---|---|---|
+| **Suggestion id** | one `kind: "method-note"` suggestion on one tool | what a decision, a comment and an action attach to |
+| **Store entry** `(key, topic, note)` | what render writes and dedupes on | **the unit of persistence and of veto.** Several ids map to one entry when they propose identical text under one key — two tools' notes that convergence promoted to global, by design |
+| **Render outcome** per id | `written` / `already_present` / `failed` / `unreviewed` (or no record), in `method-notes.render.json`, embedded in the page as `REPORT.method_notes_render` | **the only source for what anything says about storage** — never the run's convergence state, which says what render *tried*, not what landed |
+
+The rules that follow from it:
+
+- **An entry is stored iff any of its ids was `written` or `already_present`.**
+  `failed`, `unreviewed` and no record are *not stored*. Under `converged`, a
+  store the writer could not read leaves every note `failed`: the page says
+  "not stored" and why, not "in the store".
+- **Any reject on an id is a veto of its entry**, and every control acts on
+  and shows the whole entry. Stored + veto → **one** withdraw, carried by the
+  first rejected id; the entry's other ids are skipped naming that carrier —
+  never "done, in store", because the entry is going. Not stored + veto →
+  nothing written.
+- **A not-stored entry is written once**, carried by the first writing id,
+  the others skipped naming it: when an id accepted it, or — for a `failed`
+  entry only — when an id is merely undecided. Render meant to store a failed
+  note and the user saw no reason not to, so a failed write is the one
+  persisted-path case that still needs the write at apply. An unreviewed or
+  unrecorded note is written only on an explicit accept.
+- **The key travels from the record** (a promoted note's add is
+  `add-global-method-note`); only with no record at all is it re-derived,
+  by render's own routing rule (`write_status.global_method_note_ids`).
+
+**Which path owns what:**
 
 | Stage | Owns | Mechanism |
 |---|---|---|
-| **Render** (`render.py`, `persist_method_notes`) | **the write** — primary, **only when convergence reviewed** | every `kind: "method-note"` suggestion still on a tool in `report.json` (what survived convergence's C6) is written through `write_status.py add-method-note` — **iff `report.convergence.state` is `converged` or `degraded_gate`** (`REVIEWED_STATES`); under `not_run`, `artefacts_inconsistent` or `degraded_unapplied` the report carries raw proposals nobody reviewed, nothing is written, and each is recorded `unreviewed` with the reason. A note the ledger `promoted_to_global` — or re-homed with `scope: "global"` — goes under the reserved key through `add-global-method-note`, the only real-run writer of that store. Idempotent by (topic, note); a refused write is recorded and said on stderr, never the run. The outcome is `{session_dir}/method-notes.render.json`: `reviewed`, `convergence_state`, then `written` / `already_present` / `failed` / `unreviewed`, each entry with the exact key, topic and note. |
-| **The page** (this tab) | **the surface that earns it** | `notesReviewed()` reads the same state set. Reviewed: every persisted note is visible, the control is veto/restore (= a `reject` on the canonical card), the lede says the notes are in the store. Unreviewed: the lede says they are **not**, the rows carry the ordinary three-button mirror (accept = write at apply), the card's store line says so. Either way a comment = modification instructions, and **typing one attaches `discuss`** when no decision was clicked (emptying it detaches only a decision it attached), so the comment always reaches `feedback.json`. Nothing counts as a decision. |
-| **`init`** (`write_status.py`, `_method_note_actions`) | **the mapping** | reads the render record: persisted + reject → **pending withdraw** with the exact `remove-method-note` invocation in `detail[0]`; persisted + accept/none → **done**; persisted + discuss → pending; unreviewed + accept → **pending add** with the `add-method-note` invocation; unreviewed + reject/none → skipped; any non-reject comment → pending `investigate:{id}` "Modify method note". No record → warn, accept writes, reject skips. |
+| **Render** (`render.py`, `persist_method_notes`) | **the write** — primary, **only when convergence reviewed** | every `kind: "method-note"` suggestion still on a tool in `report.json` (what survived convergence's C6) is written through `write_status.py add-method-note` — **iff `report.convergence.state` is `converged` or `degraded_gate`** (`REVIEWED_STATES`); under `not_run`, `artefacts_inconsistent` or `degraded_unapplied` the report carries raw proposals nobody reviewed, nothing is written, and each is recorded `unreviewed` with the reason. A note routed to global goes under the reserved key through `add-global-method-note`, the only real-run writer of that store. Idempotent by (topic, note); a refused write is recorded `failed` with the writer's reason and said on stderr, never the run. Persistence runs **before** the page payload is built, so the record rides in as `REPORT.method_notes_render`; the same record is `{session_dir}/method-notes.render.json` (`reviewed`, `convergence_state`, `store_problem` when there was one, then the four buckets, each entry with the exact key, topic and note). A crash persistence did not anticipate leaves a record that claims **nothing** (every bucket empty, the crash as `store_problem`), written over any earlier one — a failed claim would plan an add that could duplicate a write that did land. |
+| **The page** (this tab and the card) | **the surface that earns it** | `noteEntries()` groups ids into entries by the model's rule; `noteStorage(sid)` is the entry's `stored` / `failed` / `unreviewed` / `norecord`. The card's store line (`data-storage`) and the tab's lede (`data-stored` / `data-total`: all stored → *"Nothing here needs your attention"*; all unreviewed → *"Not in the store"*; otherwise *"N of M in the store"* with each not-stored count, its reason and what apply does) say exactly that. Rows group for display on topic + note text; each control is **one store entry** (`data-mirrors` = its first id, `data-entry-ids` = all of them, shown as `entryDecision()`: reject, else accept, else discuss). Stored → veto/restore. Not stored → the three-button mirror (accept writes at apply), and a `not stored · {write failed / unreviewed / no render record}` label; on a chip, an unreviewed or unrecorded entry takes the single accept toggle, a failed one keeps the three buttons (its default is "written", which a lone ○ would misstate). A shared row has one chip per entry naming every tool in it. Marks are data (`noteMarks`), their union deduped on (class, label). A comment = modification instructions, and **typing one attaches `discuss`** when no decision was clicked (emptying it detaches only a decision it attached), so the comment always reaches `feedback.json`. Nothing counts as a decision. |
+| **`init`** (`write_status.py`, `_method_note_actions`) | **the mapping, per entry** | applies the model's rules: pending withdraw (`remove-…` invocation in `detail[0]`), done, pending add (`add-…` invocation in `detail[0]`, the record's reason in the note), or skipped naming the carrier; a stored entry's `discuss` stays pending; any non-reject comment → pending `investigate:{id}` "Modify method note". |
 | **Apply** (`apply.md` §Executing `method-note` Suggestions) | **the disposition** — supplementary | runs what the action says, verbatim. Not-found on a withdraw is a failed action, never a silent success; several matches refuse and the recorded `--note` narrows. A modification is withdraw + re-add, never an in-place edit. `add-method-note` from an apply pass is otherwise only for an agent-initiated followup (path 2). |
 
-The loop is driven end to end by `PersistenceLoopTests`: render writes; the
-user vetoes one note on the tab and types a modification on another with no
+The loop is driven end to end by `PersistenceLoopTests`, on ONE render
+whose page and record are the ones `init` reads: render writes; the user
+vetoes one note on the tab and types a modification on another with no
 decision clicked; `buildFeedbackPayload()` becomes `feedback.json`; `init`
 synthesizes the actions; the withdraw action's own `detail[0]` runs; the
-store no longer holds the vetoed note. And the unreviewed twin: render writes
+store no longer holds the vetoed note. The unreviewed twin: render writes
 nothing, an explicit accept becomes a pending add, and only that note lands.
+The failed twin: every write fails under `converged`; the page says not
+stored and why; an undecided note becomes an add under the record's global
+key, a vetoed one does not, and the adds land once the store is fixed. The
+shared entry: one chip, one veto of both ids, one withdraw, the sibling id
+skipped naming the carrier, the other entry untouched — and `r` on the row
+is one withdraw per entry.
 
-The per-tool card keeps the canonical suggestion card (its body says the
-note is in the store), so the mirror architecture is untouched; the tab is
-mirrors.
+The per-tool card keeps the canonical suggestion card (its store line says
+what is true about its entry), so the mirror architecture is untouched; the
+tab is mirrors.
 
 **The tab** (`#panel-notes`, `renderNotes()`, `report-page.md` §6). A method
 note is a durable instruction replayed into every future run — a different
 question from everything else on the page (*"do I want the researcher told
 this forever?"*), hence its own tab. The lede: **"Nothing here needs your
-attention."** — the notes are already in the store; veto one if it looks
-wrong (or, unreviewed: **"Not in the store."** — accept one to write it).
+attention."** — when render's record says every note is in the store; veto
+one if it looks wrong (all unreviewed: **"Not in the store."** — accept one
+to write it; anything else: **"N of M in the store."** with why the rest are
+not).
 Grouped by `method_topic` **and note text** — one row of prose may stand
 only for entries it matches exactly; two tools proposing one topic with
 different text are two rows — **singletons first and open** (`One-off notes
 · N topics · only one tool needed each · most likely to be wrong`) — a note
 only one tool needed is where a bad note lives — and identical shared notes
 **collapsed** as one row each (`Notes several tools share · N topics · M
-tools`) with a control per tool inside the row, the marks as their union
-with each tool's own on its chip, and a textarea that writes through to
+tools`) with a chip per store entry inside the row — naming every tool that
+shares it, carrying that entry's control and its own marks in its title —
+the row's marks as their union, and a textarea that writes through to
 every entry the row stands for. Measured in the prototype: 38
 notes as a per-tool table were 3.4 screens of the same sentence; grouped,
 6 rows over 0.6 screens. Provenance marks read `report.convergence.memory`:
@@ -1592,9 +1640,11 @@ notes as a per-tool table were 3.4 screens of the same sentence; grouped,
 failed a higher bar), `promoted to global`, `restored` (kept against a failed
 self-test), and `self-test failed · {limb}` from the suggestion itself.
 
-Controls: `veto` / `restore` (the veto mirror variant, §Decision State and
-Mirrors) and a modification textarea that writes through to the canonical
-card's comment on `input`. `n` opens the tab, `v` vetoes the focused row.
+Controls: one per store entry — `veto` / `restore` (the veto mirror
+variant, §Decision State and Mirrors) on a stored entry, accept on a
+not-stored one (§Method Notes) — and a modification textarea that writes
+through to every canonical card's comment on `input`. `n` opens the tab, `v`
+vetoes the focused row (accepts, on a not-stored entry).
 The count in the tab label wears neutral ink, and a method note is excluded
 from the progress bar, the Submit gate, the header decision badge and the
 needs-decision sort (`DECISION_CARD_SEL`): a memory proposal never forces a
@@ -1714,8 +1764,8 @@ section" to "focused item in the active tab", so `focusedIdx` is per-tab
 |---|---|---|---|
 | `1` … `5` | switch tab (post-Submit the strip has five) | same | same |
 | `j` / `k` | next / previous Overview card — judgement rows, then the mixed security cards, then the highlight cards | next / previous visible tool section | next / previous note row |
-| `a` / `r` / `c` | act on the focused card's **first undecided mirror**; on a **judgement row only**, the first mirror (below) | act on the focused tool's first undecided suggestion card | `r` vetoes every note in the row, `a` restores, `c` discusses |
-| `v` | — | — | veto / restore the focused row |
+| `a` / `r` / `c` | act on the focused card's **first undecided mirror**; on a **judgement row only**, the first mirror (below) | act on the focused tool's first undecided suggestion card | `r` vetoes every store entry in the row (all their ids), `a` restores, `c` discusses; on a not-stored entry `a`/`r`/`c` act as everywhere |
+| `v` | — | — | veto / restore the focused row (toggle accept on a not-stored entry) |
 | `n` | switch to Method notes | same | same |
 | `s` | Submit when enabled | same | same |
 | `f` | switch to All tools, then cycle the filter preset | cycle preset All → Incompatible → Relevant | same as Overview |
@@ -1869,6 +1919,12 @@ replace can never touch structure. **Do not narrow this escape, and do not add
 a second interpolation path that bypasses it.** `rendering-results.md`
 §Markdown Rendering reuses the same escape-first discipline for agent-authored
 recap/changelog/turn text.
+
+`render.py` persists method notes **before** the payload is built and embeds
+the record as `REPORT.method_notes_render` through the same escaped
+replacement — one interpolation path — so the page can say what is true per
+note; `report.json` on disk is untouched and the same record sits beside it
+as `method-notes.render.json`.
 
 `render.py` refuses before it writes anything: `schema_version != 2`, then
 `contract_version != items.CONTRACT_VERSION` (exact equality, no shim —

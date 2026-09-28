@@ -424,8 +424,8 @@ DRIVER_TEMPLATE = """
 class PageDriveRunner(RenderRunner):
 	"""render → append driver → headless Chrome → read back #test-out."""
 
-	def drive(self, report, scenario_js, budget=6000):
-		p, report_dir = self.render(report)
+	def drive(self, report, scenario_js, budget=6000, state_home=None, report_dir=None):
+		p, report_dir = self.render(report, state_home=state_home, report_dir=report_dir)
 		self.assertEqual(p.returncode, 0, p.stderr)
 		page_path = os.path.join(report_dir, "index.html")
 		with open(page_path, encoding="utf-8") as fh:
@@ -1582,16 +1582,12 @@ class PersistenceLoopTests(PageDriveRunner):
 		return self._run_ws(state_home, argv[1:])
 
 	def _drive_and_init(self, report, state_home, scenario):
-		"""render → drive → feedback.json → init; returns (payload, actions,
-		report_dir)."""
+		"""render → drive → feedback.json → init, ONE render: the page
+		driven is the page beside the record init reads, so both see the
+		same per-note outcome. Returns (out, payload, actions, report_dir)."""
 		report_dir = tempfile.mkdtemp(prefix="render-loop-")
 		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
-		p, _ = self.render(report, state_home=state_home, report_dir=report_dir)
-		self.assertEqual(p.returncode, 0, p.stderr)
-		# drive() renders again into its own dir; the page is identical, so
-		# read the payload from that and write it beside THIS render's
-		# report.json + method-notes.render.json — the session dir init reads.
-		out = self.drive(report, scenario)
+		out = self.drive(report, scenario, state_home=state_home, report_dir=report_dir)
 		payload = json.loads(out["payload"])
 		with open(os.path.join(report_dir, "feedback.json"), "w", encoding="utf-8") as fh:
 			json.dump(payload, fh)
@@ -1599,13 +1595,13 @@ class PersistenceLoopTests(PageDriveRunner):
 		self.assertEqual(p.returncode, 0, p.stderr)
 		with open(os.path.join(report_dir, "status.json"), encoding="utf-8") as fh:
 			actions = {a["id"]: a for a in json.load(fh)["actions"]}
-		return payload, actions, report_dir
+		return out, payload, actions, report_dir
 
 	def test_a_vetoed_note_leaves_the_store_and_a_comment_becomes_an_action(self):
 		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
 		self.addCleanup(__import__("shutil").rmtree, state_home, True)
-		payload, actions, _ = self._drive_and_init(notes_report(), state_home, """
-		log('reviewed=' + document.getElementById('notes-lede').dataset.reviewed);
+		out, payload, actions, _ = self._drive_and_init(notes_report(), state_home, """
+		log('stored=' + document.getElementById('notes-lede').dataset.stored);
 		key('3');
 		// veto the re-homed one-off note …
 		document.querySelector('.nrow[data-note="brew:nnn:method-readline"] .veto').click();
@@ -1621,6 +1617,9 @@ class PersistenceLoopTests(PageDriveRunner):
 		log('detached=' + canonicalCard('brew:aa:method-cumulative').dataset.decision);
 		log('payload=' + JSON.stringify(buildFeedbackPayload()));
 """)
+		self.assertEqual(out["stored"], "5")
+		self.assertEqual(out["autoDecision"], "discuss")
+		self.assertEqual(out["detached"], "")
 		# The store held all five notes after render (the reviewed case).
 		before = self._store(state_home)
 		self.assertIn("brew:nnn", before)
@@ -1655,15 +1654,15 @@ class PersistenceLoopTests(PageDriveRunner):
 		report["convergence"] = {"state": "not_run"}
 		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
 		self.addCleanup(__import__("shutil").rmtree, state_home, True)
-		payload, actions, _ = self._drive_and_init(report, state_home, """
-		log('reviewed=' + document.getElementById('notes-lede').dataset.reviewed);
+		out, payload, actions, _ = self._drive_and_init(report, state_home, """
+		log('stored=' + document.getElementById('notes-lede').dataset.stored);
 		log('lede=' + document.getElementById('notes-lede').textContent.replace(/\\s+/g, ' ').trim().slice(0, 40));
 		key('3');
 		const row = document.querySelector('.nrow[data-note="brew:nnn:method-readline"]');
 		log('control=' + (row.querySelector('.veto') ? 'veto' : row.querySelector('.mirror') ? 'mirror' : 'none'));
 		key('2');
 		const card = canonicalCard('brew:nnn:method-readline');
-		log('storeLine=' + card.querySelector('.note-store-line').textContent.slice(0, 27));
+		log('storeLine=' + card.querySelector('.note-store-line').dataset.storage + '|' + card.querySelector('.note-store-line').textContent.slice(0, 28));
 		key('3');
 		key('j'); key('j');  // second one-off row: nnn (cc sorts first)
 		const ring = document.querySelector('#panel-notes [data-focused]');
@@ -1674,6 +1673,12 @@ class PersistenceLoopTests(PageDriveRunner):
 """)
 		self.assertFalse(os.path.exists(os.path.join(state_home, self.STORE)),
 			"render must not persist unreviewed proposals")
+		self.assertEqual(out["stored"], "0")
+		self.assertEqual(out["lede"], "Not in the store. Convergence did not re")
+		self.assertEqual(out["control"], "mirror")
+		self.assertEqual(out["storeLine"], "unreviewed|NOT in the method-note store")
+		self.assertEqual(out["ring"], "brew:nnn:method-readline")
+		self.assertEqual(out["decision"], "accept")
 		self.assertEqual(payload["decisions"]["brew:nnn:method-readline"]["decision"], "accept")
 		add = actions["brew:nnn:method-readline"]
 		self.assertEqual(add["state"], "pending")
@@ -1682,6 +1687,191 @@ class PersistenceLoopTests(PageDriveRunner):
 		p = self._run_detail(state_home, add)
 		self.assertEqual(p.returncode, 0, p.stderr)
 		self.assertEqual(sorted(self._store(state_home)), ["brew:nnn"])
+
+	def test_a_failed_write_is_shown_as_not_stored_and_becomes_a_pending_add(self):
+		"""Round-2 finding 1. The store is unreadable at render under
+		`converged`, so every write fails. What the page says about storage
+		comes from the per-note render outcome, never the run's state: NOT
+		stored, with the reason, and the controls offer accept and reject.
+		An undecided failed note is still written at apply (render meant to
+		store it); a rejected one is not; the key travels from the record —
+		global for the promoted note."""
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		path = os.path.join(state_home, self.STORE)
+		os.makedirs(os.path.dirname(path))
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write('{"brew:x": [{"topic": "t",')
+		out, payload, actions, _ = self._drive_and_init(notes_report(), state_home, """
+		const lede = document.getElementById('notes-lede');
+		log('stored=' + lede.dataset.stored + '/' + lede.dataset.total);
+		log('lede=' + lede.textContent.replace(/\\s+/g, ' ').trim());
+		key('2');
+		const line = canonicalCard('brew:cc:method-general').querySelector('.note-store-line');
+		log('storeLine=' + line.dataset.storage + '|' + line.textContent);
+		key('3');
+		const row = document.querySelector('.nrow[data-note="brew:cc:method-general"]');
+		log('control=' + (row.querySelector('.veto') ? 'veto' : row.querySelector('.mirror') ? 'mirror' : 'none'));
+		log('notStored=' + row.querySelector('.not-stored').textContent);
+		setStripOpen(document.getElementById('notes-shared'), true);
+		const chips = Array.from(document.querySelectorAll('#notes-shared .ntool'));
+		log('chipControls=' + chips.map(c => c.querySelector('.veto') ? 'veto' : c.querySelector('.mirror') ? 'mirror' : 'toggle').join(','));
+		// cc's global note stays undecided; nnn's is accepted on its row;
+		// aa's shared note is rejected on its chip.
+		document.querySelector('.nrow[data-note="brew:nnn:method-readline"] .mirror [data-action="accept"]').click();
+		chips[0].querySelector('.mirror [data-action="reject"]').click();
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""")
+		self.assertEqual(out["stored"], "0/5")
+		self.assertIn("0 of 5 in the store.", out["lede"])
+		self.assertIn("5 failed to write at render", out["lede"])
+		self.assertIn("could not be read", out["lede"])
+		self.assertNotIn("Nothing here needs your attention", out["lede"])
+		self.assertTrue(out["storeLine"].startswith("failed|NOT in the method-note store — render's write failed"),
+			out["storeLine"])
+		self.assertEqual(out["control"], "mirror")
+		self.assertEqual(out["notStored"], "not stored · write failed")
+		self.assertEqual(out["chipControls"], "mirror,mirror,mirror")
+		self.assertNotIn("brew:cc:method-general", payload["decisions"])
+		self.assertEqual(payload["decisions"]["brew:nnn:method-readline"]["decision"], "accept")
+		self.assertEqual(payload["decisions"]["brew:aa:method-cumulative"]["decision"], "reject")
+		# Undecided + failed → pending add under the RECORD's key (global).
+		add = actions["brew:cc:method-general"]
+		self.assertEqual(add["state"], "pending")
+		self.assertEqual(add["label"], "Add method note: tags beat release pages")
+		self.assertIn("add-global-method-note", add["detail"][0])
+		self.assertIn("could not be read", add["note"])
+		self.assertEqual(actions["brew:nnn:method-readline"]["state"], "pending")
+		self.assertEqual(actions["brew:bb:method-cumulative"]["state"], "pending")
+		vetoed = actions["brew:aa:method-cumulative"]
+		self.assertEqual((vetoed["state"], vetoed["detail"]), ("skipped", []))
+		# Fix the store, run every pending add exactly as written: they land,
+		# the vetoed one does not.
+		with open(path, "w", encoding="utf-8") as fh:
+			fh.write("{}")
+		for a in actions.values():
+			if a["label"].startswith("Add method note:"):
+				p = self._run_detail(state_home, a)
+				self.assertEqual(p.returncode, 0, p.stderr)
+		store = self._store(state_home)
+		self.assertEqual(sorted(store), ["brew:bb", "brew:cc", "brew:nnn", items.GLOBAL_METHOD_NOTE_KEY])
+		self.assertEqual([e["topic"] for e in store[items.GLOBAL_METHOD_NOTE_KEY]], ["tags beat release pages"])
+
+	def test_a_shared_entry_is_one_control_and_one_withdraw(self):
+		"""Round-2 finding 2 (and 3's marks). aa's and bb's identical notes
+		are both promoted to global: ONE store entry (render wrote it once,
+		recorded bb as already_present), so the shared row shows ONE chip
+		for it beside cc's own entry. Vetoing that chip rejects both ids;
+		init plans ONE withdraw and bb is skipped naming the carrier —
+		never "done, in store"; the withdraw runs once and cc's entries
+		stay. Round two, on a fresh store: `r` on the whole row is one
+		withdraw per entry — two, never three."""
+		report = notes_report()
+		report["convergence"]["memory"]["promoted_to_global"] += [
+			"brew:aa:method-cumulative", "brew:bb:method-cumulative"]
+		# Give aa and bb the SAME mark twice over (both promoted) plus a
+		# self-test tag each, so the union has duplicates to collapse.
+		for t in report["tools"]:
+			if t["id"] in ("brew:aa", "brew:bb"):
+				t["suggestions"][-1]["self_test_failed"] = {"limb": "unwitnessed", "reason": t["id"]}
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		out, payload, actions, _ = self._drive_and_init(report, state_home, """
+		key('3');
+		setStripOpen(document.getElementById('notes-shared'), true);
+		const row = document.querySelector('#notes-shared .nrow');
+		const chips = Array.from(row.querySelectorAll('.ntool'));
+		log('chips=' + chips.map(c => c.dataset.entryKey + ':' + c.querySelector('.veto').dataset.entryIds).join('|'));
+		const globalChip = chips.find(c => c.dataset.entryKey === 'global');
+		// A reject on ONE id's canonical card — not the carrier's — is a
+		// veto of the whole entry, and the chip says so.
+		setDecision('brew:bb:method-cumulative', 'reject');
+		log('oneId=' + globalChip.querySelector('.veto').textContent + '/' + globalChip.dataset.vetoed);
+		setDecision('brew:bb:method-cumulative', 'reject');
+		log('oneIdCleared=' + globalChip.querySelector('.veto').textContent);
+		globalChip.querySelector('.veto').click();
+		log('afterChip=' + ['brew:aa:method-cumulative', 'brew:bb:method-cumulative', 'brew:cc:method-cumulative']
+			.map(sid => canonicalCard(sid).dataset.decision || '-').join(','));
+		log('chipVetoed=' + globalChip.dataset.vetoed + '/' + globalChip.querySelector('.veto').textContent + '/' + row.dataset.vetoed);
+		log('marks=' + Array.from(row.querySelectorAll('.topic .mark')).map(m => m.textContent).join('|'));
+		log('rowHtmlClean=' + !/<\\/span><\\/span>|<\\/span><\\/div><\\/span>/.test(row.querySelector('.topic').innerHTML));
+		key('2');
+		log('bbStoreLine=' + canonicalCard('brew:bb:method-cumulative').querySelector('.note-store-line').textContent);
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""")
+		self.assertEqual(out["chips"], "global:brew:aa:method-cumulative brew:bb:method-cumulative|brew:cc:brew:cc:method-cumulative")
+		self.assertEqual(out["afterChip"], "reject,reject,-")
+		self.assertEqual(out["chipVetoed"], "1/restore/0")
+		self.assertEqual(out["oneId"], "restore/1", "a reject on bb alone vetoes the entry")
+		self.assertEqual(out["oneIdCleared"], "veto")
+		self.assertEqual(out["marks"], "promoted to global|self-test failed · unwitnessed")
+		self.assertEqual(out["rowHtmlClean"], "true")
+		self.assertIn("In the method-note store under global", out["bbStoreLine"])
+		self.assertIn("One store entry with aa's identical note", out["bbStoreLine"])
+		self.assertEqual(payload["decisions"]["brew:aa:method-cumulative"]["decision"], "reject")
+		self.assertEqual(payload["decisions"]["brew:bb:method-cumulative"]["decision"], "reject")
+		self.assertNotIn("brew:cc:method-cumulative", payload["decisions"])
+		withdraws = [a for a in actions.values() if a["label"].startswith("Withdraw")]
+		self.assertEqual([w["id"] for w in withdraws], ["brew:aa:method-cumulative"], "one entry, one withdraw")
+		self.assertIn("remove-global-method-note", withdraws[0]["detail"][0])
+		other = actions["brew:bb:method-cumulative"]
+		self.assertEqual(other["state"], "skipped")
+		self.assertEqual(other["note"], "Same store entry as 'brew:aa:method-cumulative', which withdraws it")
+		self.assertEqual(actions["brew:cc:method-cumulative"]["state"], "done")
+		p = self._run_detail(state_home, withdraws[0])
+		self.assertEqual(p.returncode, 0, p.stderr)
+		store = self._store(state_home)
+		self.assertEqual([e["topic"] for e in store[items.GLOBAL_METHOD_NOTE_KEY]],
+			["tags beat release pages"], "the shared entry is gone; cc's global note stays")
+		self.assertEqual(len(store["brew:cc"]), 1)
+		# Round two, fresh store: `r` on the focused shared row, `a`, `r`.
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		out, _, actions, _ = self._drive_and_init(report, state_home, """
+		key('3');
+		setStripOpen(document.getElementById('notes-shared'), true);
+		for (let i = 0; i < 6 && !(document.querySelector('#panel-notes [data-focused]') || {dataset: {}}).dataset.topic; i++) key('j');
+		log('ring=' + document.querySelector('#panel-notes [data-focused]').dataset.topic);
+		const ids = ['brew:aa:method-cumulative', 'brew:bb:method-cumulative', 'brew:cc:method-cumulative'];
+		key('r');
+		log('afterRow=' + ids.map(sid => canonicalCard(sid).dataset.decision || '-').join(','));
+		key('a');
+		log('afterRestore=' + ids.map(sid => canonicalCard(sid).dataset.decision || '-').join(','));
+		key('r');
+		log('payload=' + JSON.stringify(buildFeedbackPayload()));
+""")
+		self.assertEqual(out["ring"], "changelog is cumulative — scope to the version pair")
+		self.assertEqual(out["afterRow"], "reject,reject,reject")
+		self.assertEqual(out["afterRestore"], "-,-,-")
+		withdraws = sorted(a["id"] for a in actions.values() if a["label"].startswith("Withdraw"))
+		self.assertEqual(withdraws, ["brew:aa:method-cumulative", "brew:cc:method-cumulative"],
+			"two entries in the row (global, brew:cc), two withdraws — never three")
+		for sid in withdraws:
+			p = self._run_detail(state_home, actions[sid])
+			self.assertEqual(p.returncode, 0, p.stderr)
+		store = self._store(state_home)
+		self.assertNotIn("brew:cc", store)
+		self.assertEqual([e["topic"] for e in store[items.GLOBAL_METHOD_NOTE_KEY]], ["tags beat release pages"])
+
+	def test_a_crashed_persistence_claims_nothing(self):
+		"""The render survives anything persist_method_notes did not
+		anticipate — and then the page claims NO note as stored, reading a
+		record that says so, which init reads too."""
+		state_home = tempfile.mkdtemp(prefix="render-loop-state-")
+		self.addCleanup(__import__("shutil").rmtree, state_home, True)
+		report_dir = tempfile.mkdtemp(prefix="render-loop-")
+		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
+		# The record's path is a directory: the record write raises.
+		os.makedirs(os.path.join(report_dir, "method-notes.render.json"))
+		p, _ = self.render(notes_report(), state_home=state_home, report_dir=report_dir)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertIn("persistence crashed", p.stderr)
+		self.assertIn("no note known to be stored", p.stderr)
+		with open(os.path.join(report_dir, "index.html"), encoding="utf-8") as fh:
+			html = fh.read()
+		self.assertIn('"method_notes_render": {', html)
+		self.assertIn('"written": []', html)
+		self.assertIn("persistence crashed", html)
 
 
 if __name__ == "__main__":

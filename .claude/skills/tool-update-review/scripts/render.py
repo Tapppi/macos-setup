@@ -28,8 +28,9 @@ RENDER_RECORD = write_status.METHOD_NOTES_RENDER_RECORD
 # (the pre-convergence corpus), `artefacts_inconsistent` (the PRE corpus
 # rendered because the artefacts disagree) and `degraded_unapplied` (the
 # submission set aside; corpus.post IS corpus.pre) all mean the reviewer did
-# not review. The page reads the same set (`notesReviewed()`), and the loop
-# test drives both.
+# not review. The page never re-derives this: it reads the per-note outcome
+# from the record embedded as REPORT.method_notes_render, and the loop test
+# drives both sides.
 REVIEWED_STATES = ("converged", "degraded_gate")
 
 
@@ -72,12 +73,7 @@ def persist_method_notes(report: dict, report_dir: str) -> dict:
 	conv = report.get("convergence") if isinstance(report.get("convergence"), dict) else {}
 	state = conv.get("state") if isinstance(conv.get("state"), str) else "absent"
 	reviewed = state in REVIEWED_STATES
-	memory = conv.get("memory") if isinstance(conv.get("memory"), dict) else {}
-	global_ids = {s for s in (memory.get("promoted_to_global") or []) if isinstance(s, str)}
-	for row in memory.get("rehomed_to_method_note") or []:
-		if isinstance(row, dict) and row.get("scope") == "global" \
-				and isinstance(row.get("new_note_id"), str):
-			global_ids.add(row["new_note_id"])
+	global_ids = write_status.global_method_note_ids(report)
 
 	store_file = write_status.store_path(items.METHOD_NOTES_STORE)
 	store, problem = write_status._load_store(store_file)
@@ -240,6 +236,37 @@ def main():
 		print(f"Error: template not found: {template_path}", file=sys.stderr)
 		sys.exit(1)
 
+	# ── Persist method notes (criterion 18) — BEFORE the payload is built,
+	# because the page must say what is true about storage per note, and
+	# only the render outcome knows that. The record rides into the page
+	# as REPORT.method_notes_render through the same escaped replacement
+	# below — one interpolation path, never a second. report.json on disk
+	# is untouched; the same record sits beside it as
+	# method-notes.render.json. A store problem can never cost the render:
+	# persist_method_notes records refusals, and anything it did not
+	# anticipate becomes a record that claims nothing. ─────────────────────
+	try:
+		record = persist_method_notes(report, report_dir)
+	except Exception as exc:  # the render must still happen
+		# Nothing is known about what reached the store, so NO note is
+		# claimed as stored and none as failed (a failed note becomes an
+		# add at apply, which could duplicate a write that did land before
+		# the crash). The page then says "no render record" per note and
+		# init treats them the same way — both read THIS record, which is
+		# written in place of whatever an earlier render left there.
+		problem = f"{type(exc).__name__}: {exc}"
+		record = {"report_id": report.get("report_id", ""), "reviewed": False,
+			"convergence_state": "unknown", "store_problem": f"persistence crashed — {problem}",
+			"written": [], "already_present": [], "failed": [], "unreviewed": []}
+		print(f"warning: method-note persistence crashed ({problem}) — the page renders "
+			f"with no note known to be stored", file=sys.stderr)
+		try:
+			with open(os.path.join(report_dir, RENDER_RECORD), "w", encoding="utf-8") as fh:
+				json.dump(record, fh, ensure_ascii=False, indent="\t")
+				fh.write("\n")
+		except OSError as write_exc:
+			print(f"warning: could not write {RENDER_RECORD} either ({write_exc})", file=sys.stderr)
+
 	# ── Three token replacements per references/rendering-report.md §Template Variables ───
 	# The tokens inside attribute quotes include the surrounding quotes.
 	html = html.replace('"__REPORT_ID__"',    json.dumps(report_id))
@@ -254,17 +281,14 @@ def main():
 	# breakout spellings ("</", "<!--", "<script") is a losing game, so no
 	# "<" survives at all. JSON puts "<" only inside string literals, so the
 	# blanket replace can never touch structure.
-	report_json = json.dumps(report, ensure_ascii=False).replace("<", "\\u003c")
+	page_report = dict(report, method_notes_render=record)
+	report_json = json.dumps(page_report, ensure_ascii=False).replace("<", "\\u003c")
 	html = html.replace("__REPORT_DATA__", report_json)
 
 	# ── Write index.html ──────────────────────────────────────────────────
 	out_path = os.path.join(report_dir, "index.html")
 	with open(out_path, "w", encoding="utf-8") as fh:
 		fh.write(html)
-
-	# ── Persist method notes (criterion 18) — after the page exists, so a
-	# store problem can never cost the render. ─────────────────────────────
-	persist_method_notes(report, report_dir)
 
 	# ── Copy server.py ────────────────────────────────────────────────────
 	server_dst = os.path.join(report_dir, "server.py")

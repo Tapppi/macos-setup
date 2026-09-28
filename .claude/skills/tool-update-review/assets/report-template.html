@@ -441,6 +441,16 @@
 		}
 		.ntool[data-vetoed="1"] { text-decoration: line-through; color: var(--base01); }
 		.ntool .veto { min-width: 0; min-height: 20px; padding: 0 6px; font-size: 10.5px; }
+		.ntool .mirror .btn-d { min-height: 20px; padding: 0 6px; font-size: 10.5px; }
+
+		/* A store entry render did not store says so where its control is
+		 * (the reason and what apply does are the title). */
+		.not-stored {
+			font-family: var(--mono);
+			font-size: 10.5px;
+			color: var(--yellow);
+			white-space: nowrap;
+		}
 
 		/* Frozen: vetoes freeze with the rest — a vetoed note renders struck
 		 * through with a label rather than a restore button. */
@@ -3686,9 +3696,27 @@
 		 * the watch item's sibling: how to research this tool correctly next
 		 * time. Previously this kind fell through to renderDiff(undefined)
 		 * and rendered an EMPTY card body — topic, note and rationale all
-		 * unreachable anywhere on the page. The store line states the
-		 * render-persist contract (criterion 18): the note is already in
-		 * method-notes.json; Reject withdraws it at apply. */
+		 * unreachable anywhere on the page. The store line says what is
+		 * TRUE about this note's store entry, from the render outcome
+		 * (noteStorage) — never from the run's convergence state — and
+		 * what apply will do with it (rendering-report.md §Method Notes). */
+		function noteStoreLineHtml(sug) {
+			const en = noteEntryOf(sug.id);
+			const storage = en ? en.storage : 'norecord';
+			const why = en ? noteEntryReason(en) : '';
+			const others = en ? en.tools.filter((t, i) => en.ids[i] !== sug.id).map(t => t.name) : [];
+			const shared = others.length
+				? ` One store entry with ${others.join(', ')}'s identical note: a reject on any of them withdraws it for all.`
+				: '';
+			const text = {
+				stored: `In the method-note store under ${en ? en.key : ''} — persisted at render. Reject to withdraw it; a comment attaches modification instructions.${shared}`,
+				failed: `NOT in the method-note store — render's write failed${why ? ` (${why})` : ''}. Apply writes it unless you reject it, so fix the store first; a comment attaches modification instructions.${shared}`,
+				unreviewed: `NOT in the method-note store — convergence did not review this proposal, so nothing was persisted. Accept to write it at apply; a comment attaches modification instructions.${shared}`,
+				norecord: `NOT known to be in the method-note store — render left no record for this note${why ? ` (${why})` : ''}. Accept to write it at apply; a comment attaches modification instructions.${shared}`,
+			}[storage];
+			return `<div class="note-store-line" data-storage="${esc(storage)}">${esc(text)}</div>`;
+		}
+
 		function renderMethodNoteBody(sug) {
 			const rationale = typeof sug.rationale === 'string' && sug.rationale.trim()
 				? `<div class="watch-item-note" style="margin-top:4px"><em>Why the ordinary path fails:</em> ${esc(sug.rationale.trim())}</div>`
@@ -3697,9 +3725,7 @@
 				<div class="watch-item-topic">📝 ${esc(sug.method_topic || '')}</div>
 				<div class="watch-item-note">${esc(sug.method_note || '')}</div>
 				${rationale}
-				<div class="note-store-line">${notesReviewed()
-					? 'In the method-note store — persisted at render. Reject to withdraw it; a comment attaches modification instructions.'
-					: 'NOT in the method-note store — convergence did not review this proposal, so nothing was persisted. Accept to write it at apply; a comment attaches modification instructions.'}</div>
+				${noteStoreLineHtml(sug)}
 			</div>${selfTestHtml(sug)}`;
 		}
 
@@ -4732,8 +4758,11 @@
 		 * state and none of them a .suggestion-card — which is what keeps
 		 * submitFeedback(), updateProgress() and sectionNeedsDecision()
 		 * correct without touching one of their selectors. */
-		function mirrorHtml(sid) {
-			return `<div class="mirror" data-mirrors="${esc(sid)}">
+		/* `entryIds` — a Method-notes control standing for a whole store
+		 * entry (rendering-report.md §Method Notes); elsewhere absent. */
+		function mirrorHtml(sid, entryIds) {
+			const entry = entryIds ? ` data-entry-ids="${esc(entryIds.join(' '))}"` : '';
+			return `<div class="mirror" data-mirrors="${esc(sid)}"${entry}>
 				<button type="button" class="btn-d" data-action="accept">Accept</button>
 				<button type="button" class="btn-d" data-action="reject">Reject</button>
 				<button type="button" class="btn-d" data-action="discuss">Discuss</button>
@@ -5737,12 +5766,12 @@
 				const on = decision === 'reject';
 				node.dataset.on = on ? '1' : '0';
 				node.textContent = on ? 'restore' : 'veto';
-				node.title = on ? 'Vetoed — apply withdraws this note from the store' : 'Veto — withdraw this note at apply';
+				node.title = on ? 'Vetoed — apply withdraws this store entry' : 'Veto — withdraw this store entry at apply';
 				const row = node.closest('.ntool, .nrow');
 				if (row) row.dataset.vetoed = on ? '1' : '0';
 				const outer = node.closest('.nrow');
 				if (outer && outer.querySelector('.ntools')) {
-					/* A shared-topic row is vetoed only when every tool's note is. */
+					/* A shared-topic row is vetoed only when every entry in it is. */
 					const all = Array.from(outer.querySelectorAll('.ntool'));
 					outer.dataset.vetoed = all.length && all.every(t => t.dataset.vetoed === '1') ? '1' : '0';
 				}
@@ -5750,11 +5779,15 @@
 			}
 		}
 
+		/* A Method-notes control stands for a whole store entry
+		 * (data-entry-ids) and renders the ENTRY's decision (entryDecision),
+		 * so a change on any of its ids — here or on a canonical card —
+		 * reaches it. */
 		function syncMirrors(sid) {
 			const card = canonicalCard(sid);
 			const d = card ? card.dataset.decision : '';
-			document.querySelectorAll(`[data-mirrors="${CSS.escape(sid)}"]`)
-				.forEach(node => renderMirrorState(node, d));
+			document.querySelectorAll(`[data-mirrors="${CSS.escape(sid)}"], [data-entry-ids~="${CSS.escape(sid)}"]`)
+				.forEach(node => renderMirrorState(node, node.dataset.entryIds ? entryDecision(entryIdsOf(node)) : d));
 			document.querySelectorAll(`[data-mirror-dot="${CSS.escape(sid)}"]`)
 				.forEach(el => {
 					const on = d === 'accept';
@@ -6164,19 +6197,22 @@
 			/* Mirror decision buttons (mixed cards, highlight rows) and the
 			 * single-toggle accept control (auto rows). Both route through
 			 * setDecision(), which writes the canonical card. */
+			/* entryIdsOf(): a Method-notes control acts on every id of its
+			 * store entry; everywhere else it is the one mirrored id, and
+			 * setEntryDecision() is then setDecision()'s own toggle. */
 			const vetoBtn = e.target.closest('.veto[data-mirrors]');
 			if (vetoBtn) {
-				setDecision(vetoBtn.dataset.mirrors, 'reject');
+				setEntryDecision(entryIdsOf(vetoBtn), 'reject');
 				return;
 			}
 			const mirrorBtn = e.target.closest('.mirror[data-mirrors] .btn-d');
 			if (mirrorBtn) {
-				setDecision(mirrorBtn.closest('.mirror').dataset.mirrors, mirrorBtn.dataset.action);
+				setEntryDecision(entryIdsOf(mirrorBtn.closest('.mirror')), mirrorBtn.dataset.action);
 				return;
 			}
 			const accToggle = e.target.closest('.acc-toggle[data-mirrors]');
 			if (accToggle) {
-				setDecision(accToggle.dataset.mirrors, 'accept');
+				setEntryDecision(entryIdsOf(accToggle), 'accept');
 				return;
 			}
 
@@ -6803,30 +6839,28 @@
 		/* On the Overview an item's decision controls are mirrors, so "first
 		 * undecided" is resolved against the canonical cards they mirror —
 		 * never against any state held on the mirror itself. */
-		/* On the Method notes tab a row's mirrors are veto controls: `r`/`v`
-		 * veto every note in the row, `a` restores them, `c` discusses. */
+		/* On the Method notes tab a row's controls each stand for one store
+		 * entry: `r`/`v` veto every stored entry in the row, `a` restores
+		 * them, `c` discusses; on a not-stored entry a/r/c act as
+		 * everywhere and `v` toggles accept (the write-at-apply decision).
+		 * Every act reaches all of an entry's ids. */
 		function vetoFocusedRow(action) {
 			const item = focusedItem();
 			if (!item) return;
-			const seen = new Set();
-			item.querySelectorAll('[data-mirrors]').forEach(v => {
-				const sid = v.dataset.mirrors;
-				if (seen.has(sid)) return;
-				seen.add(sid);
+			const setAll = (ids, act, when) => ids.forEach(sid => {
 				const card = canonicalCard(sid);
-				if (!card) return;
-				const cur = card.dataset.decision;
+				if (card && when(card.dataset.decision)) setDecision(sid, act);
+			});
+			item.querySelectorAll('[data-mirrors]').forEach(v => {
+				const ids = entryIdsOf(v);
 				if (v.classList.contains('veto')) {
-					if (action === 'reject' && cur !== 'reject') setDecision(sid, 'reject');
-					else if (action === 'toggle') setDecision(sid, 'reject');
-					else if (action === 'accept' && cur === 'reject') setDecision(sid, 'reject');
-					else if (action === 'discuss' && cur !== 'discuss') setDecision(sid, 'discuss');
+					if (action === 'toggle') setEntryDecision(ids, 'reject');
+					else if (action === 'accept') setAll(ids, 'reject', d => d === 'reject');
+					else setAll(ids, action, d => d !== action);
 					return;
 				}
-				/* An unreviewed note's ordinary mirror: a/r/c as everywhere,
-				 * v toggles accept (the write-at-apply decision). */
-				if (action === 'toggle') setDecision(sid, 'accept');
-				else if (cur !== action) setDecision(sid, action);
+				if (action === 'toggle') setEntryDecision(ids, 'accept');
+				else setAll(ids, action, d => d !== action);
 			});
 		}
 
@@ -7052,17 +7086,107 @@
 		 * prototype's per-tool table was 3.4 screens of the same sentence;
 		 * grouped it is 6 rows, and the notes only one tool needed — where
 		 * a bad note lives — are the only thing above the fold. */
-		/* Did convergence actually review the proposals? The same set
-		 * render.py's REVIEWED_STATES names: converged and degraded_gate
-		 * applied the submission (C6 included); not_run, artefacts_
-		 * inconsistent and degraded_unapplied leave raw proposals nobody
-		 * reviewed, which render did NOT persist. The loop test drives both
-		 * sides against one report. */
-		const REVIEWED_STATES = ['converged', 'degraded_gate'];
+		/* ── The three units (rendering-report.md §Method Notes) ─────────
+		 * A SUGGESTION ID is what a control and the decisions map act on.
+		 * A STORE ENTRY (key, topic, note) is what render wrote and
+		 * dedupes on — several ids map to one entry when two tools propose
+		 * one note and convergence promotes both — and it is the unit of
+		 * persistence and of veto: every control here acts on all of an
+		 * entry's ids at once. The per-id RENDER OUTCOME, embedded by
+		 * render.py as REPORT.method_notes_render, is the ONLY source for
+		 * what this page says about storage — never the run's convergence
+		 * state, which says what render tried, not what landed. An entry
+		 * is `stored` iff any id was written or already present; `failed`,
+		 * `unreviewed` and `norecord` are not stored. write_status.py init
+		 * groups ids into entries by the same rule (_method_note_actions),
+		 * so the page and the action list cannot disagree. */
+		const GLOBAL_NOTE_KEY = 'global';  // items.GLOBAL_METHOD_NOTE_KEY
+		let noteEntryIndex = null;
 
-		function notesReviewed() {
+		function noteRenderRecord() {
+			const r = REPORT.method_notes_render;
+			return (r && typeof r === 'object') ? r : null;
+		}
+
+		function noteEntries() {
+			if (noteEntryIndex) return noteEntryIndex;
+			const rec = noteRenderRecord();
+			const outcome = new Map();
+			['written', 'already_present', 'failed', 'unreviewed'].forEach(bucket => {
+				(rec && Array.isArray(rec[bucket]) ? rec[bucket] : []).forEach(e => {
+					if (e && typeof e === 'object' && typeof e.suggestion_id === 'string') {
+						outcome.set(e.suggestion_id, { bucket,
+							key: typeof e.key === 'string' ? e.key : null,
+							reason: typeof e.reason === 'string' ? e.reason : '' });
+					}
+				});
+			});
+			/* The no-record fallback key: render's own routing rule
+			 * (write_status.global_method_note_ids). */
 			const conv = (REPORT.convergence && typeof REPORT.convergence === 'object') ? REPORT.convergence : {};
-			return REVIEWED_STATES.includes(conv.state);
+			const mem = (conv.memory && typeof conv.memory === 'object') ? conv.memory : {};
+			const globalIds = new Set((Array.isArray(mem.promoted_to_global) ? mem.promoted_to_global : []).filter(x => typeof x === 'string'));
+			(Array.isArray(mem.rehomed_to_method_note) ? mem.rehomed_to_method_note : []).forEach(r => {
+				if (r && typeof r === 'object' && r.scope === 'global' && typeof r.new_note_id === 'string') globalIds.add(r.new_note_id);
+			});
+			const byKey = new Map(), bySid = new Map();
+			methodNoteSuggestions().forEach(({ tool, sug }) => {
+				const o = outcome.get(sug.id) || null;
+				const key = o && o.key !== null ? o.key : (globalIds.has(sug.id) ? GLOBAL_NOTE_KEY : tool.id);
+				const topic = typeof sug.method_topic === 'string' ? sug.method_topic : '';
+				const note = typeof sug.method_note === 'string' ? sug.method_note : '';
+				const k = [key, topic, note].join('\u0000');
+				if (!byKey.has(k)) byKey.set(k, { key, ids: [], tools: [], sugs: [], buckets: new Set(), reasons: [] });
+				const en = byKey.get(k);
+				en.ids.push(sug.id); en.tools.push(tool); en.sugs.push(sug);
+				en.buckets.add(o ? o.bucket : 'norecord');
+				if (o && o.reason && !en.reasons.includes(o.reason)) en.reasons.push(o.reason);
+				bySid.set(sug.id, en);
+			});
+			byKey.forEach(en => {
+				en.storage = (en.buckets.has('written') || en.buckets.has('already_present')) ? 'stored'
+					: en.buckets.has('failed') ? 'failed'
+					: en.buckets.has('unreviewed') ? 'unreviewed' : 'norecord';
+			});
+			noteEntryIndex = { entries: Array.from(byKey.values()), bySid };
+			return noteEntryIndex;
+		}
+
+		function noteEntryOf(sid) { return noteEntries().bySid.get(sid) || null; }
+
+		/* 'stored' | 'failed' | 'unreviewed' | 'norecord' — of the ENTRY
+		 * the id maps to. */
+		function noteStorage(sid) {
+			const en = noteEntryOf(sid);
+			return en ? en.storage : 'norecord';
+		}
+
+		function noteEntryReason(en) {
+			const rec = noteRenderRecord();
+			return en.reasons.join('; ') || (rec && typeof rec.store_problem === 'string' ? rec.store_problem : '');
+		}
+
+		/* One decision for an entry, in the precedence init plans by: any
+		 * reject is a veto of the entry; else any accept; else any discuss. */
+		function entryDecision(ids) {
+			const ds = ids.map(sid => { const c = canonicalCard(sid); return c ? c.dataset.decision : ''; });
+			return ['reject', 'accept', 'discuss'].find(d => ds.includes(d)) || '';
+		}
+
+		function entryIdsOf(node) {
+			return (node.dataset.entryIds || node.dataset.mirrors || '').split(' ').filter(Boolean);
+		}
+
+		/* A control over an entry toggles the entry: on (the entry already
+		 * reads `action`) clears `action` from every id carrying it; off
+		 * sets it on every id. One id, this is setDecision's own toggle. */
+		function setEntryDecision(ids, action) {
+			const on = entryDecision(ids) === action;
+			ids.forEach(sid => {
+				const c = canonicalCard(sid);
+				if (!c) return;
+				if (on ? c.dataset.decision === action : c.dataset.decision !== action) setDecision(sid, action);
+			});
 		}
 
 		function methodNoteSuggestions() {
@@ -7088,76 +7212,124 @@
 			return { promoted: strs(m.promoted_to_global), restored: strs(m.restored), rehomed };
 		}
 
-		function noteMarksHtml(sug, disp) {
+		/* Marks are DATA, rendered once: a shared row's union is deduped on
+		 * (class, label), never on serialised markup. */
+		function noteMarks(sug, disp) {
 			const marks = [];
-			if (disp.rehomed.has(sug.id)) marks.push(`<span class="mark rehomed" title="Proposed as a watch item; convergence re-homed it as a method note — it carries a worry that failed a higher bar">re-homed</span>`);
-			if (disp.promoted.has(sug.id)) marks.push(`<span class="mark global" title="Convergence promoted this to the global store — it applies to every tool">promoted to global</span>`);
-			if (disp.restored.has(sug.id)) marks.push(`<span class="mark restored" title="The self-test failed; convergence kept the note anyway">restored</span>`);
+			if (disp.rehomed.has(sug.id)) marks.push({ cls: 'rehomed', label: 're-homed', title: 'Proposed as a watch item; convergence re-homed it as a method note — it carries a worry that failed a higher bar' });
+			if (disp.promoted.has(sug.id)) marks.push({ cls: 'global', label: 'promoted to global', title: 'Convergence promoted this to the global store — it applies to every tool' });
+			if (disp.restored.has(sug.id)) marks.push({ cls: 'restored', label: 'restored', title: 'The self-test failed; convergence kept the note anyway' });
 			if (sug.self_test_failed && typeof sug.self_test_failed === 'object') {
-				marks.push(`<span class="mark selftest" title="${esc(sug.self_test_failed.reason || '')}">self-test failed · ${esc(sug.self_test_failed.limb || '?')}</span>`);
+				marks.push({ cls: 'selftest', label: `self-test failed · ${sug.self_test_failed.limb || '?'}`, title: sug.self_test_failed.reason || '' });
 			}
-			return marks.length ? `<div class="marks">${marks.join('')}</div>` : '';
+			return marks;
 		}
 
-		function vetoHtml(sid) {
-			return `<button type="button" class="btn-d veto" data-mirrors="${esc(sid)}" data-on="0">veto</button><span class="vetoed-label">vetoed</span>`;
+		function uniqueMarks(marks) {
+			const seen = new Set();
+			return marks.filter(m => { const k = m.cls + '\u0000' + m.label; if (seen.has(k)) return false; seen.add(k); return true; });
 		}
 
-		/* `sids` — one id, or every id a shared row stands for: the same
-		 * instruction reaches every entry's canonical comment. Ids are
-		 * `{source}:{name}:{slug}` and never contain a space, so a space
-		 * joins them. */
+		function noteMarksHtml(marks) {
+			return marks.length
+				? `<div class="marks">${marks.map(m => `<span class="mark ${esc(m.cls)}" title="${esc(m.title)}">${esc(m.label)}</span>`).join('')}</div>`
+				: '';
+		}
+
+		/* `sids` — every id a row stands for: the same instruction reaches
+		 * every id's canonical comment. Ids are `{source}:{name}:{slug}`
+		 * and never contain a space, so a space joins them. */
 		function modifyHtml(sids) {
-			const list = Array.isArray(sids) ? sids : [sids];
-			return `<textarea class="note-modify" data-for="${esc(list.join(' '))}" rows="1" placeholder="Modification instructions…" title="Written to this note's comment — apply reads it as instructions to change the note"></textarea>`;
+			return `<textarea class="note-modify" data-for="${esc(sids.join(' '))}" rows="1" placeholder="Modification instructions…" title="Written to this note's comment — apply reads it as instructions to change the note"></textarea>`;
 		}
 
-		/* The row's decision control: reviewed notes are in the store, so
-		 * the control is veto/restore; unreviewed notes are NOT, so the row
-		 * carries the ordinary three-button mirror (accept = write at apply)
-		 * and a chip the single accept toggle. */
-		function noteControlHtml(sid, chip) {
-			if (notesReviewed()) return vetoHtml(sid);
-			return chip
-				? `<button type="button" class="acc-toggle" data-mirrors="${esc(sid)}" data-on="0" aria-label="Toggle acceptance">○</button>`
-				: mirrorHtml(sid);
+		const NOT_STORED_WORD = { failed: 'write failed', unreviewed: 'unreviewed', norecord: 'no render record' };
+
+		/* What a not-stored entry says about itself, and what apply does
+		 * with it — the same wording the card's store line uses. */
+		function notStoredHtml(en) {
+			if (en.storage === 'stored') return '';
+			const why = noteEntryReason(en);
+			const then = en.storage === 'failed' ? 'apply writes it unless you reject it' : 'accept writes it at apply';
+			return `<span class="not-stored" data-storage="${esc(en.storage)}" title="${esc((why ? why + ' — ' : '') + then)}">not stored · ${esc(NOT_STORED_WORD[en.storage])}</span>`;
 		}
 
-		function methodNoteRowHtml(entry, disp) {
-			const { tool, sug } = entry;
-			return `<div class="nrow" data-note="${esc(sug.id)}" data-tool="${esc(tool.id)}" data-vetoed="0" tabindex="-1">
+		/* The control for ONE store entry, over all its ids. Stored →
+		 * veto/restore (withdraw at apply). Not stored → the ordinary
+		 * three-button mirror (accept = write at apply); a chip of an
+		 * unreviewed or unrecorded entry, whose default is "nothing
+		 * written", the single accept toggle instead. A failed entry keeps
+		 * the three buttons even on a chip: its default is "written at
+		 * apply", which a lone ○ would misstate. */
+		function noteControlHtml(en, chip) {
+			const attrs = `data-mirrors="${esc(en.ids[0])}" data-entry-ids="${esc(en.ids.join(' '))}"`;
+			if (en.storage === 'stored') {
+				return `<button type="button" class="btn-d veto" ${attrs} data-on="0">veto</button><span class="vetoed-label">vetoed</span>`;
+			}
+			if (chip && en.storage !== 'failed') {
+				return `<button type="button" class="acc-toggle" ${attrs} data-on="0" aria-label="Toggle acceptance">○</button>`;
+			}
+			return mirrorHtml(en.ids[0], en.ids);
+		}
+
+		/* One entry of one tool (a one-off): the row IS the entry. */
+		function methodNoteRowHtml(en, disp) {
+			const tool = en.tools[0], sug = en.sugs[0];
+			return `<div class="nrow" data-note="${esc(en.ids[0])}" data-tool="${esc(tool.id)}" data-entry-key="${esc(en.key)}" data-storage="${esc(en.storage)}" data-vetoed="0" tabindex="-1">
 				<div class="tool">${esc(tool.name)}${jumpHtml(tool.id, 'open card →')}</div>
-				<div class="topic"><span class="tt">${esc(sug.method_topic || '')}</span>${noteMarksHtml(sug, disp)}</div>
+				<div class="topic"><span class="tt">${esc(sug.method_topic || '')}</span>${noteMarksHtml(uniqueMarks(en.sugs.flatMap(s => noteMarks(s, disp))))}</div>
 				<div class="nt">${esc(sug.method_note || '')}</div>
-				<div class="ctl">${noteControlHtml(sug.id, false)}${modifyHtml(sug.id)}</div>
+				<div class="ctl">${noteControlHtml(en, false)}${notStoredHtml(en)}${modifyHtml(en.ids)}</div>
 			</div>`;
 		}
 
-		/* A shared row stands for entries that are IDENTICAL — same topic
-		 * AND same note text — so one row of prose can honestly speak for
-		 * all of them. Two tools proposing one topic with different text are
-		 * two rows: one entry never stands for another it does not match.
-		 * The textarea writes through to every entry's canonical comment,
-		 * and the marks are the union, with each tool's own marks on its
-		 * chip. */
-		function sharedRowHtml(topic, entries, disp) {
-			const first = entries[0].sug;
-			const tools = entries.map(e => {
-				const own = noteMarksHtml(e.sug, disp).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-				return `<span class="ntool" data-vetoed="0"${own ? ` title="${esc(own)}"` : ''}>${esc(e.tool.name)} ${noteControlHtml(e.sug.id, true)}${jumpHtml(e.tool.id, '→')}</span>`;
+		/* A shared row stands for notes that are IDENTICAL — same topic AND
+		 * same text — so one row of prose can honestly speak for all of
+		 * them. Inside it, one chip per STORE ENTRY naming every tool that
+		 * shares it: two tools whose notes convergence promoted are one
+		 * global entry and one chip, because one veto withdraws both. The
+		 * textarea writes through to every id; the marks are the union. */
+		function sharedRowHtml(topic, rowEntries, disp) {
+			const first = rowEntries[0].sugs[0];
+			const chips = rowEntries.map(en => {
+				const own = uniqueMarks(en.sugs.flatMap(s => noteMarks(s, disp))).map(m => m.label);
+				const title = [`store key: ${en.key}`].concat(own).join(' · ');
+				const names = en.tools.map(t => `${esc(t.name)}${jumpHtml(t.id, '→')}`).join(' ');
+				return `<span class="ntool" data-entry-key="${esc(en.key)}" data-storage="${esc(en.storage)}" data-vetoed="0" title="${esc(title)}">${names} ${noteControlHtml(en, true)}${notStoredHtml(en)}</span>`;
 			}).join('');
-			const seen = new Set();
-			const marks = entries.map(e => noteMarksHtml(e.sug, disp)).join('')
-				.split('</span>').filter(Boolean).map(m => m + '</span>')
-				.filter(m => { const k = m.replace(/title="[^"]*"/, ''); if (seen.has(k)) return false; seen.add(k); return true; })
-				.join('').replace(/<div class="marks">|<\/div>/g, '');
-			const ids = entries.map(e => e.sug.id);
+			const marks = uniqueMarks(rowEntries.flatMap(en => en.sugs.flatMap(s => noteMarks(s, disp))));
+			const ids = rowEntries.flatMap(en => en.ids);
+			const toolCount = new Set(rowEntries.flatMap(en => en.tools.map(t => t.id))).size;
 			return `<div class="nrow" data-topic="${esc(topic)}" data-vetoed="0" tabindex="-1">
-				<div class="tool">${entries.length} tools</div>
-				<div class="topic"><span class="tt">${esc(topic)}</span>${marks ? `<div class="marks">${marks}</div>` : ''}</div>
-				<div class="nt">${esc(first.method_note || '')}<div class="ntools">${tools}</div></div>
+				<div class="tool">${toolCount} tools</div>
+				<div class="topic"><span class="tt">${esc(topic)}</span>${noteMarksHtml(marks)}</div>
+				<div class="nt">${esc(first.method_note || '')}<div class="ntools">${chips}</div></div>
 				<div class="ctl">${modifyHtml(ids)}</div>
 			</div>`;
+		}
+
+		/* The lede says what is true per note, counted over ids (the tab's
+		 * count): all stored, none stored for want of review, or exactly
+		 * how many are in the store and why the rest are not. */
+		function notesLedeHtml(all) {
+			const total = all.length;
+			const by = { stored: 0, failed: 0, unreviewed: 0, norecord: 0 };
+			all.forEach(({ sug }) => { by[noteStorage(sug.id)]++; });
+			const rec = noteRenderRecord() || {};
+			const n = v => `<span class="n">${v}</span>`;
+			const attrs = `data-stored="${by.stored}" data-total="${total}"`;
+			if (by.stored === total) {
+				return `<p id="notes-lede" ${attrs}><b>Nothing here needs your attention.</b> These ${n(total)} research-method notes are in the store — written at render, replayed into every future run. Veto one if it looks wrong; a comment attaches modification instructions. Apply withdraws a vetoed note.</p>`;
+			}
+			if (by.unreviewed === total) {
+				return `<p id="notes-lede" ${attrs}><b>Not in the store.</b> Convergence did not review these ${n(total)} research-method notes (state ${n(esc(rec.convergence_state || 'absent'))}), so nothing was persisted at render. Accept one to write it at apply; leave it and nothing is written; a comment attaches modification instructions.</p>`;
+			}
+			const parts = [];
+			if (by.failed) parts.push(`${n(by.failed)} failed to write at render${rec.store_problem ? ` (${esc(rec.store_problem)})` : ''} — apply writes them unless you reject them, so fix the store first`);
+			if (by.unreviewed) parts.push(`${n(by.unreviewed)} convergence did not review — accept one to write it at apply`);
+			if (by.norecord) parts.push(`${n(by.norecord)} have no render record${rec.store_problem && !by.failed ? ` (${esc(rec.store_problem)})` : ''} — accept one to write it at apply`);
+			if (by.stored) parts.push(`veto a stored one if it looks wrong`);
+			return `<p id="notes-lede" ${attrs}><b>${by.stored} of ${total} in the store.</b> ${parts.join('; ')}. A comment attaches modification instructions.</p>`;
 		}
 
 		function renderNotes() {
@@ -7168,34 +7340,31 @@
 				return;
 			}
 			const disp = memoryDispositions();
-			/* Group on topic AND note text (finding 3 of the pass-4 review):
-			 * grouping on topic alone let one entry's prose stand for
-			 * another's, and hid the note that differed — possibly the
-			 * wrong one. */
-			const byKey = new Map();
-			all.forEach(e => {
-				const topic = typeof e.sug.method_topic === 'string' ? e.sug.method_topic.trim() : '';
-				const text = typeof e.sug.method_note === 'string' ? e.sug.method_note.trim() : '';
-				const key = topic + '\u0000' + text;
-				if (!byKey.has(key)) byKey.set(key, { topic, entries: [] });
-				byKey.get(key).entries.push(e);
+			/* Rows group on topic AND note text (finding 3 of the pass-4
+			 * review): grouping on topic alone let one note's prose stand
+			 * for another's. Within a row, the unit is the store entry. */
+			const byText = new Map();
+			noteEntries().entries.forEach(en => {
+				const sug = en.sugs[0];
+				const topic = typeof sug.method_topic === 'string' ? sug.method_topic.trim() : '';
+				const text = typeof sug.method_note === 'string' ? sug.method_note.trim() : '';
+				const k = topic + '\u0000' + text;
+				if (!byText.has(k)) byText.set(k, { topic, entries: [] });
+				byText.get(k).entries.push(en);
 			});
 			const singles = [], shared = [];
-			byKey.forEach(({ topic, entries }) => {
-				const distinctTools = new Set(entries.map(e => e.tool.id));
+			byText.forEach(({ topic, entries }) => {
+				const distinctTools = new Set(entries.flatMap(en => en.tools.map(t => t.id)));
 				(distinctTools.size > 1 ? shared : singles).push([topic, entries]);
 			});
-			shared.sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
-			singles.sort((a, b) => (a[1][0].tool.name || '').localeCompare(b[1][0].tool.name || ''));
-			const singleRows = singles.flatMap(([, entries]) => entries).map(e => methodNoteRowHtml(e, disp)).join('');
+			const idCount = entries => entries.reduce((s, en) => s + en.ids.length, 0);
+			shared.sort((a, b) => idCount(b[1]) - idCount(a[1]) || (a[0] < b[0] ? -1 : 1));
+			singles.sort((a, b) => (a[1][0].tools[0].name || '').localeCompare(b[1][0].tools[0].name || ''));
+			const singleRows = singles.flatMap(([, entries]) => entries).map(en => methodNoteRowHtml(en, disp)).join('');
 			const sharedRows = shared.map(([topic, entries]) => sharedRowHtml(topic, entries, disp)).join('');
-			const sharedTools = new Set(shared.flatMap(([, entries]) => entries.map(e => e.tool.id))).size;
-			const conv = (REPORT.convergence && typeof REPORT.convergence === 'object') ? REPORT.convergence : {};
-			const lede = notesReviewed()
-				? `<b>Nothing here needs your attention.</b> These <span class="n">${all.length}</span> research-method notes are already in the store — written at render, replayed into every future run. Veto one if it looks wrong; a comment attaches modification instructions. Apply withdraws a vetoed note.`
-				: `<b>Not in the store.</b> Convergence did not review these <span class="n">${all.length}</span> research-method notes (state <span class="n">${esc(conv.state || 'absent')}</span>), so nothing was persisted at render. Accept one to write it at apply; leave it and nothing is written; a comment attaches modification instructions.`;
+			const sharedTools = new Set(shared.flatMap(([, entries]) => entries.flatMap(en => en.tools.map(t => t.id)))).size;
 			panel.innerHTML =
-				`<p id="notes-lede" data-reviewed="${notesReviewed() ? '1' : '0'}">${lede}</p>` +
+				notesLedeHtml(all) +
 				(singleRows ? bandHtml('notes-oneoff', 'One-off notes',
 					`${singles.length} topic${singles.length === 1 ? '' : 's'} · only one tool needed each · most likely to be wrong`,
 					singleRows, true) : '') +
@@ -7272,7 +7441,7 @@
 			 * button (report-page.md §9.4). */
 			const notesEl = document.getElementById('panel-notes');
 			notesEl.classList.add('report-frozen');
-			notesEl.querySelectorAll('.btn-d, .note-modify')
+			notesEl.querySelectorAll('.btn-d, .acc-toggle, .note-modify')
 				.forEach(el => { el.disabled = true; });
 
 			// 4. Fill the results panel. Show an immediate loading
