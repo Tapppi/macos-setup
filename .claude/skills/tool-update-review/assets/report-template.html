@@ -4325,7 +4325,7 @@
 			if (groups.security.length || detail) {
 				parts.push(`
 			<div class="content-group cat-security">
-				<div class="content-group-title">🛡 Security · reaches here or rated critical${groups.security.length ? ` <span class="content-group-count">${groups.security.length}</span>` : ''}</div>
+				<div class="content-group-title">🛡 Security · reaches here, rated critical, exploited in the wild, or warning or worse${groups.security.length ? ` <span class="content-group-count">${groups.security.length}</span>` : ''}</div>
 				${groups.security.map(item => renderContentItem(item, 'security', links, tool)).join('')}
 				${detail}
 			</div>`);
@@ -4353,12 +4353,17 @@
 			}
 			if (groups.fold.length) {
 				const fid = `fold-${++foldSeq}`;
+				/* The fold holds everything that is not decisive here, and some
+				 * of that reaches this machine (an info-level fix that lands but
+				 * changes nothing to decide) — so the head says so rather than
+				 * claiming none of it reaches. */
+				const foldReach = groups.fold.filter(item => (localOf(item) || {}).direction === 'reaches').length;
 				parts.push(`
 			<div class="item-fold" id="${fid}" data-open="0">
 				<button type="button" class="item-fold-head" data-toggle-fold="${fid}" aria-expanded="false">
 					<span class="exp">▸</span>
 					<b>Everything else (${groups.fold.length})</b>
-					<span>— features, fixes and notes that do not reach this setup</span>
+					<span>— features, fixes and notes with nothing to decide here${foldReach ? ` (${foldReach} of them reach this setup)` : ''}</span>
 				</button>
 				<div class="item-fold-body">
 					${groups.fold.map(item => renderContentItem(item, 'fold', links, tool)).join('')}

@@ -791,11 +791,33 @@ class DecisionSurfaceTests(PageDriveRunner):
 		self.assertIn("Breaking & deprecations", groups[1])
 		self.assertIn("Other changes that reach this machine", groups[2])
 		self.assertIn("Everything else (2)", out["foldLabel"])
-		self.assertIn("do not reach this setup", out["foldLabel"])
+		# Review A10: the head no longer claims nothing in it reaches.
+		self.assertIn("nothing to decide here", out["foldLabel"])
+		self.assertNotIn("do not reach", out["foldLabel"])
+		self.assertNotIn("reach this setup", out["foldLabel"])
+		# Review A14: the security head names every criterion of its bar.
+		self.assertIn("exploited in the wild", groups[0])
+		self.assertIn("warning or worse", groups[0])
 		self.assertEqual(out["foldCount"], "2")
 		self.assertEqual(out["foldHiddenByDefault"], "true")
 		self.assertEqual(out["foldVisibleAfterClick"], "true")
 		self.assertEqual(out["foldTitles"], "Startup is 2x faster|Something oddly tagged")
+
+	def test_the_fold_head_counts_what_reaches(self):
+		"""Review A10: a notable fix that reaches but is not decisive folds;
+		the head must say it reaches rather than claim nothing does."""
+		tool = decision_surface_tool()
+		tool["items"].append({"id": "brew:surface#release:2.0/lands",
+			"title": "A small fix that lands here", "tags": ["fix"], "severity": "notable",
+			"local": {"direction": "reaches", "effect": "benefit",
+				"statement": "s", "evidence": [], "citations": []}})
+		out = self.drive(page_report([tool]), """
+		key('2');
+		const head = document.querySelector('#tool-list .tool-section .item-fold-head');
+		log('foldLabel=' + head.textContent.trim().replace(/\\s+/g, ' '));
+""")
+		self.assertIn("Everything else (3)", out["foldLabel"])
+		self.assertIn("(1 of them reach this setup)", out["foldLabel"])
 
 	def test_the_reaches_group_holds_only_what_reaches(self):
 		"""Pass 6: brew:libpq's card listed CVE-2026-15741, CVE-2026-16241 and
