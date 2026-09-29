@@ -845,7 +845,7 @@ TIER_LABELS = {
 		"text": "Accepted — vendor declares a security release without details"},
 	"fix-with-breaking-unseen": {"glyph": "◎",
 		"text": "Accepted — breaking change, not seen here"},
-	"fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"},
+	"fix": {"glyph": "·", "text": "Accepted — a security fix, taken by rule"},
 }
 
 # The view default (§4.2): what a view carries until the tier function has run

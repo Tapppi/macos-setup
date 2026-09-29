@@ -1836,6 +1836,32 @@ def summarize_security_tiers(tools: list) -> dict:
 		"accepted_priority_counts": accepted_priority_counts}
 
 
+SECURITY_BUCKETS = ("security_auto", "security_mixed")
+
+
+def starts_accepted(tool: dict) -> bool:
+	"""Does this tool's baseline upgrade START accepted? The one reading
+	every "accepted" count on the page is made of — the checkbox the page
+	renders reads the same `pre_accept`."""
+	baseline = baseline_upgrade(tool)
+	return bool(baseline is not None and baseline.get("pre_accept"))
+
+
+def summarize_acceptance(tools: list) -> dict:
+	"""→ the two security partition counts. The first real item-model run's
+	tiles read the BUCKETS ("53 Security · accepted", "10 held or needs you")
+	while the lede counted pre-accepted security tools (57): four
+	security_mixed tools (binutils, 1password, bitwarden, claude-code@latest)
+	start accepted under the pre-G-SEC rule for security content that is
+	not a positively identified fix. The page now counts both off one
+	export: over the tools in the two security buckets, those whose baseline
+	starts accepted and the rest. `accepted_count + undecided_count ==
+	auto_count + mixed_count`, always."""
+	security = [t for t in tools if t.get("review_bucket") in SECURITY_BUCKETS]
+	accepted = sum(1 for t in security if starts_accepted(t))
+	return {"accepted_count": accepted, "undecided_count": len(security) - accepted}
+
+
 def summarize_security(tools: list) -> dict:
 	# cve_count is the size of the *union* across tools, not the sum of
 	# per-tool counts: one advisory routinely lands on two tools (openssh and
@@ -1899,6 +1925,9 @@ def summarize_security(tools: list) -> dict:
 		# "Security · accepted" tile may count — a held P1/P2 tool is never
 		# counted as accepted.
 		**summarize_security_tiers(tools),
+		# The accepted/undecided partition of the two security buckets — the
+		# tiles, the bar, the section heading and the lede all read these.
+		**summarize_acceptance(tools),
 		# Tools whose vendor claims more advisories than we could extract ids
 		# for, so the header can read "59 CVEs · 6 tools report more without
 		# ids" instead of silently understating.
@@ -2114,6 +2143,10 @@ def main():
 			"suggestions_count": suggestions_count,
 			"health_count": health_count,
 			"skill_drift_count": skill_drift_count,
+			# Version updates whose baseline STARTS accepted; the lede's "N of
+			# total need a decision" is total_outdated minus this.
+			"accepted_count": sum(1 for t in tools
+				if t["source"] not in NON_VERSION_SOURCES and starts_accepted(t)),
 			"by_delta": summarize_by_delta(tools),
 			"by_bucket": summarize_by_bucket(tools),
 			"security": summarize_security(tools),

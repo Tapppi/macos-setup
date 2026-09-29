@@ -2017,6 +2017,16 @@ def _forced_submission():
 	return sub
 
 
+def _resummarize_acceptance(report):
+	"""After a test edits a report's tools, re-derive the exported acceptance
+	counts through assembly's own functions — the page reads them and never
+	recounts, so a stale summary would be the test's inconsistency."""
+	import assemble
+	report["summary"]["security"].update(assemble.summarize_acceptance(report["tools"]))
+	report["summary"]["accepted_count"] = sum(1 for t in report["tools"]
+		if t["source"] not in items.NON_VERSION_SOURCES and assemble.starts_accepted(t))
+
+
 def _template_json_const(name):
 	with open(TEMPLATE, encoding="utf-8") as fh:
 		text = fh.read()
@@ -2173,6 +2183,7 @@ class GSecPriorityPanelTests(PageDriveRunner):
 			for sug in tool["suggestions"]:
 				sug["pre_accept"] = False
 		report["summary"]["security"]["accepted_priority_counts"] = {"P1": 0, "P2": 0}
+		_resummarize_acceptance(report)
 		out = self.drive(report, """
 		log('lede=' + document.getElementById('lede').textContent.replace(/\\s+/g, ' ').trim());
 """)
@@ -2211,7 +2222,9 @@ class GSecPriorityPanelTests(PageDriveRunner):
 		self.assertIn("tier-fix", names)
 		self.assertIn("elevated-fix", names)
 		self.assertIn("duckdb", names)   # lowered to P3 by cv-014
-		self.assertIn("with nothing flagged for this setup — accepted by rule", out["head"])
+		self.assertIn("3 more security updates accepted by rule — not listed in "
+			"“Security fixes for you”", out["head"])
+		self.assertNotIn("nothing flagged", out["head"])
 		self.assertIn("⚠ elevated risk: elevated-fix", out["head"])
 		self.assertNotIn("security-only", out["head"])
 		self.assertEqual(out["elevVisible"], "true")
@@ -2303,6 +2316,7 @@ class GSecPriorityPanelTests(PageDriveRunner):
 		kept = [t for t in report["tools"] if t["review_bucket"] == "security_auto"]
 		self.assertTrue(kept)
 		report["summary"]["security"]["auto_count"] = len(kept)
+		_resummarize_acceptance(report)
 		out = self.drive(report, """
 		log('strip=' + !!document.getElementById('sec-auto'));
 		const tile = Array.from(document.querySelectorAll('.tile')).find(t => t.querySelector('.l').textContent === 'Security · accepted');
@@ -2331,6 +2345,53 @@ class GSecPriorityPanelTests(PageDriveRunner):
 		self.assertIn("config needs attention — no edit proposed: The tracked config pins "
 			"the old cipher list", out["line"])
 		self.assertNotIn("proposed edit", out["line"])
+
+	def test_14b_every_accepted_count_on_the_page_is_the_same_number(self):
+		"""Pass 6: the tile said 53 accepted and 10 held-or-needs-you while the
+		lede said 57 accepted — four security_mixed tools (binutils,
+		1password, bitwarden, claude-code@latest) start accepted under the
+		pre-G-SEC rule. Here cask:codex is made one of them: it must count as
+		accepted everywhere, sit in the strip and not among the cards."""
+		report = json.loads(json.dumps(self.report))
+		codex = next(t for t in report["tools"] if t["id"] == "cask:codex")
+		self.assertEqual(codex["review_bucket"], "security_mixed")
+		next(s for s in codex["suggestions"] if s["kind"] == "upgrade")["pre_accept"] = True
+		_resummarize_acceptance(report)
+		sec = report["summary"]["security"]
+		self.assertEqual(sec["accepted_count"] + sec["undecided_count"],
+			sec["auto_count"] + sec["mixed_count"])
+		out = self.drive(report, """
+		const tile = l => Array.from(document.querySelectorAll('.tile')).find(t => t.querySelector('.l').textContent === l);
+		log('acc=' + tile('Security · accepted').querySelector('.v').textContent);
+		log('und=' + tile('Security · held or needs you').querySelector('.v').textContent);
+		log('lede=' + document.getElementById('lede').textContent.replace(/\\s+/g, ' ').trim());
+		log('sub=' + document.querySelector('#sec-section h2 .sub').textContent);
+		log('segAuto=' + document.querySelector('.seg-auto').title);
+		const strip = Array.from(document.querySelectorAll('#sec-auto .autorow .nm')).map(n => n.textContent);
+		const cards = Array.from(document.querySelectorAll('#sec-mixed article.mixcard')).map(c => c.dataset.tool);
+		const rows = Array.from(document.querySelectorAll('#sec-priority .prow'))
+			.filter(r => (r.querySelector('.mirror [data-action="accept"]') || {dataset: {}}).dataset.on === '1').length;
+		log('stripHasCodex=' + strip.includes('codex'));
+		log('cardsHaveCodex=' + cards.includes('cask:codex'));
+		const judged = REPORT.tools.filter(t => isJudged(t) && startsAccepted(t) && !inPriorityPanel(t)).length;
+		log('parts=' + strip.length + '|' + rows + '|' + judged + '|' + cards.length);
+""")
+		accepted, undecided = sec["accepted_count"], sec["undecided_count"]
+		self.assertEqual(out["acc"], str(accepted))
+		self.assertEqual(out["und"], str(undecided))
+		self.assertIn("{} security updates are accepted by default".format(accepted), out["lede"])
+		self.assertIn("{} accepted · {} held or need you".format(accepted, undecided), out["sub"])
+		self.assertIn("Security · accepted — {} (".format(accepted), out["segAuto"])
+		total = report["summary"]["total_outdated"]
+		self.assertIn("{} of {} updates need a decision".format(
+			total - report["summary"]["accepted_count"], total), out["lede"])
+		self.assertEqual(out["stripHasCodex"], "true")
+		self.assertEqual(out["cardsHaveCodex"], "false")
+		strip_n, accepted_rows, judged, cards_n = (int(x) for x in out["parts"].split("|"))
+		# every accepted security update is in the strip, an accepted panel
+		# row or the judgement panel, and every other one is a card
+		self.assertEqual(strip_n + accepted_rows + judged, accepted)
+		self.assertEqual(cards_n, undecided)
 
 	def test_15_p2_orders_a_reaching_breaking_change_first_and_marks_the_rest(self):
 		"""The user's answer to pass 6 (2026-09-29): every fix + breaking change

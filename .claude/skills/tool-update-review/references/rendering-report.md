@@ -612,17 +612,33 @@ Anchor `#sec-section`. Heading: 🛡 **Security patches** with a `--mono`
 sub-line — `N CVEs · M tools · A accepted · X held or need you` — and, below
 it, the report-level instance of the severity strip described next.
 
-**The accepted strip** (`#sec-auto`) is what is left of `security_auto` after
-the panels: accepted tools **not** in "Security fixes for you" and not moved
-by convergence's judgement — P3 fixes and pre-G-SEC security-only tools.
-Heading: `N security updates with nothing flagged for this setup — accepted by
-rule`. **Elevated stays visible without expanding** — D2's visibility half for
-the fixes it no longer bars: when any strip tool is `elevated`, the strip
+**One reading of "accepted", one export per count.** The security updates
+(the `security_auto` and `security_mixed` buckets) split on whether the
+baseline upgrade **starts accepted** (`pre_accept`, the checkbox itself), not
+on the bucket: a `security_mixed` tool can start accepted under the pre-G-SEC
+rule for security content that is not a positively identified fix (in the
+first real run binutils, 1password, bitwarden and claude-code@latest, which
+made the tiles say 53 accepted while the lede said 57). `A` and `X` above,
+the two security tiles, their bar segments and the lede's security count are
+`summary.security.accepted_count` / `undecided_count`; the lede's "N of T
+updates need a decision" is `summary.total_outdated −
+summary.accepted_count` (version updates that start accepted). The page
+counts from the tools only for an older report without them.
+
+**The accepted strip** (`#sec-auto`) is every accepted security update not
+already shown in "Security fixes for you" or moved by convergence's judgement
+— P3 fixes, pre-G-SEC security-only tools, and pre-G-SEC mixed tools that
+start accepted. Heading: `N more security updates accepted by rule — not
+listed in “Security fixes for you”` — never "nothing flagged": a P3 fix can
+carry a reaching warning-severity item (teamviewer and windows-app did).
+**Elevated stays visible without expanding** — D2's visibility half for the
+fixes it no longer bars: when any strip tool is `elevated`, the strip
 **head** carries `⚠ elevated risk: name, name` as text.
 
-**The mixed cards** (`#sec-mixed`, every `security_mixed` tool: P0, held and
-pre-G-SEC mixed) sort P0 first, and **the cap exempts P0**: `max(MIX_CAP,
-#P0)` cards render before the expander, so the ninth P0 card is never cut.
+**The mixed cards** (`#sec-mixed`, every security update that does not
+start accepted: P0, held and pre-G-SEC mixed) sort P0 first, and **the cap
+exempts P0**: `max(MIX_CAP, #P0)` cards render before the expander, so the
+ninth P0 card is never cut.
 
 #### The security summary strip
 
@@ -732,7 +748,7 @@ versus "triage first".
 `--tint-cyan`). Collapsed head, always visible:
 
 ```
-✓  5 security updates with nothing flagged for this setup — accepted by rule   ⚠ elevated risk: tier-fix   OPENSSH · STUNNEL · …   ▸ show
+✓  5 more security updates accepted by rule — not listed in “Security fixes for you”   ⚠ elevated risk: tier-fix   OPENSSH · STUNNEL · …   ▸ show
 ```
 
 The inline tool-name list is `--base01` uppercase micro-type that truncates

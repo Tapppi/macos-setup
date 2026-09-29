@@ -1392,11 +1392,17 @@ the same guard runs in both code paths.
   the next such source is one string in one place.
 - `by_bucket` — `{security_auto, security_mixed, attention, routine}` over
   **every** tool, brew-health and skill-drift included.
+- `accepted_count` — version updates whose baseline starts accepted
+  (`starts_accepted`); the page's "N of total need a decision" is
+  `total_outdated` minus this.
 - `security` — `{cve_count, severity_counts, tools_with_security, auto_count,
   mixed_count, tools_with_unlisted_cves, tier_counts, priority_counts,
-  accepted_priority_counts}` (the last three G-SEC's: tools per tier; the
+  accepted_priority_counts, accepted_count, undecided_count}` (tier_counts,
+  priority_counts and accepted_priority_counts are G-SEC's: tools per tier; the
   priority panel's rows, held tools at their priority; and only the panel
-  rows that start accepted — `references/schemas.md` §1.9), where `cve_count` is the size of the
+  rows that start accepted — `references/schemas.md` §1.9; the last two split
+  the two security buckets by whether the baseline starts accepted, so
+  `accepted_count + undecided_count == auto_count + mixed_count`), where `cve_count` is the size of the
   *union* of `cve_ids` across tools (§Security Extraction), not the sum, and
   `severity_counts` is rolled up over that same union — never summed from the
   per-tool counts (§Severity Rollup and the Sum Invariant).

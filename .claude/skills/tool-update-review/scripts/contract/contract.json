@@ -369,7 +369,7 @@
 			},
 			"fix": {
 				"glyph": "·",
-				"text": "Accepted — a security fix, nothing flagged for this setup"
+				"text": "Accepted — a security fix, taken by rule"
 			}
 		},
 		"shape": {

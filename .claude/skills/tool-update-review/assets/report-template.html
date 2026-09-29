@@ -672,7 +672,7 @@
 
 		.ov-empty { color: var(--base01); font-size: 13px; }
 
-		/* ── Security group (a): accepted, nothing flagged for this setup ───
+		/* ── Security group (a): the rest of the accepted security updates ───
 		 * Collapsed to one line by default so the eye lands on the cards
 		 * that actually need a decision — but still first in reading order,
 		 * and still naming the tools it waved through. */
@@ -4946,9 +4946,27 @@
 			return counts;
 		}
 
+		/* The one reading "accepted" means everywhere on the page: the
+		 * baseline upgrade STARTS accepted (its `pre_accept`). */
+		function startsAccepted(tool) {
+			return (baselineSuggestion(tool) || {}).pre_accept === true;
+		}
+
+		/* `accepted_count`/`undecided_count` partition the two security
+		 * buckets by `startsAccepted` (assemble.summarize_acceptance); an
+		 * older report without them gets the same partition counted here. */
+		function acceptancePartition(buckets) {
+			const sec = buckets.security_auto.concat(buckets.security_mixed);
+			const accepted = sec.filter(startsAccepted).length;
+			return { accepted_count: accepted, undecided_count: sec.length - accepted };
+		}
+
 		function securityCounts(buckets) {
 			const s = (REPORT.summary || {}).security;
-			if (s && typeof s === 'object') return s;
+			if (s && typeof s === 'object') {
+				return (isCount(s.accepted_count) && isCount(s.undecided_count))
+					? s : Object.assign({}, s, acceptancePartition(buckets));
+			}
 			if (!anyToolHas(t => t.security)) return null;
 			const ids = new Set();
 			let withSec = 0;
@@ -4968,6 +4986,7 @@
 				tools_with_security: withSec,
 				auto_count: buckets.security_auto.length,
 				mixed_count: buckets.security_mixed.length,
+				...acceptancePartition(buckets),
 				/* Absent rather than all-zero when nothing was graded — the
 				 * strip's own "none graded" wording is the honest render, and
 				 * a fabricated zero object would suppress it. */
@@ -5104,7 +5123,7 @@
 		 * baseline's `pre_accept`. The labels are the model's
 		 * (`items.TIER_LABELS`; test_render pins this copy to it) — text and
 		 * glyph, never colour alone. */
-		const TIER_LABELS = {"required-edit": {"glyph": "⛔", "text": "Needs you — a config change is required before this upgrade works"}, "pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"}, "incompatible-unfixed": {"glyph": "⛔", "text": "Needs you — breaks something here; no config fix proposed"}, "edit-proposed": {"glyph": "⚙", "text": "Accepted — config edits proposed, not applied unless you accept them"}, "config-attention": {"glyph": "⚙", "text": "Accepted — config needs attention — no edit proposed"}, "relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"}, "fix-with-breaking": {"glyph": "◎", "text": "Accepted — also has a breaking change that reaches this machine: take a look"}, "fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"}, "vendor-unread": {"glyph": "◎", "text": "Accepted — vendor declares a security release without details"}, "fix-with-breaking-unseen": {"glyph": "◎", "text": "Accepted — breaking change, not seen here"}, "fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"}};
+		const TIER_LABELS = {"required-edit": {"glyph": "⛔", "text": "Needs you — a config change is required before this upgrade works"}, "pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"}, "incompatible-unfixed": {"glyph": "⛔", "text": "Needs you — breaks something here; no config fix proposed"}, "edit-proposed": {"glyph": "⚙", "text": "Accepted — config edits proposed, not applied unless you accept them"}, "config-attention": {"glyph": "⚙", "text": "Accepted — config needs attention — no edit proposed"}, "relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"}, "fix-with-breaking": {"glyph": "◎", "text": "Accepted — also has a breaking change that reaches this machine: take a look"}, "fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"}, "vendor-unread": {"glyph": "◎", "text": "Accepted — vendor declares a security release without details"}, "fix-with-breaking-unseen": {"glyph": "◎", "text": "Accepted — breaking change, not seen here"}, "fix": {"glyph": "·", "text": "Accepted — a security fix, taken by rule"}};
 		const TIER_REASON_LEVEL = {"required-edit": "P0", "pinned": "P0", "incompatible-unfixed": "P0", "edit-proposed": "P1", "config-attention": "P1", "relevant-fix": "P2", "fix-with-breaking": "P2", "fix-with-risk": "P2", "vendor-unread": "P2", "fix-with-breaking-unseen": "P2", "fix": "P3"};
 		const TIER_HOLDS = ["content-losing", "security-item-risk", "watch-hit", "enum-invalid", "container-unreadable", "research-incomplete", "not-runnable", "forced-conservative", "tier-uncomputed"];
 		const TIER_TIERS = ['P0', 'held', 'P1', 'P2', 'P3'];
@@ -5504,7 +5523,7 @@
 			return `<div class="autostrip" id="sec-auto" data-open="0">
 				<button type="button" class="autostrip-head" data-toggle-strip="sec-auto" aria-expanded="false">
 					<span class="ck">✓</span>
-					<span class="t"><b>${auto.length}</b> security update${auto.length === 1 ? '' : 's'} with nothing flagged for this setup — accepted by rule</span>
+					<span class="t"><b>${auto.length}</b> more security update${auto.length === 1 ? '' : 's'} accepted by rule — not listed in “Security fixes for you”</span>
 					${elevated.length ? `<span class="elev">⚠ elevated risk: ${esc(elevated.map(t => t.name).join(', '))}</span>` : ''}
 					<span class="names slabel">${esc(auto.map(t => t.name).join(' · '))}</span>
 					<span class="exp">▸ show</span>
@@ -5911,22 +5930,28 @@
 			const routine = buckets.routine.filter(t => !isNonVersion(t));
 			/* A judgement-moved tool LEAVES the auto strip for the panel
 			 * (references/rendering-report.md §The Judgement Panel) — the strip is collapsed, and a badge
-			 * inside a closed container is never seen. The tile and the bar
-			 * segment keep counting the full bucket; only the rows move. */
-			/* G-SEC: a tool in "Security fixes for you" leaves the strip too —
-			 * the strip is what is left: P3 fixes and pre-G-SEC security-only
-			 * tools, accepted with nothing flagged. */
-			const auto = buckets.security_auto.filter(t => !isJudged(t) && !inPriorityPanel(t));
-			const mixed = buckets.security_mixed;
-			/* The accepted tile and bar segment count the whole bucket, so they
-			 * must land where its tools actually are: the strip when it has
-			 * rows, otherwise the panel or the judgement panel the rows moved
-			 * to — never an #sec-auto that did not render. */
+			 * inside a closed container is never seen. */
+			/* G-SEC: a tool in "Security fixes for you" leaves the strip too.
+			 * The security updates split on ONE reading — does the baseline
+			 * START accepted (`pre_accept`, the checkbox itself) — not on the
+			 * bucket: a security_mixed tool can start accepted (the pre-G-SEC
+			 * rule for security content that is not a positive fix, e.g.
+			 * binutils or 1password in the first real run). The strip is
+			 * every accepted security update not already shown in a panel;
+			 * the mixed cards are every one that does not start accepted. */
+			const secTools = buckets.security_auto.concat(buckets.security_mixed);
+			const accepted = secTools.filter(startsAccepted);
+			const auto = accepted.filter(t => !isJudged(t) && !inPriorityPanel(t));
+			const mixed = secTools.filter(t => !startsAccepted(t));
+			/* The accepted tile and bar segment count every accepted security
+			 * update, so they must land where those tools actually are: the
+			 * strip when it has rows, otherwise the panel or the judgement
+			 * panel the rows moved to — never an #sec-auto that did not render. */
 			const autoTarget = auto.length
 				? { act: 'open-auto', arg: 'sec-auto', title: 'Open the accepted security updates' }
-				: buckets.security_auto.some(inPriorityPanel)
+				: accepted.some(inPriorityPanel)
 					? { act: 'scroll', arg: 'sec-priority', title: 'Jump to the accepted fixes in “Security fixes for you”' }
-					: buckets.security_auto.some(isJudged)
+					: accepted.some(isJudged)
 						? { act: 'scroll', arg: 'judgement-section', title: 'Jump to the updates accepted by convergence judgement' }
 						: { act: '', arg: '', title: '' };
 
@@ -5936,18 +5961,19 @@
 				: tools.filter(t => !isNonVersion(t)).length;
 			const D = deltaCounts();
 			const SEC = securityCounts(buckets);
-			const needs = mixed.length + attention.length;
-			const waved = routine.length + auto.length;
+			/* Every count below is an exported number (`summary.accepted_count`,
+			 * `summary.security.accepted_count` / `undecided_count`), counted
+			 * from the tools only for an older report that predates them. */
+			const waved = isCount(summary.accepted_count) ? summary.accepted_count
+				: tools.filter(t => !isNonVersion(t) && startsAccepted(t)).length;
+			const needs = Math.max(0, total - waved);
 
 			/* ── Lede: the five-second answer ──────────────────────────────
 			 * Both clauses are conditional on the data actually being there:
 			 * a report with no security content must not claim any, and
-			 * "already accepted below" must not be said when nothing was
+			 * "start accepted" must not be said when nothing was
 			 * pre-accepted. */
-			const secClause = SEC ? ' or accepted security updates' : '';
-			const preAccepted = (REPORT.tools || []).some(t =>
-				(t.suggestions || []).some(sg => sg.pre_accept === true));
-			const acceptedClause = preAccepted ? ' — already accepted below' : '';
+			const secClause = SEC ? ' and security fixes' : '';
 			/* G-SEC: P0 leads the lede — a fix that cannot be taken until the
 			 * user acts is the first thing said — then how many security
 			 * updates start accepted and how many of those are listed first. */
@@ -5955,8 +5981,7 @@
 			const p0Rows = panelRows.filter(t => prioInfo(t).priority === 'P0').length;
 			const heldRows = panelRows.filter(t => prioInfo(t).holds.length).length;
 			const APC = acceptedPriorityCounts();
-			const acceptedSec = tools.filter(t => toolSecurity(t).has_security && !isNonVersion(t)
-				&& (baselineSuggestion(t) || {}).pre_accept === true).length;
+			const acceptedSec = SEC ? SEC.accepted_count : 0;
 			const p0Lede = p0Rows
 				? `<b class="p0-lede">${p0Rows} security fix${p0Rows === 1 ? ' needs' : 'es need'} you before ${p0Rows === 1 ? 'it' : 'they'} can be accepted — first below.</b> `
 				: '';
@@ -5966,9 +5991,9 @@
 					/* Nothing starts accepted: say that, rather than "0 of them". */
 					: ` <span class="sec-lede">No security update starts accepted; ${panelRows.length} fix${panelRows.length === 1 ? ' is' : 'es are'} listed in “Security fixes for you”${heldRows ? ` (${heldRows} held)` : ''}.</span>`;
 			const ledeHtml = p0Lede + (needs === 0
-				? `<b>Nothing needs a decision</b> — all <span class="n">${total}</span> updates are routine${secClause}.`
-				: `<b><span class="n">${needs}</span> of ${total} updates need a decision.</b> ` +
-					`The other <span class="n">${waved}</span> are patch-level${secClause}${acceptedClause}.`) + secLede;
+				? `<b>Nothing needs a decision</b> — all <span class="n">${total}</span> updates start accepted.`
+				: `<b><span class="n">${needs}</span> of ${total} updates need a decision.</b>` +
+					(waved ? ` The other <span class="n">${waved}</span> start accepted — routine updates${secClause}.` : '')) + secLede;
 
 			/* ── Group A: change size ────────────────────────────────────── */
 			let groupA = '';
@@ -6012,13 +6037,13 @@
 					<span class="slabel">Security — ${SEC.tools_with_security} of ${total} tools affected</span>
 					<div class="tiles">
 						${tileHtml({ v: SEC.cve_count, l: 'CVEs fixed', s: tileSecSecondary(SEC), accent: 'red', act: 'scroll', arg: 'sec-section', title: 'Jump to the security section' })}
-						${tileHtml({ v: SEC.auto_count, l: 'Security · accepted', s: `P1 ${APC.P1} · P2 ${APC.P2} of these in the panel`, accent: 'cyan', act: autoTarget.act, arg: autoTarget.arg, title: autoTarget.title })}
-						${tileHtml({ v: SEC.mixed_count, l: 'Security · held or needs you', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the security updates that are held or need you' })}
+						${tileHtml({ v: SEC.accepted_count, l: 'Security · accepted', s: `P1 ${APC.P1} · P2 ${APC.P2} of these in the panel`, accent: 'cyan', act: autoTarget.act, arg: autoTarget.arg, title: autoTarget.title })}
+						${tileHtml({ v: SEC.undecided_count, l: 'Security · held or needs you', s: 'decide these', accent: 'yellow', act: 'scroll', arg: 'sec-mixed', title: 'Jump to the security updates that are held or need you' })}
 					</div>
 					${total ? `<div class="deltabar">
-						${barSegHtml('seg-auto', SEC.auto_count, total, 'Security · accepted', autoTarget.act, autoTarget.arg)}
-						${barSegHtml('seg-mixed', SEC.mixed_count, total, 'Security · held or needs you', 'scroll', 'sec-mixed')}
-						${barSegHtml('seg-rest', Math.max(0, total - SEC.auto_count - SEC.mixed_count), total, 'No security content', '', '')}
+						${barSegHtml('seg-auto', SEC.accepted_count, total, 'Security · accepted', autoTarget.act, autoTarget.arg)}
+						${barSegHtml('seg-mixed', SEC.undecided_count, total, 'Security · held or needs you', 'scroll', 'sec-mixed')}
+						${barSegHtml('seg-rest', Math.max(0, total - SEC.accepted_count - SEC.undecided_count), total, 'No security content', '', '')}
 					</div>` : ''}
 				</div>`;
 			}
@@ -6048,7 +6073,7 @@
 					: `<p class="ov-empty">No tool mixes security fixes with other changes this run.</p>`;
 				secSection = `<section class="ovsection" id="sec-section">
 					<h2><span class="shield">🛡</span> Security patches
-						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.auto_count} accepted · ${SEC.mixed_count} held or need you</span>
+						<span class="sub">${SEC.cve_count} CVEs · ${SEC.tools_with_security} tools · ${SEC.accepted_count} accepted · ${SEC.undecided_count} held or need you</span>
 					</h2>
 					${sevMeterHtml({ has_security: true, cve_count: SEC.cve_count,
 						severity_counts: SEC.severity_counts }, { wide: true })}

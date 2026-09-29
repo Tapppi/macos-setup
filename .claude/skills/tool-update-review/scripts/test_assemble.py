@@ -1103,6 +1103,30 @@ class ReportInvariantTests(unittest.TestCase):
 		self.assertEqual(sec["auto_count"], self.report["summary"]["by_bucket"]["security_auto"])
 		self.assertEqual(sec["mixed_count"], self.report["summary"]["by_bucket"]["security_mixed"])
 
+	def test_the_acceptance_partition_is_the_checkbox_not_the_bucket(self):
+		"""Pass 6: tiles counted buckets (53 accepted, 10 held) while the lede
+		counted pre-accepted security tools (57). One exported partition now:
+		over the two security buckets, baseline starts accepted or not."""
+		summary = self.report["summary"]
+		sec = summary["security"]
+		self.assertEqual(sec["accepted_count"] + sec["undecided_count"],
+			sec["auto_count"] + sec["mixed_count"])
+		def starts(t):
+			return any(s.get("kind") == "upgrade" and s.get("pre_accept") for s in t["suggestions"])
+		in_sec = [t for t in self.report["tools"]
+			if t["review_bucket"] in ("security_auto", "security_mixed")]
+		self.assertEqual(sec["accepted_count"], sum(1 for t in in_sec if starts(t)))
+		self.assertEqual(summary["accepted_count"], sum(1 for t in self.report["tools"]
+			if t["source"] not in model.NON_VERSION_SOURCES and starts(t)))
+		# a security_mixed tool that starts accepted (the pre-G-SEC rule for
+		# security content that is not a positive fix) counts as accepted
+		def tool(bucket, pre):
+			return {"id": "brew:t", "source": "brew", "review_bucket": bucket,
+				"suggestions": [{"id": "brew:t:upgrade", "kind": "upgrade", "pre_accept": pre}]}
+		self.assertEqual(assemble.summarize_acceptance([tool("security_mixed", True),
+			tool("security_mixed", False), tool("security_auto", True), tool("routine", True)]),
+			{"accepted_count": 2, "undecided_count": 1})
+
 	def test_finding_sources_are_excluded_from_by_delta_and_from_security(self):
 		"""A brew-health finding is an environment issue and a skill-drift
 		finding is a vendoring issue — neither is an update, so neither inflates

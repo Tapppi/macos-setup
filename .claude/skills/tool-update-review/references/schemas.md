@@ -71,6 +71,8 @@ mechanism).
 		"suggestions_count":   7,
 		"health_count":        3,        // source "brew-health" tools (references/assembly.md §Brew-Health Assembly)
 		"skill_drift_count":   2,        // source "skill-drift" tools (references/assembly.md §Skill-Drift Assembly)
+		"accepted_count":      9,        // version updates whose baseline STARTS accepted; the lede's
+		                                 // "N of total need a decision" is total_outdated minus this
 
 		// ── Triage rollups (assembly-computed; additive, so a page must
 		// tolerate all three being absent when a user reopens an older
@@ -97,7 +99,12 @@ mechanism).
 			// only numbers the "Security · accepted" tile may show
 			"tier_counts":              {"P0": 1, "held": 1, "P1": 1, "P2": 2, "P3": 1},
 			"priority_counts":          {"P0": 1, "P1": 1, "P2": 3},
-			"accepted_priority_counts": {"P1": 1, "P2": 2}
+			"accepted_priority_counts": {"P1": 1, "P2": 2},
+			// The two security buckets split by whether the baseline STARTS
+			// accepted (pre_accept) — the page's accepted/held tiles, bar,
+			// section heading and lede count. Sum == auto_count + mixed_count.
+			"accepted_count":           5,
+			"undecided_count":          1
 		}
 	},
 	// ── Repo freshness (see references/collection.md §Repo Freshness) ──
@@ -1213,7 +1220,10 @@ means not accepted, never hidden; `accepted_priority_counts` — only the panel
 rows that **start accepted** (`P1`, `P2`: tier P1/P2 and a pre-accepted
 baseline). The "Security · accepted" tile reads the last and never the second,
 so a held P2 tool is a panel row and never counted as accepted.
-`auto_count`/`mixed_count` keep their bucket definitions.
+`auto_count`/`mixed_count` keep their bucket definitions; `accepted_count` /
+`undecided_count` split the same two buckets by whether the baseline starts
+accepted, and are what the page counts as accepted and as held-or-needs-you
+(a `security_mixed` tool can start accepted under the pre-G-SEC rule).
 
 ### 1.10 `review_bucket` semantics
 
