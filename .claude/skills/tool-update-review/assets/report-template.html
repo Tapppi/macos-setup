@@ -4430,7 +4430,9 @@
 			if (d.quarantined) parts.push(`${d.quarantined} quarantined entr${d.quarantined === 1 ? 'y' : 'ies'}`);
 			const lead = lostAny
 				? '⛔ degraded — held out of any auto-accepting bucket'
-				: '△ validator findings on this tool';
+				: d.codes.some(isErrorCode)
+					? '△ validator findings on this tool'
+					: '△ validator notes on this tool';
 			const markerChips = d.markers.map(c =>
 				`<span class="marker-chip" title="${esc(CODE_TEXT[c] || c)}">${esc(c)}</span>`).join('');
 			return `<div class="degrade-strip" data-lost="${lostAny ? '1' : '0'}">
@@ -4440,10 +4442,24 @@
 			</div>`;
 		}
 
+		/* A finding code's severity is its prefix: `E-` is `error` — the
+		 * output is out of spec — and `W-` is `warning`, worth saying but not
+		 * by itself a checker mistake (items.FINDING_CODES; test_items pins
+		 * that every code's prefix matches its severity). */
+		function isErrorCode(code) {
+			return typeof code === 'string' && code.startsWith('E-');
+		}
+
+		/* "Out of spec" is said of a tool only when an ERROR-severity code (or
+		 * a validator crash) is on it. A warning alone — W-SEC-FIX-NOID above
+		 * all, a fix whose maintainer files no CVE, which its own text calls
+		 * legitimate — is a note in the degradation strip, never this badge:
+		 * pass 6 put "out of spec" on 20 tools for that code alone. */
 		function renderSpecBadge(tool) {
 			const d = degradationOf(tool);
-			if (!d.codes.length && !d.validatorError) return '';
-			const title = d.codes.length ? d.codes.join(', ') : 'validator error';
+			const errors = d.codes.filter(isErrorCode);
+			if (!errors.length && !d.validatorError) return '';
+			const title = errors.length ? errors.join(', ') : 'validator error';
 			return `<button type="button" class="spec-badge" data-act="open-band" data-arg="band-notes" title="${esc(title)} — open the Report notes">out of spec</button>`;
 		}
 

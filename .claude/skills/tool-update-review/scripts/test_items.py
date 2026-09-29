@@ -855,6 +855,15 @@ def _gview(items=(), suggestions=(), **kw):
 	return view
 
 
+class FindingCodePrefixTests(unittest.TestCase):
+	def test_every_codes_prefix_is_its_severity(self):
+		"""The page reads a spec_violations code's severity from its prefix
+		(`isErrorCode`: only `E-` earns "out of spec"), so the prefix must BE
+		the severity for every code the validator can emit."""
+		for code, (severity, _, _) in model.FINDING_CODES.items():
+			self.assertEqual(severity, {"E-": "error", "W-": "warning"}.get(code[:2]), code)
+
+
 class GSecTierTests(unittest.TestCase):
 	"""`items.security_tier` — applicability, every reason and hold, the two
 	axes kept apart (O2), and never raising."""

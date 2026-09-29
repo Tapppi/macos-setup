@@ -886,6 +886,38 @@ class LoudnessChannelTests(PageDriveRunner):
 		self.assertIn("1 tool lost content at validation", out["rows"])
 		self.assertEqual(out["metaHasTool"], "true")
 
+	def test_a_warning_alone_is_a_note_not_out_of_spec(self):
+		"""Pass 6: 20 tools read "out of spec" for W-SEC-FIX-NOID alone — a
+		fix whose maintainer files no CVE, which the code's own text calls
+		legitimate. Only an error-severity code earns the badge."""
+		noid = page_tool("brew:libpq", "libpq", "18.5", "18.6", "security_auto")
+		noid["spec_violations"] = ["W-SEC-FIX-NOID"]
+		noid["degradation"] = {"content_losing": [], "markers": ["W-SEC-FIX-NOID"],
+			"quarantined": 0}
+		mixed = page_tool("brew:mixed", "mixed", "1.0", "1.1", "security_mixed")
+		mixed["spec_violations"] = ["E-ANCHOR-MALFORMED", "W-SEC-FIX-NOID"]
+		mixed["degradation"] = {"content_losing": [],
+			"markers": ["E-ANCHOR-MALFORMED", "W-SEC-FIX-NOID"], "quarantined": 0}
+		out = self.drive(page_report([noid, mixed]), """
+		key('2');
+		['brew:libpq', 'brew:mixed'].forEach(id => {
+			const s = document.querySelector('#tool-list .tool-section[data-tool-id="' + id + '"]');
+			const badge = s.querySelector('.tool-header .spec-badge');
+			log('badge:' + id + '=' + (badge ? badge.textContent + '|' + badge.title : 'none'));
+			const strip = s.querySelector('.degrade-strip');
+			log('lead:' + id + '=' + (strip ? strip.querySelector('.lead').textContent : 'none'));
+			log('chips:' + id + '=' + Array.from(s.querySelectorAll('.marker-chip')).map(c => c.textContent).join(','));
+		});
+""")
+		self.assertEqual(out["badge:brew:libpq"], "none")
+		self.assertEqual(out["lead:brew:libpq"], "△ validator notes on this tool")
+		self.assertEqual(out["chips:brew:libpq"], "W-SEC-FIX-NOID")
+		badge, title = out["badge:brew:mixed"].split("|", 1)
+		self.assertEqual(badge, "out of spec")
+		self.assertIn("E-ANCHOR-MALFORMED", title)
+		self.assertNotIn("W-SEC-FIX-NOID", title)
+		self.assertEqual(out["lead:brew:mixed"], "△ validator findings on this tool")
+
 	def test_risk_and_the_pre_acceptance_bars_are_in_the_dom(self):
 		tool = page_tool("brew:held", "held", "1.0", "1.1", "security_mixed")
 		tool["risk_level"] = "elevated"

@@ -1246,8 +1246,12 @@ priority and held badges (§Overview Tab → Security Fixes for You), **`elevate
 risk`** (`risk_level == "elevated"`; `--orange` ring, ink text — its `title`
 says *"accepted because it carries a security fix (P3)"* on a pre-accepted
 tool, and never claims "never pre-accepted" of one), and
-**`out of spec`** (`spec_violations[]` non-empty or a `validator_error`; a
-`<button>` that opens the Report notes band, with the codes in its `title`).
+**`out of spec`** (an **error-severity** code in `spec_violations[]` — an `E-`
+code, the prefix being the severity in `items.FINDING_CODES` — or a
+`validator_error`; a `<button>` that opens the Report notes band, with those
+codes in its `title`). A warning alone never earns it: `W-SEC-FIX-NOID`, a fix
+whose maintainer files no CVE, put "out of spec" on 20 tools in the first real
+run for a state its own text calls legitimate.
 
 The body opens, before any content group, with up to four lines, each
 rendered only when its data exists: the judgement line, the **degradation
@@ -1632,7 +1636,8 @@ auto-accepting bucket`) when content was lost or the validator errored — the
 bucket was held on it (clause 0), and a card that looks normal while its
 payload was quarantined is the silent-promotion shape D1 exists to end —
 listing the reasons, the quarantined count and the validator error; quiet
-(`△ validator findings on this tool`) when only markers exist. Every marker
+(`△ validator findings on this tool`) when only markers exist, and
+`△ validator notes on this tool` when every code on the tool is a warning. Every marker
 code is a `.marker-chip` with readable text in its `title` (`CODE_TEXT`) for
 the codes a reader must act on. Nothing here changes a bucket: render, never
 re-rate. The header's `out of spec` badge opens the Report notes band, where
