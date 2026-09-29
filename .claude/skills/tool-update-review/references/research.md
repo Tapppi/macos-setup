@@ -208,7 +208,13 @@ validator reads exactly ten:
   `has_breaking`, `worst_severity`, `local_findings`. The validator
   recomputes every one and its value wins; a mismatch is
   `E-FLAG-DISAGREE`, which says your items do not say what you think they
-  say.
+  say. Each is read off `items[]` alone: `has_security` / `has_breaking`
+  (booleans) — some item carries the `security` / `breaking` **tag**, so
+  a vendor-declared release with no item behind it is
+  `vendor_silent_categories: ["security"]`, not `has_security: true`;
+  `worst_severity` — the worst item `severity`; `local_findings` — an
+  **integer**, how many items carry a `local` block (a boolean reads as
+  "more than zero").
 - `research_error` — your own statement that research failed for this
   tool; it is then listed with versions only.
 - `cask_sudo_hint` — set `false` on a cask you verified installs without

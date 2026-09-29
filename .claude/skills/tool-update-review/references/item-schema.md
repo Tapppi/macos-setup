@@ -525,7 +525,10 @@ becomes a string comparison. Convergence decides what to do about it.
 `local_findings`. These are **assertions, not inputs**: the validator recomputes
 each, **its value wins**, and a mismatch raises `E-FLAG-DISAGREE`. A
 disagreement says the checker's items do not say what it thinks they say — loud,
-and worth nothing as a data source.
+and worth nothing as a data source. `local_findings` is a **count** (items with
+a `local` block); a boolean assertion of it is read as "more than zero"
+(`items.flag_agrees`), so `true` over four local items agrees rather than
+comparing `True != 4`.
 
 **May not emit** — `security_only`, `impact`, `risk_level`, `review_bucket`,
 `pre_accept`. Emitting one raises `E-FLAG-FORBIDDEN`. The failure mode is

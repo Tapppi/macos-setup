@@ -1423,6 +1423,21 @@ def recompute_flags(items) -> dict:
 	}
 
 
+def flag_agrees(flag, declared, recomputed) -> bool:
+	"""Does a checker's asserted flag agree with the recomputed one (I-13)?
+
+	Equality, with one reading added: `local_findings` is a COUNT (items
+	carrying a `local` block), and a checker that asserts it as a boolean is
+	saying "there are local findings" — `true` agrees with any count above
+	zero and `false` with zero. The first real item-model run had seven
+	checkers write `true` for counts like 4, and each raised an error-severity
+	E-FLAG-DISAGREE that said nothing about their items. `bool` is tested
+	first because it is an `int` in Python (`True == 1`)."""
+	if flag == "local_findings" and isinstance(declared, bool):
+		return isinstance(recomputed, int) and declared == (recomputed > 0)
+	return declared == recomputed
+
+
 # ── security_only (`item-schema.md` §5.6) ───────────────────────────────────
 # The (category, severity) pair test becomes a tag/severity test. Every
 # documented disqualification survives, and one misfile is fixed: codex's

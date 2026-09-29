@@ -2337,7 +2337,7 @@ def _check_flags(research, view, findings, tool_id):
 	for flag in model.CHECKER_FLAGS:
 		if flag not in declared:
 			continue
-		if declared[flag] != recomputed[flag]:
+		if not model.flag_agrees(flag, declared[flag], recomputed[flag]):
 			findings.add("E-FLAG-DISAGREE",
 				"checker said {!r}, items say {!r} — the validator's value wins".format(
 					declared[flag], recomputed[flag]),

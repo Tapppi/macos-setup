@@ -315,6 +315,29 @@ class InvariantTests(unittest.TestCase):
 		self.assertNoCode("E-FLAG-DISAGREE", {"id": "brew:x", "links": [],
 			"flags": {"has_security": False}, "items": [_item()]})
 
+	def test_i13_local_findings_is_a_count_and_a_boolean_reads_as_any(self):
+		"""Pass 6: seven checkers (brew:ghostscript, brew:less, brew:openssh,
+		brew:opentofu, cask:1password, the CLT and macos-27-0-1) wrote
+		`local_findings: true` over items with several local blocks, and each
+		raised E-FLAG-DISAGREE for `True != 4`. A boolean asserts "there are
+		local findings"; an integer asserts the count."""
+		local = {"direction": "unclear", "effect": "none", "statement": "s",
+			"evidence": []}
+		four = [_item(anchor={"kind": "none", "value": None, "slug": "s{}".format(n)},
+			local=dict(local)) for n in range(4)]
+		def research(flag, items):
+			return {"id": "brew:x", "links": [], "flags": {"local_findings": flag},
+				"items": items}
+		self.assertNoCode("E-FLAG-DISAGREE", research(True, four))
+		self.assertNoCode("E-FLAG-DISAGREE", research(4, four))
+		self.assertNoCode("E-FLAG-DISAGREE", research(False, [_item()]))
+		self.assertCode("E-FLAG-DISAGREE", research(True, [_item()]))
+		self.assertCode("E-FLAG-DISAGREE", research(False, four))
+		self.assertCode("E-FLAG-DISAGREE", research(3, four))
+		# The recomputed count still wins.
+		view, _ = validate_one(research(True, four))
+		self.assertEqual(view["flags"]["local_findings"], 4)
+
 	def test_i13_the_validators_value_wins_on_disagreement(self):
 		view, _ = validate_one({"id": "brew:x", "links": [],
 			"flags": {"has_security": True, "worst_severity": "incompatible"},
