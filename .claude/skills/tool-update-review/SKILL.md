@@ -5,8 +5,8 @@ description: >
   brew/Brewfile packages and casks (including self-updating desktop apps),
   mise runtimes, standalone CLIs genuinely unmanaged by brew, and macOS
   system/app updates, plus Homebrew environment-health findings from `brew
-  doctor` and drift between the vendored agent skills in
-  `dotfiles/config/agent-skills/` and their upstream repos — with
+  doctor` and drift between the vendored agent skills in the Tapppi/skills
+  repo and their upstream repos — with
   agent-written headliners, canonical changelog/release/blog
   links, and relevancy analysis against this machine and the user's setup
   repos (macos-setup, dotfiles, systems). Use this whenever the user asks to
@@ -71,8 +71,8 @@ it covers, not just when something breaks.
   `references/collection.md`; enrichment: `references/research.md`;
   assembly: `references/assembly.md`; rendering:
   `references/rendering-report.md`; apply: `references/apply.md`.
-- `skill-drift` — vendored agent skills under
-  `dotfiles/config/agent-skills/` that no longer match their upstream,
+- `skill-drift` — vendored agent skills in the Tapppi/skills repo
+  (`~/project/github/tapppi/skills`) that no longer match their upstream,
   detected by a three-way git tree-hash comparison (local vs the recorded
   sync baseline vs upstream HEAD) so a local patch never reads as "upstream
   moved" — also not a version delta. Detection, the five drift states and

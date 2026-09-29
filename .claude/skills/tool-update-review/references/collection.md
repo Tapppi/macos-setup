@@ -154,9 +154,12 @@ assembly, rendering, remediation execution) is out of scope for collection
 ## Skill-Drift Collection
 
 The same "is my toolchain healthy" question, asked of the agent skills this
-setup vendors. `dotfiles/config/agent-skills/` carries copies of upstream
-skill repos (anthropics, google, softaworks), pulled in as git subtrees or
-as sparse single-skill copies. None of the version sources above can see
+setup vendors. The Tapppi/skills repo carries copies of upstream skill repos
+(anthropics, softaworks) at its root, pulled in as git subtrees or as sparse
+single-skill copies. They moved there from `dotfiles/config/agent-skills/`
+(macos-setup `docs/skills.md`); the detector reads the checkout at
+`--skills-root`, default `$TOOL_UPDATE_SKILLS_ROOT` or
+`~/project/github/tapppi/skills`, and never the old dotfiles path. None of the version sources above can see
 them, so an upstream that has moved hundreds of commits ahead of our copy
 stays invisible until somebody thinks to look — measured on this machine:
 12 of the 15 adopted skills had drifted, the subtrees having been added
@@ -174,7 +177,7 @@ compares them:
 
 | Side | What it is |
 |---|---|
-| LOCAL | `git -C dotfiles rev-parse HEAD:<local_path>` — what we ship today |
+| LOCAL | `git -C <skills repo> rev-parse HEAD:<local_path>` — what we ship today |
 | BASELINE | the pristine upstream content at the recorded sync commit |
 | UPSTREAM | the same subpath at the upstream branch's HEAD, now |
 
@@ -221,12 +224,12 @@ both sides moved, so the sync lands on top of a local patch.
       "upstream_url": "https://github.com/anthropics/skills",
       "upstream_branch": "main",
       "upstream_subpath": "skills/pptx",
-      "local_path": "config/agent-skills/anthropics/skills/pptx",
+      "local_path": "anthropics/skills/pptx",  // relative to the skills repo
       "baseline_sha": "5128e1865d670f5d6c9cef000e6dfc4e951fb5b9",
       "upstream_sha": "3b3fad96af16a10759d930941b4520ba0c40edae",
       "expected": false,                // true = no decision required (rendered quietly)
       "remediation": {                  // null for local_only / probe_error / in_sync
-        "command": "bash config/agent-skills/sync-upstream.sh",
+        "command": "bash sync-upstream.sh",  // from the skills repo root
         "auto_runnable": false,         // ALWAYS false — see references/apply.md
         "needs_sudo": false,
         "label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"
@@ -268,18 +271,21 @@ table yields no vendors and one `suppressed` line, never an exception.
 
 **Scope falls out by construction, never from a skip-list.**
 
-- **Our own skills have no upstream.** `config/agent-skills/tapppi/`
-  appears in neither vendor table, so `browser` and `subrepo-permissions`
-  are out of scope because there is nothing to compare them against — not
+- **Our own skills have no upstream.** `tapppi/` appears in neither vendor
+  table, so `browser` is out of scope because there is nothing to compare them against — not
   because something remembered to exclude them. They are listed in
   `suppressed` saying exactly that.
 - **A tool-owned skill is excluded.** The adopted set is read from
   `.claude-plugin/marketplace.json`, and only entries whose `source` is a
-  **string** path (`"./anthropics/skills/pptx"`) are vendored here. An
+  **string** path are vendored here: a skill directory, a plugin rooted at
+  `"./"` that lists its `"skills"` (`"./anthropics/skills/skill-creator"`),
+  or a directory holding a vendor (`"./softaworks"`), each resolved against
+  the vendor tables — a subtree vendor's adopted skills, a sparse vendor's
+  one copy. A subtree row's fifth field (paths never vendored) is ignored. An
   **object** source (`{"source": "git-subdir", …}` — `find-skills`) means
   Claude Code resolves and refreshes it itself, so it is tool-owned:
   claiming drift on a path we do not vendor invites exactly the "fix it by
-  copying it into `dotfiles/`" mistake the macos-setup `CLAUDE.md`
+  copying it into the repo" mistake the macos-setup `CLAUDE.md`
   §Tool-Owned Config Is Re-Asserted, Not Vendored forbids.
   `~/.claude/skills/context7-mcp/`, written by `ctx7 setup`, is out of
   scope for the same reason.
@@ -313,13 +319,19 @@ to "every vendored skill is in sync"*. That is the one outcome this source
 must never produce, because it is the failure that looks like success. Two
 cases beyond the per-vendor one above therefore also emit a finding:
 
-- **The check could not run at all** — no dotfiles checkout, not a git repo,
-  no `agent-skills` directory, vendor tables that no longer parse, an
-  unreadable `marketplace.json`. One `probe_error` finding,
-  `id: "skill-drift:source-unavailable"`, `expected: true`, `info`, no
-  remediation. Its `detail` says plainly that nothing was checked and so
-  nothing is known to be wrong — an honest "unknown", never a clean bill of
-  health.
+- **The check could not run at all.** One `probe_error` finding,
+  `id: "skill-drift:source-unavailable"`, no remediation, whose `detail` says
+  plainly that nothing was checked. When the **source is missing** — no
+  skills checkout at the root it looked in, not a git repo, no
+  `sync-upstream.sh` (e.g. pointed at the dotfiles checkout the skills moved
+  out of) — the card is loud: `notable`, `expected: false`, naming the path
+  and the `--skills-root` / `$TOOL_UPDATE_SKILLS_ROOT` override, because it
+  is a setup problem to fix and silence is how the move went unnoticed.
+  Otherwise — vendor tables that no longer parse, an unreadable
+  `marketplace.json`, a crash, or a detector run `collect.sh` saw time out,
+  exit non-zero or print no object (it builds the card with `--failed
+  <reason>` and warns on stderr) — it is `expected: true`, `info`: an honest
+  "unknown", never a clean bill of health.
 - **Upstream removed or renamed an adopted skill** — LOCAL and BASELINE
   resolve but UPSTREAM does not. This is actionable rather than expected:
   the next `sync-upstream.sh` will quietly stop shipping that skill. Emitted

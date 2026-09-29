@@ -57,6 +57,20 @@ esac
 exit 0
 """
 MISE_STUB = "#!/usr/bin/env bash\necho '{}'\n"
+# A stub `timeout` for the skill-drift fallback tests: it fakes the detector's
+# failure (STUB_DRIFT=timeout → exit 124, garbage → unparseable stdout, crash →
+# exit 3) and runs every other command it wraps for real.
+TIMEOUT_STUB = """#!/usr/bin/env bash
+shift
+if [[ "$*" == *collect_skill_drift.py* ]]; then
+	case "${STUB_DRIFT:-}" in
+		timeout) exit 124 ;;
+		garbage) echo 'Traceback: not json'; exit 0 ;;
+		crash) exit 3 ;;
+	esac
+fi
+exec "$@"
+"""
 SOFTWAREUPDATE_STUB = "#!/usr/bin/env bash\n:\n"
 
 
@@ -71,7 +85,7 @@ class CollectRunner(unittest.TestCase):
 	stubbed brew/mise/softwareupdate executables placed first on PATH."""
 
 	def run_collect(self, brewfile, outdated, pinned="", info=None,
-			outdated_rc=None, outdated_prefix=None):
+			outdated_rc=None, outdated_prefix=None, drift=None):
 		"""Run collect.sh in a throwaway workspace; return the CompletedProcess.
 
 		Most fixture Brewfiles carry both a `brew "` and a `cask "` line — not
@@ -91,6 +105,11 @@ class CollectRunner(unittest.TestCase):
 			_write(os.path.join(root, "outdated.json"), json.dumps(outdated))
 			env = dict(os.environ)
 			env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+			# NO NETWORK: the skill-drift detector finds no skills checkout.
+			env["TOOL_UPDATE_SKILLS_ROOT"] = os.path.join(root, "no-skills-here")
+			if drift is not None:
+				_write(os.path.join(bindir, "timeout"), TIMEOUT_STUB, 0o755)
+				env["STUB_DRIFT"] = drift
 			env["STUB_OUTDATED"] = os.path.join(root, "outdated.json")
 			env["STUB_PINNED"] = pinned
 			if outdated_rc is not None:
@@ -257,6 +276,42 @@ class CollectDegradationTests(CollectRunner):
 			"standalone", "macos", "brew_health", "skill_drift"})
 
 
+class CollectSkillDriftFallbackTests(CollectRunner):
+	"""Review A3: a detector that timed out, crashed or printed no object
+	checked nothing, and an empty findings list renders exactly like "every
+	vendored skill is in sync". The fallback must be the source-unavailable
+	card carrying the reason, with a warning on stderr."""
+
+	BREWFILE = 'brew "duti"\ncask "1password"\n'
+	OUTDATED = {"formulae": [], "casks": []}
+
+	def drift_block(self, drift=None):
+		p = self.run_collect(self.BREWFILE, self.OUTDATED, drift=drift)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		return json.loads(p.stdout)["skill_drift"], p.stderr
+
+	def test_a_failed_detector_run_is_a_card_not_silence(self):
+		for mode, reason in (("timeout", "timed out after 120s"),
+				("crash", "exited with status 3"),
+				("garbage", "printed no usable JSON object")):
+			with self.subTest(mode):
+				block, err = self.drift_block(mode)
+				self.assertEqual([f["id"] for f in block["findings"]],
+					["skill-drift:source-unavailable"])
+				card = block["findings"][0]
+				self.assertIn(reason, card["detail"])
+				self.assertEqual(card["drift_state"], "probe_error")
+				self.assertIn("No vendored skill was checked", err)
+
+	def test_a_missing_skills_checkout_is_loud(self):
+		block, _ = self.drift_block()
+		card = block["findings"][0]
+		self.assertEqual(card["id"], "skill-drift:source-unavailable")
+		self.assertEqual(card["severity"], "notable")
+		self.assertFalse(card["expected"])
+		self.assertIn("no-skills-here", card["detail"])
+
+
 class CollectPinnedRevisionTests(CollectRunner):
 	"""The collect-side half of installing the reviewed version. `brew
 	outdated`'s current_version —
@@ -293,6 +348,7 @@ class CollectPinnedRevisionTests(CollectRunner):
 				json.dumps(self.INFO_BEHIND_AT_REVISION))
 			env = dict(os.environ)
 			env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+			env["TOOL_UPDATE_SKILLS_ROOT"] = os.path.join(root, "no-skills-here")
 			env["STUB_OUTDATED"] = os.path.join(root, "outdated.json")
 			env["STUB_INFO"] = os.path.join(root, "info.json")
 			collected = subprocess.run(["bash", COLLECT_SH, "Brewfile"], cwd=work,

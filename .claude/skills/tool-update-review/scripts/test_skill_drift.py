@@ -100,13 +100,13 @@ SYNC_SCRIPT = '''#!/usr/bin/env bash
 # Vendor table:
 #   <prefix>|<upstream-url>|<branch>|<adopted-skills-relative-to-prefix>
 vendors=(
-\t"config/agent-skills/anthropics|https://github.com/anthropics/skills|main|skills/pdf skills/pptx"
-\t"config/agent-skills/google|https://github.com/google/skills|main|skills/cloud/gke-basics"
+\t"anthropics|https://github.com/anthropics/skills|main|skills/pdf skills/pptx"
+\t"google|https://github.com/google/skills|main|skills/cloud/gke-basics"
 )
 
 #   <dest-prefix>|<upstream-url>|<branch>|<upstream-subpath>
 sparse_vendors=(
-\t"config/agent-skills/softaworks/jira|https://github.com/softaworks/agent-toolkit|main|skills/jira"
+\t"softaworks/jira|https://github.com/softaworks/agent-toolkit|main|skills/jira"
 )
 
 for entry in "${vendors[@]}"; do
@@ -121,14 +121,14 @@ class VendorTableTests(unittest.TestCase):
 		self.assertEqual([v["kind"] for v in vendors], ["subtree", "subtree", "sparse"])
 		self.assertEqual(vendors[0], {
 			"kind": "subtree",
-			"prefix": "config/agent-skills/anthropics",
+			"prefix": "anthropics",
 			"url": "https://github.com/anthropics/skills",
 			"branch": "main",
 			"skills": ["skills/pdf", "skills/pptx"],
 		})
 		self.assertEqual(vendors[2], {
 			"kind": "sparse",
-			"dest": "config/agent-skills/softaworks/jira",
+			"dest": "softaworks/jira",
 			"url": "https://github.com/softaworks/agent-toolkit",
 			"branch": "main",
 			"subpath": "skills/jira",
@@ -145,12 +145,21 @@ class VendorTableTests(unittest.TestCase):
 			'vendors=(\n'
 			'\t"too|few|fields"\n'
 			'\t# a comment row\n'
-			'\t"config/agent-skills/ok|https://u|main|skills/a"\n'
+			'\t"ok|https://u|main|skills/a"\n'
 			'\t\n'
 			')\n')
 		vendors = drift.parse_vendor_tables(text)
 		self.assertEqual(len(vendors), 1)
-		self.assertEqual(vendors[0]["prefix"], "config/agent-skills/ok")
+		self.assertEqual(vendors[0]["prefix"], "ok")
+
+	def test_a_subtree_row_may_list_excluded_paths(self):
+		# The Tapppi/skills table carries a fifth field: paths never vendored.
+		text = ('vendors=(\n'
+			'\t"anthropics|https://u|main|skills/skill-creator|skills/docx .claude-plugin"\n'
+			')\n')
+		self.assertEqual(drift.parse_vendor_tables(text), [{"kind": "subtree",
+			"prefix": "anthropics", "url": "https://u", "branch": "main",
+			"skills": ["skills/skill-creator"]}])
 
 	def test_absent_or_garbage_tables_yield_empty(self):
 		for label, text in (
@@ -198,6 +207,30 @@ class MarketplaceTests(unittest.TestCase):
 		# about a path that does not exist in the repo.
 		names = [a["name"] for a in drift.parse_marketplace_adopted(MARKETPLACE)]
 		self.assertNotIn("find-skills", names)
+
+	def test_a_plugin_naming_its_skills_adopts_each_of_them(self):
+		text = json.dumps({"plugins": [{"name": "skill-creator", "source": "./",
+			"strict": False, "skills": ["./anthropics/skills/skill-creator", 7,
+				"../escape"]}]})
+		self.assertEqual(drift.parse_marketplace_adopted(text),
+			[{"name": "skill-creator", "rel_path": "anthropics/skills/skill-creator"}])
+
+	def test_a_plugin_directory_holding_a_vendor_stands_for_its_skills(self):
+		vendors = drift.parse_vendor_tables(
+			'vendors=(\n\t"anthropics|https://a|main|skills/pdf skills/pptx"\n)\n'
+			'sparse_vendors=(\n\t"softaworks/skills/jira|https://s|main|skills/jira"\n)\n')
+		adopted = drift.parse_marketplace_adopted(json.dumps({"plugins": [
+			{"name": "jira", "source": "./softaworks"},
+			{"name": "all-anthropics", "source": "./anthropics"},
+			{"name": "browser", "source": "./tapppi/browser"},
+			{"name": "pdf-again", "source": "./anthropics/skills/pdf"},
+		]}))
+		self.assertEqual(drift.resolve_adopted(adopted, vendors), [
+			{"name": "jira", "rel_path": "softaworks/skills/jira"},
+			{"name": "pdf", "rel_path": "anthropics/skills/pdf"},
+			{"name": "pptx", "rel_path": "anthropics/skills/pptx"},
+			{"name": "browser", "rel_path": "tapppi/browser"},
+		])
 
 	def test_malformed_input_yields_empty(self):
 		for label, text in (
@@ -269,9 +302,9 @@ class SubtreeBaselineTests(unittest.TestCase):
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
 			write(dot, "README.md", "dotfiles\n")
 			_commit_all(dot, "init")
-			squash = _squash_commit(dot, up, "main", "config/agent-skills/anthropics", split)
+			squash = _squash_commit(dot, up, "main", "anthropics", split)
 
-			self.assertEqual(drift.subtree_baseline_sha(dot, "config/agent-skills/anthropics"),
+			self.assertEqual(drift.subtree_baseline_sha(dot, "anthropics"),
 				(squash, split))
 			# The squash commit's own tree is the pristine upstream content —
 			# this is what makes BASELINE resolvable with no network.
@@ -287,15 +320,36 @@ class SubtreeBaselineTests(unittest.TestCase):
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
 			write(dot, "README.md", "dotfiles\n")
 			_commit_all(dot, "init")
-			_squash_commit(dot, up, "main", "config/agent-skills/anthropics", first)
+			_squash_commit(dot, up, "main", "anthropics", first)
 			write(up, "skills/pptx/SKILL.md", "pptx v2\n")
 			second = _commit_all(up, "upstream v2")
-			newer = _squash_commit(dot, up, "main", "config/agent-skills/anthropics", second)
+			newer = _squash_commit(dot, up, "main", "anthropics", second)
 
 			# A stale baseline would report every later upstream release as
 			# drift that a sync already took.
-			self.assertEqual(drift.subtree_baseline_sha(dot, "config/agent-skills/anthropics"),
+			self.assertEqual(drift.subtree_baseline_sha(dot, "anthropics"),
 				(newer, second))
+
+	def test_a_mainline_merge_reads_its_squash_parent(self):
+		"""The Tapppi/skills shape: after the move out of dotfiles the latest
+		commit naming the prefix is a merge carrying `git-subtree-mainline:`,
+		whose own tree is the whole repo. Its squash is its second parent."""
+		with tempfile.TemporaryDirectory() as tmp:
+			up = _init_repo(os.path.join(tmp, "up"))
+			write(up, "skills/pptx/SKILL.md", "pptx v1\n")
+			split = _commit_all(up, "upstream v1")
+			repo = _init_repo(os.path.join(tmp, "skills"))
+			write(repo, "anthropics/skills/pptx/SKILL.md", "pptx v1\n")
+			mainline = _commit_all(repo, "init")
+			git(repo, "fetch", "-q", up, "main")
+			squash = git(repo, "commit-tree", git(repo, "rev-parse", "FETCH_HEAD^{tree}"),
+				"-m", "Squashed 'anthropics/' content\n\ngit-subtree-dir: anthropics\n"
+				"git-subtree-split: " + split + "\n")
+			git(repo, "merge", "-q", "-s", "ours", "--allow-unrelated-histories", "-m",
+				"Re-establish the base\n\ngit-subtree-dir: anthropics\n"
+				"git-subtree-mainline: " + mainline + "\ngit-subtree-split: " + split + "\n",
+				squash)
+			self.assertEqual(drift.subtree_baseline_sha(repo, "anthropics"), (squash, split))
 
 	def test_prefix_is_matched_whole(self):
 		with tempfile.TemporaryDirectory() as tmp:
@@ -305,10 +359,10 @@ class SubtreeBaselineTests(unittest.TestCase):
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
 			write(dot, "README.md", "dotfiles\n")
 			_commit_all(dot, "init")
-			_squash_commit(dot, up, "main", "config/agent-skills/anthropics-extra", split)
+			_squash_commit(dot, up, "main", "anthropics-extra", split)
 
 			# `anthropics` must not borrow `anthropics-extra`'s sync point.
-			self.assertEqual(drift.subtree_baseline_sha(dot, "config/agent-skills/anthropics"),
+			self.assertEqual(drift.subtree_baseline_sha(dot, "anthropics"),
 				(None, None))
 
 	def test_absent_prefix_and_non_repo_are_survivable(self):
@@ -316,7 +370,7 @@ class SubtreeBaselineTests(unittest.TestCase):
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
 			write(dot, "README.md", "dotfiles\n")
 			_commit_all(dot, "init")
-			self.assertEqual(drift.subtree_baseline_sha(dot, "config/agent-skills/nope"), (None, None))
+			self.assertEqual(drift.subtree_baseline_sha(dot, "nope"), (None, None))
 			self.assertEqual(drift.subtree_baseline_sha(os.path.join(tmp, "not-a-repo"), "x"), (None, None))
 			self.assertEqual(drift.subtree_baseline_sha(dot, ""), (None, None))
 
@@ -333,23 +387,26 @@ CONTRACT_KEYS = {
 }
 
 SYNC_TEMPLATE = '''#!/usr/bin/env bash
+# <prefix>|<upstream-url>|<branch>|<adopted-skills>|<excluded-paths>
 vendors=(
-\t"config/agent-skills/anthropics|{anthropics}|main|skills/pdf skills/pptx skills/docx skills/skill-creator"
+\t"anthropics|{anthropics}|main|skills/pdf skills/pptx skills/docx skills/skill-creator|skills/xlsx"
 )
 
 sparse_vendors=(
-\t"config/agent-skills/softaworks/jira|{softaworks}|main|skills/jira"
+\t"softaworks/skills/jira|{softaworks}|main|skills/jira"
 )
 '''
 
+# The Tapppi/skills marketplace's shapes: a bundle of our own, a plugin
+# rooted at "./" that names its vendored skills, and a plugin whose source is
+# a directory holding a sparse vendor.
 WORLD_MARKETPLACE = json.dumps({"plugins": [
 	{"name": "find-skills", "source": {"source": "git-subdir", "url": "https://example.invalid/x", "path": "p", "ref": "main"}},
 	{"name": "browser", "source": "./tapppi/browser"},
-	{"name": "pdf", "source": "./anthropics/skills/pdf"},
-	{"name": "pptx", "source": "./anthropics/skills/pptx"},
-	{"name": "docx", "source": "./anthropics/skills/docx"},
-	{"name": "skill-creator", "source": "./anthropics/skills/skill-creator"},
-	{"name": "jira", "source": "./softaworks/jira"},
+	{"name": "anthropic-skills", "source": "./", "strict": False, "skills": [
+		"./anthropics/skills/pdf", "./anthropics/skills/pptx",
+		"./anthropics/skills/docx", "./anthropics/skills/skill-creator"]},
+	{"name": "jira", "source": "./softaworks"},
 ]}, indent=1)
 
 
@@ -383,20 +440,20 @@ def _build_world(tmp):
 	write(up_s, "skills/jira/SKILL.md", "jira v1\n")
 	base_s = _commit_all(up_s, "softaworks v1")
 
-	dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
-	root = os.path.join(dot, "config", "agent-skills")
+	dot = _init_repo(os.path.join(tmp, "skills"))
+	root = dot
 	for rel, body in (("anthropics/skills/pdf/SKILL.md", "pdf v1\n"),
 			("anthropics/skills/pptx/SKILL.md", "pptx v1\n"),
 			("anthropics/skills/docx/SKILL.md", "docx v1\n"),
 			("anthropics/skills/skill-creator/SKILL.md", "skill-creator v1\n"),
-			("softaworks/jira/SKILL.md", "jira v1\n"),
+			("softaworks/skills/jira/SKILL.md", "jira v1\n"),
 			("tapppi/browser/SKILL.md", "our own skill\n")):
 		write(root, rel, body)
 	write(root, "softaworks/CUSTOMISATION.md", f"- Last synced commit: `{base_s}`\n")
 	write(root, "sync-upstream.sh", SYNC_TEMPLATE.format(anthropics=up_a, softaworks=up_s))
 	write(root, ".claude-plugin/marketplace.json", WORLD_MARKETPLACE)
 	_commit_all(dot, "vendor upstream skills")
-	_squash_commit(dot, up_a, "main", "config/agent-skills/anthropics", base_a)
+	_squash_commit(dot, up_a, "main", "anthropics", base_a)
 
 	# Upstream releases a new pptx and a new docx; pdf is untouched.
 	write(up_a, "skills/pptx/SKILL.md", "pptx v2 — upstream moved\n")
@@ -418,7 +475,7 @@ def _detect(dotfiles_root, *extra):
 	"""Run the detector in-process and return (exit_code, parsed_json)."""
 	buf = io.StringIO()
 	with contextlib.redirect_stdout(buf):
-		code = drift.main(["--dotfiles-root", dotfiles_root] + list(extra))
+		code = drift.main(["--skills-root", dotfiles_root] + list(extra))
 	return code, json.loads(buf.getvalue())
 
 
@@ -452,7 +509,7 @@ class EndToEndTests(unittest.TestCase):
 			self.assertIn("CUSTOMISATION.md", docx["detail"])
 			self.assertIn("conflict review", docx["detail"])
 			self.assertEqual(docx["remediation"]["command"],
-				"bash config/agent-skills/sync-upstream.sh")
+				"bash sync-upstream.sh")
 
 	def test_sparse_baseline_is_fetched_by_sha_once_upstream_moves(self):
 		# The sparse vendor has no offline baseline: when upstream has moved
@@ -495,11 +552,11 @@ class EndToEndTests(unittest.TestCase):
 			self.assertFalse(pptx["expected"], "an upstream release is a decision to make")
 			self.assertEqual(pptx["vendor_kind"], "subtree")
 			self.assertEqual(pptx["upstream_subpath"], "skills/pptx")
-			self.assertEqual(pptx["local_path"], "config/agent-skills/anthropics/skills/pptx")
+			self.assertEqual(pptx["local_path"], "anthropics/skills/pptx")
 			self.assertRegex(pptx["baseline_sha"], r"^[0-9a-f]{40}$")
 			self.assertRegex(pptx["upstream_sha"], r"^[0-9a-f]{40}$")
 			self.assertNotEqual(pptx["baseline_sha"], pptx["upstream_sha"])
-			self.assertEqual(pptx["remediation"]["command"], "bash config/agent-skills/sync-upstream.sh")
+			self.assertEqual(pptx["remediation"]["command"], "bash sync-upstream.sh")
 			self.assertFalse(pptx["remediation"]["auto_runnable"],
 				"a subtree pull rewrites vendored files and can conflict — never automatic")
 			self.assertFalse(pptx["remediation"]["needs_sudo"])
@@ -553,12 +610,12 @@ class EndToEndTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as tmp:
 			dot = _build_world(tmp)
 			# Point one vendor at a path that is not a repository at all.
-			script = os.path.join(dot, "config", "agent-skills", "sync-upstream.sh")
+			script = os.path.join(dot, "sync-upstream.sh")
 			with open(script, encoding="utf-8") as fh:
 				text = fh.read()
 			text = text.replace(os.path.join(tmp, "upstream-anthropics"),
 				os.path.join(tmp, "gone"))
-			write(dot, "config/agent-skills/sync-upstream.sh", text)
+			write(dot, "sync-upstream.sh", text)
 			_commit_all(dot, "break the anthropics upstream")
 			code, out = _detect(dot, "--timeout", "20")
 			self.assertEqual(code, 0)
@@ -596,7 +653,7 @@ class EndToEndTests(unittest.TestCase):
 		# the three sides failed, or it is a shrug with a path in it.
 		with tempfile.TemporaryDirectory() as tmp:
 			dot = _build_world(tmp)
-			git(dot, "rm", "-r", "-q", "config/agent-skills/anthropics/skills/pdf")
+			git(dot, "rm", "-r", "-q", "anthropics/skills/pdf")
 			_commit_all(dot, "drop our copy of pdf")
 			_, out = _detect(dot)
 			self.assertNotIn("skill-drift:anthropics/pdf", [f["id"] for f in out["findings"]])
@@ -618,7 +675,7 @@ class RemediationTextTests(unittest.TestCase):
 	def test_detail_also_clause_agrees_with_its_count(self):
 		def detail(drifted):
 			return drift._detail("upstream_ahead", "pptx", "anthropics",
-				"config/agent-skills/anthropics", "https://u", "main",
+				"anthropics", "https://u", "main",
 				"skills/pptx", "a" * 40, "b" * 40, drifted)
 		self.assertNotIn("also refreshes", detail(1))
 		self.assertIn("the other 1 drifted `anthropics` skill.", detail(2))
@@ -637,7 +694,11 @@ class DegradationTests(unittest.TestCase):
 	quiet, expected `probe_error` card saying the check did not run — the same
 	silence-is-not-success rule the per-vendor probe failure follows."""
 
-	def _assert_source_unavailable(self, root, *extra):
+	def _assert_source_unavailable(self, root, *extra, missing=False):
+		"""`missing` — the source is not where it was looked for, which is a
+		setup problem with a fix (it is how the move out of dotfiles went
+		unnoticed), so that card is loud: notable, not expected, naming the
+		override. Everything else is the quiet honest "unknown"."""
 		code, out = _detect(root, *extra)
 		self.assertEqual(code, 0)
 		self.assertEqual(set(out), {"findings", "suppressed"})
@@ -646,9 +707,15 @@ class DegradationTests(unittest.TestCase):
 		self.assertEqual(set(card), CONTRACT_KEYS)
 		self.assertEqual(card["id"], "skill-drift:source-unavailable")
 		self.assertEqual(card["drift_state"], "probe_error")
-		self.assertEqual(card["severity"], "info")
-		self.assertTrue(card["expected"],
-			"nothing was checked, so there is nothing here to decide")
+		if missing:
+			self.assertEqual(card["severity"], "notable")
+			self.assertFalse(card["expected"], "a missing source is a setup problem to fix")
+			self.assertIn("--skills-root", card["detail"])
+			self.assertIn(drift.SKILLS_ROOT_ENV, card["detail"])
+		else:
+			self.assertEqual(card["severity"], "info")
+			self.assertTrue(card["expected"],
+				"nothing was checked, so there is nothing here to decide")
 		self.assertIsNone(card["remediation"])
 		self.assertIsNone(card["skill"])
 		self.assertTrue(card["detail"].strip(),
@@ -656,30 +723,31 @@ class DegradationTests(unittest.TestCase):
 		self.assertTrue(out["suppressed"], "the stderr log must still say why")
 		return card
 
-	def test_missing_dotfiles_root(self):
+	def test_missing_skills_root(self):
 		with tempfile.TemporaryDirectory() as tmp:
-			card = self._assert_source_unavailable(os.path.join(tmp, "nope"))
+			card = self._assert_source_unavailable(os.path.join(tmp, "nope"), missing=True)
 			self.assertIn("nope", card["detail"], "the card must name what it looked for")
 
 	def test_root_is_not_a_git_repo(self):
 		with tempfile.TemporaryDirectory() as tmp:
-			os.makedirs(os.path.join(tmp, "plain", "config", "agent-skills"))
-			card = self._assert_source_unavailable(os.path.join(tmp, "plain"))
+			os.makedirs(os.path.join(tmp, "plain", "anthropics"))
+			card = self._assert_source_unavailable(os.path.join(tmp, "plain"), missing=True)
 			self.assertIn("git", card["detail"])
 
-	def test_repo_without_agent_skills(self):
+	def test_repo_without_a_sync_script(self):
+		# e.g. pointed at the dotfiles checkout the skills moved out of
 		with tempfile.TemporaryDirectory() as tmp:
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
 			write(dot, "README.md", "dotfiles\n")
 			_commit_all(dot, "init")
-			card = self._assert_source_unavailable(dot)
+			card = self._assert_source_unavailable(dot, missing=True)
 			self.assertIn("sync-upstream.sh", card["detail"])
 
 	def test_unparseable_sync_script(self):
 		with tempfile.TemporaryDirectory() as tmp:
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
-			write(dot, "config/agent-skills/sync-upstream.sh", "#!/usr/bin/env bash\nexit 0\n")
-			write(dot, "config/agent-skills/.claude-plugin/marketplace.json", WORLD_MARKETPLACE)
+			write(dot, "sync-upstream.sh", "#!/usr/bin/env bash\nexit 0\n")
+			write(dot, ".claude-plugin/marketplace.json", WORLD_MARKETPLACE)
 			_commit_all(dot, "init")
 			card = self._assert_source_unavailable(dot)
 			self.assertIn("vendor tables", card["detail"])
@@ -687,10 +755,10 @@ class DegradationTests(unittest.TestCase):
 	def test_no_adopted_plugins(self):
 		with tempfile.TemporaryDirectory() as tmp:
 			dot = _init_repo(os.path.join(tmp, "dotfiles"), branch="master")
-			write(dot, "config/agent-skills/sync-upstream.sh",
+			write(dot, "sync-upstream.sh",
 				SYNC_TEMPLATE.format(anthropics="https://example.invalid/a",
 					softaworks="https://example.invalid/s"))
-			write(dot, "config/agent-skills/.claude-plugin/marketplace.json", "{ not json")
+			write(dot, ".claude-plugin/marketplace.json", "{ not json")
 			_commit_all(dot, "init")
 			card = self._assert_source_unavailable(dot)
 			self.assertIn("marketplace.json", card["detail"])
@@ -712,6 +780,34 @@ class DegradationTests(unittest.TestCase):
 		self.assertIn("RuntimeError", card["detail"])
 
 
+class SourceLocationTests(unittest.TestCase):
+	def test_the_environment_names_the_skills_root(self):
+		with tempfile.TemporaryDirectory() as tmp:
+			target = os.path.join(tmp, "elsewhere")
+			old = os.environ.get(drift.SKILLS_ROOT_ENV)
+			os.environ[drift.SKILLS_ROOT_ENV] = target
+			try:
+				buf = io.StringIO()
+				with contextlib.redirect_stdout(buf):
+					drift.main(["--no-network"])
+			finally:
+				if old is None:
+					os.environ.pop(drift.SKILLS_ROOT_ENV, None)
+				else:
+					os.environ[drift.SKILLS_ROOT_ENV] = old
+			card = json.loads(buf.getvalue())["findings"][0]
+			self.assertIn(target, card["detail"])
+
+	def test_failed_emits_the_quiet_source_unavailable_card(self):
+		buf = io.StringIO()
+		with contextlib.redirect_stdout(buf):
+			self.assertEqual(drift.main(["--failed", "It timed out."]), 0)
+		out = json.loads(buf.getvalue())
+		self.assertEqual([f["id"] for f in out["findings"]], ["skill-drift:source-unavailable"])
+		self.assertEqual(set(out["findings"][0]), CONTRACT_KEYS)
+		self.assertIn("It timed out.", out["findings"][0]["detail"])
+
+
 class CliTests(unittest.TestCase):
 	def test_runs_as_a_script_and_prints_one_json_object(self):
 		# collect.sh shells out to this file and pipes the result into jq —
@@ -720,7 +816,7 @@ class CliTests(unittest.TestCase):
 		script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collect_skill_drift.py")
 		with tempfile.TemporaryDirectory() as tmp:
 			p = subprocess.run(
-				[sys.executable, script, "--dotfiles-root", _build_world(tmp), "--no-network"],
+				[sys.executable, script, "--skills-root", _build_world(tmp), "--no-network"],
 				capture_output=True, text=True, timeout=180)
 			self.assertEqual(p.returncode, 0, p.stderr)
 			parsed = json.loads(p.stdout)

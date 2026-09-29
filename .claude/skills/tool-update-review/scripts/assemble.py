@@ -1346,7 +1346,7 @@ def build_health_tool(candidate: dict, research_obj: dict | None, view: dict) ->
 def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> dict:
 	"""Build a Tool object for a `source: "skill-drift"` finding
 	(references/assembly.md §Skill-Drift Assembly) — a vendored agent skill
-	under `dotfiles/config/agent-skills/` that no longer matches the upstream it
+	in the Tapppi/skills repo that no longer matches the upstream it
 	was synced from. Structurally a sibling of build_health_tool(): a finding,
 	not a version update, so no current→latest pair and no synthesized
 	`brew upgrade` baseline — its action is the finding's own vendor-scoped

@@ -47,8 +47,9 @@ read-only (`references/research.md` §Local Findings Are the Point):
 
 `intel.Brewfile` is out of this tool entirely — do not read it, cite it or
 target it (`references/research.md` §One Host, One Manifest).
-`dotfiles/config/agent-skills/**` is vendored third-party skill content: grep
-hits there are almost never a real touchpoint, so ignore them unless the tool
+`dotfiles/config/agent-skills/**`, where a checkout still carries it, is
+vendored third-party skill content: grep hits there are almost never a real
+touchpoint, so ignore them unless the tool
 is genuinely configured there.
 
 Audit trail to check for config_status (`references/research.md` §Config Status):

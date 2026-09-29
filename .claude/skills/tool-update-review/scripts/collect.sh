@@ -357,8 +357,10 @@ if ! printf '%s' "${brew_health_json}" | jq -e . >/dev/null 2>&1; then
 	brew_health_json='{"findings":[],"suppressed":[]}'
 fi
 
-# Vendored agent-skill drift — whether the skills vendored under
-# `dotfiles/config/agent-skills/` still match their upstreams. Not a version
+# Vendored agent-skill drift — whether the skills vendored in the Tapppi/skills
+# repo (`--skills-root`, default `$TOOL_UPDATE_SKILLS_ROOT` or
+# ~/project/github/tapppi/skills; they moved there from
+# `dotfiles/config/agent-skills/`) still match their upstreams. Not a version
 # delta: a three-way git tree-hash comparison (local vs the recorded sync
 # baseline vs upstream HEAD), so a local customisation is never mistaken for
 # upstream movement. Python for testability, same rationale as the brew-health
@@ -372,11 +374,38 @@ fi
 # `brew doctor` at 180s: the detector already bounds every git call it
 # makes, but N vendors x 2 fetches x a per-call timeout is not a bound on
 # the collector's own wall clock, and this is the one step that talks to
-# the network. On expiry the non-zero exit falls through to the same empty
-# object any other failure produces.
-skill_drift_json="$(timeout 120 python3 "${script_dir}/collect_skill_drift.py" 2>/dev/null || echo '{"findings":[],"suppressed":[]}')"
-if ! printf '%s' "${skill_drift_json}" | jq -e . >/dev/null 2>&1; then
-	skill_drift_json='{"findings":[],"suppressed":[]}'
+# the network. A detector that times out, crashes or prints no usable object
+# checked NOTHING, and an empty findings list would render exactly like
+# "every vendored skill is in sync" — so the fallback is the detector's own
+# `skill-drift:source-unavailable` card carrying the reason (built by
+# `--failed`, or by jq below if python itself is what failed), plus a warning
+# on stderr. The detector's stderr is left alone for the same reason.
+skill_drift_rc=0
+skill_drift_json="$(timeout 120 python3 "${script_dir}/collect_skill_drift.py")" || skill_drift_rc=$?
+skill_drift_reason=""
+if [[ "${skill_drift_rc}" -eq 124 ]]; then
+	skill_drift_reason="The vendored-skill detector timed out after 120s."
+elif [[ "${skill_drift_rc}" -ne 0 ]]; then
+	skill_drift_reason="The vendored-skill detector exited with status ${skill_drift_rc}."
+elif ! printf '%s' "${skill_drift_json}" | jq -e 'type == "object" and (.findings | type == "array")' >/dev/null 2>&1; then
+	skill_drift_reason="The vendored-skill detector printed no usable JSON object."
+fi
+if [[ -n "${skill_drift_reason}" ]]; then
+	echo "warning: ${skill_drift_reason} No vendored skill was checked." >&2
+	skill_drift_json="$(python3 "${script_dir}/collect_skill_drift.py" --failed "${skill_drift_reason}" 2>/dev/null || true)"
+	if ! printf '%s' "${skill_drift_json}" | jq -e 'type == "object" and (.findings | type == "array")' >/dev/null 2>&1; then
+		skill_drift_json="$(jq -n --arg reason "${skill_drift_reason}" '{
+			findings: [{id: "skill-drift:source-unavailable",
+				name: "Vendored-skill check did not run", source: "skill-drift",
+				drift_state: "probe_error", severity: "info",
+				detail: ($reason + " No vendored skill was checked this run — nothing is known to be wrong with any of them, and nothing here needs deciding."),
+				vendor: null, skill: null, vendor_kind: null, upstream_url: null,
+				upstream_branch: null, upstream_subpath: null, local_path: null,
+				baseline_sha: null, upstream_sha: null, expected: true,
+				remediation: null, pinned: false, current_version: null,
+				latest_version: null}],
+			suppressed: [$reason]}')"
+	fi
 fi
 
 jq -n \

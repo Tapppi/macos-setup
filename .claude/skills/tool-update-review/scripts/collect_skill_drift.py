@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
 collect_skill_drift.py — vendored agent-skill drift, as a collect.sh finding source.
-Usage: collect_skill_drift.py [--dotfiles-root PATH] [--timeout SECONDS] [--no-network]
+Usage: collect_skill_drift.py [--skills-root PATH] [--timeout SECONDS] [--no-network]
 
 Prints ONE JSON object (the `skill_drift` value of collect.json, see
 references/collection.md §Skill-Drift Collection) to stdout:
 `{"findings": [...], "suppressed": [...]}`.
 
-The skills under `dotfiles/config/agent-skills/` are vendored copies of
-upstream repos. Nothing else in tool-update-review can see them drift: they
+The vendored skills live in the Tapppi/skills repo (`--skills-root`, default
+`$TOOL_UPDATE_SKILLS_ROOT` or `~/project/github/tapppi/skills`; they moved
+there from `dotfiles/config/agent-skills/`, see macos-setup `docs/skills.md`),
+as copies of upstream repos under `<vendor>/`. Nothing else in tool-update-review can see them drift: they
 carry no version number, so the brew/mise/standalone version machinery has
 nothing to compare. What they do carry is git provenance, so drift is decided
 by a three-way comparison of git TREE hashes — content-addressed and identical
 across repositories for identical content, which makes equality exact rather
 than heuristic, and needs no blob download:
 
-    LOCAL     git -C dotfiles rev-parse HEAD:<local_path>
+    LOCAL     git -C <skills repo> rev-parse HEAD:<local_path>
     BASELINE  the pristine upstream content at the recorded sync point
     UPSTREAM  the same subpath at the upstream branch head right now
 
@@ -29,13 +31,20 @@ Provenance is already recorded; this script only reads it:
   - subtree vendors — `git log --grep=git-subtree-dir` finds the squash
     commit, whose `git-subtree-split:` trailer names the synced upstream SHA
     and whose own tree IS the pristine upstream content, so BASELINE resolves
-    with no network at all.
-  - sparse vendors — `Last synced commit:` in the vendor's CUSTOMISATION.md;
-    no offline baseline exists, so that one costs a second fetch.
+    with no network at all. A commit that also carries
+    `git-subtree-mainline:` is a merge (`git subtree add`, or the re-based
+    history after the move out of dotfiles); its squash is its second
+    parent, as in git-subtree's own find_latest_squash.
+  - sparse vendors — `Last synced commit:` in the vendor's CUSTOMISATION.md
+    (the nearest one above the copy); no offline baseline exists, so that
+    one costs a second fetch.
   - the vendor -> (url, branch, kind) mapping and the adopted-skill set are
-    parsed out of sync-upstream.sh and .claude-plugin/marketplace.json.
-    `tapppi/` appears in neither vendor table, so our own skills fall out of
-    scope by construction rather than by a hardcoded skip-list.
+    parsed out of sync-upstream.sh and .claude-plugin/marketplace.json. A
+    plugin may name its skills (`"skills": ["./anthropics/skills/x"]`) or be
+    a directory holding a vendor (`"source": "./softaworks"`); either way the
+    skill paths are resolved against the vendor tables. `tapppi/` appears in
+    neither vendor table, so our own skills fall out of scope by construction
+    rather than by a hardcoded skip-list.
 
 Best-effort by construction, like the brew-health parser in collect.sh: this
 runs inside a collector that must not abort. Every subprocess call carries an
@@ -47,9 +56,13 @@ logged to stderr and never reaches report.json):
     an `upstream removed or renamed it` finding;
   - one vendor whose upstream cannot be reached — ONE quiet per-vendor
     `probe_error` finding, never one unknown card per adopted skill;
-  - the whole source (no dotfiles checkout, no parseable vendor tables, an
-    unexpected exception) — ONE `skill-drift:source-unavailable` finding, so a
-    run that checked nothing cannot render as a run that found nothing wrong.
+  - the whole source — ONE `skill-drift:source-unavailable` finding, so a run
+    that checked nothing cannot render as a run that found nothing wrong. A
+    MISSING source (no skills checkout where it looked, not a git repo, no
+    sync-upstream.sh) is a setup problem the user can fix, so that card is
+    loud: `notable`, not expected, naming the path and the override. A
+    source that is there but unreadable past the parser, or an unexpected
+    exception, stays a quiet expected card.
 """
 from __future__ import annotations  # keeps `X | None` annotations legal on
                                     # Python 3.9 (macOS's bundled python3 —
@@ -64,15 +77,17 @@ import sys
 import tempfile
 
 
-# Vendored skills live at this path inside the dotfiles repo; the vendor
-# tables record prefixes relative to that repo root, so this is also the
-# prefix stripped off to match a marketplace entry's "./<vendor>/..." source.
-SKILLS_SUBDIR = "config/agent-skills"
-SYNC_SCRIPT_REL = SKILLS_SUBDIR + "/sync-upstream.sh"
-MARKETPLACE_REL = SKILLS_SUBDIR + "/.claude-plugin/marketplace.json"
-# Run from the dotfiles repo root — the script cds there itself, but the
+# The vendored skills live at the ROOT of the Tapppi/skills repo: the vendor
+# tables record prefixes relative to it, and a marketplace entry's "./..."
+# source is relative to it too.
+SYNC_SCRIPT_REL = "sync-upstream.sh"
+MARKETPLACE_REL = ".claude-plugin/marketplace.json"
+# Run from the skills repo root — the script cds there itself, but the
 # command we hand the user is the one its own header documents.
-SYNC_COMMAND = "bash " + SKILLS_SUBDIR + "/sync-upstream.sh"
+SYNC_COMMAND = "bash sync-upstream.sh"
+# Where the skills repo is looked for when --skills-root is not given.
+SKILLS_ROOT_ENV = "TOOL_UPDATE_SKILLS_ROOT"
+DEFAULT_SKILLS_ROOT = "~/project/github/tapppi/skills"
 LOCAL_GIT_TIMEOUT = 15
 
 
@@ -119,7 +134,9 @@ def _array_body(text: str, name: str) -> str:
 
 
 def _table_rows(body: str) -> list:
-	"""Pipe-delimited, optionally-quoted rows; comments and blanks dropped."""
+	"""Pipe-delimited, optionally-quoted rows; comments and blanks dropped.
+	Four fields, or five for a subtree vendor that lists excluded paths
+	(never vendored, so never compared); only the first four are returned."""
 	rows = []
 	for raw in body.splitlines():
 		line = raw.strip()
@@ -128,9 +145,9 @@ def _table_rows(body: str) -> list:
 		if len(line) >= 2 and line[0] == line[-1] and line[0] in ('"', "'"):
 			line = line[1:-1]
 		fields = [f.strip() for f in line.split("|")]
-		if len(fields) != 4 or not all(fields[:3]):
+		if len(fields) not in (4, 5) or not all(fields[:3]):
 			continue
-		rows.append(fields)
+		rows.append(fields[:4])
 	return rows
 
 
@@ -160,14 +177,28 @@ def parse_vendor_tables(sync_script_text) -> list:
 		return []
 
 
+def _rel(path) -> str:
+	"""A marketplace "./x/y" path as "x/y" ("" for the repo root), or None
+	when it is not a repo-relative string path."""
+	if not isinstance(path, str) or not path.startswith("./"):
+		return None
+	parts = [p for p in path[2:].strip().split("/") if p and p != "."]
+	return None if ".." in parts else "/".join(parts)
+
+
 def parse_marketplace_adopted(marketplace_json_text) -> list:
-	"""The adopted skills from .claude-plugin/marketplace.json.
+	"""The adopted skill paths from .claude-plugin/marketplace.json.
 
 	ONLY entries whose "source" is a STRING starting "./" are vendored here.
 	An OBJECT source (git-subdir, e.g. find-skills) means Claude Code resolves
 	the plugin itself from its own upstream — nothing of it is committed to
 	this repo, so it is tool-owned and there is no local copy that could
-	drift. Returns [{name, rel_path}] with the "./" stripped.
+	drift. An entry that lists `"skills": ["./…", …]` adopts exactly those,
+	relative to its source (`"source": "./"` with
+	`"./anthropics/skills/skill-creator"`); one without adopts its source
+	directory, which may be a single skill or a directory holding a vendor
+	(`"./softaworks"` — `resolve_adopted` expands it against the vendor
+	tables). Returns [{name, rel_path}]; `rel_path` is "" for a bare "./".
 	"""
 	try:
 		if not isinstance(marketplace_json_text, str) or not marketplace_json_text.strip():
@@ -182,17 +213,69 @@ def parse_marketplace_adopted(marketplace_json_text) -> list:
 		for entry in plugins:
 			if not isinstance(entry, dict):
 				continue
-			source = entry.get("source")
-			if not isinstance(source, str) or not source.startswith("./"):
+			source = _rel(entry.get("source"))
+			if source is None:
 				continue
-			rel_path = source[2:].strip().rstrip("/")
-			if not rel_path:
+			skills = entry.get("skills")
+			if isinstance(skills, list) and skills:
+				for skill in skills:
+					rel = _rel(skill)
+					if rel is None:
+						continue
+					rel_path = _join(source, rel)
+					if rel_path:
+						adopted.append({"name": os.path.basename(rel_path),
+							"rel_path": rel_path})
 				continue
-			name = entry.get("name") or os.path.basename(rel_path)
-			adopted.append({"name": str(name), "rel_path": rel_path})
+			if not source:
+				continue
+			name = entry.get("name") or os.path.basename(source)
+			adopted.append({"name": str(name), "rel_path": source})
 		return adopted
 	except Exception:
 		return []
+
+
+def resolve_adopted(adopted: list, vendors: list) -> list:
+	"""Each adopted path as the vendored skill(s) it stands for.
+
+	A path under a vendor (or a sparse copy itself) is one skill of that
+	vendor, as written. A path that holds vendors instead (a plugin whose
+	source is `./softaworks`, or a subtree vendor's own root) stands for
+	every skill those vendors carry under it: a sparse vendor's one copy, a
+	subtree vendor's adopted skills from its table row. Anything
+	else is kept as written and later suppressed as our own. De-duplicated
+	by path, first name wins."""
+	out, seen = [], set()
+
+	def add(name, rel_path):
+		if rel_path not in seen:
+			seen.add(rel_path)
+			out.append({"name": name, "rel_path": rel_path})
+	for entry in adopted:
+		rel_path = entry["rel_path"]
+		owner = _match_vendor(vendors, rel_path)
+		# A path strictly inside a vendor, or a sparse copy itself, is one
+		# skill. A subtree vendor's own root is not: it holds that vendor's
+		# adopted skills (and its excluded paths, which are never compared).
+		if owner is not None and not (vendors[owner].get("kind") == "subtree"
+				and _vendor_rel(vendors[owner]) == rel_path):
+			add(entry["name"], rel_path)
+			continue
+		held = []
+		for vendor in vendors:
+			vrel = _vendor_rel(vendor)
+			if not vrel or not (rel_path in ("", vrel) or vrel.startswith(rel_path + "/")):
+				continue
+			if vendor.get("kind") == "sparse":
+				held.append(vrel)
+			else:
+				held.extend(_join(vrel, skill) for skill in vendor.get("skills") or [])
+		if not held:
+			add(entry["name"], rel_path)
+		for path in held:
+			add(os.path.basename(path), path)
+	return out
 
 
 def classify(local, baseline, upstream) -> str:
@@ -209,13 +292,17 @@ def classify(local, baseline, upstream) -> str:
 	return "local_only" if baseline == upstream else "diverged"
 
 
-def subtree_baseline_sha(dotfiles_root: str, prefix: str):
+def subtree_baseline_sha(skills_root: str, prefix: str):
 	"""The most recent `git subtree --squash` commit for `prefix`.
 
-	Returns (squash_commit_sha, subtree_split_sha) — the first is a commit in
+	Returns (baseline_rev, subtree_split_sha) — the first is a revision in
 	THIS repo whose tree is the pristine upstream content (so BASELINE needs
 	no network), the second names the upstream commit it came from. (None,
-	None) when no such commit exists.
+	None) when no such commit exists. A commit carrying
+	`git-subtree-mainline:` is the merge that brought a squash in (`git
+	subtree add`, or the re-based base after the move out of dotfiles); its
+	own tree is the whole repo, so the baseline is its second parent — the
+	squash — exactly as git-subtree's find_latest_squash reads it.
 	"""
 	try:
 		if not prefix:
@@ -224,7 +311,7 @@ def subtree_baseline_sha(dotfiles_root: str, prefix: str):
 		# One `git log`, not two: `%H%n%B` puts the sha on the first line and
 		# the raw body (which carries the trailers) on the rest, so the commit
 		# never has to be looked up a second time to read its own message.
-		rc, out, _ = _run(["git", "-C", dotfiles_root, "log", "-n", "1",
+		rc, out, _ = _run(["git", "-C", skills_root, "log", "-n", "1",
 			"--extended-regexp", "--grep", pattern, "--format=%H%n%B"], LOCAL_GIT_TIMEOUT)
 		if rc != 0 or not out.strip():
 			return (None, None)
@@ -233,6 +320,13 @@ def subtree_baseline_sha(dotfiles_root: str, prefix: str):
 		if not re.fullmatch(r'[0-9a-f]{40,64}', commit):
 			return (None, None)
 		m = re.search(r'^git-subtree-split:\s*([0-9a-fA-F]{7,40})\s*$', body, re.M)
+		if re.search(r'^git-subtree-mainline:', body, re.M):
+			rc, out, _ = _run(["git", "-C", skills_root, "rev-parse", commit + "^2"],
+				LOCAL_GIT_TIMEOUT)
+			squash = out.strip() if rc == 0 else ""
+			if not re.fullmatch(r'[0-9a-f]{40,64}', squash):
+				return (None, None)
+			commit = squash
 		return (commit, m.group(1).lower() if m else None)
 	except Exception:
 		return (None, None)
@@ -259,14 +353,9 @@ def _vendor_path(vendor: dict) -> str:
 
 
 def _vendor_rel(vendor: dict) -> str:
-	"""The vendor path relative to config/agent-skills — the form a
+	"""The vendor path relative to the skills repo root — the form a
 	marketplace `"./<...>"` source is written in."""
-	path = _vendor_path(vendor).rstrip("/")
-	if path == SKILLS_SUBDIR:
-		return ""
-	if path.startswith(SKILLS_SUBDIR + "/"):
-		return path[len(SKILLS_SUBDIR) + 1:]
-	return path
+	return _vendor_path(vendor).strip("/")
 
 
 def _vendor_name(vendor: dict) -> str:
@@ -279,12 +368,22 @@ def _vendor_name(vendor: dict) -> str:
 	return os.path.basename(_vendor_path(vendor).rstrip("/")) or rel or "vendor"
 
 
-def _vendor_dir(vendor: dict) -> str:
-	"""Where the vendor's CUSTOMISATION.md lives."""
+def _vendor_dir(vendor: dict, root: str | None = None) -> str:
+	"""Where the vendor's CUSTOMISATION.md lives: a subtree's prefix; for a
+	sparse copy, the nearest directory above it that holds one
+	(`softaworks/` for `softaworks/skills/jira`), or its parent when none
+	does or no root is given."""
 	path = _vendor_path(vendor).rstrip("/")
-	if vendor.get("kind") == "sparse":
-		return os.path.dirname(path) or path
-	return path
+	if vendor.get("kind") != "sparse":
+		return path
+	parent = os.path.dirname(path) or path
+	if root:
+		probe = parent
+		while probe:
+			if os.path.isfile(os.path.join(root, probe, "CUSTOMISATION.md")):
+				return probe
+			probe = os.path.dirname(probe)
+	return parent
 
 
 def _match_vendor(vendors: list, rel_path: str):
@@ -325,7 +424,7 @@ def _tree_sha(repo: str, rev: str, subpath: str, timeout: int):
 
 
 # ── Upstream probe ───────────────────────────────────────────────────────────
-def _probe_vendor(vendor: dict, dotfiles_root: str, probe_repo: str,
+def _probe_vendor(vendor: dict, skills_root: str, probe_repo: str,
 		timeout: int, no_network: bool):
 	"""Resolve where BASELINE and UPSTREAM are read from for one vendor.
 
@@ -342,17 +441,18 @@ def _probe_vendor(vendor: dict, dotfiles_root: str, probe_repo: str,
 	if kind == "subtree":
 		# The squash commit's own tree IS the upstream content at the sync
 		# point, so the baseline costs no network at all.
-		squash, split = subtree_baseline_sha(dotfiles_root, vendor.get("prefix", ""))
+		squash, split = subtree_baseline_sha(skills_root, vendor.get("prefix", ""))
 		if squash is None:
 			return None, ("no `git subtree --squash` commit recorded for "
 				"`{}`".format(vendor.get("prefix", "")))
-		baseline_repo, baseline_rev, baseline_sha = dotfiles_root, squash, (split or squash)
+		baseline_repo, baseline_rev, baseline_sha = skills_root, squash, (split or squash)
 	else:
-		cust = _read(os.path.join(dotfiles_root, _vendor_dir(vendor), "CUSTOMISATION.md"))
+		cust_dir = _vendor_dir(vendor, skills_root)
+		cust = _read(os.path.join(skills_root, cust_dir, "CUSTOMISATION.md"))
 		baseline_sha = sparse_baseline_sha(cust or "")
 		if baseline_sha is None:
 			return None, ("no `Last synced commit:` recorded in "
-				"`{}/CUSTOMISATION.md`".format(_vendor_dir(vendor)))
+				"`{}/CUSTOMISATION.md`".format(cust_dir))
 
 	if no_network:
 		return None, "network probes are disabled (--no-network)"
@@ -437,7 +537,7 @@ def _detail(state, skill, vendor, vendor_dir, url, branch, subpath,
 		return ("The vendored copy of `{skill}` still matches the recorded `{vendor}` sync "
 			"({base}), but upstream {url} ({branch}) has moved on `{subpath}` since — it is "
 			"now at {head}. Nothing local is at risk: re-sync the vendor with `{cmd}` from the "
-			"dotfiles repo root, on a clean tree.{also}").format(
+			"skills repo root, on a clean tree.{also}").format(
 			skill=skill, vendor=vendor, base=base, url=url, branch=branch,
 			subpath=subpath, head=head, cmd=SYNC_COMMAND, also=also)
 	if state == "diverged":
@@ -445,7 +545,7 @@ def _detail(state, skill, vendor, vendor_dir, url, branch, subpath,
 			"sync ({base}) AND upstream {url} ({branch}) has moved on `{subpath}` to {head}. "
 			"Syncing needs conflict review rather than a straight pull: check that the local "
 			"patches listed in `{dir}/CUSTOMISATION.md` survive it. Run `{cmd}` from the "
-			"dotfiles repo root, on a clean tree.{also}").format(
+			"skills repo root, on a clean tree.{also}").format(
 			skill=skill, vendor=vendor, base=base, url=url, branch=branch,
 			subpath=subpath, head=head, dir=vendor_dir, cmd=SYNC_COMMAND, also=also)
 	return ("The vendored copy of `{skill}` differs from the recorded `{vendor}` sync "
@@ -456,23 +556,37 @@ def _detail(state, skill, vendor, vendor_dir, url, branch, subpath,
 		subpath=subpath, dir=vendor_dir)
 
 
-def _whole_source_failure(reason: str):
+def _whole_source_failure(reason: str, missing: bool = False):
 	"""(findings, suppressed) for a failure that stopped the ENTIRE source.
 
 	Suppressing it and nothing else would be silent in the worst way:
 	`suppressed` is logged to stderr and never reaches report.json or the
 	page, so a run that could check nothing at all would render exactly like a
-	run that checked everything and found it in sync. A missing `dotfiles/`
+	run that checked everything and found it in sync. A missing skills
 	checkout, or a restructured `sync-upstream.sh`, would read as "all good".
-	So the source says out loud that it did not run — one quiet, expected
-	card, the same shape the per-vendor probe failure uses."""
+	So the source says out loud that it did not run — one card, the same
+	shape the per-vendor probe failure uses.
+
+	`missing` — the source is not where it was looked for (no checkout, not a
+	git repo, no sync-upstream.sh). That is a setup problem with a fix, and
+	it is how the move out of dotfiles would otherwise have gone unnoticed,
+	so the card is loud: `notable`, not expected, naming the fix. Anything
+	else (unparseable tables, a crash) is an honest quiet "unknown"."""
+	if missing:
+		detail = (reason + " No vendored skill was checked this run. Point the "
+			"check at the Tapppi/skills checkout with `--skills-root` or `$"
+			+ SKILLS_ROOT_ENV + "` (default `" + DEFAULT_SKILLS_ROOT + "`), or clone "
+			"it there.")
+	else:
+		detail = (reason + " No vendored skill was checked this run — nothing is "
+			"known to be wrong with any of them, and nothing here needs deciding.")
 	return [_finding(
 		id="skill-drift:source-unavailable",
-		name="Vendored-skill check did not run",
-		drift_state="probe_error", severity=SEVERITY["probe_error"],
-		detail=(reason + " No vendored skill was checked this run — nothing is "
-			"known to be wrong with any of them, and nothing here needs deciding."),
-		expected=True)], [reason]
+		name=("Vendored-skill source not found" if missing
+			else "Vendored-skill check did not run"),
+		drift_state="probe_error",
+		severity="notable" if missing else SEVERITY["probe_error"],
+		detail=detail, expected=not missing)], [reason]
 
 
 def _emit(findings: list, suppressed: list) -> int:
@@ -481,23 +595,23 @@ def _emit(findings: list, suppressed: list) -> int:
 
 
 # ── Detection ────────────────────────────────────────────────────────────────
-def detect(dotfiles_root: str, timeout: int, no_network: bool):
-	"""(findings, suppressed) for one dotfiles checkout."""
-	root = os.path.abspath(dotfiles_root)
+def detect(skills_root: str, timeout: int, no_network: bool):
+	"""(findings, suppressed) for one skills-repo checkout."""
+	root = os.path.abspath(os.path.expanduser(skills_root))
 	if not os.path.isdir(root):
 		return _whole_source_failure(
-			"There is no dotfiles checkout at `{}`.".format(dotfiles_root))
+			"There is no skills checkout at `{}`.".format(skills_root), missing=True)
 	rc, _, _ = _run(["git", "-C", root, "rev-parse", "--git-dir"], LOCAL_GIT_TIMEOUT)
 	if rc != 0:
 		return _whole_source_failure(
 			"`{}` is not a git checkout, and vendored-skill drift is read from git "
-			"provenance.".format(dotfiles_root))
+			"provenance.".format(skills_root), missing=True)
 
 	sync_text = _read(os.path.join(root, SYNC_SCRIPT_REL))
 	if sync_text is None:
 		return _whole_source_failure(
 			"`{}` was not found under `{}`, so the vendor -> upstream tables could not "
-			"be read.".format(SYNC_SCRIPT_REL, dotfiles_root))
+			"be read.".format(SYNC_SCRIPT_REL, skills_root), missing=True)
 	vendors = parse_vendor_tables(sync_text)
 	if not vendors:
 		return _whole_source_failure(
@@ -509,7 +623,7 @@ def detect(dotfiles_root: str, timeout: int, no_network: bool):
 
 	suppressed = []
 	buckets = {}
-	for entry in adopted:
+	for entry in resolve_adopted(adopted, vendors):
 		idx = _match_vendor(vendors, entry["rel_path"])
 		if idx is None:
 			suppressed.append("{} — own skill, no upstream vendor in "
@@ -622,7 +736,7 @@ def detect(dotfiles_root: str, timeout: int, no_network: bool):
 					id="skill-drift:{}/{}".format(name, skill),
 					name="{} ({})".format(skill, name),
 					drift_state=state, severity=SEVERITY[state],
-					detail=_detail(state, skill, name, _vendor_dir(vendor), url, branch,
+					detail=_detail(state, skill, name, _vendor_dir(vendor, root), url, branch,
 						subpath, probe["baseline_sha"], probe["upstream_sha"], drifted),
 					vendor=name, skill=skill, vendor_kind=vendor.get("kind"),
 					upstream_url=url, upstream_branch=branch, upstream_subpath=subpath,
@@ -640,16 +754,22 @@ def main(argv=None) -> int:
 	ap = argparse.ArgumentParser(description=(
 		"Report drift between the vendored agent skills and their upstreams, "
 		"as collect.json's `skill_drift` object."))
-	ap.add_argument("--dotfiles-root", default="dotfiles",
-		help="path to the dotfiles checkout (default: dotfiles, relative to the "
-			"macos-setup repo root collect.sh runs from)")
+	ap.add_argument("--skills-root",
+		default=os.environ.get(SKILLS_ROOT_ENV) or DEFAULT_SKILLS_ROOT,
+		help="path to the Tapppi/skills checkout that vendors the skills (default: "
+			"$" + SKILLS_ROOT_ENV + ", else " + DEFAULT_SKILLS_ROOT + ")")
 	ap.add_argument("--timeout", type=int, default=30,
 		help="seconds allowed per upstream network operation (default: 30)")
 	ap.add_argument("--no-network", action="store_true",
 		help="skip every upstream fetch; each vendor degrades to one probe_error finding")
+	ap.add_argument("--failed", metavar="REASON",
+		help="detect nothing; print the source-unavailable card for REASON (collect.sh's "
+			"fallback when a detector run timed out, crashed or printed no object)")
 	args = ap.parse_args(argv)
+	if args.failed is not None:
+		return _emit(*_whole_source_failure(args.failed))
 	try:
-		findings, suppressed = detect(args.dotfiles_root, max(1, args.timeout), args.no_network)
+		findings, suppressed = detect(args.skills_root, max(1, args.timeout), args.no_network)
 	except Exception as exc:  # the collector must never abort on our account
 		return _emit(*_whole_source_failure(
 			"Vendored-skill detection failed ({}: {}).".format(type(exc).__name__, exc)))

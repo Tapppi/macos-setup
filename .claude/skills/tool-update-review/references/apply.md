@@ -167,7 +167,7 @@ A `skill-drift` finding's suggestion (see `references/assembly.md`
 one structural command:
 
 ```sh
-bash config/agent-skills/sync-upstream.sh    # run from the dotfiles repo root
+bash sync-upstream.sh    # run from the Tapppi/skills repo root
 ```
 
 **It is `auto_runnable: false`, always, and there is no configuration that
@@ -176,7 +176,7 @@ runs it itself, whatever `auto_run_upgrades` says (§Executing Upgrade
 Suggestions' first gate). Three reasons, each sufficient on its own: the
 script refuses to start on a dirty tree, so it needs a working tree the
 session cannot promise; `git subtree pull` **writes commits** into the
-dotfiles submodule; and it can conflict with a local customisation, which
+skills repo; and it can conflict with a local customisation, which
 needs the vendor's `CUSTOMISATION.md` in front of a human, not a merge
 driver. Assembly enforces the same conclusion structurally — the suggestion
 id ends `:sync`, so it can never pre-accept (`references/schemas.md` §1.6).
@@ -197,13 +197,14 @@ cover it would be the wrong fix for a case that is meant to stay manual.
 avoid.** A skill-drift finding can also produce an ordinary `kind: "edit"`
 — a `CUSTOMISATION.md` entry recording a local patch, a
 `.claude-plugin/marketplace.json` fix after an upstream rename
-(`references/research.md` §Skill-Drift Enrichment). Vendored skills *are*
-files `tasks/projects.sh` manages: it symlinks them out of
-`~/.config/agent-skills/` into each repo's `.claude/skills/`. So such an
-edit legitimately reuses the **existing** `./setup.sh projects` exception,
-exactly as any other projects-managed file does — run it after applying the
-edit so the symlinks re-resolve. That is the existing exception being used
-as written, not a new one, and it says nothing about `sync-upstream.sh`.
+(`references/research.md` §Skill-Drift Enrichment). Such an edit lands in
+the Tapppi/skills repo, and its files are **not** ones `tasks/projects.sh`
+manages: the skills reach each repo as marketplace plugins (macos-setup
+`docs/skills.md`), and `projects.sh` only enables plugins by name from a
+workspace manifest. So an edit there needs no `setup.sh` run at all — unless
+it renames a plugin a workspace manifest enables, when the **existing**
+`./setup.sh projects` exception applies as written, for the manifest. It says
+nothing about `sync-upstream.sh`.
 
 **The command is vendor-scoped; the findings are per skill.** `git subtree
 pull` operates on a whole vendor prefix, so one run resolves **every**

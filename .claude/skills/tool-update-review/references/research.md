@@ -123,7 +123,7 @@ plus one standing tier per non-version source:
   what this tier does): the `skill_drift` findings get their own dedicated
   subagent, individual-tier for the same reason the brew-health group is —
   every finding is repo-touchpoint work by nature, since the thing that
-  drifted *is* a file in the dotfiles submodule. It writes one research
+  drifted *is* a file in the Tapppi/skills repo. It writes one research
   element per finding, matching each finding's `id`. Same two conveniences
   as the brew-health group: a finding whose collect-default remediation
   already says everything useful can simply be left out of the file
@@ -144,8 +144,10 @@ miscategorized into the individual tier for the wrong reason (or worse, a
 real touchpoint gets diluted by unrelated grep noise in its context). Re-run
 suspicious hits with `-w` before trusting them.
 
-**`dotfiles/config/agent-skills/**` is vendored third-party skill content.**
-Grep hits there are almost never a real touchpoint — they are somebody else's
+**`dotfiles/config/agent-skills/**` is vendored third-party skill content,
+where a checkout still carries it** (the vendored skills moved to the
+Tapppi/skills repo, which is not a grounding root). Grep hits there are almost
+never a real touchpoint — they are somebody else's
 documentation and scripts, which happen to name the same tools the user
 installs. Ignore them unless the tool is genuinely configured there. This is a
 false-positive filter on the tiering decision specifically: a batch of casks
@@ -1924,8 +1926,8 @@ page — the finding hands you `upstream_url`, `upstream_branch`,
    behaviour everywhere the skill is installed — a bigger practical change
    than a new reference doc, and the one diff that never looks important in
    a `--stat`. Same for a renamed or moved skill directory: it breaks the
-   `.claude-plugin/marketplace.json` entry and every symlink
-   `tasks/projects.sh` writes into a repo's `.claude/skills/`, which is an
+   `.claude-plugin/marketplace.json` entry, and with it the plugin every
+   repo enables from that marketplace, which is an
    `incompatible`-severity item (`reaches`/`risk`), not a note.
 3. **Cross-reference the vendor's `CUSTOMISATION.md`.** A documented local
    patch touching the same files is what turns "sync it" into "sync it and

@@ -568,8 +568,8 @@ fiction, so assembly short-circuits rather than classifying it (§1.8). `brew-he
 synthesized `upgrade` baseline — their action is the finding's own
 remediation (`references/assembly.md` §Brew-Health Assembly).
 
-`skill-drift` = the second non-version source: a vendored agent skill under
-`dotfiles/config/agent-skills/` whose content no longer matches its upstream
+`skill-drift` = the second non-version source: a vendored agent skill in the
+Tapppi/skills repo whose content no longer matches its upstream
 (see `references/collection.md` §Skill-Drift Collection for the three-way
 tree-hash detection, and `references/assembly.md` §Skill-Drift Assembly for
 the Tool object). It behaves exactly as `brew-health` does on every
