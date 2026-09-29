@@ -1751,6 +1751,16 @@ PRE_ACCEPT_PREDICATE = (
 WATCH_ITEMS_STORE = "watch-items.json"
 METHOD_NOTES_STORE = "method-notes.json"
 GLOBAL_METHOD_NOTE_KEY = "global"
+def state_path(filename: str) -> str:
+	"""`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/<filename>` — the
+	one spelling of the machine-global state directory (the memory stores and
+	changelog.md). An EMPTY XDG_STATE_HOME falls back to the default, as the
+	shell's `:-` does in SKILL.md's snapshot `cp`; `.get(key, default)` would
+	keep the empty string and write under `/tool-update-review/` instead."""
+	base = os.environ.get("XDG_STATE_HOME") or "~/.local/state"
+	return os.path.expanduser(os.path.join(base, "tool-update-review", filename))
+
+
 MEMORY_STORES = {
 	WATCH_ITEMS_STORE: {
 		"path": "${XDG_STATE_HOME:-~/.local/state}/tool-update-review/watch-items.json",

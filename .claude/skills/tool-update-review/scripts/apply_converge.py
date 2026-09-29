@@ -2263,8 +2263,7 @@ def live_store_path(filename):
 	"""`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/<filename>` — the
 	store SKILL.md step 3 copies from (an empty XDG_STATE_HOME falls back,
 	as the shell's `:-` does)."""
-	base = os.environ.get("XDG_STATE_HOME") or "~/.local/state"
-	return os.path.expanduser(os.path.join(base, "tool-update-review", filename))
+	return model.state_path(filename)
 
 
 def _snapshot_store(session_dir, filename):

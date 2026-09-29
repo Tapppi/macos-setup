@@ -685,6 +685,33 @@ class MemoryStoreWriterTests(unittest.TestCase):
 						self.assertIn(f"{field} must be a non-blank string", p.stderr)
 						self.assertFalse(os.path.exists(os.path.join(state_home, "tool-update-review", model.METHOD_NOTES_STORE)))
 
+	def test_an_empty_xdg_state_home_falls_back_like_the_shell(self):
+		"""Review A6: `XDG_STATE_HOME=` (empty) must mean the default, as
+		`${XDG_STATE_HOME:-…}` does in SKILL.md's snapshot and in the applier —
+		never a store under `/tool-update-review/` at the filesystem root."""
+		home = self._state_home()
+		env = dict(os.environ, XDG_STATE_HOME="", HOME=home)
+		p = subprocess.run([sys.executable, WRITE_STATUS, "add-watch-item", "--tool-id",
+			"brew:nnn", "--topic", "plugin dir", "--note", "n"],
+			capture_output=True, text=True, timeout=60, env=env)
+		self.assertEqual(p.returncode, 0, p.stderr)
+		self.assertTrue(os.path.isfile(os.path.join(home, ".local", "state",
+			"tool-update-review", model.WATCH_ITEMS_STORE)))
+		import apply_converge
+		import write_status
+		old = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "HOME")}
+		os.environ.update(XDG_STATE_HOME="", HOME=home)
+		try:
+			expected = os.path.join(home, ".local", "state", "tool-update-review", "x")
+			self.assertEqual(write_status.store_path("x"), expected)
+			self.assertEqual(apply_converge.live_store_path("x"), expected)
+		finally:
+			for k, v in old.items():
+				if v is None:
+					os.environ.pop(k, None)
+				else:
+					os.environ[k] = v
+
 	def test_each_store_is_created_on_first_use(self):
 		"""No pre-seeding: a fresh XDG_STATE_HOME has no
 		state directory at all, and the first accepted proposal makes both

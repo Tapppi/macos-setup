@@ -725,9 +725,7 @@ def cmd_append_changelog(args):
 	status["written_at"] = now_iso()
 	write_json_atomic(status_path(args.session_dir), status)
 
-	changelog_md = os.path.expanduser(
-		os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/tool-update-review/changelog.md"
-	)
+	changelog_md = items.state_path("changelog.md")
 	os.makedirs(os.path.dirname(changelog_md), exist_ok=True)
 	with open(changelog_md, "a", encoding="utf-8") as fh:
 		for entry in entries:
@@ -757,10 +755,9 @@ def cmd_append_changelog(args):
 
 def store_path(filename: str) -> str:
 	"""`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/<filename>` — a
-	sibling of changelog.md, never inside a session dir."""
-	return os.path.expanduser(
-		os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/tool-update-review/" + filename
-	)
+	sibling of changelog.md, never inside a session dir (`items.state_path`:
+	an empty XDG_STATE_HOME falls back, as everywhere else)."""
+	return items.state_path(filename)
 
 
 def _load_store(path: str):
