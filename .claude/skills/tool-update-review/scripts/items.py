@@ -786,11 +786,23 @@ TIER_REASON_LEVELS = (
 	("edit-proposed", "P1"),         # an action suggestion reads `proposed`
 	("config-attention", "P1"),      # needs_attention with NO action suggestion (§7.29)
 	("relevant-fix", "P2"),          # a positive fix confirmed against actual usage (I-23)
-	("fix-with-breaking", "P2"),     # any `breaking`-tagged item, any severity (R4)
+	("fix-with-breaking", "P2"),     # a `breaking`-tagged item that REACHES this machine
 	("fix-with-risk", "P2"),         # a NON-security item with effect == risk (O1)
 	("vendor-unread", "P2"),         # vendor_silent_categories ∋ "security"
+	("fix-with-breaking-unseen", "P2"),  # `breaking` items, none of them reaching (R4)
 	("fix", "P3"),                   # a positive fix — always present when one exists
 )
+# R4 kept every fix that ships with a breaking change highlighted, at any
+# reach. Measured on the first real item-model run, 15 of 40 panel rows were
+# there only for a breaking change that reaches nothing here (curl, coreutils,
+# gzip, kubectl, redis, …). The user's answer (2026-09-29): keep them all
+# highlighted and accepted, but ORDER BY REACH and mark the rest. So the one
+# reason became two, the reach carried by the code itself — the page sorts
+# and labels by the code and never re-reads an item's direction. A breaking
+# item "reaches" when its `local.direction` is `reaches`; `does_not_reach`,
+# `unclear` and no local block are all "not seen here". The unseen code is the
+# LAST P2 reason, so any other P2 reason leads a row before it does.
+BREAKING_REASONS = ("fix-with-breaking", "fix-with-breaking-unseen")
 TIER_REASONS = tuple(code for code, _ in TIER_REASON_LEVELS)
 TIER_REASON_LEVEL = dict(TIER_REASON_LEVELS)
 
@@ -827,10 +839,12 @@ TIER_LABELS = {
 		"text": "Accepted — config needs attention — no edit proposed"},
 	"relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"},
 	"fix-with-breaking": {"glyph": "◎",
-		"text": "Accepted — also has a breaking change: take a quick look"},
+		"text": "Accepted — also has a breaking change that reaches this machine: take a look"},
 	"fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"},
 	"vendor-unread": {"glyph": "◎",
 		"text": "Accepted — vendor declares a security release without details"},
+	"fix-with-breaking-unseen": {"glyph": "◎",
+		"text": "Accepted — breaking change, not seen here"},
 	"fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"},
 }
 
@@ -1177,16 +1191,20 @@ def security_tier(view):
 		and _local_field(i, "effect") in ("benefit", "none")]
 	if relevant:
 		found["relevant-fix"] = relevant
-	breaking = [_str_id(i) for i in items
+	breaking = [i for i in items
 		if isinstance(i.get("tags"), list) and "breaking" in i["tags"]]
-	if breaking:
-		found["fix-with-breaking"] = breaking
+	reaching = [_str_id(i) for i in breaking
+		if _local_field(i, "direction") == "reaches"]
+	if reaching:
+		found["fix-with-breaking"] = reaching
 	risky = [_str_id(i) for i in items
 		if not is_security_content(i) and _local_field(i, "effect") == "risk"]
 	if risky:
 		found["fix-with-risk"] = risky
 	if vendor_unread:
 		found["vendor-unread"] = []
+	if breaking and not reaching:
+		found["fix-with-breaking-unseen"] = [_str_id(i) for i in breaking]
 	if fixes:
 		found["fix"] = [_str_id(i) for i in fixes]
 

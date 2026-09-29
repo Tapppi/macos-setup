@@ -3,7 +3,7 @@
 	"generated_at": "2026-09-07T00:00:00Z",
 	"converge_version": 3,
 	"view_version": 2,
-	"corpus_digest": "sha256:34aa682bde48601b3bd329360ce61b3243a87bf2e15aff8c634f110841aa6640",
+	"corpus_digest": "sha256:ad80d7d872eee01b127a27e8ea4671e86872100e41e61e71e466f40ea5acb4c1",
 	"tools": [
 		{
 			"id": "brew:sops",
@@ -2487,12 +2487,12 @@
 				"tier": "P2",
 				"priority": "P2",
 				"reasons": [
-					"fix-with-breaking",
+					"fix-with-breaking-unseen",
 					"fix"
 				],
 				"holds": [],
 				"ids": {
-					"fix-with-breaking": [
+					"fix-with-breaking-unseen": [
 						"brew:tier-breaking#slug:flag-removed"
 					],
 					"fix": [
@@ -2938,7 +2938,7 @@
 				"has_security": true,
 				"has_breaking": true,
 				"worst_severity": "notable",
-				"local_findings": 2
+				"local_findings": 3
 			},
 			"initial_review_bucket": "security_mixed",
 			"bucket_inputs": {
@@ -3052,6 +3052,21 @@
 						"version": "1.0.1",
 						"citation": "Config is now TOML",
 						"link_index": 0
+					},
+					"local": {
+						"direction": "reaches",
+						"effect": "none",
+						"statement": "This setup installs tier-held-p2, and its first run after the upgrade rewrites the config it keeps.",
+						"evidence": [
+							{
+								"path": "Brewfile",
+								"lines": [
+									31
+								],
+								"role": "install"
+							}
+						],
+						"citations": []
 					},
 					"id": "brew:tier-held-p2#slug:config-format",
 					"id_stability": "slug",

@@ -5061,8 +5061,8 @@
 		 * baseline's `pre_accept`. The labels are the model's
 		 * (`items.TIER_LABELS`; test_render pins this copy to it) — text and
 		 * glyph, never colour alone. */
-		const TIER_LABELS = {"required-edit": {"glyph": "⛔", "text": "Needs you — a config change is required before this upgrade works"}, "pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"}, "incompatible-unfixed": {"glyph": "⛔", "text": "Needs you — breaks something here; no config fix proposed"}, "edit-proposed": {"glyph": "⚙", "text": "Accepted — config edits proposed, not applied unless you accept them"}, "config-attention": {"glyph": "⚙", "text": "Accepted — config needs attention — no edit proposed"}, "relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"}, "fix-with-breaking": {"glyph": "◎", "text": "Accepted — also has a breaking change: take a quick look"}, "fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"}, "vendor-unread": {"glyph": "◎", "text": "Accepted — vendor declares a security release without details"}, "fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"}};
-		const TIER_REASON_LEVEL = {"required-edit": "P0", "pinned": "P0", "incompatible-unfixed": "P0", "edit-proposed": "P1", "config-attention": "P1", "relevant-fix": "P2", "fix-with-breaking": "P2", "fix-with-risk": "P2", "vendor-unread": "P2", "fix": "P3"};
+		const TIER_LABELS = {"required-edit": {"glyph": "⛔", "text": "Needs you — a config change is required before this upgrade works"}, "pinned": {"glyph": "⛔", "text": "Needs you — pinned; lift the pin to take the fix"}, "incompatible-unfixed": {"glyph": "⛔", "text": "Needs you — breaks something here; no config fix proposed"}, "edit-proposed": {"glyph": "⚙", "text": "Accepted — config edits proposed, not applied unless you accept them"}, "config-attention": {"glyph": "⚙", "text": "Accepted — config needs attention — no edit proposed"}, "relevant-fix": {"glyph": "◎", "text": "Accepted — the fix touches how you use it"}, "fix-with-breaking": {"glyph": "◎", "text": "Accepted — also has a breaking change that reaches this machine: take a look"}, "fix-with-risk": {"glyph": "◎", "text": "Accepted — also carries a risk here"}, "vendor-unread": {"glyph": "◎", "text": "Accepted — vendor declares a security release without details"}, "fix-with-breaking-unseen": {"glyph": "◎", "text": "Accepted — breaking change, not seen here"}, "fix": {"glyph": "·", "text": "Accepted — a security fix, nothing flagged for this setup"}};
+		const TIER_REASON_LEVEL = {"required-edit": "P0", "pinned": "P0", "incompatible-unfixed": "P0", "edit-proposed": "P1", "config-attention": "P1", "relevant-fix": "P2", "fix-with-breaking": "P2", "fix-with-risk": "P2", "vendor-unread": "P2", "fix-with-breaking-unseen": "P2", "fix": "P3"};
 		const TIER_HOLDS = ["content-losing", "security-item-risk", "watch-hit", "enum-invalid", "container-unreadable", "research-incomplete", "not-runnable", "forced-conservative", "tier-uncomputed"];
 		const TIER_TIERS = ['P0', 'held', 'P1', 'P2', 'P3'];
 		const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 };
@@ -5189,7 +5189,9 @@
 				return `${esc(title || 'the fix')}${ev && typeof ev.path === 'string' ? ` — used in <code>${esc(ev.path)}</code>` : ''}`;
 			}
 			case 'fix-with-breaking':
-				return `Breaking: ${esc(title || 'see the card')}`;
+				return `Breaking here: ${esc(title || 'see the card')}`;
+			case 'fix-with-breaking-unseen':
+				return `Breaking change, not seen here: ${esc(title || 'see the card')}`;
 			case 'fix-with-risk':
 				return `Risk here: ${esc(title || 'see the card')}`;
 			case 'vendor-unread':
@@ -5204,7 +5206,7 @@
 			const sec = toolSecurity(tool);
 			const sug = baselineSuggestion(tool);
 			const line = prioLineHtml(tool, p);
-			return `<article class="prow" data-tool="${esc(tool.id)}" data-priority="${esc(p.priority)}" data-held="${p.holds.length ? '1' : '0'}" tabindex="-1">
+			return `<article class="prow" data-tool="${esc(tool.id)}" data-priority="${esc(p.priority)}" data-held="${p.holds.length ? '1' : '0'}" data-breaking="${esc(breakingReachOf(p))}" tabindex="-1">
 				<div class="l1">
 					<span class="nm">${esc(tool.name)}</span>
 					${versionsHtml(tool, 'vd')}
@@ -5220,8 +5222,29 @@
 			</article>`;
 		}
 
+		/* "reaches" | "unseen" | "": whether the fix ships with a breaking
+		 * change, and whether it reaches this machine — read off the tier's
+		 * reason CODE (`fix-with-breaking` vs `fix-with-breaking-unseen`),
+		 * never re-derived from an item's direction. */
+		function breakingReachOf(p) {
+			if (p.reasons.includes('fix-with-breaking')) return 'reaches';
+			return p.reasons.includes('fix-with-breaking-unseen') ? 'unseen' : '';
+		}
+
+		/* Within P2 (the user's answer, 2026-09-29): a row whose breaking
+		 * change reaches this machine sorts first, and a row that is here
+		 * only for a breaking change not seen here sorts last, after every
+		 * other P2 reason. */
+		function p2ReachRank(p) {
+			if (p.priority !== 'P2') return 1;
+			if (breakingReachOf(p) === 'reaches') return 0;
+			return leadReason(p) === 'fix-with-breaking-unseen' ? 2 : 1;
+		}
+
 		function comparePriorityTools(a, b) {
-			return (PRIORITY_ORDER[prioInfo(a).priority] - PRIORITY_ORDER[prioInfo(b).priority])
+			const pa = prioInfo(a), pb = prioInfo(b);
+			return (PRIORITY_ORDER[pa.priority] - PRIORITY_ORDER[pb.priority])
+				|| (p2ReachRank(pa) - p2ReachRank(pb))
 				|| compareMixedTools(a, b);
 		}
 

@@ -498,7 +498,12 @@ held** (held means not accepted, never hidden) — plus a degraded-gate forced
 tool whose `forced_conservative.forced_display.priority` is one of those
 (its pre-convergence priority; display only). An absent or malformed tier puts
 a tool in no panel and claims nothing beyond `pre_accept`. Order: P0 → P1 →
-P2, then the mixed-card order.
+P2, then the mixed-card order — except that within P2 a row whose tier lists
+`fix-with-breaking` (a breaking change that reaches this machine) sorts first
+and a row led by `fix-with-breaking-unseen` (here only for a breaking change
+not seen here) sorts last. The reach is the reason code's, read off the tier,
+never re-derived from an item's direction; the row carries it as
+`data-breaking="reaches|unseen"`.
 
 **Rows** reuse the judgement-row pattern (`.prow`): the identity line — name,
 version pair, source badge, CVE badge, the `elevated risk` badge when
@@ -522,9 +527,10 @@ line with the `open card →` jump:
   `edit-proposed` — `+N proposed edits — not applied unless you accept them`;
   `config-attention` — `config needs attention — no edit proposed:` and the
   first sentence of `config_status.detail`; `relevant-fix` — the fix's title
-  and its usage quote's path; `fix-with-breaking` / `fix-with-risk` — the
-  breaking or risk item's title; `vendor-unread` — `vendor published no
-  details`.
+  and its usage quote's path; `fix-with-breaking` — `Breaking here:` and the
+  reaching breaking item's title; `fix-with-breaking-unseen` — `Breaking
+  change, not seen here:` and the breaking item's title; `fix-with-risk` —
+  the risk item's title; `vendor-unread` — `vendor published no details`.
 
 Foot: *"Accepted rows are already accepted — press Reject to hold one back.
 Rows marked Needs you or Held start undecided."* No new decision mechanism:

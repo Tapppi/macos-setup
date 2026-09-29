@@ -3123,7 +3123,7 @@ class TierStorageTests(unittest.TestCase):
 			"brew:tier-config": ("P1", "P1", "config-attention", None),
 			"brew:libpq": ("P2", "P2", "relevant-fix", None),
 			"brew:duckdb": ("P2", "P2", "relevant-fix", None),
-			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking", None),
+			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking-unseen", None),
 			"brew:tier-risk": ("P2", "P2", "fix-with-risk", None),
 			"cask:tier-vendor": ("P2", "P2", "vendor-unread", None),
 			"brew:tier-fix": ("P3", "P3", "fix", None),

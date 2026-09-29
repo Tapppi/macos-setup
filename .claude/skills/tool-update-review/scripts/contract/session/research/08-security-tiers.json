@@ -840,6 +840,21 @@
 					"version": "1.0.1",
 					"citation": "Config is now TOML",
 					"link_index": 0
+				},
+				"local": {
+					"direction": "reaches",
+					"effect": "none",
+					"statement": "This setup installs tier-held-p2, and its first run after the upgrade rewrites the config it keeps.",
+					"evidence": [
+						{
+							"path": "Brewfile",
+							"lines": [
+								31
+							],
+							"role": "install"
+						}
+					],
+					"citations": []
 				}
 			},
 			{

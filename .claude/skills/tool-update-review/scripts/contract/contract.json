@@ -297,6 +297,10 @@
 				"level": "P2"
 			},
 			{
+				"code": "fix-with-breaking-unseen",
+				"level": "P2"
+			},
+			{
 				"code": "fix",
 				"level": "P3"
 			}
@@ -349,7 +353,7 @@
 			},
 			"fix-with-breaking": {
 				"glyph": "◎",
-				"text": "Accepted — also has a breaking change: take a quick look"
+				"text": "Accepted — also has a breaking change that reaches this machine: take a look"
 			},
 			"fix-with-risk": {
 				"glyph": "◎",
@@ -358,6 +362,10 @@
 			"vendor-unread": {
 				"glyph": "◎",
 				"text": "Accepted — vendor declares a security release without details"
+			},
+			"fix-with-breaking-unseen": {
+				"glyph": "◎",
+				"text": "Accepted — breaking change, not seen here"
 			},
 			"fix": {
 				"glyph": "·",

@@ -928,7 +928,7 @@ class GSecTierTests(unittest.TestCase):
 		tier = model.security_tier(_gview([_fix(), {"id": "brew:x#slug:b",
 			"tags": ["breaking"], "severity": "info"}],
 			[{"id": "brew:x:e", "kind": "edit", "requirement": "proposed"}]))
-		self.assertEqual(tier["reasons"], ["edit-proposed", "fix-with-breaking", "fix"])
+		self.assertEqual(tier["reasons"], ["edit-proposed", "fix-with-breaking-unseen", "fix"])
 		self.assertEqual(tier["priority"], "P1")
 
 	def test_relevant_fix_needs_a_recorded_usage_entry_and_a_benign_effect(self):
@@ -961,10 +961,45 @@ class GSecTierTests(unittest.TestCase):
 				["reasons"], ["fix"])
 
 	def test_fix_with_breaking_is_any_breaking_item_at_any_severity(self):
+		"""R4 as amended by the user (2026-09-29): every fix that ships with a
+		breaking change stays P2 at any severity and any reach — the reach is
+		carried by WHICH code fires, so the page sorts and labels by it."""
 		for severity in ("info", "notable", "warning"):
 			tier = model.security_tier(_gview([_fix(), {"id": "brew:x#slug:b",
 				"tags": ["breaking"], "severity": severity}]))
-			self.assertEqual(tier["reasons"], ["fix-with-breaking", "fix"])
+			self.assertEqual(tier["reasons"], ["fix-with-breaking-unseen", "fix"])
+			self.assertEqual(tier["priority"], "P2")
+
+	def test_a_breaking_change_that_reaches_is_its_own_reason(self):
+		"""Pass 6: 15 of 40 panel rows (brew:curl, brew:coreutils, brew:gzip,
+		brew:kubernetes-cli, brew:redis, cask:gcloud-cli, mise:bun, …) were
+		there only for a breaking change that reaches nothing here, and read
+		exactly like brew:nnn's, whose breaking change does."""
+		def breaking(slug, direction=None):
+			item = {"id": "brew:x#slug:" + slug, "tags": ["breaking"], "severity": "notable"}
+			if direction is not None:
+				item["local"] = {"direction": direction, "effect": "none"}
+			return item
+		# only a reaching one names `fix-with-breaking`, with only its own id
+		tier = model.security_tier(_gview([_fix(), breaking("a", "reaches"),
+			breaking("b", "does_not_reach")]))
+		self.assertEqual(tier["reasons"], ["fix-with-breaking", "fix"])
+		self.assertEqual(tier["ids"]["fix-with-breaking"], ["brew:x#slug:a"])
+		# does_not_reach, unclear and no local block are all "not seen here"
+		for direction in ("does_not_reach", "unclear", None):
+			tier = model.security_tier(_gview([_fix(), breaking("c", direction)]))
+			self.assertEqual(tier["reasons"], ["fix-with-breaking-unseen", "fix"], direction)
+			self.assertEqual(tier["ids"]["fix-with-breaking-unseen"], ["brew:x#slug:c"])
+			self.assertEqual(tier["priority"], "P2")
+			self.assertTrue(model.valid_security_tier(tier))
+		# the unseen code is the last P2 reason: any other P2 reason leads
+		tier = model.security_tier(_gview([_fix(), breaking("d")],
+			vendor_silent_categories=["security"]))
+		self.assertEqual(tier["reasons"], ["vendor-unread", "fix-with-breaking-unseen", "fix"])
+		self.assertEqual(model.TIER_REASONS.index("fix-with-breaking-unseen"),
+			max(model.TIER_REASONS.index(r) for r, lv in model.TIER_REASON_LEVELS if lv == "P2"))
+		self.assertEqual(model.TIER_LABELS["fix-with-breaking-unseen"]["text"],
+			"Accepted — breaking change, not seen here")
 
 	def test_fix_with_risk_is_a_non_security_risk_item(self):
 		feature = {"id": "brew:x#slug:f", "tags": ["feature"], "severity": "notable",

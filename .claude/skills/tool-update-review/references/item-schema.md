@@ -719,7 +719,7 @@ hidden.
 |---|---|
 | P0 | `required-edit` (an action suggestion reads required), `pinned`, `incompatible-unfixed` (an `incompatible` item no required edit serves) |
 | P1 | `edit-proposed` (an action suggestion reads proposed), `config-attention` (needs_attention with **no** action suggestion) |
-| P2 | `relevant-fix` (a fix usage-confirmed with effect benefit/none), `fix-with-breaking` (any `breaking` item, any severity), `fix-with-risk` (a NON-security item with effect risk), `vendor-unread` |
+| P2 | `relevant-fix` (a fix usage-confirmed with effect benefit/none), `fix-with-breaking` (a `breaking` item, any severity, whose `local.direction` is `reaches`), `fix-with-risk` (a NON-security item with effect risk), `vendor-unread`, `fix-with-breaking-unseen` (`breaking` items, none reaching — does_not_reach, unclear or no local block) |
 | P3 | `fix` |
 
 Holds: `content-losing`, `security-item-risk` (a security item with effect

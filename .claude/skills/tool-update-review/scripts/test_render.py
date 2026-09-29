@@ -2023,13 +2023,13 @@ class GSecPriorityPanelTests(PageDriveRunner):
 		self.assertIn(labels["incompatible-unfixed"]["text"], out["row:brew:tier-incompatible"])
 		self.assertIn(labels["edit-proposed"]["text"], out["row:brew:tier-proposed"])
 		self.assertIn(labels["relevant-fix"]["text"], out["row:brew:libpq"])
-		self.assertIn(labels["fix-with-breaking"]["text"], out["row:brew:tier-breaking"])
+		self.assertIn(labels["fix-with-breaking-unseen"]["text"], out["row:brew:tier-breaking"])
 		self.assertIn(labels["fix-with-risk"]["text"], out["row:brew:tier-risk"])
 		self.assertIn(labels["vendor-unread"]["text"], out["row:cask:tier-vendor"])
 		self.assertIn("⛔", out["row:brew:tier-required"])
 		# a multi-reason row names the rest
 		self.assertIn("+2 more reasons", out["moreTitle"])
-		self.assertIn("also has a breaking change", out["moreTitle"])
+		self.assertIn("also has a breaking change that reaches this machine", out["moreTitle"])
 		self.assertIn("also carries a risk here", out["moreTitle"])
 
 	def test_03_accepted_rows_start_on_and_one_reject_takes_the_upgrade_back(self):
@@ -2255,6 +2255,30 @@ class GSecPriorityPanelTests(PageDriveRunner):
 		self.assertIn("config needs attention — no edit proposed: The tracked config pins "
 			"the old cipher list", out["line"])
 		self.assertNotIn("proposed edit", out["line"])
+
+	def test_15_p2_orders_a_reaching_breaking_change_first_and_marks_the_rest(self):
+		"""The user's answer to pass 6 (2026-09-29): every fix + breaking change
+		stays highlighted and accepted; within P2, a row whose breaking change
+		reaches this machine sorts first, and one here only for a breaking
+		change not seen here sorts last and says so."""
+		out = self.drive(self.report, """
+		const rows = Array.from(document.querySelectorAll('#sec-priority .prow'));
+		log('p2=' + rows.filter(r => r.dataset.priority === 'P2')
+			.map(r => r.dataset.tool + ':' + r.dataset.breaking).join(','));
+		const r = document.querySelector('.prow[data-tool="brew:tier-breaking"]');
+		log('chip=' + r.querySelector('.prio-chip').textContent.replace(/\\s+/g, ' ').trim());
+		log('line=' + r.querySelector('.l3 .ln').textContent.replace(/\\s+/g, ' ').trim());
+""")
+		p2 = [entry.split(":")[-1] for entry in out["p2"].split(",")]
+		tools = [entry.rsplit(":", 1)[0] for entry in out["p2"].split(",")]
+		self.assertEqual(tools[0], "brew:tier-held-p2")
+		self.assertEqual(p2[0], "reaches")
+		self.assertEqual(tools[-1], "brew:tier-breaking")
+		self.assertEqual(p2[-1], "unseen")
+		self.assertNotIn("reaches", p2[1:])
+		self.assertIn("Accepted — breaking change, not seen here", out["chip"])
+		self.assertIn("Breaking change, not seen here: The deprecated `--legacy` flag "
+			"is removed", out["line"])
 
 
 class GSecDegradedPageTests(PageDriveRunner):

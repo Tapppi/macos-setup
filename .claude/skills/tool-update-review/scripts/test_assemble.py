@@ -2476,7 +2476,7 @@ class GSecAssemblyTests(unittest.TestCase):
 			"brew:tier-config": ("P1", "P1", "config-attention", []),
 			"brew:libpq": ("P2", "P2", "relevant-fix", []),
 			"brew:duckdb": ("P3", "P3", "fix", []),
-			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking", []),
+			"brew:tier-breaking": ("P2", "P2", "fix-with-breaking-unseen", []),
 			"brew:tier-risk": ("P2", "P2", "fix-with-risk", []),
 			"cask:tier-vendor": ("P2", "P2", "vendor-unread", []),
 			"brew:tier-fix": ("P3", "P3", "fix", []),

@@ -1,6 +1,6 @@
 {
-	"corpus_pre_digest": "sha256:34aa682bde48601b3bd329360ce61b3243a87bf2e15aff8c634f110841aa6640",
-	"corpus_post_digest": "sha256:98e9de03cc4c9889e6b8dbff08361e370566cea9fafe7dc7518f1824083030e6",
+	"corpus_pre_digest": "sha256:ad80d7d872eee01b127a27e8ea4671e86872100e41e61e71e466f40ea5acb4c1",
+	"corpus_post_digest": "sha256:4b946a0afd6ccf592a69cd99542ec973af5ec543227c41c8d8554c74e5ebec31",
 	"effect": {
 		"run_id": "session",
 		"generated_at": "2026-09-07T00:00:00Z",
@@ -434,7 +434,7 @@
 				"auto_update_label": {
 					"source": "rule",
 					"headline": "Auto by rule — the deterministic path alone put it here.",
-					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons fix-with-breaking, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
+					"reasoning": "Reached security_auto with zero attributed convergence edits: a positively identified security fix, security tier P2 (priority P2; reasons fix-with-breaking-unseen, fix), version_delta=patch, risk_level=low, no pre-acceptance bars.",
 					"confidence": "high",
 					"edit_ids": [],
 					"quotes": [],
