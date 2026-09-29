@@ -881,6 +881,43 @@ class DecisionSurfaceTests(PageDriveRunner):
 
 
 
+class CommaVersionTests(PageDriveRunner):
+	"""Pass 6: cask:claude (`1.22209.3,babe1157…` → `2.9939.4,a166d8a7…`),
+	cask:cursor and cask:datagrip ran past the version pair's ellipsis, so the
+	target version — the one part a reader needs — was the part cut off."""
+
+	def test_the_target_version_is_shown_and_the_full_pair_kept_in_the_title(self):
+		claude = page_tool("cask:claude", "claude",
+			"1.22209.3,babe11577dfefe3e209c06bd674628d862f0dbae",
+			"2.9939.4,a166d8a7c640e65ad825ebfb99d74ccbb9c8940d", "security_mixed")
+		datagrip = page_tool("cask:datagrip", "datagrip", "2026.2,262.8665.272",
+			"2026.2.5,262.10315.132", "security_mixed")
+		rebuild = page_tool("cask:rebuilt", "rebuilt", "5.7.3,2320", "5.7.3,2349abcdef01",
+			"security_mixed")
+		for tool in (claude, datagrip, rebuild):
+			tool["cask_sudo_hint"] = False
+			tool["source"] = "cask"
+		out = self.drive(page_report([claude, datagrip, rebuild]), """
+		key('2');
+		['cask:claude', 'cask:datagrip', 'cask:rebuilt'].forEach(id => {
+			const vd = document.querySelector('#tool-list .tool-section[data-tool-id="' + id + '"] .tool-header .version-delta');
+			const nv = vd.querySelector('.v-new').getBoundingClientRect(), box = vd.getBoundingClientRect();
+			log('shown:' + id + '=' + vd.textContent.trim().replace(/\\s+/g, ' '));
+			log('title:' + id + '=' + vd.title);
+			log('fits:' + id + '=' + (nv.right <= box.right + 0.5));
+		});
+""")
+		self.assertEqual(out["shown:cask:claude"], "1.22209.3 → 2.9939.4")
+		self.assertEqual(out["title:cask:claude"],
+			"1.22209.3,babe11577dfefe3e209c06bd674628d862f0dbae → "
+			"2.9939.4,a166d8a7c640e65ad825ebfb99d74ccbb9c8940d")
+		self.assertEqual(out["shown:cask:datagrip"], "2026.2 → 2026.2.5")
+		# one version rebuilt: the build IS the change, shortened
+		self.assertEqual(out["shown:cask:rebuilt"], "5.7.3,2320 → 5.7.3,2349abcd…")
+		for tool in ("cask:claude", "cask:datagrip", "cask:rebuilt"):
+			self.assertEqual(out["fits:" + tool], "true", tool)
+
+
 class LoudnessChannelTests(PageDriveRunner):
 	"""D1's render half, D2's visibility half, D3's badge — each asserted
 	VISIBLE in the rendered DOM (offsetParent), because "it is in REPORT"

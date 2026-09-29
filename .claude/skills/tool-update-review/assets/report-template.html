@@ -4631,7 +4631,7 @@
 				? ` <span title="${esc(inventory.map(e => e.version).filter(Boolean).join(' · '))}">(${inventory.length})</span>` : '';
 			const deltaHtml = isNonVersion(tool)
 				? `<span class="version-delta health-label">${esc(nonVersionLabel(tool))}</span>`
-				: `<span class="version-delta" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span>${invCount}</span>`;
+				: `<span class="version-delta" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">${esc(shownVersions(tool)[0])} → <span class="v-new">${esc(shownVersions(tool)[1])}</span>${invCount}</span>`;
 
 			/* Delta pill + CVE badge: the same vocabulary the Overview uses,
 			 * so the collapsed 77-row list scans the same way the tiles do
@@ -4753,9 +4753,33 @@
 			return list.find(s => s.id === `${tool.id}:upgrade`) || list[0] || null;
 		}
 
+		/* A cask version is often `<version>,<build>` — claude's
+		 * `2.9939.4,a166d8a7…` (a 40-hex build), datagrip's
+		 * `2026.2.5,262.10315.132`. Shown whole, the pair ran past the row's
+		 * ellipsis and hid the TARGET, the one part a reader needs (pass 6:
+		 * claude, cursor, datagrip at 390 px). The part before the comma is
+		 * the version people talk about; when it differs, show only it. When
+		 * it does not (a rebuild of one version), the build is the change,
+		 * shortened. The full value stays in the `title`. */
+		function shownVersions(tool) {
+			const cur = typeof tool.current_version === 'string' ? tool.current_version : String(tool.current_version ?? '');
+			const lat = typeof tool.latest_version === 'string' ? tool.latest_version : String(tool.latest_version ?? '');
+			if (!cur.includes(',') && !lat.includes(',')) return [cur, lat];
+			const head = v => v.split(',')[0];
+			if (head(cur) !== head(lat)) return [head(cur), head(lat)];
+			const short = v => {
+				const i = v.indexOf(',');
+				if (i < 0) return v;
+				const build = v.slice(i + 1);
+				return v.slice(0, i + 1) + (build.length > 8 ? build.slice(0, 8) + '…' : build);
+			};
+			return [short(cur), short(lat)];
+		}
+
 		function versionsHtml(tool, cls) {
+			const [cur, lat] = shownVersions(tool);
 			return `<span class="${cls}" title="${esc(tool.current_version)} → ${esc(tool.latest_version)}">` +
-				`${esc(tool.current_version)} → <span class="v-new">${esc(tool.latest_version)}</span></span>`;
+				`${esc(cur)} → <span class="v-new">${esc(lat)}</span></span>`;
 		}
 
 		/* CVE chips are plain text unless the data itself carries a link.
@@ -6111,7 +6135,7 @@
 			if (routine.length) {
 				bands.push(bandHtml('band-routine', 'Routine updates',
 					`${routine.length} tools · patch/minor, nothing flagged · <span data-band-accepted="routine"></span>`,
-					`<div class="chips">${routine.map(t => chipHtml(t, t.latest_version || '')).join('')}</div>`,
+					`<div class="chips">${routine.map(t => chipHtml(t, t.latest_version ? shownVersions(t)[1] : '')).join('')}</div>`,
 					false));
 			}
 			if (attentionRest.length) {

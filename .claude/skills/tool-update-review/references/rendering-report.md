@@ -1810,7 +1810,14 @@ of horizontal scroll on a 390px viewport**.
    `.hlsug .t`, `.tool-header > *`, `.itemline > span:last-child`,
    `.cve-chips`, `.sevmeter`, `.autostrip-head .names` and `#progress-text`.
 2. `.version-delta, .vd { max-width: 34ch; overflow: hidden; text-overflow:
-   ellipsis; white-space: nowrap }`, with the full string in `title`.
+   ellipsis; white-space: nowrap }`, with the full string in `title`. The
+   truncation alone cut off the wrong end: the ellipsis ate the **target**
+   version (claude, cursor, datagrip in the first real run). So the pair is
+   shown by `shownVersions`: when either side is a `version,build` tuple and
+   the versions before the comma differ, only those are shown (`1.22209.3 →
+   2.9939.4`); when they are the same version rebuilt, the build is the change
+   and is shown shortened to 8 characters (`5.7.3,2320 → 5.7.3,2349abcd…`). The
+   routine chips' trailing version uses the same reading.
 3. `.chip { max-width: 230px }` with the same truncation and a `title`
    carrying name + version.
 4. **The page body must never scroll horizontally at 390px.** Assert it
