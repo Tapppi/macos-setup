@@ -1947,6 +1947,28 @@ class UnrunnableBaselineBucketTests(unittest.TestCase):
 		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
 
 
+class ValidationRecordIsolationTests(unittest.TestCase):
+	def test_validation_json_is_what_the_validator_produced(self):
+		"""Review A8: assembly writes `pre_accept` onto suggestions and renames
+		colliding suggestion ids. Neither may leak into validation.json — the
+		stage-3 record — through dicts shared with the validation views."""
+		collect = {"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "brew": [
+			_cand("brew:a", "a", "brew", "1.0.0", "1.0.1"),
+			_cand("brew:b", "b", "brew", "1.0.0", "1.0.1")]}
+		sug = {"id": "shared:edit", "kind": "edit", "title": "Edit a line",
+			"target_files": [], "rationale": "r"}
+		research = [{"id": tid, "links": [], "items": [_item("x")],
+			"suggestions": [dict(sug)]} for tid in ("brew:a", "brew:b")]
+		report, _ = assemble_session(collect, research, with_validation=True)
+		ids = sorted(s["id"] for t in report["tools"] for s in t["suggestions"]
+			if s["kind"] == "edit")
+		self.assertEqual(len(set(ids)), 2, ids)
+		for view in report["_validation"]["tools"]:
+			for s in view["suggestions"]:
+				self.assertEqual(s["id"], "shared:edit")
+				self.assertNotIn("pre_accept", s)
+
+
 class FindingsBlockGuardTests(unittest.TestCase):
 	"""read_findings_block's entry-level guards and source restamp. Each
 	block is detector output that can be an older version of itself, so a

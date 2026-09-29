@@ -1252,7 +1252,13 @@ def _tool_base(view: dict, research_obj: dict, tool_id: str) -> dict:
 	Everything item-shaped is the view's — already spec-checked, normalized,
 	id-assigned and canonically ordered. `spec_violations[]` and `quarantine[]`
 	ride along so a consumer sees a degraded tool without opening a second
-	file, which is the third of the three loudness channels."""
+	file, which is the third of the three loudness channels.
+
+	Deep copies, never the view's own dicts: assembly then writes
+	`pre_accept` onto suggestions and renames colliding suggestion ids, and
+	the views are validation.json's — the stage-3 record, dumped after the
+	tools are built — whenever convergence did not supply post views."""
+	view = copy.deepcopy(view)
 	return {
 		"items": list(view.get("items") or []),
 		"quarantine": list(view.get("quarantine") or []),
