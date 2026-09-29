@@ -938,12 +938,15 @@ class CommaVersionTests(PageDriveRunner):
 			"2026.2.5,262.10315.132", "security_mixed")
 		rebuild = page_tool("cask:rebuilt", "rebuilt", "5.7.3,2320", "5.7.3,2349abcdef01",
 			"security_mixed")
-		for tool in (claude, datagrip, rebuild):
+		# Review A11: builds sharing their first 8 characters must still differ.
+		stamped = page_tool("cask:stamped", "stamped", "5.7.3,20260901a1", "5.7.3,20260901b2",
+			"security_mixed")
+		for tool in (claude, datagrip, rebuild, stamped):
 			tool["cask_sudo_hint"] = False
 			tool["source"] = "cask"
-		out = self.drive(page_report([claude, datagrip, rebuild]), """
+		out = self.drive(page_report([claude, datagrip, rebuild, stamped]), """
 		key('2');
-		['cask:claude', 'cask:datagrip', 'cask:rebuilt'].forEach(id => {
+		['cask:claude', 'cask:datagrip', 'cask:rebuilt', 'cask:stamped'].forEach(id => {
 			const vd = document.querySelector('#tool-list .tool-section[data-tool-id="' + id + '"] .tool-header .version-delta');
 			const nv = vd.querySelector('.v-new').getBoundingClientRect(), box = vd.getBoundingClientRect();
 			log('shown:' + id + '=' + vd.textContent.trim().replace(/\\s+/g, ' '));
@@ -958,6 +961,7 @@ class CommaVersionTests(PageDriveRunner):
 		self.assertEqual(out["shown:cask:datagrip"], "2026.2 → 2026.2.5")
 		# one version rebuilt: the build IS the change, shortened
 		self.assertEqual(out["shown:cask:rebuilt"], "5.7.3,2320 → 5.7.3,2349abcd…")
+		self.assertEqual(out["shown:cask:stamped"], "5.7.3,20260901a1 → 5.7.3,20260901b2")
 		for tool in ("cask:claude", "cask:datagrip", "cask:rebuilt"):
 			self.assertEqual(out["fits:" + tool], "true", tool)
 

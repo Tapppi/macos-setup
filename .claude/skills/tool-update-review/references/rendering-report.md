@@ -1825,7 +1825,9 @@ of horizontal scroll on a 390px viewport**.
    shown by `shownVersions`: when either side is a `version,build` tuple and
    the versions before the comma differ, only those are shown (`1.22209.3 →
    2.9939.4`); when they are the same version rebuilt, the build is the change
-   and is shown shortened to 8 characters (`5.7.3,2320 → 5.7.3,2349abcd…`). The
+   and is shown shortened to 8 characters (`5.7.3,2320 → 5.7.3,2349abcd…`),
+   or to four characters past the two builds' common prefix when that is
+   longer, so builds sharing a date stamp or hash prefix never read alike. The
    routine chips' trailing version uses the same reading.
 3. `.chip { max-width: 230px }` with the same truncation and a `title`
    carrying name + version.

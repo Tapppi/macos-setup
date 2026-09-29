@@ -4772,11 +4772,20 @@
 			if (!cur.includes(',') && !lat.includes(',')) return [cur, lat];
 			const head = v => v.split(',')[0];
 			if (head(cur) !== head(lat)) return [head(cur), head(lat)];
+			/* One version rebuilt: the build is the change. Cut both builds
+			 * past their common prefix (8 characters at least), so two
+			 * builds that share a date stamp or hash prefix never read as
+			 * the same one. */
+			const build = v => { const i = v.indexOf(','); return i < 0 ? '' : v.slice(i + 1); };
+			const bc = build(cur), bl = build(lat);
+			let common = 0;
+			while (common < bc.length && common < bl.length && bc[common] === bl[common]) common++;
+			const keep = Math.max(8, common + 4);
 			const short = v => {
 				const i = v.indexOf(',');
 				if (i < 0) return v;
-				const build = v.slice(i + 1);
-				return v.slice(0, i + 1) + (build.length > 8 ? build.slice(0, 8) + '…' : build);
+				const b = v.slice(i + 1);
+				return v.slice(0, i + 1) + (b.length > keep ? b.slice(0, keep) + '…' : b);
 			};
 			return [short(cur), short(lat)];
 		}
