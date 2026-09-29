@@ -920,5 +920,24 @@ class FirstRealRunGuidanceTests(GuidelineTestCase):
 			self.assertSays("Caskroom", text)
 
 
+	def test_skill_md_moves_research_status_through_every_phase_in_order(self):
+		"""Pass 6: research-status.json stayed at `collecting` with no groups
+		through all of research — SKILL.md named only the first and last
+		phases. Each phase the loading page knows is written, in order."""
+		with open(os.path.join(HERE, "server.py"), encoding="utf-8") as fh:
+			server = fh.read()
+		for phase in ("researching", "assembling"):   # the loading page's labels
+			self.assertIn("{}:".format(phase), server)
+		flat = re.sub(r"\s+", " ", SKILL_MD)
+		positions = []
+		for phase in ("collecting", "researching", "assembling", "ready"):
+			needle = 'phase: "{}"'.format(phase)
+			self.assertSays(needle, SKILL_MD)
+			positions.append(flat.index(needle))
+		self.assertEqual(positions, sorted(positions))
+		self.assertSays("before `--prepare`", SKILL_MD)
+		self.assertSays("`running`, then `done`", SKILL_MD)
+
+
 if __name__ == "__main__":
 	unittest.main()

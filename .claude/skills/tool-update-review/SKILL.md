@@ -239,11 +239,30 @@ above.
 On subagent failure/timeout, set `research_error` and keep the tool listed
 with versions only.
 
+**Keep `research-status.json` moving — the loading page shows nothing
+else.** The first real run left it at `phase: "collecting"` with no groups
+for all 28 minutes of research. Write it (atomically, `.tmp` +
+`os.replace`, one transition per write — `references/schemas.md`
+§Research-Status Object):
+
+1. **once the tools are grouped, before spawning anything** — `phase:
+   "researching"`, the `scope` block, and every group with its `tier` and
+   `tool_ids` at `state: "pending"`;
+2. **as each subagent is spawned and as it returns** — that group's `state`
+   `running`, then `done` (its research file is in) or `failed`;
+3. **when the last research file is in, before `--prepare`** — `phase:
+   "assembling"`, through convergence, assembly and render;
+4. **right after render** — `phase: "ready"` (step 4).
+
+`references/research.md` §`research-status.json` Group Updates has the
+group shape and why the tiering decision is recorded with it.
+
 ### 3b. Converge
 
-When every research file is in, run the deterministic prepare step, then
-review the whole corpus yourself — this is the one agentic stage that sees
-every tool at once, and the final trimming surface:
+When every research file is in (and `research-status.json` says
+`assembling`), run the deterministic prepare step, then review the whole
+corpus yourself — this is the one agentic stage that sees every tool at
+once, and the final trimming surface:
 
 ```sh
 python3 scripts/apply_converge.py --session {session_dir} --prepare \
