@@ -57,6 +57,7 @@ import bisect
 import copy
 import json
 import os
+import plistlib
 import re
 import sys
 from datetime import datetime, timezone
@@ -1078,6 +1079,11 @@ def _classify_line(lines, index, kind, name) -> str:
 		return "blank"
 	if stripped.startswith("#"):
 		return "comment"
+	if kind == "plist":
+		if stripped.startswith("<!--"):
+			return "comment"
+		if re.match(model.PLIST_STRUCTURE_LINE, line):
+			return "plist structure"
 	escaped = re.escape(name)
 	section, section_read = None, False
 	for spec in model.INSTALL_DECLARATION_PATTERNS:
@@ -1106,13 +1112,19 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 	"matched_lines": [...]}` or None.
 
 	Grounded iff (1) the path resolves under a configured root or as an
-	existing absolute path; (2) it is a readable UTF-8 text file within
-	`USAGE_FILE_MAX_BYTES`; (3) `quote` occurs VERBATIM — after line-ending
-	normalization only (CRLF and a lone CR become LF, in file and quote) —
-	within `lines` when given, anywhere otherwise; and (4) at least one
-	occurrence spans no line that is the tool's own install declaration and at
-	least one line that is not a comment or blank. 1–3 failing is
-	E-USAGE-UNGROUNDED (naming the step); 4 failing is W-USAGE-INSTALL-ONLY.
+	existing absolute path — `~/Library` app state included (preferences,
+	sandbox containers, Application Support: the user's rule, 2026-09-29) —
+	that is not where the tool was installed (`model.INSTALL_LOCATION_PATTERNS`:
+	the Caskroom, the Cellar, an install receipt, the app bundle itself);
+	(2) it is a readable UTF-8 text file within `USAGE_FILE_MAX_BYTES`, or a
+	binary plist, which is read as its XML form (`plistlib`, keys sorted — the
+	same text `plutil -convert xml1 -o - FILE` prints); (3) `quote` occurs
+	VERBATIM — after line-ending normalization only (CRLF and a lone CR become
+	LF, in file and quote) — within `lines` when given, anywhere otherwise;
+	and (4) at least one occurrence spans no line that is the tool's own
+	install declaration and at least one line that is not a comment, blank or
+	(in a plist) bare structure. 1–3 failing is E-USAGE-UNGROUNDED (naming the
+	step); an install location or 4 failing is W-USAGE-INSTALL-ONLY.
 	Neither is a hold, and neither removes, rewrites or re-rates anything: it
 	withholds a derived highlight, which is all a deterministic step may do.
 
@@ -1152,17 +1164,50 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 			"the path does not resolve under a configured root")
 		return None
 	try:
+		installed = (model.install_location(os.path.expanduser(path))
+			or model.install_location(located)
+			or model.install_location(os.path.realpath(located)))
+	except (OSError, ValueError):
+		installed = None
+	if installed:
+		findings.add("W-USAGE-INSTALL-ONLY",
+			"the file is part of how the tool was installed ({}) — that shows the tool "
+			"is installed, not used; quote a line of a file its use wrote (a config, "
+			"or app state under ~/Library)".format(installed),
+			tool_id=tool_id, item_id=item_id, field=field, value=path)
+		return None
+	kind = model.usage_file_kind(path)
+	try:
 		if not os.path.isfile(located):
-			ungrounded(2, "not a regular file")
+			ungrounded(2, "a directory, not a file — quote a line of a file inside it "
+				"(for an app's sandbox container, its Data/Library/Preferences/"
+				"<bundle id>.plist)" if os.path.isdir(located) else "not a regular file")
 			return None
 		if os.path.getsize(located) > model.USAGE_FILE_MAX_BYTES:
 			ungrounded(2, "over the {}-byte cap".format(model.USAGE_FILE_MAX_BYTES))
 			return None
-		with open(located, "r", encoding="utf-8") as fh:
-			text = fh.read()
-	except (OSError, UnicodeDecodeError, ValueError) as exc:
-		ungrounded(2, "unreadable as UTF-8 text ({})".format(type(exc).__name__))
+		with open(located, "rb") as fh:
+			raw = fh.read()
+	except (OSError, ValueError) as exc:
+		ungrounded(2, "unreadable ({})".format(type(exc).__name__))
 		return None
+	if raw.startswith(b"bplist"):
+		# A binary plist (every ~/Library/Preferences file) has no lines to
+		# quote until it is read as XML — one deterministic rendering, the
+		# one `plutil -convert xml1` prints, so a checker can quote a line of
+		# it verbatim. Anything that will not round-trip grounds nothing.
+		try:
+			text = plistlib.dumps(plistlib.loads(raw), fmt=plistlib.FMT_XML).decode("utf-8")
+		except Exception as exc:  # malformed, cyclic, or not expressible as XML
+			ungrounded(2, "an unreadable binary plist ({})".format(type(exc).__name__))
+			return None
+		kind = "plist"
+	else:
+		try:
+			text = raw.decode("utf-8")
+		except UnicodeDecodeError as exc:
+			ungrounded(2, "unreadable as UTF-8 text ({})".format(type(exc).__name__))
+			return None
 	if "\x00" in text:
 		ungrounded(2, "a binary file")
 		return None
@@ -1183,7 +1228,6 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 		ungrounded(3, "the quote does not occur verbatim in the file"
 			+ (" within its `lines`" if allowed is not None else ""))
 		return None
-	kind = model.usage_file_kind(path)
 	described = set()
 	for span in spans:
 		classes = [_classify_line(source_lines, n - 1, kind, tool_name) for n in span]

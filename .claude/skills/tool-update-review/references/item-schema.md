@@ -323,8 +323,18 @@ A `usage` entry carries `quote`, a **verbatim** excerpt of the file showing the
 use, and I-23 grounds it in the stage-3 validator, where the resolver lives:
 
 1. the path resolves under a configured root or as an existing absolute path
-   (`unconfigured` and `missing` fail — `W-EVID-ROOT`/`E-EVID-404` say why);
-2. the file is readable UTF-8 text within `items.USAGE_FILE_MAX_BYTES`;
+   (`unconfigured` and `missing` fail — `W-EVID-ROOT`/`E-EVID-404` say why).
+   App state under `~/Library` — preferences, sandbox containers, Application
+   Support — is an absolute path like any other and confirms usage (the
+   user's rule, 2026-09-29). A file where the tool was **installed** never
+   does: a path that, as written, as resolved or after symlinks, matches
+   `items.INSTALL_LOCATION_PATTERNS` (the Caskroom, the Cellar, an install
+   receipt, the app bundle's own `….app/Contents/`) is `W-USAGE-INSTALL-ONLY`
+   before its quote is read;
+2. the file is readable UTF-8 text within `items.USAGE_FILE_MAX_BYTES` — or a
+   binary plist, which is read as its XML form (`plistlib`, keys sorted: the
+   text `plutil -convert xml1 -o -` prints). A directory fails here, and says
+   to quote a file inside it;
 3. `quote` occurs **verbatim** — within `lines` when present, anywhere
    otherwise. The only normalization is line endings: CRLF and a lone CR
    become LF, in the file and in the quote;
@@ -333,20 +343,24 @@ use, and I-23 grounds it in the stage-3 validator, where the resolver lives:
    to the full lines it spans; each is classified with the file's kind (from
    its basename: Brewfile, `.tool-versions`, mise TOML — `mise.toml`,
    `.mise.toml`, `mise.local.toml`, `mise/config.toml` — shell `*.sh`/`.bash*`,
-   other) and, for TOML, its enclosing table header. A line is not usage when
+   plist `*.plist`, other) and, for TOML, its enclosing table header. A line is not usage when
    it is the tool's own install declaration (`items.INSTALL_DECLARATION_PATTERNS`,
    published data with a `{name}` slot: a Brewfile `brew|cask|tap|mas
    "<name>"`, a `.tool-versions` `<name> <version>`, a mise `<name> = …` under
    `[tools]`/`[tools.<x>]`, a top-level dotted `tools.<name> = …`, a shell
    `brew install|reinstall|upgrade … <name>` or `mise use|install … <name>`),
-   or a `#`-led comment or blank line. An occurrence grounds iff none of its
-   lines is the install declaration and at least one is not a comment/blank;
+   or a `#`-led comment or blank line — and in a plist an XML comment or a
+   line of bare structure (`items.PLIST_STRUCTURE_LINE`: the XML declaration,
+   the DOCTYPE, `<plist>`, `<dict>`, `<array>` and their closings), which is in
+   every plist and shows nothing. An occurrence grounds iff none of its
+   lines is the install declaration and at least one is not a comment/blank/structure;
    the entry grounds iff one occurrence does. A partial quote (`libpq` out of
    `brew "libpq"`) and a mise excerpt that omits its `[tools]` header ground
    nothing; the same key under `[settings]` or `[env]` grounds.
 
-1–3 failing is `E-USAGE-UNGROUNDED` (naming the step), 4 failing
-`W-USAGE-INSTALL-ONLY` (naming the install/comment lines). Either way the entry
+1–3 failing is `E-USAGE-UNGROUNDED` (naming the step), an install location
+or 4 failing `W-USAGE-INSTALL-ONLY` (naming the location, or the
+install/comment/structure lines). Either way the entry
 confirms nothing; neither is a hold, and neither removes, rewrites or re-rates
 anything — it withholds a derived highlight, which is all it may do (§0).
 

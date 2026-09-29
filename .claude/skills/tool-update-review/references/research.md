@@ -652,9 +652,10 @@ definition); `install` — the tool is installed (the Brewfile line, the
 install task); `reference` — anything else worth pointing at. A `usage`
 entry carries `quote`, a **verbatim** excerpt of the file showing the use,
 and the validator grounds it in the file itself (I-23): the path must
-resolve under a configured root, the quote must occur verbatim (within
-`lines` when you give them), and the matched line, read in its file and
-section, must not be the tool's own install declaration or a comment.
+resolve under a configured root or be an existing absolute (`~/…`) file,
+the quote must occur verbatim (within `lines` when you give them), and the
+matched line, read in its file and section, must not be the tool's own
+install declaration or a comment.
 **Quote the whole line (or lines) that shows the use, not a fragment** — a
 fragment that occurs only on the install line grounds nothing
 (`W-USAGE-INSTALL-ONLY`), and an unresolvable path or an absent quote
@@ -665,6 +666,25 @@ rests on — "the tool is installed" is not usage. Worked: `brew:libpq` —
 service entry is `usage`. `brew:iproute2mac` — the Brewfile line is
 `install`, and nothing in the setup calls `ip`, so there is no usage entry
 at all.
+
+**App state under `~/Library` is usage evidence** — for a desktop app it is
+often the only proof it is used. A real **file** under `~/Library/Preferences`,
+a sandbox container (`~/Library/Containers/<bundle id>/Data/…`) or
+`~/Library/Application Support` is `role: "usage"` with a verbatim `quote` of
+one of its lines, exactly like a repo file. A preferences file is usually a
+binary plist: the validator reads it as XML, so quote a whole line of
+`plutil -convert xml1 -o - <file>` — a `<key>…</key>` or `<string>…</string>`
+line that shows the app was set up or used, never bare structure such as
+`<dict>`. Point at the file, not the directory: a container directory
+grounds nothing, its `Data/Library/Preferences/<bundle id>.plist` does. What
+the **installer** wrote never confirms use: install receipts, the Caskroom,
+the Cellar and the app bundle itself (`….app/Contents/…`) are
+`W-USAGE-INSTALL-ONLY` whatever you quote, like the Brewfile line. Worked:
+`cask:teamviewer` — `~/Library/Preferences/com.teamviewer.TeamViewer.plist`
+quoting `<key>NSWindowFrameTVRemoteScreenWindow0</key>` (a remote-session
+window it has opened) is `usage`; the same path as `role: "reference"` with
+no quote — what the first real run wrote — confirms nothing, and the fix
+stays out of "Security fixes for you".
 
 Severity is the item's own: `incompatible` (something
 that works here today stops working — requires `reaches` and `risk`,

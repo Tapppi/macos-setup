@@ -158,7 +158,12 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
   "usage" entry (this setup USES the affected thing — not "it is
   installed") carries quote: the WHOLE line(s) showing the use, verbatim;
   the validator finds the quote in the file, and a quote that is only the
-  install line or a comment grounds nothing.
+  install line or a comment grounds nothing. App state is usage too: a
+  real FILE under ~/Library (Preferences, a sandbox container's
+  Data/Library/Preferences, Application Support), quoting one whole line
+  — for a binary plist, a <key>…</key> or <string>…</string> line of
+  `plutil -convert xml1 -o - FILE`. Install receipts, the Caskroom, the
+  Cellar and the .app bundle itself never show use.
   Severity consistency: "incompatible" requires direction "reaches" AND
   effect "risk"; "warning" requires a local block.
   An item that answers a stored watch item for its tool additionally

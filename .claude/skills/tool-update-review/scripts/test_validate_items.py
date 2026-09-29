@@ -32,6 +32,7 @@ import copy
 import io
 import json
 import os
+import plistlib
 import shutil
 import sys
 import tempfile
@@ -2954,6 +2955,128 @@ class UsageGroundingTests(unittest.TestCase):
 			V.NO_IO_RESOLVER, usage_sink=sink)
 		self.assertEqual(sink, [])
 		self.assertEqual([f["code"] for f in findings.entries], [])
+
+
+class AppStateUsageTests(unittest.TestCase):
+	"""I-23 over machine state (the user's rule, 2026-09-29): a quoted line
+	from a real file under ~/Library — preferences, sandbox containers,
+	Application Support — confirms usage; install receipts, the Caskroom, the
+	Cellar and the app bundle never do. Pass 6's cask:teamviewer and
+	cask:windows-app sat at P3 with reaching warning-severity fixes because
+	their only usage evidence was app state. Grounding stays strict: the
+	file must exist, the quote must be verbatim, the line must show content."""
+
+	def setUp(self):
+		self.home = tempfile.mkdtemp()
+		self.addCleanup(shutil.rmtree, self.home, True)
+		patcher = mock.patch.dict(os.environ, {"HOME": self.home})
+		patcher.start()
+		self.addCleanup(patcher.stop)
+
+	def _write(self, rel, data):
+		path = os.path.join(self.home, rel)
+		os.makedirs(os.path.dirname(path), exist_ok=True)
+		with open(path, "wb") as fh:
+			fh.write(data if isinstance(data, bytes) else data.encode("utf-8"))
+		return path
+
+	def _bplist(self, rel, obj):
+		return self._write(rel, plistlib.dumps(obj, fmt=plistlib.FMT_BINARY))
+
+	def _run(self, entry, tool="cask:teamviewer"):
+		source, name = tool.split(":", 1)
+		item = _gsec_fix(severity="warning", local={"direction": "reaches",
+			"effect": "benefit", "statement": "s", "evidence": [entry], "citations": []})
+		return validate_one({"id": tool, "links": [], "items": [item]},
+			candidate=_candidate(id=tool, name=name, source=source))
+
+	def assertGrounds(self, result):
+		view, findings = result
+		self.assertEqual([f for f in findings.entries if f["code"] in
+			("E-USAGE-UNGROUNDED", "W-USAGE-INSTALL-ONLY", "E-EVID-404")], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["relevant-fix", "fix"])
+		self.assertEqual(view["security_tier"]["priority"], "P2")
+
+	def assertNotUsage(self, result, code, text):
+		view, findings = result
+		hits = _found(findings, code)
+		self.assertEqual(len(hits), 1, findings.entries)
+		self.assertIn(text, hits[0]["message"])
+		self.assertEqual(view["usage_evidence"], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
+
+	def test_a_binary_preferences_plist_grounds_on_a_line_of_its_xml_form(self):
+		"""cask:teamviewer: the evidence it cited, as a usage quote."""
+		self._bplist("Library/Preferences/com.teamviewer.TeamViewer.plist", {
+			"NSWindowFrameTVRemoteScreenWindow0": "12 34 800 600 0 0 1440 900 ",
+			"NSWindowFrameTVPasteboardDownloadView": "1 2 3 4 "})
+		self.assertGrounds(self._run(_usage(
+			"~/Library/Preferences/com.teamviewer.TeamViewer.plist",
+			"<key>NSWindowFrameTVRemoteScreenWindow0</key>")))
+		# a quote the XML does not contain grounds nothing
+		self.assertNotUsage(self._run(_usage(
+			"~/Library/Preferences/com.teamviewer.TeamViewer.plist",
+			"NSWindowFrameTVRemoteScreenWindow0 = \"12 34\"")),
+			"E-USAGE-UNGROUNDED", "step 3")
+
+	def test_a_sandbox_container_is_a_directory_and_its_preferences_file_grounds(self):
+		"""cask:windows-app cited its container directory: step 2, with the
+		file to quote instead named in the message."""
+		self._bplist("Library/Containers/com.microsoft.rdc.macos/Data/Library/"
+			"Preferences/com.microsoft.rdc.macos.plist", {"LastConnectedDesktop": "homelab"})
+		self.assertNotUsage(self._run(_usage("~/Library/Containers/com.microsoft.rdc.macos",
+			"homelab"), tool="cask:windows-app"), "E-USAGE-UNGROUNDED", "a directory")
+		self.assertGrounds(self._run(_usage("~/Library/Containers/com.microsoft.rdc.macos/"
+			"Data/Library/Preferences/com.microsoft.rdc.macos.plist",
+			"<string>homelab</string>"), tool="cask:windows-app"))
+
+	def test_application_support_text_grounds(self):
+		self._write("Library/Application Support/Tool/settings.json",
+			'{\n  "autoConnect": true\n}\n')
+		self.assertGrounds(self._run(_usage(
+			"~/Library/Application Support/Tool/settings.json", '"autoConnect": true')))
+
+	def test_install_locations_never_confirm_use(self):
+		cases = (
+			("opt/homebrew/Caskroom/teamviewer/15.0/uninstall.conf", "the Homebrew Caskroom"),
+			("opt/homebrew/Cellar/tool/1.0/etc/tool.conf", "the Homebrew Cellar"),
+			("Library/Receipts/com.teamviewer.pkg.plist", "an install receipt"),
+			("Applications/TeamViewer.app/Contents/Info.plist", "the app bundle itself"),
+		)
+		for rel, what in cases:
+			with self.subTest(rel):
+				self._write(rel, "setting = on\n")
+				self.assertNotUsage(self._run(_usage(os.path.join(self.home, rel),
+					"setting = on")), "W-USAGE-INSTALL-ONLY", what)
+		# a symlink INTO the Cellar is judged by where it resolves
+		target = self._write("opt/homebrew/Cellar/tool/1.0/etc/linked.conf", "setting = on\n")
+		link = os.path.join(self.home, ".config", "linked.conf")
+		os.makedirs(os.path.dirname(link), exist_ok=True)
+		os.symlink(target, link)
+		self.assertNotUsage(self._run(_usage("~/.config/linked.conf", "setting = on")),
+			"W-USAGE-INSTALL-ONLY", "the Homebrew Cellar")
+
+	def test_bare_plist_structure_shows_nothing_and_a_bad_plist_grounds_nothing(self):
+		self._bplist("Library/Preferences/com.x.plist", {"k": "v"})
+		self.assertNotUsage(self._run(_usage("~/Library/Preferences/com.x.plist", "<dict>")),
+			"W-USAGE-INSTALL-ONLY", "plist structure")
+		self._write("Library/Preferences/com.bad.plist", b"bplist00\x00\x01garbage")
+		self.assertNotUsage(self._run(_usage("~/Library/Preferences/com.bad.plist", "k")),
+			"E-USAGE-UNGROUNDED", "binary plist")
+		# an XML plist is plain text and grounds on a content line
+		self._write("Library/Preferences/com.xml.plist",
+			plistlib.dumps({"Server": "db.internal"}).decode("utf-8"))
+		self.assertGrounds(self._run(_usage("~/Library/Preferences/com.xml.plist",
+			"<string>db.internal</string>")))
+
+	def test_the_captured_reference_entry_confirms_nothing(self):
+		"""The pass-6 capture's own shape — role `reference`, no quote — is
+		not a usage claim, so the fixture's replay keeps these tools at P3."""
+		self._bplist("Library/Preferences/com.teamviewer.TeamViewer.plist", {"k": "v"})
+		view, findings = self._run({"path": "~/Library/Preferences/"
+			"com.teamviewer.TeamViewer.plist", "note": "NSWindowFrame…", "role": "reference"})
+		self.assertEqual(view["usage_evidence"], [])
+		self.assertEqual(view["security_tier"]["reasons"], ["fix"])
 
 
 class TierStorageTests(unittest.TestCase):

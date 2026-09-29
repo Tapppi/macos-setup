@@ -441,13 +441,37 @@
 				"pattern": "\\bmise\\s+(?:use|install)\\b[^#\\n]*?(?<![\\w./@:-]){name}(?:@\\S*)?(?![\\w.-])"
 			}
 		],
+		"install_location_patterns": [
+			{
+				"what": "the Homebrew Caskroom",
+				"pattern": "/Caskroom/"
+			},
+			{
+				"what": "the Homebrew Cellar",
+				"pattern": "/Cellar/"
+			},
+			{
+				"what": "an install receipt",
+				"pattern": "^(?:/private)?/var/db/receipts/"
+			},
+			{
+				"what": "an install receipt",
+				"pattern": "/Library/Receipts/"
+			},
+			{
+				"what": "the app bundle itself",
+				"pattern": "\\.app/Contents/"
+			}
+		],
 		"usage_file_kinds": {
 			"brewfile": "Brewfile",
 			"tool-versions": ".tool-versions",
 			"mise-toml": "mise.toml, .mise.toml, mise.local.toml, mise/config.toml",
 			"shell": "*.sh, .bash*",
+			"plist": "*.plist — a binary plist is read as its XML form (plistlib, keys sorted); a line that is only plist structure (<dict>, the DOCTYPE, …) shows nothing",
 			"other": "anything else — no line is an install declaration; a #-led line is still a comment"
 		},
+		"plist_structure_line": "^\\s*(?:<\\?xml\\b.*\\?>|<!DOCTYPE\\b.*>|</?plist\\b[^>]*>|</?(?:dict|array)>|<(?:dict|array)/>)\\s*$",
 		"usage_file_max_bytes": 1000000,
 		"supersedes": [
 			"reaches-item for G-SEC tools",

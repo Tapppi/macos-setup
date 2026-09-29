@@ -882,10 +882,41 @@ MISE_TOML_NAMES = ("mise.toml", ".mise.toml", "mise.local.toml")
 # is E-USAGE-UNGROUNDED ("unreadable"), never a crash and never a partial read.
 USAGE_FILE_MAX_BYTES = 1_000_000
 
+# I-23's install-LOCATION test, as data: a file whose absolute path (as
+# written, after `~` expansion, or after resolving symlinks) matches one of
+# these is part of how the tool was INSTALLED, so a quote from it never
+# confirms use — W-USAGE-INSTALL-ONLY, like a quote of the Brewfile line.
+# The user's rule (2026-09-29): app state under ~/Library — preferences,
+# sandbox containers, Application Support — confirms usage; install receipts
+# and the Caskroom never do. The Cellar and an app bundle's own contents are
+# the same class (what brew or the installer put down, not what use wrote).
+INSTALL_LOCATION_PATTERNS = (
+	{"what": "the Homebrew Caskroom", "pattern": r"/Caskroom/"},
+	{"what": "the Homebrew Cellar", "pattern": r"/Cellar/"},
+	{"what": "an install receipt", "pattern": r"^(?:/private)?/var/db/receipts/"},
+	{"what": "an install receipt", "pattern": r"/Library/Receipts/"},
+	{"what": "the app bundle itself", "pattern": r"\.app/Contents/"},
+)
+# Lines of a plist's XML form that are structure, not content: a quote made
+# only of these (`<dict>`, the DOCTYPE) is in EVERY plist and shows nothing.
+PLIST_STRUCTURE_LINE = r"^\s*(?:<\?xml\b.*\?>|<!DOCTYPE\b.*>|</?plist\b[^>]*>|</?(?:dict|array)>|<(?:dict|array)/>)\s*$"
+
+
+def install_location(path):
+	"""→ the `what` of the first INSTALL_LOCATION_PATTERNS entry an absolute
+	path matches, or None."""
+	if not isinstance(path, str):
+		return None
+	norm = path.replace("\\", "/")
+	for spec in INSTALL_LOCATION_PATTERNS:
+		if re.search(spec["pattern"], norm):
+			return spec["what"]
+	return None
+
 
 def usage_file_kind(path) -> str:
-	"""brewfile | tool-versions | mise-toml | shell | other, from the path's
-	basename (and, for `mise/config.toml`, its parent directory)."""
+	"""brewfile | tool-versions | mise-toml | shell | plist | other, from the
+	path's basename (and, for `mise/config.toml`, its parent directory)."""
 	if not isinstance(path, str):
 		return "other"
 	norm = path.replace("\\", "/").rstrip("/")
@@ -899,6 +930,8 @@ def usage_file_kind(path) -> str:
 		return "mise-toml"
 	if base.endswith(".sh") or base.startswith(".bash"):
 		return "shell"
+	if base.endswith(".plist"):
+		return "plist"
 	return "other"
 
 
@@ -1852,10 +1885,16 @@ def contract() -> dict:
 			],
 			"default": copy.deepcopy(TIER_UNCOMPUTED),
 			"install_declaration_patterns": [dict(p) for p in INSTALL_DECLARATION_PATTERNS],
+			"install_location_patterns": [dict(p) for p in INSTALL_LOCATION_PATTERNS],
 			"usage_file_kinds": {"brewfile": "Brewfile", "tool-versions": ".tool-versions",
 				"mise-toml": ", ".join(MISE_TOML_NAMES) + ", mise/config.toml",
-				"shell": "*.sh, .bash*", "other": "anything else — no line is an "
+				"shell": "*.sh, .bash*",
+				"plist": "*.plist — a binary plist is read as its XML form "
+				"(plistlib, keys sorted); a line that is only plist structure "
+				"(<dict>, the DOCTYPE, …) shows nothing",
+				"other": "anything else — no line is an "
 				"install declaration; a #-led line is still a comment"},
+			"plist_structure_line": PLIST_STRUCTURE_LINE,
 			"usage_file_max_bytes": USAGE_FILE_MAX_BYTES,
 			"supersedes": ["reaches-item for G-SEC tools", "D2 elevated bar for G-SEC tools",
 				"local-enum-invalid (renamed enum-invalid)"],
