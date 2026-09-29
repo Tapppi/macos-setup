@@ -742,6 +742,12 @@ hidden.
 | P2 | `relevant-fix` (a fix usage-confirmed with effect benefit/none), `fix-with-breaking` (a `breaking` item, any severity, whose `local.direction` is `reaches`), `fix-with-risk` (a NON-security item with effect risk), `vendor-unread`, `fix-with-breaking-unseen` (`breaking` items, none reaching — does_not_reach, unclear or no local block) |
 | P3 | `fix` |
 
+`fix-with-breaking` has carried the reach meaning since **contract 5**; under
+contract 4 it named any `breaking` item. The spelling did not change, so the
+number did: every consumer's `contract_version` equality gate (`render.py`,
+`write_status.py init`, the corpus-version gate in convergence and assembly)
+refuses a contract-4 artefact rather than reading its reasons as reach.
+
 Holds: `content-losing`, `security-item-risk` (a security item with effect
 risk), `watch-hit`, `enum-invalid`, `container-unreadable`,
 `research-incomplete`, `not-runnable`, `forced-conservative` (the applier's),

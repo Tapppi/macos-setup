@@ -1,5 +1,5 @@
 {
-	"contract_version": 4,
+	"contract_version": 5,
 	"scope": {
 		"items_are": "outward-facing changes only — project-internal maintenance (repo upkeep, convention changes, documentation updates) never becomes an item. This is a scoping rule about what counts as an item, enforced in the schema and the agent guidelines; it is NOT a trimming rule and there is no filter for it in the validator.",
 		"intel_brewfile": "out of this tool entirely; I-17 checks it",

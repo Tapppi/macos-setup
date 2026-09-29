@@ -503,7 +503,11 @@ P2, then the mixed-card order — except that within P2 a row whose tier lists
 and a row led by `fix-with-breaking-unseen` (here only for a breaking change
 not seen here) sorts last. The reach is the reason code's, read off the tier,
 never re-derived from an item's direction; the row carries it as
-`data-breaking="reaches|unseen"`.
+`data-breaking="reaches|unseen"`. The same holds for a forced
+row's `forced_display.reasons`. Reading the code as reach is only sound
+because the code has meant reach since contract 5 (under 4 it meant any
+breaking item): `render.py`'s `contract_version` gate refuses an older
+report, so an old reason never reaches this sort.
 
 **Rows** reuse the judgement-row pattern (`.prow`): the identity line — name,
 version pair, source badge, CVE badge, the `elevated risk` badge when

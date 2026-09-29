@@ -54,7 +54,7 @@ mechanism).
 {
 	"schema_version": 2,                                 // 2 since items[] replaced the four
 	                                                     //   parallel arrays; render.py refuses 1
-	"contract_version": 3,                               // items.CONTRACT_VERSION — consumers
+	"contract_version": 5,                               // items.CONTRACT_VERSION — consumers
 	                                                     //   assert equality and refuse on
 	                                                     //   mismatch; no migration shim exists
 	"report_id": "tool-update-review-20260704T143012",   // stable within a session run

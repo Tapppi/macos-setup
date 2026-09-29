@@ -61,7 +61,13 @@ from urllib.parse import quote, urlsplit
 #     `enum-invalid`/`container-unreadable` bars, and the rewritten bucket
 #     clause and pre-accept predicate (positively identified security fixes
 #     are accepted by tier).
-CONTRACT_VERSION = 4
+# 5 — the breaking-reach split: `fix-with-breaking` now means a breaking item
+#     that REACHES this machine, and `fix-with-breaking-unseen` names the
+#     rest. Under 4 the same code meant any breaking item, so a contract-4
+#     tier read by this code would claim reach it never established (and the
+#     page would sort and label curl-style rows as reaching). The code kept
+#     its spelling and changed its meaning, so the number changes instead.
+CONTRACT_VERSION = 5
 
 
 # ── vocabularies ────────────────────────────────────────────────────────────

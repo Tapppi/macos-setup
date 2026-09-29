@@ -39,7 +39,7 @@ python3 scripts/apply_converge.py --session "$SD" --submit converge.draft.json
 **A stale corpus is refused before anything runs.** `corpus.pre.json`
 records the `contract_version` and `converge_version` it was built under;
 unless both are exactly this code's (`converge.check_corpus_versions` — an
-int, equal; `"4"`, `4.0`, `true` or a missing key is refused), `--check` and
+int, equal; `"5"`, `5.0`, `true` or a missing key is refused), `--check` and
 `--submit` exit 4 **without recording an attempt** — it is an operator
 condition, not your error — and `apply_converge()` raises
 `CorpusVersionError` at every attempt, the terminal one included, so no

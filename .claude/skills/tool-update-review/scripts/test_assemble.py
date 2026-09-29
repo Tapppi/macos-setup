@@ -2623,6 +2623,20 @@ class GSecPipelineFailureTests(unittest.TestCase):
 		self.assertIn("stale", report["convergence"]["detail"])
 		self.assertIn("3/3", report["convergence"]["detail"])
 
+	def test_assembly_refuses_a_contract_4_corpus_whose_breaking_reason_meant_any(self):
+		"""Contract 4's `fix-with-breaking` named any breaking item; 5's names
+		only one that reaches this machine. A contract-4 corpus.pre is where a
+		forced tool's `forced_display.reasons` would come from, so it is
+		refused as stale, not merged."""
+		_, _, corpus_pre = run_fixture_pipeline(self.tmp)
+		corpus_pre["contract_version"] = 4
+		with open(os.path.join(self.tmp, "session", "corpus.pre.json"), "w",
+				encoding="utf-8") as fh:
+			json.dump(corpus_pre, fh)
+		report = self._assemble_again()
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("4/3", report["convergence"]["detail"])
+
 	def test_the_applier_refuses_a_stale_corpus_before_anything_ships(self):
 		import converge as contract
 

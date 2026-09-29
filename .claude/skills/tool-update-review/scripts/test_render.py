@@ -237,6 +237,28 @@ class RenderRefusalTests(RenderRunner):
 					f"contract_version must be {items.CONTRACT_VERSION}", p.stderr)
 				self.assertNotIn("Traceback", p.stderr)
 
+	def test_a_contract_4_report_cannot_feed_the_page_an_old_breaking_reason(self):
+		"""Under contract 4 `fix-with-breaking` meant ANY breaking item; the
+		page now reads it as "reaches this machine" (breakingReachOf,
+		p2ReachRank, and a forced row's stored `forced_display.reasons`). The
+		code kept its spelling, so only the version can tell the two apart:
+		a contract-4 report carrying that reason — on the tier and on the
+		forced-display snapshot — is refused, while the same tool under the
+		current contract renders."""
+		self.assertGreater(items.CONTRACT_VERSION, 4,
+			"fix-with-breaking changed meaning in contract 5; the gate must not accept 4")
+		tier = {"priority": "P2", "tier": "P2", "reasons": ["fix-with-breaking", "fix"],
+			"holds": [], "ids": {"fix-with-breaking": ["brew:curl:x"], "fix": ["brew:curl:y"]}}
+		tool = {"id": "brew:curl", "name": "curl", "source": "brew",
+			"security_tier": tier,
+			"forced_conservative": {"forced_display": {"priority": "P2",
+				"reasons": ["fix-with-breaking", "fix"]}}}
+		p = self.refuse(minimal_report(contract_version=4, tools=[tool]))
+		self.assertIn(f"contract_version must be {items.CONTRACT_VERSION}, got 4",
+			p.stderr)
+		p, _ = self.render(minimal_report(tools=[tool]))
+		self.assertEqual(p.returncode, 0, p.stderr)
+
 	def test_the_contract_gate_sits_after_the_schema_gate(self):
 		"""A schema-1 report with a foreign contract names the schema first —
 		the older, broader refusal — so the message a user acts on is the one

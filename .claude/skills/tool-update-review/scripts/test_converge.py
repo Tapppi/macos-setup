@@ -2327,8 +2327,13 @@ class NoIOAndCorpusVersionTests(unittest.TestCase):
 			"W-USAGE-INSTALL-ONLY"}, codes)
 		self.assertFalse(any(c.startswith("E-VALIDATOR-CRASH") for c in codes), codes)
 
-	BAD = ((None, "missing"), (3, "old"), ("4", "a string"), (4.0, "a float"),
-		(True, "a bool"))
+	@staticmethod
+	def bad(expected):
+		"""Every refused spelling, around the CURRENT number: the string and
+		float forms are of the right value, so only the type check refuses
+		them — hard-coded, they would go stale on the next bump."""
+		return ((None, "missing"), (expected - 1, "old"), (str(expected), "a string"),
+			(float(expected), "a float"), (True, "a bool"))
 
 	def _stale(self, key, value):
 		pre = fixture_pre()
@@ -2339,10 +2344,9 @@ class NoIOAndCorpusVersionTests(unittest.TestCase):
 		return pre
 
 	def test_a_stale_corpus_is_refused_at_every_attempt_and_projection(self):
-		for key in ("contract_version", "converge_version"):
-			for value, why in self.BAD:
-				if key == "converge_version" and value == 3:
-					value = 2
+		for key, expected in (("contract_version", model.CONTRACT_VERSION),
+				("converge_version", C.CONVERGE_VERSION)):
+			for value, why in self.bad(expected):
 				with self.subTest(key=key, value=why):
 					pre = self._stale(key, value)
 					submission = fixture_submission()

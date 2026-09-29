@@ -96,7 +96,12 @@ assert got == items.load_fixture("expected_validation.json")
 3. **Read the diff.** A change in `expected_validation.json` you did not intend
    is the fixture doing its job.
 4. `python3 -m unittest test_items test_validate_items`
-5. Bump `items.CONTRACT_VERSION` if a consumer would have to change.
+5. Bump `items.CONTRACT_VERSION` if a consumer would have to change —
+   including when an existing code keeps its spelling and changes its
+   meaning (5: `fix-with-breaking` went from any breaking item to one that
+   reaches this machine). The consumers' equality gates are the only thing
+   that tells an old artefact's code from a new one's; regenerating alone
+   changes nothing they check.
 
 `test_items.py` asserts every fixture still agrees with the code, so a fixture
 cannot go stale — which is the only reason a published fixture is worth more
