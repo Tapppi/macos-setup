@@ -342,7 +342,8 @@ use, and I-23 grounds it in the stage-3 validator, where the resolver lives:
    never by the quote text alone.** Every occurrence of the quote is expanded
    to the full lines it spans; each is classified with the file's kind (from
    its basename: Brewfile, `.tool-versions`, mise TOML — `mise.toml`,
-   `.mise.toml`, `mise.local.toml`, `mise/config.toml` — shell `*.sh`/`.bash*`,
+   `.mise.toml`, `mise.local.toml`, `mise/config.toml` — shell `*.sh`/`.bash*` and
+   the bash dotfiles `items.SHELL_DOTFILE_NAMES` lists (`.functions`, `.exports`, …),
    plist `*.plist`, other) and, for TOML, its enclosing table header. A line is not usage when
    it is the tool's own install declaration (`items.INSTALL_DECLARATION_PATTERNS`,
    published data with a `{name}` slot: a Brewfile `brew|cask|tap|mas

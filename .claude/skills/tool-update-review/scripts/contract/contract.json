@@ -467,7 +467,7 @@
 			"brewfile": "Brewfile",
 			"tool-versions": ".tool-versions",
 			"mise-toml": "mise.toml, .mise.toml, mise.local.toml, mise/config.toml",
-			"shell": "*.sh, .bash*",
+			"shell": "*.sh, .bash*, .functions, .exports, .aliases, .path, .extra, .credentials, .credentials.dist",
 			"plist": "*.plist — a binary plist is read as its XML form (plistlib, keys sorted); a line that is only plist structure (<dict>, the DOCTYPE, …) shows nothing",
 			"other": "anything else — no line is an install declaration; a #-led line is still a comment"
 		},

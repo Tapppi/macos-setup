@@ -884,6 +884,12 @@ INSTALL_DECLARATION_PATTERNS = (
 )
 # The file kinds I-23 classifies a matched line with, from the path.
 MISE_TOML_NAMES = ("mise.toml", ".mise.toml", "mise.local.toml")
+# The bash dotfiles this setup sources that carry neither a `.sh` suffix nor a
+# `.bash` prefix (dotfiles/config/bash/, the repo's own `.path`/`.extra`, the
+# credentials template). Read as shell, so a `brew install foo` line in them
+# is an install declaration, never grounding for use.
+SHELL_DOTFILE_NAMES = (".functions", ".exports", ".aliases", ".path", ".extra",
+	".credentials", ".credentials.dist")
 # The size cap on a file I-23 reads to ground a usage quote. Over it, the entry
 # is E-USAGE-UNGROUNDED ("unreadable"), never a crash and never a partial read.
 USAGE_FILE_MAX_BYTES = 1_000_000
@@ -934,7 +940,7 @@ def usage_file_kind(path) -> str:
 		return "tool-versions"
 	if base in MISE_TOML_NAMES or (base == "config.toml" and parent == "mise"):
 		return "mise-toml"
-	if base.endswith(".sh") or base.startswith(".bash"):
+	if base.endswith(".sh") or base.startswith(".bash") or base in SHELL_DOTFILE_NAMES:
 		return "shell"
 	if base.endswith(".plist"):
 		return "plist"
@@ -1904,7 +1910,7 @@ def contract() -> dict:
 			"install_location_patterns": [dict(p) for p in INSTALL_LOCATION_PATTERNS],
 			"usage_file_kinds": {"brewfile": "Brewfile", "tool-versions": ".tool-versions",
 				"mise-toml": ", ".join(MISE_TOML_NAMES) + ", mise/config.toml",
-				"shell": "*.sh, .bash*",
+				"shell": "*.sh, .bash*, " + ", ".join(SHELL_DOTFILE_NAMES),
 				"plist": "*.plist — a binary plist is read as its XML form "
 				"(plistlib, keys sorted); a line that is only plist structure "
 				"(<dict>, the DOCTYPE, …) shows nothing",

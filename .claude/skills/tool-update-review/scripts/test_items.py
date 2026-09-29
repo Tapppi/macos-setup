@@ -1266,6 +1266,11 @@ class UsageFileKindTests(unittest.TestCase):
 				("dotfiles/config/mise/config.toml", "mise-toml"),
 				("config.toml", "other"), ("tasks/install.sh", "shell"),
 				("dotfiles/home/.bash_profile", "shell"), (".pg_service.conf", "other"),
+				("dotfiles/config/bash/.functions", "shell"),
+				("dotfiles/config/bash/.exports", "shell"),
+				("dotfiles/config/bash/.aliases", "shell"), (".path", "shell"),
+				(".extra", "shell"), (".credentials.dist", "shell"),
+				(".pathological", "other"),
 				(None, "other"), (42, "other")):
 			with self.subTest(path):
 				self.assertEqual(model.usage_file_kind(path), kind)

@@ -2883,6 +2883,16 @@ class UsageGroundingTests(unittest.TestCase):
 			"brew install libpq\npg_isready --service=libpq\n"})
 		self.assertGrounds(self._run(_usage("setup.sh", "libpq"), roots=roots), [2])
 
+	def test_an_install_line_in_a_bash_dotfile_is_install_only(self):
+		"""Review A7: `.functions`, `.exports`, `.aliases`, `.path` and
+		`.extra` are shell. A `brew install` line there is an install
+		declaration, not grounding for use."""
+		for name in (".functions", ".exports", ".aliases", ".path", ".extra"):
+			with self.subTest(name):
+				roots = self._scratch({name: "brew install libpq\n"})
+				self.assertInstallOnly(self._run(_usage(name, "brew install libpq"),
+					roots=roots))
+
 	def test_a_quote_found_only_on_a_comment_is_install_only(self):
 		roots = self._scratch({"notes.conf": "# host=db.internal (old)\n"})
 		self.assertInstallOnly(self._run(_usage("notes.conf", "host=db.internal"),
