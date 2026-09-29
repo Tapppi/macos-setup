@@ -44,7 +44,7 @@ constant exists, so this file cannot silently under-cover a widened set):
      `pre_accept_bars`, `usage_evidence` and `bucket_inputs`, and
      `converge.check_corpus_versions` over hostile version keys
 
-**Survival is not the gate; semantics are (G-SEC, pass 4b §7.6).** 1613/0
+**Survival is not the gate; semantics are (G-SEC).** 1613/0
 was the crash baseline. Every case's assembled report is now also read and
 held to the tier's invariants (`semantic_violations`): the four bucket/tier
 coherence rules, no held or P0 tool pre-accepted, no tool with an unreadable

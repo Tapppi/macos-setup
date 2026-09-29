@@ -84,7 +84,7 @@ MAX_ATTEMPTS = 5
 # `convergence_status.standing_rejects`, never silent.
 DEGRADATION_STATES = ("converged", "degraded_gate", "degraded_unapplied")
 
-# The conservative option (§3.4d): the ONE place in the design where a bucket
+# The conservative option (convergence.md §6): the ONE place in the design where a bucket
 # is written rather than derived. Written by the applier, never by
 # convergence, always recorded as forced.
 FORCED_BUCKET = "security_mixed"
@@ -192,7 +192,7 @@ CUT_OPS = tuple(op for op in OPS if OPS[op]["cut"])
 
 # Validator-assigned fields no edit may write, whatever the op. Rewriting an
 # id destroys within-run duplicate detection and the modification list's own
-# addressing (§7.1) — under this contract there is no field in which to
+# addressing (item-schema.md §5) — under this contract there is no field in which to
 # express one, and merge/add payloads that try are rejected.
 IMMUTABLE_ELEMENT_FIELDS = ("id", "id_stability")
 
@@ -214,7 +214,7 @@ GATE_CONSEQUENCE_TOKENS = (
 	"security_auto", "pre-accept", "pre_accept", "pre-accepted",
 	"auto-accept", "auto-accepted", "auto-update", "auto_update",
 )
-# The demotion gate's twin (G-SEC, O3): an attributed edit that LOWERS a
+# The demotion gate's twin (G-SEC; convergence.md §6): an attributed edit that LOWERS a
 # fix's display priority must name that consequence in its reason.body.
 PROMINENCE_CONSEQUENCE_TOKENS = ("priority", "highlight", "prominence")
 
@@ -353,7 +353,7 @@ CHECK_OPS = {name: spec["ops"] for name, spec in CHECKS}
 
 # ── every code the applier can raise ────────────────────────────────────────
 # (severity, phase, meaning). "critical" bounces the submission while
-# attempts remain (§3.4d); "note" ships as a report note. E-EFFECT-ARITH is
+# attempts remain (convergence.md §6); "note" ships as a report note. E-EFFECT-ARITH is
 # graded per FIELD, not per code: `tools_moved` / `pre_accept` are safety
 # fields and critical; every other number is a note (§3.5).
 CODES = {
@@ -494,7 +494,7 @@ def watch_topics_for(corpus_pre, tool_id):
 		if isinstance(e, dict) and isinstance(e.get("topic"), str) and e["topic"].strip())
 
 
-# ── the re-derivation (§3.4a's one implementation) ──────────────────────────
+# ── the re-derivation (convergence.md §6: its one implementation) ───────────
 def derive_tool_state(view, watch_topics) -> dict:
 	"""Recompute every derived axis of one tool view from its items and
 	suggestions — the applier's half of the differential recomputation.
@@ -594,7 +594,7 @@ def axis_value(view, axis):
 
 
 # The axes the differential recomputation compares pre vs post. A tool where
-# any of the first three differs is a convergence-moved tool (§3.4a).
+# any of the first three differs is a convergence-moved tool (convergence.md §6).
 MOVED_AXES = ("initial_review_bucket", "initial_pre_accept", "risk_level")
 # G-SEC's pseudo-axis: display priority, read through `axis_value`. NOT in
 # MOVED_AXES — `corpus_effect.tools_moved` keeps its meaning and the agent is
@@ -605,7 +605,7 @@ PRIORITY_AXIS = "security_priority"
 
 def is_demotion(pre_priority, post_priority) -> bool:
 	"""Any STRICT decrease in priority rank — P0 > P1 > P2 > P3 > not G-SEC
-	(§12 A-R3-2). Every one needs attribution, consequence reasoning and the
+	(convergence.md §6, the demotion gate). Every one needs attribution, consequence reasoning and the
 	expanded Overview disclosure."""
 	return model.priority_rank(post_priority) < model.priority_rank(pre_priority)
 
@@ -767,7 +767,7 @@ def build_tables(corpus_pre) -> dict:
 			"tool_ids": sorted({sug_tool[s] for s in sug_ids if s in sug_tool}),
 		})
 
-	# §4.5 — a structural change's subject set vs the subjects its siblings
+	# item-schema.md §4 — a structural change's subject set vs the subjects its siblings
 	# document. The gap is visible as data; convergence decides.
 	subject_index = copy.deepcopy(corpus_pre.get("subject_index") or {})
 	subjects_by_sug = {}

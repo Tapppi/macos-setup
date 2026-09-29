@@ -14,7 +14,7 @@ artefacts: `corpus.pre.json` (the frozen corpus of record), `converge-view.json`
 is immutable for the run — a second `--prepare` refuses unless `--force`.
 
 `--check` runs all five phases against the draft and writes NOTHING durable.
-It is the one Bash command the convergence agent may run (§5.1): it reads only
+It is the one Bash command the convergence agent may run (convergence.md §8): it reads only
 the session directory, fetches nothing, and iterating against it costs no
 recovery attempt.
 
@@ -389,7 +389,7 @@ def _check_after(edit, op, kind, element, field, index, tool_id):
 			return "`after` must be the WHOLE merged element"
 		for immutable in contract.IMMUTABLE_ELEMENT_FIELDS:
 			if after.get(immutable) != element.get(immutable):
-				return "`after.{}` may not differ — validator-assigned (§7.1)".format(
+				return "`after.{}` may not differ — validator-assigned (item-schema.md §5)".format(
 					immutable)
 		changed = edit.get("changed_fields")
 		if not isinstance(changed, list) or not changed \
@@ -408,7 +408,7 @@ def _check_after(edit, op, kind, element, field, index, tool_id):
 		if assemble.suggestion_kind(after) not in model.MEMORY_SUGGESTION_KINDS:
 			return ("an added suggestion must be a memory proposal — an authored "
 				"edit/structural suggestion has no research behind it and no "
-				"checker owning it (§7.2)")
+				"checker owning it (item-schema.md §5)")
 		new_id = after.get("id")
 		if not isinstance(new_id, str) or not new_id.startswith(tool_id + ":"):
 			return "`after.id` must be a string prefixed {!r}".format(tool_id + ":")
@@ -771,12 +771,12 @@ def _pre_codes_for(corpus_pre, element_id) -> set:
 		if isinstance(f, dict) and f.get("item_id") == element_id} - _PATH_CODES
 
 
-# ── G-SEC: display priority across the edit (§4.7) ─────────────────────────
+# ── G-SEC: display priority across the edit (convergence.md §6) ────────────
 def _prominence(corpus_pre, corpus_post) -> dict:
 	"""tool_id → {"from", "to", "lost"} for every tool whose G-SEC display
 	priority differs pre vs post, EITHER direction — read through
-	`converge.axis_value`. `lost` is any strict decrease in rank (§12
-	A-R3-2), leaving G-SEC included."""
+	`converge.axis_value`. `lost` is any strict decrease in rank (the demotion gate,
+	convergence.md §6), leaving G-SEC included."""
 	out = {}
 	pre_views = {v.get("id"): v for v in corpus_pre.get("tools") or []
 		if isinstance(v, dict)}
@@ -828,7 +828,7 @@ def _post_edit_i22(corpus_pre, corpus_post, diff) -> list:
 	return notes
 
 
-# ── attribution (§3.4b) ─────────────────────────────────────────────────────
+# ── attribution (convergence.md §6) ─────────────────────────────────────────
 def _closure_without(edits_by_id, order, omit) -> list:
 	"""The application order with `omit` and everything requiring it (
 	transitively) removed — an omission respects the same dependency rule a
@@ -1335,7 +1335,7 @@ def _counterweight(pre_view, attributed, edits_by_id) -> dict:
 
 def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 		attribution, forced, prominence=None):
-	"""§4.2's per-tool `convergence` block, written into converge-effect.json
+	"""The per-tool `convergence` block (convergence.md §9), written into converge-effect.json
 	for the report stage to merge onto each tool. The label is DERIVED here,
 	never declared by convergence."""
 	pre_views = {v["id"]: v for v in corpus_pre.get("tools") or []}
@@ -1360,7 +1360,7 @@ def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 		attributed = attribution.get(tool_id, {})
 		if changed_priority:
 			# G-SEC: every priority change, either direction, with its
-			# attribution — the page discloses the losses expanded (O3).
+			# attribution — the page discloses the losses expanded (convergence.md §6).
 			pre_tier = pre_v.get("security_tier")
 			post_tier = post_v.get("security_tier")
 			block["security_priority"] = {
@@ -1402,7 +1402,7 @@ def _build_tool_blocks(corpus_pre, corpus_post, applied, edits_by_id, moved,
 		if is_forced:
 			block["forced"] = forced[tool_id]
 			blocks[tool_id] = block
-			continue  # a degraded tool carries NO auto_update_label (§4.4)
+			continue  # a degraded tool carries NO auto_update_label (convergence.md §9)
 		if final_auto:
 			causes = []
 			for axis in ("initial_review_bucket", "initial_pre_accept"):
@@ -1474,7 +1474,7 @@ def apply_converge(corpus_pre, converge, attempt=1, terminal=False,
 	   "corpus_post", "effect"} where `state` is one of
 	   "converged" | "degraded_gate" | "degraded_unapplied" | "rejected".
 
-	"rejected" is the loop's bounce (§3.4d): critical findings while attempts
+	"rejected" is the loop's bounce (convergence.md §6): critical findings while attempts
 	remain. With `terminal=True` (attempt 5) the answer is always one of the
 	three shipping states — implicated edits are excluded rather than
 	bouncing, gate failures force the conservative option, and everything
@@ -1483,7 +1483,7 @@ def apply_converge(corpus_pre, converge, attempt=1, terminal=False,
 	A corpus.pre built under another contract or converge version raises
 	`converge.CorpusVersionError` FIRST, at every attempt, the terminal one
 	included — it never returns a shipping state, so no corpus.post and no
-	effect is ever derived from a stale corpus (G-SEC §4.7)."""
+	effect is ever derived from a stale corpus (assembly.md §Consuming Convergence)."""
 	contract.check_corpus_versions(corpus_pre)
 	submission = _resolve_submission(corpus_pre, converge)
 	if submission:
@@ -1717,7 +1717,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 	# permissive gate or the demotion gate below.
 	notes.extend(_post_edit_i22(corpus_pre, corpus_post, diff))
 
-	# phase 5b — differential recomputation over every tool (§3.4a), with the
+	# phase 5b — differential recomputation over every tool (convergence.md §6), with the
 	# pre side re-derived through the SAME function and checked against the
 	# validator's record (E-APPLY-INTERNAL).
 	moved = {}
@@ -1764,7 +1764,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 	# (MOVED_AXES is unchanged, so a priority-only change never enters it).
 	prominence = _prominence(corpus_pre, corpus_post)
 
-	# phase 5c — leave-one-out attribution and the hard gate (§3.4b/c)
+	# phase 5c — leave-one-out attribution and the hard gate (convergence.md §6)
 	attribution = {}
 	gate = []
 	for tool_id in sorted(set(prominence) - set(moved)):
@@ -1833,7 +1833,7 @@ def _apply_once(corpus_pre, converge, edits, edits_by_id, excluded, attempt):
 				notes.append(_finding("W-EDIT-CLAIM",
 					"{} claimed the bucket move on {} but is not attributed for "
 					"it".format(edit_id, tool_id), edit_id=edit_id, tool_id=tool_id))
-	# The demotion gate (G-SEC, O3, §12 A-R3-2): ANY strict decrease in a
+	# The demotion gate (G-SEC; convergence.md §6): ANY strict decrease in a
 	# fix's display priority is consequential. It must be attributable, and
 	# every attributed edit's reason.body must name the consequence. No new
 	# code and no new submission field: E-GATE-UNATTRIBUTED /
@@ -1951,7 +1951,7 @@ def _status(state, attempt, attempt_log, headline, body, degraded_tools,
 
 
 def _degrade_unapplied(corpus_pre, converge, attempt, findings, attempt_log):
-	"""§3.4d row 2: no submission survives — corpus.post IS corpus.pre. The
+	"""convergence.md §6, degraded_unapplied: no submission survives — corpus.post IS corpus.pre. The
 	report renders the pre-convergence corpus and says why."""
 	corpus_post = copy.deepcopy(corpus_pre)
 	rejects = [{"edit_id": f.get("edit_id"), "code": f["code"],
@@ -2052,7 +2052,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 	than derived, written by the applier, recorded as forced."""
 	corpus_post = result["corpus_post"]
 	if not result["applied"] and (result["critical"] or result["rejected"]):
-		# Nothing survived AND something is wrong — §3.4d row 2. The two
+		# Nothing survived AND something is wrong — degraded_unapplied (convergence.md §6). The two
 		# populations are NOT the same set and both must be consulted: a
 		# precheck rejection carries a critical finding, but an edit the
 		# terminal loop excluded for E-APPLY-SCOPE/SCHEMA lives only in
@@ -2091,7 +2091,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 			"kinds": [kind],
 			"code_by_kind": {kind: entry["code"]},
 		}
-		# §12 A-R3-3 — the forced-display snapshot: the PRE-convergence
+		# The forced-display snapshot (convergence.md §6): the PRE-convergence
 		# priority, its reasons and their labels, so the page keeps the
 		# prominence the gate could not see justified — even when the forced
 		# view is no longer G-SEC (the sole fix deleted). Display only:
@@ -2363,7 +2363,7 @@ def main(argv=None) -> int:
 	corpus_pre = _read_json(pre_path)
 	# A stale corpus is an operator condition, not the agent's error: refuse
 	# BEFORE the attempt counter is read, so it never consumes one of the
-	# five (G-SEC §4.7).
+	# five (assembly.md §Consuming Convergence).
 	try:
 		contract.check_corpus_versions(corpus_pre)
 	except contract.CorpusVersionError as exc:

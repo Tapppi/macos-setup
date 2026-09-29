@@ -651,7 +651,7 @@ class HypothesisTests(GuidelineTestCase):
 		self.assertSays("not hand-written\nper run", self.builder_section())
 
 	def test_the_dispatch_step_carries_the_ban(self):
-		"""§6.1 asks for one line in SKILL.md step 3 pointing at the rules —
+		"""The ban needs one line in SKILL.md step 3 pointing at the rules —
 		the orchestrator fills the placeholder, so the orchestrator is who has
 		to know."""
 		self.assertSays("never as nominations", SKILL_MD)
@@ -755,8 +755,10 @@ class DocumentedScopeTests(GuidelineTestCase):
 		A committed file that cites one — by name (the redesign and handoff
 		records, the report-page design, the convergence-shape decision, the
 		old research prompt script, or the design directory itself), by one of
-		its letter-numbered section tags, or by an acceptance-criterion
-		number — points its reader at a dead end, so every rationale is stated
+		its letter-numbered section tags, by an acceptance-criterion number, by
+		a numbered section no committed reference has, by a review-round tag,
+		a pass plan's section or the local reading's O-labels — points
+		its reader at a dead end, so every rationale is stated
 		here or cited from a committed reference instead. The patterns are assembled so this file
 		does not match itself."""
 		working = "\\b" + "RE" "DESIGN" + "\\b|" + "|".join(re.escape(name)
@@ -765,7 +767,21 @@ class DocumentedScopeTests(GuidelineTestCase):
 				"scratch/" "design"))
 		pattern = re.compile(working
 			+ "|§[A-Z][0-9]*\\b"            # a letter section tag
-			+ "|\\b[Cc]riteri(?:on|a) [0-9]+")  # an acceptance-criterion number
+			+ "|\\b[Cc]riteri(?:on|a) [0-9]+"  # an acceptance-criterion number
+			+ "|\\bA-" "R[0-9]"               # a review-round finding tag
+			+ "|\\bpass [0-9]+[a-z]? " "§"     # a section of a pass's local plan
+			+ "|\\b" "O[1-9]\\b|orchestrator " "reading")  # the local O-labels
+		# A numeric section citation must name a numbered heading some
+		# committed reference has (seven-point-28, twelve and three-point-4d pointed into
+		# a local plan; every `§1.6` or `§2.3` is a real heading).
+		headings = set()
+		for name in os.listdir(os.path.join(SKILL, "references")):
+			with open(os.path.join(SKILL, "references", name), encoding="utf-8") as fh:
+				for line in fh:
+					found = re.match(r"^#+ ([0-9]+(?:\.[0-9]+[a-z]?)?)\.? ", line)
+					if found:
+						headings.add(found.group(1))
+		numeric = re.compile("§" + r"([0-9]+(?:\.[0-9]+[a-z]?)?)")
 		hits = []
 		for root, dirs, files in os.walk(SKILL):
 			dirs[:] = [d for d in dirs if d != "__pycache__"]
@@ -773,13 +789,14 @@ class DocumentedScopeTests(GuidelineTestCase):
 				path = os.path.join(root, name)
 				with open(path, "r", encoding="utf-8", errors="replace") as fh:
 					for number, line in enumerate(fh, 1):
-						if pattern.search(line):
+						if pattern.search(line) or any(m.group(1) not in headings
+								for m in numeric.finditer(line)):
 							hits.append("{}:{}: {}".format(os.path.relpath(
 								path, SKILL), number, line.strip()[:100]))
 		self.assertEqual(hits, [], "\n".join(hits))
 
 
-# ── G-SEC checker guidance (pass 4b §2.8) ───────────────────────────────────
+# ── G-SEC checker guidance (item-schema.md §2.6, §3) ───────────────────────
 class GSecGuidanceTests(GuidelineTestCase):
 	"""The checker-facing contract changed with CONTRACT 4 — `security.nature`,
 	suggestion `requirement`/`serves`, evidence `role`/`quote`, a validated

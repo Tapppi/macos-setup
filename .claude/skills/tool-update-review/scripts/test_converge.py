@@ -1461,7 +1461,7 @@ class CorpusEffectTests(unittest.TestCase):
 
 class LabelContractTests(unittest.TestCase):
 	def test_rule_label_for_untouched_auto_tool(self):
-		"""§4.3 — a tool auto by rule alone still gets a label, so the reader
+		"""convergence.md §9 — a tool auto by rule alone still gets a label, so the reader
 		can tell which kind it is looking at."""
 		security = {"cve_id": None, "advisory_id": None, "rating": "unknown",
 			"rating_basis": "unrated", "exploited_in_wild": False}
@@ -1520,7 +1520,7 @@ class TerminalDegradationTests(unittest.TestCase):
 		self.assertIn("forced to security_mixed", explanation["headline"])
 		self.assertNotIn("priority", explanation["headline"])
 		self.assertIn("kept out of the auto strip", explanation["body"])
-		# a degraded tool carries NO auto_update_label (§4.4)
+		# a degraded tool carries NO auto_update_label (convergence.md §9)
 		self.assertNotIn("auto_update_label",
 			result["effect"]["tools"]["brew:auto"])
 
@@ -1583,7 +1583,7 @@ class TerminalDegradationTests(unittest.TestCase):
 
 
 class TerminalStateMatrixTests(unittest.TestCase):
-	"""The pinned population matrix for attempt 5 (§3.4d). The review round
+	"""The pinned population matrix for attempt 5 (convergence.md §6). The review round
 	proved reasoning about one collection from a single example is how a
 	degradation path regresses: `critical` and `rejected` are NOT the same
 	set — a precheck rejection carries a finding, an edit the terminal loop
@@ -2077,7 +2077,7 @@ class GSecConvergenceTests(unittest.TestCase):
 				self.assertEqual(C.forced_bucket(pre_v, post_v), want)
 
 	def test_a_forced_tool_whose_sole_fix_was_deleted_keeps_its_display(self):
-		"""§12 A-R3-3: the snapshot is carried even when G-SEC applicability
+		"""convergence.md §6: the forced-display snapshot is carried even when G-SEC applicability
 		disappears — the recomputed tier is null, the display is not."""
 		item = _gfix("brew:g", 1, usage=True)
 		view = _gview("brew:g", [item], grounded=[1])
@@ -2200,7 +2200,7 @@ class GSecConvergenceTests(unittest.TestCase):
 		self.assertEqual(codes_of(result), [])
 
 	def test_a_p1_to_p2_demotion_with_moved_axes_unchanged(self):
-		"""§12 A-R3-2: ANY strict decrease is a demotion — here the sole
+		"""convergence.md §6: ANY strict decrease is a demotion — here the sole
 		proposed edit deleted on a usage-confirmed fix. A major delta keeps
 		the risk elevated, so no MOVED axis changes."""
 		item = _gfix("brew:g", 1, usage=True)

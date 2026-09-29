@@ -552,7 +552,7 @@ the mirror is the existing one.
 section, expanded, never capped: one row per tool whose
 `convergence.security_priority.lost` is true — name, `P2 → P3`, each
 attributed edit's headline and quote (the block's `edits`), `open card →`.
-It renders even when no fix is left in the panel. This is O3's disclosure:
+It renders even when no fix is left in the panel. This is the demotion gate's disclosure (`convergence.md` §6):
 convergence may lower a fix's priority only with an attributed, reasoned edit
 (`convergence.md` §6), and the page says so where the fix would have been.
 
@@ -1648,8 +1648,9 @@ decision vocabulary and no new payload field.
 
 ## Loudness Channels
 
-`item-schema.md` §5.7 names four channels through which a degraded or held
-tool must be *loud*; the page renders every one of them in the DOM, not
+A degraded or held tool must be *loud* through four channels — degradation,
+risk and the pre-acceptance bars, watch hits, the finding codes
+(`item-schema.md` §8, `items.compute_degradation`); the page renders every one of them in the DOM, not
 merely in `REPORT`. Measured before this pass: 77 of 78 tools carried
 `spec_violations`, `validation.clean` was false, and the rendered DOM held
 **zero** finding codes; `risk_level` occurred only inside the embedded JSON;

@@ -351,7 +351,7 @@ def anchor_is_wellformed(anchor) -> bool:
 	if kind not in ANCHOR_KINDS:
 		return False
 	if kind == "none":
-		# §7.2: `value` must be absent/null and a `slug` is required instead.
+		# item-schema.md §5: `value` must be absent/null and a `slug` is required instead.
 		# The field table omits `slug`; the grammar table requires it, and the
 		# grammar table is what an id is derived from, so it wins.
 		if anchor.get("value") is not None:
@@ -766,10 +766,10 @@ def compute_degradation(tool) -> dict:
 # upgrade does not work here without an edit is not accepted at all and is the
 # highest priority there is.
 #
-# Two AXES, kept apart on purpose (orchestrator reading O2, applied at every
+# Two AXES, kept apart on purpose (item-schema.md §7, the G-SEC tier table, applied at every
 # level — R1): display PRIORITY ("which fixes matter") and the acceptance HOLD
 # ("why it is not taken"). A held tool keeps its priority: held means not
-# accepted, never hidden. `tier` is the §7.28 row both combine into.
+# accepted, never hidden. `tier` is what both combine into (item-schema.md §7, the G-SEC tier table).
 #
 # The tier is computed ONCE per view, here, from fields a validation view and
 # an assembled Tool both carry. The validator stores it; assembly copies it;
@@ -777,7 +777,7 @@ def compute_degradation(tool) -> dict:
 # page reads it. Nothing re-derives it.
 SECURITY_TIERS = ("P0", "held", "P1", "P2", "P3")   # display order
 SECURITY_PRIORITIES = ("P0", "P1", "P2", "P3")
-# The prominence order convergence's demotion gate reads (§12 A-R3-2): any
+# The prominence order convergence's demotion gate reads (convergence.md §6): any
 # STRICT decrease in this rank is a demotion. Not G-SEC ranks 0.
 PRIORITY_RANK = {"P0": 4, "P1": 3, "P2": 2, "P3": 1}
 ACCEPTED_TIERS = ("P1", "P2", "P3")
@@ -790,10 +790,10 @@ TIER_REASON_LEVELS = (
 	("pinned", "P0"),                # the tool is pinned; the fix cannot land
 	("incompatible-unfixed", "P0"),  # an `incompatible` item no REQUIRED edit serves
 	("edit-proposed", "P1"),         # an action suggestion reads `proposed`
-	("config-attention", "P1"),      # needs_attention with NO action suggestion (§7.29)
+	("config-attention", "P1"),      # needs_attention with NO action suggestion
 	("relevant-fix", "P2"),          # a positive fix confirmed against actual usage (I-23)
 	("fix-with-breaking", "P2"),     # a `breaking`-tagged item that REACHES this machine
-	("fix-with-risk", "P2"),         # a NON-security item with effect == risk (O1)
+	("fix-with-risk", "P2"),         # a NON-security item with effect == risk
 	("vendor-unread", "P2"),         # vendor_silent_categories ∋ "security"
 	("fix-with-breaking-unseen", "P2"),  # `breaking` items, none of them reaching (R4)
 	("fix", "P3"),                   # a positive fix — always present when one exists
@@ -816,7 +816,7 @@ TIER_REASON_LEVEL = dict(TIER_REASON_LEVELS)
 # accepted"; `pre_accept_bars` on a G-SEC view is their union.
 TIER_HOLDS = (
 	"content-losing",        # D1 — content_losing(view) is non-empty
-	"security-item-risk",    # a security item (tag or block) with effect == risk (§7.27)
+	"security-item-risk",    # a security item (tag or block) with effect == risk
 	"watch-hit",             # E3 — any item CLAIMS a watch hit (claim rule, fail-closed)
 	"enum-invalid",          # a tier-input enum present and unreadable (R7: every tool)
 	"container-unreadable",  # an item/suggestion container of the wrong type (R7)
@@ -854,7 +854,7 @@ TIER_LABELS = {
 	"fix": {"glyph": "·", "text": "Accepted — a security fix, taken by rule"},
 }
 
-# The view default (§4.2): what a view carries until the tier function has run
+# The view default (item-schema.md §7, the final act): what a view carries until the tier function has run
 # on its final state. Valid by `valid_security_tier` — a held P3 — so a view
 # whose tier was never computed is never accepted and never highlighted.
 TIER_UNCOMPUTED = {"tier": "held", "priority": "P3", "reasons": [],
@@ -1086,7 +1086,7 @@ def usage_confirmed(item, usage_evidence) -> bool:
 	evidence entries is, as authored (after the validator's shape
 	normalization), a member of the tool's `usage_evidence` — the record the
 	stage-3 validator wrote when it grounded that entry in the file. Keyed on
-	the AUTHORED entry (§12 A-R3-1), not on the matched occurrence, so an entry
+	the AUTHORED entry (item-schema.md §3, `role` and `quote`), not on the matched occurrence, so an entry
 	with no `lines`, or a wider range than the match, is the same entry after
 	convergence carries it. Pure: no file is read here, ever — convergence
 	recomputes this with the record, and a forged entry matches nothing."""
@@ -1182,7 +1182,7 @@ def container_unreadable(view) -> bool:
 
 
 def derive_tier(priority, holds) -> str:
-	"""The §7.28 row: P0 wherever the priority is P0 (a P0 tool is never
+	"""The tier (item-schema.md §7, the G-SEC tier table): P0 wherever the priority is P0 (a P0 tool is never
 	accepted, held or not); else `held` if any hold applies; else the
 	priority."""
 	if priority == "P0":
@@ -1371,7 +1371,7 @@ def pre_accept_bars(tool) -> list:
 	holds, read off the stored tier — never recomputed here. A malformed tier
 	bars as `tier-uncomputed` (fail-closed). D2's elevated bar and the
 	reaches limb do NOT apply: a positively identified fix is accepted by
-	tier, and the priority panel is the visibility D2 asked for (§7.27).
+	tier, and the priority panel is the visibility D2 asked for (item-schema.md §7, the G-SEC tier table).
 
 	**Every other tool** — no security content, or security content that is
 	not a positively identified fix — keeps the pre-G-SEC bars:
@@ -1456,7 +1456,7 @@ def accepts_baseline(x) -> bool:
 		and not x.get("forced_conservative"))
 
 
-# ── which flags a checker may emit (`item-schema.md` §5.1) ──────────────────
+# ── which flags a checker may emit (`item-schema.md` §6) ────────────────────
 #   A checker may emit a flag iff (a) it is a pure function of that checker's
 #   own items, AND (b) it is not an input to an auto-approving decision.
 #
@@ -1501,7 +1501,7 @@ def flag_agrees(flag, declared, recomputed) -> bool:
 	return declared == recomputed
 
 
-# ── security_only (`item-schema.md` §5.6) ───────────────────────────────────
+# ── security_only (`item-schema.md` §7, Initial bucketing) ──────────────────
 # The (category, severity) pair test becomes a tag/severity test. Every
 # documented disqualification survives, and one misfile is fixed: codex's
 # breaking change now disqualifies on its tag rather than on the accident of
@@ -1540,7 +1540,7 @@ def allowed_for_security_only(item) -> bool:
 #   warning — worth saying, does not by itself mean the checker got it wrong
 #
 # NOTHING in this table licenses a deletion, a trim or a re-rating. Every stage
-# reports and changes nothing beyond the shape normalizations §5.3 licenses.
+# reports and changes nothing beyond the shape normalizations item-schema.md §7 (V3) licenses.
 FINDING_CODES = {
 	# V1 — load (per file / per entry; never per run)
 	"E-RESEARCH-UNREADABLE": ("error", None, "a research file could not be read"),

@@ -20,7 +20,7 @@ Six stages:
 
 	V1   load, per file and per entry
 	V2   spec validation      — required fields, types, closed vocabularies
-	V3   shape normalization  — the normalizations §5.3 licenses, and no others
+	V3   shape normalization  — the normalizations item-schema.md §7 licenses, and no others
 	V3b  id assignment and uniqueness, from the checker's declared anchor
 	V4   the twenty-three invariants
 	V5   impact
@@ -35,7 +35,7 @@ THE CONSTRAINT, above every other consideration in this file
 
 Every stage below reports and changes nothing. The one class of mutation is
 shape normalization, each instance of which is licensed by name in
-`references/item-schema.md` §5.3 — an evidence shorthand string becoming its
+`references/item-schema.md` §7 (V3) — an evidence shorthand string becoming its
 object form, a null array becoming `[]`. A wrong-typed array member is
 *quarantined on the tool*, not dropped, because dropping is deletion and a
 human would have read it. `initial_review_bucket` is a baseline for
@@ -1143,7 +1143,7 @@ def _ground_usage(entry, tool_id, item_id, tool_name, findings, resolver):
 	Neither is a hold, and neither removes, rewrites or re-rates anything: it
 	withholds a derived highlight, which is all a deterministic step may do.
 
-	The record is keyed on the AUTHORED entry (§12 A-R3-1) — `matched_lines`
+	The record is keyed on the AUTHORED entry (item-schema.md §3) — `matched_lines`
 	is the evidence of why it grounded, not the key."""
 	field = "local.evidence"
 	path = entry.get("path")
@@ -1633,7 +1633,7 @@ def _check_preconditions(op, block, tool_id, sug_id, findings, manifest, manifes
 			fail("{} \"{}\" — nothing to change".format(lacks, token),
 				"structural.to", to.get("name"))
 
-# ── V5: impact (§5.5) ───────────────────────────────────────────────────────
+# ── V5: impact (item-schema.md §7, Impact) ──────────────────────────────────
 def research_produced_content(view) -> bool:
 	"""A checker that failed, timed out or returned an empty shell has told us
 	nothing — never the same as "nothing but security fixes". Neither has a
@@ -1700,7 +1700,7 @@ def compute_impact(view) -> str:
 	return "none"
 
 
-# ── V6: initial bucketing (§5.6) ────────────────────────────────────────────
+# ── V6: initial bucketing (item-schema.md §7, Initial bucketing) ────────────
 def compute_security_only(view, has_security: bool) -> bool:
 	if not has_security or not research_produced_content(view):
 		return False
@@ -1976,7 +1976,7 @@ def _finalize(view, findings):
 	   conservative axis (`CONSERVATIVE_AXES`), whatever was assigned before;
 	3. on every view the tier, the bars and the usage export are recomputed
 	   through the never-raising functions, so stored tier ==
-	   `security_tier(final view)` by construction (G-SEC §4.2).
+	   `security_tier(final view)` by construction (item-schema.md §7, the final act).
 
 	`_derive_axes` therefore assigns no bucket at all; nothing a stage does
 	can leave one behind for this function to trust."""
@@ -2574,7 +2574,7 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 			else:
 				seen_sug[sid] = view["id"]
 
-	# §4.5 — deterministic support for an agentic decision, never the decision.
+	# item-schema.md §4 — deterministic support for an agentic decision, never the decision.
 	# The validator reports the asymmetry between a structural change's subject
 	# set and the subjects its siblings document; it never edits a subjects list.
 	subject_index = {}

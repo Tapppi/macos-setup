@@ -1271,7 +1271,7 @@ class JudgementPanelTests(PageDriveRunner):
 		self.assertIn("review in the judgement panel", out["line"])
 
 	def test_r_on_a_judgement_row_rejects_the_pre_accepted_upgrade(self):
-		"""§9.1's one exception: the row has no undecided suggestion, so
+		"""The judgement panel's one exception (rendering-report.md §Keyboard Navigation): the row has no undecided suggestion, so
 		"first undecided" finds nothing — on this row only, the keys act on
 		the first mirror. Found by driving the prototype; pinned here."""
 		out = self.drive(converged_report([judged_tool("brew:libpq", "libpq"),
@@ -1694,7 +1694,7 @@ class MethodNotesTabTests(PageDriveRunner):
 		self.assertEqual(out["a"], "")
 
 	def test_a_method_note_never_counts_as_a_decision(self):
-		"""§6.4: the progress bar does not count method notes; §1.7c: a memory
+		"""rendering-report.md §Method Notes: the progress bar does not count method notes; schemas.md §1.7c: a memory
 		proposal never forces a review. brew:cc is INCOMPATIBLE and carries
 		two method notes — Submit must not be gated on them, the header
 		badge must not count them, and the sort must not rank the tool as
@@ -2106,7 +2106,7 @@ class PersistenceLoopTests(PageDriveRunner):
 		self.assertIn("persistence crashed", html)
 
 
-# ── G-SEC: "Security fixes for you" (pass 4b §5) ────────────────────────────
+# ── G-SEC: "Security fixes for you" (rendering-report.md) ──────────────────
 def _gsec_pipeline(**kw):
 	"""The published fixture session through validate → converge → assemble
 	(test_assemble.run_fixture_pipeline), in a throwaway dir → the report."""
@@ -2178,7 +2178,7 @@ class GSecTemplateDataTests(unittest.TestCase):
 
 
 class GSecPriorityPanelTests(PageDriveRunner):
-	"""Plan §7.5's page tests, from the fixture session run through the whole
+	"""The G-SEC page tests, from the fixture session run through the whole
 	pipeline — validate → converge → assemble → render → headless Chrome —
 	asserting from the live DOM with real dispatched events."""
 

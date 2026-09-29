@@ -33,7 +33,7 @@
 		"pinned": "G-SEC P0: the tool is pinned; the fix cannot land",
 		"incompatible-unfixed": "G-SEC P0: an incompatible item no required edit serves",
 		"content-losing": "G-SEC hold: content_losing(view) is non-empty (D1)",
-		"security-item-risk": "G-SEC hold: a security item (tag or block) whose local.effect is risk — the upgrade adds a security risk here (§7.27)",
+		"security-item-risk": "G-SEC hold: a security item (tag or block) whose local.effect is risk — the upgrade adds a security risk here",
 		"watch-hit": "any item carrying a watch_hit — a watch item exists to be told about, and one that fires into an auto-accepted card is inert (E3); every tool",
 		"enum-invalid": "any tier-input enum present and outside its vocabulary — severity, local.direction, local.effect, security.nature, evidence role, suggestion kind, requirement, config_status.state. The renamed and widened local-enum-invalid: a one-character drift (\"reachs\", \"risks\") on a real CVE item removes the reaches-item bar and the impact signal at once, and E-ENUM-INVALID alone bars nothing. An unverifiable claim fails closed here as everywhere in this contract. Every tool, G-SEC or not (R7)",
 		"container-unreadable": "an item's local/security/change/watch_hit present and not an object, tags present and not an array, or an action suggestion's serves present and not an array — `local: \"risk\"` used to read as no local claim at all. Every tool (R7)",
@@ -1111,7 +1111,7 @@
 			}
 		},
 		{
-			"name": "G-SEC P1 config-attention — needs_attention with NO action suggestion (§7.29), accepted",
+			"name": "G-SEC P1 config-attention — needs_attention with NO action suggestion, accepted",
 			"view": {
 				"quarantine": [],
 				"validator_error": null,
@@ -1291,7 +1291,7 @@
 			}
 		},
 		{
-			"name": "G-SEC P2 fix-with-risk — a NON-security item whose effect here is risk (O1)",
+			"name": "G-SEC P2 fix-with-risk — a NON-security item whose effect here is risk",
 			"view": {
 				"quarantine": [],
 				"validator_error": null,
@@ -1354,7 +1354,7 @@
 			}
 		},
 		{
-			"name": "G-SEC P2 vendor-unread — a vendor-declared, unread security release is accepted and highlighted (§7.28)",
+			"name": "G-SEC P2 vendor-unread — a vendor-declared, unread security release is accepted and highlighted",
 			"view": {
 				"quarantine": [],
 				"validator_error": null,
@@ -1496,7 +1496,7 @@
 			}
 		},
 		{
-			"name": "G-SEC held security-item-risk — a security item whose effect here is risk (§7.27)",
+			"name": "G-SEC held security-item-risk — a security item whose effect here is risk",
 			"view": {
 				"quarantine": [],
 				"validator_error": null,

@@ -15,7 +15,7 @@ Seven groups:
    is the group to read first — the measured defect is a rule-driven trim that
    moved `brew:libpq` into `security_auto`, pre-accepted, with 10 CVEs.
 2. The twenty-three invariants, one test each, by their code.
-3. The normalizations §5.3 licenses, and only those.
+3. The normalizations item-schema.md §7 (V3) licenses, and only those.
 4. Evidence resolution: the three outcomes, and why `W-EVID-ROOT` is a
    configuration finding rather than a checker defect.
 5. The structural outlet and its preconditions.
@@ -2012,7 +2012,7 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 		view = self._view(vendor_silent_categories=["security"],
 			items=[_item(tags=["feature"], severity="notable")])
 		self.assertTrue(view["bucket_inputs"]["has_security"])
-		# Since G-SEC the user's ruling decides where it lands (§7.28: a
+		# Since G-SEC the user's ruling decides where it lands (item-schema.md §7, the G-SEC tier table: a
 		# vendor-declared but unread security release is ACCEPTED and
 		# HIGHLIGHTED): a P2 `vendor-unread` tier, in security_auto — a
 		# security bucket either way, never routine.
@@ -2050,7 +2050,7 @@ class EffectiveHasSecurityTests(unittest.TestCase):
 		# unread security content still elevates the tool's risk. Since G-SEC
 		# the bucket is explained by the recorded TIER, which the same view
 		# carries: a vendor-declared unread security release is P2
-		# `vendor-unread`, accepted (§7.28), and elevated risk does not bar it
+		# `vendor-unread`, accepted (item-schema.md §7, the G-SEC tier table), and elevated risk does not bar it
 		# (R6) — the priority panel is how the user sees it.
 		self.assertTrue(inputs["security_only"])
 		self.assertEqual(inputs["impact"], "none")
@@ -2592,7 +2592,7 @@ class NatureTests(unittest.TestCase):
 					self.assertIn("enum-invalid", view["pre_accept_bars"])
 
 	def test_an_ungrounded_fix_counts_for_nothing(self):
-		"""Promoting claim → unverified it counts for nothing (§2.0)."""
+		"""Promoting claim → unverified it counts for nothing (item-schema.md §2.6)."""
 		for kw, why in (
 				(dict(change=None, local={"direction": "unclear", "effect": "none",
 					"statement": "s", "evidence": []}), "citation"),
@@ -2947,7 +2947,7 @@ class UsageGroundingTests(unittest.TestCase):
 			"host=db.internal", lines=[[4, 10 ** 12], 1])), 3)
 		self.assertLess(time.monotonic() - started, 5.0)
 
-	# — §12 A-R3-1: membership is the AUTHORED entry —
+	# — item-schema.md §3: membership is the AUTHORED entry —
 	def test_the_record_is_keyed_on_the_authored_entry(self):
 		for extra in ({}, {"lines": [[1, 5]]}, {"note": "the homelab service"}):
 			with self.subTest(extra=extra):
@@ -3109,7 +3109,7 @@ class AppStateUsageTests(unittest.TestCase):
 
 
 class TierStorageTests(unittest.TestCase):
-	"""§4.2 — the tier is computed once per view, stored before the bucket,
+	"""item-schema.md §7, the final act — the tier is computed once per view, stored before the bucket,
 	and the final act makes stored == security_tier(final view) whichever
 	stage failed, with every conservative axis finalized."""
 
@@ -3253,7 +3253,7 @@ class TierStorageTests(unittest.TestCase):
 						self.assertIn("content-losing", tier["holds"])
 
 	def test_the_fixture_routes_are_the_planned_ones(self):
-		"""The §7.3 pairs, pinned on the golden corpus: 06-elevated's
+		"""The fixture pairs, pinned on the golden corpus: 06-elevated's
 		boundary item stays under D2; its fix twin in 08 is P3, accepted,
 		elevated; every reason and hold in 08 lands where the plan says."""
 		document = V.validate_session(FIXTURE_SESSION, FIXTURE_ROOTS,

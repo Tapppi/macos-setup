@@ -305,7 +305,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	//
 	// Assembly never writes, sorts or filters an item. The validator assigns
 	// `id`/`id_stability` from the checker's declared `anchor`, normalizes the
-	// shapes §5.3 licenses, and returns the array in canonical order
+	// shapes `item-schema.md` §7 (stage V3) licenses, and returns the array in canonical order
 	// (`items.order_items`: group → severity worst-first → direction → effect
 	// → id). The page renders that order verbatim.
 	"items": [

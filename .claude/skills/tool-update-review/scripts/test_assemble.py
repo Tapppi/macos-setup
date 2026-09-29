@@ -418,7 +418,7 @@ def _fixtures():
 			# pre-accepted**: a field whose entire purpose is "look at this"
 			# would guarantee nobody does.
 			#
-			# Since G-SEC the USER'S ruling decides the outcome (§7.28: a
+			# Since G-SEC the USER'S ruling decides the outcome (item-schema.md §7, the G-SEC tier table: a
 			# vendor-declared but unread security release is ACCEPTED and
 			# HIGHLIGHTED): a P2 `vendor-unread` tier, in security_auto,
 			# pre-accepted — and listed in the priority panel, which is the
@@ -540,7 +540,7 @@ class SemanticClassificationTests(unittest.TestCase):
 		"""The named regression, asserted as its consequence: a tool whose
 		vendor admitted undetailed security content must be VISIBLE as
 		security work. Until G-SEC that also meant "never pre-accepted"; the
-		user then ruled (§7.28) that a vendor-declared but unread security
+		user then ruled (item-schema.md §7, the G-SEC tier table) that a vendor-declared but unread security
 		release is ACCEPTED and HIGHLIGHTED. So it starts accepted — and is
 		never quiet: its P2 `vendor-unread` tier puts it in the priority panel,
 		labelled by that reason, one press from rejected."""
@@ -557,7 +557,7 @@ class SemanticClassificationTests(unittest.TestCase):
 		"""The precedence history, pinned: this shape was pre-accepted before
 		D2 by a clause that returned before risk was read, then held out of
 		`security_auto` by D2's elevated bar. G-SEC supersedes D2 for a
-		vendor-declared unread security release (§7.28): it is accepted BY
+		vendor-declared unread security release (item-schema.md §7, the G-SEC tier table): it is accepted BY
 		TIER — the bucket and the checkbox read the P2 tier, not the elevated
 		risk (R6) — and highlighted, so it is never the silent auto-accept the
 		first version was."""
@@ -2579,7 +2579,7 @@ class GSecAssemblyTests(unittest.TestCase):
 
 	def test_pre_accept_is_the_one_predicate_on_every_tool(self):
 		"""`accepts_baseline` equals `apply_pre_accept` and convergence's
-		`initial_pre_accept` on every fixture tool (§7.5)."""
+		`initial_pre_accept` on every fixture tool."""
 		import converge as contract
 		post = {v["id"]: v for v in json.load(open(os.path.join(self.tmp, "session",
 			"corpus.post.json"), encoding="utf-8"))["tools"]}

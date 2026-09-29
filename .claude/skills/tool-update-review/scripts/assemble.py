@@ -938,7 +938,7 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	if pre is None:
 		return inconsistent(f"corpus.pre.json is {pre_problem} — nothing to "
 			f"check the post corpus against")
-	# The corpus-version gate (G-SEC §4.7): a corpus built under another
+	# The corpus-version gate (convergence.md §6): a corpus built under another
 	# contract or converge version is refused — its views carry a different
 	# tier and pre-accept predicate, and rendering it would present them as
 	# this contract's.

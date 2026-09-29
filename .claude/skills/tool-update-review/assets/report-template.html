@@ -2014,7 +2014,7 @@
 		.item-ref a { color: var(--base01); }
 		.item-ref a:hover { color: var(--blue); }
 
-		/* ── The fourth loudness channel (D1; references/item-schema.md §5.7)
+		/* ── The fourth loudness channel (D1; references/rendering-report.md §Loudness Channels)
 		 * `tool.degradation` — what stage 3 could not read, pre-reduced by
 		 * `items.compute_degradation`. Content-losing reasons and a
 		 * validator error are RED: the tool's bucket was held on them
@@ -5233,7 +5233,7 @@
 			return validTier(tool.security_tier) ? tool.security_tier : null;
 		}
 
-		/* §12 A-R3-3: a tool convergence could not justify moving, forced
+		/* convergence.md §6: a tool convergence could not justify moving, forced
 		 * conservative at attempt 5, carries a snapshot of its PRE-convergence
 		 * priority. It governs display only — the tool is never accepted. */
 		function forcedDisplayOf(tool) {
@@ -5397,7 +5397,7 @@
 				|| compareMixedTools(a, b);
 		}
 
-		/* O3: a fix whose priority convergence lowered — disclosed, expanded,
+		/* The demotion gate (convergence.md §6): a fix whose priority convergence lowered — disclosed, expanded,
 		 * never capped. */
 		function loweredOf(tool) {
 			const c = convergenceOf(tool);
@@ -5495,7 +5495,7 @@
 			return renderPriorityJudgeLine(tool) + renderAutoJudgeLine(tool);
 		}
 
-		/* One sentence when convergence moved the fix's priority (O3). */
+		/* One sentence when convergence moved the fix's priority (convergence.md §6). */
 		function renderPriorityJudgeLine(tool) {
 			const c = convergenceOf(tool);
 			const sp = c && c.security_priority;
@@ -6163,7 +6163,7 @@
 				/* The design was verified against 9 mixed cards; real data brought
 				 * 31, which made the Overview ~13 viewport-heights tall and buried
 				 * the very triage it exists to provide. Cap the render, worst
-				 * first, with the same show-all expander §4.2 uses for highlights.
+				 * first, with the same show-all expander the highlights use.
 				 * The cap is a rendering decision and never an accounting one —
 				 * the heading, the tile and the bar segment below all keep
 				 * counting the full set. */
@@ -6657,7 +6657,7 @@
 		}
 
 		/* ── The two capped Overview lists ──────────────────────────────────
-		 * §3.3's mixed cards and §4.2's highlights both render a prefix and
+		 * The mixed cards and the highlights both render a prefix and
 		 * park the remainder in a hidden sibling behind a "show all". The
 		 * overflow stays in the DOM — its mirrors keep tracking decisions and
 		 * its canonical cards are untouched in #main — so nothing about the

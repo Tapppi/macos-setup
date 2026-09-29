@@ -352,7 +352,7 @@ class EvidenceShorthandTests(unittest.TestCase):
 class RegenerateGuardTests(unittest.TestCase):
 	"""regenerate.py reads the working tree and rewrites six shared fixtures,
 	so running it over another agent's uncommitted edits to them sweeps those
-	edits into this run's diff (IMPLEMENTATION §7.16's incident). It refuses
+	edits into this run's diff (it happened once, between two passes sharing one worktree). It refuses
 	instead, unless told the changes are the caller's own; and a directory git
 	cannot answer for is a refusal, never "clean"."""
 
@@ -787,7 +787,7 @@ class BucketingFixtureTests(unittest.TestCase):
 					self.assertEqual(eligible, pre_accept, case["name"])
 
 	def test_the_four_coherence_invariants_hold_on_every_row(self):
-		"""§4.3: accepted tier ⟹ security_auto; P0/held ⟹ security_mixed or
+		"""item-schema.md §7, Initial bucketing: accepted tier ⟹ security_auto; P0/held ⟹ security_mixed or
 		attention; attention with a tier ⟹ content-losing is a hold; and
 		security_auto with no tier ⟹ clause 2b's conjuncts all hold."""
 		for case in self.FIXTURE["cases"]:
@@ -866,7 +866,7 @@ class FindingCodePrefixTests(unittest.TestCase):
 
 class GSecTierTests(unittest.TestCase):
 	"""`items.security_tier` — applicability, every reason and hold, the two
-	axes kept apart (O2), and never raising."""
+	axes kept apart (item-schema.md §7, the G-SEC tier table), and never raising."""
 
 	def test_applicability_is_a_grounded_fix_or_vendor_unread(self):
 		self.assertIsNone(model.security_tier(_gview([])))
@@ -912,7 +912,7 @@ class GSecTierTests(unittest.TestCase):
 		self.assertEqual(tier["tier"], "P0")
 
 	def test_config_attention_and_edit_proposed_never_co_fire(self):
-		"""§7.29 (R2 overridden): needs_attention with NO action suggestion is P1
+		"""item-schema.md §7, the G-SEC tier table (R2 overridden): needs_attention with NO action suggestion is P1
 		`config-attention`; with a proposed edit it is P1 `edit-proposed` only;
 		with a required edit it is P0."""
 		attention = {"state": "needs_attention"}
@@ -1028,7 +1028,7 @@ class GSecTierTests(unittest.TestCase):
 		self.assertEqual(tier["tier"], "P2")
 
 	def test_every_hold_fires_and_holds_never_lower_priority(self):
-		"""O2 / R1: acceptance hold and display priority are separate axes."""
+		"""R1 (item-schema.md §7, the G-SEC tier table): acceptance hold and display priority are separate axes."""
 		breaking = {"id": "brew:x#slug:b", "tags": ["breaking"], "severity": "info"}
 		cases = {
 			"content-losing": dict(quarantine=[{"field": "items", "value": 1}]),
@@ -1196,7 +1196,7 @@ class GSecValidityTests(unittest.TestCase):
 
 
 class AcceptsBaselineTests(unittest.TestCase):
-	"""`items.accepts_baseline` — one normalized input contract (§4.4)."""
+	"""`items.accepts_baseline` — one normalized input contract (item-schema.md §7)."""
 
 	def _tool(self, tier="compute", **kw):
 		view = _gview([_fix()])
