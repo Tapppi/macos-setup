@@ -1152,6 +1152,62 @@ class GateAndAttributionTests(unittest.TestCase):
 				json.dump(store, fh)
 			self.assertEqual(apply_converge._load_store(path), store)
 
+	def test_nonexistent_store_is_not_a_never_copied_store(self):
+		"""Pass 6: the method-notes store did not exist yet, step 3 copied
+		nothing (as SKILL.md says it should), and C6 still reported "never
+		snapshotted into this session". A store that does not exist is the
+		fourth state and says nothing; absent keeps its note."""
+		pre = build_pre([make_view("brew:t", [make_item("brew:t", 9)])],
+			watch_store={})
+		pre["stores"]["method_notes"] = {C.STORE_NONEXISTENT_KEY: True}
+		result = run(pre, make_submission(pre, []))
+		self.assertEqual([f for f in result["notes"]
+			if f["code"] == "W-STORE-UNCHECKED"], [])
+		self.assertEqual(C.build_tables(pre)["store_state"],
+			{"watch_items": "present", "method_notes": "nonexistent"})
+		# it grounds nothing, like the validator's missing snapshot
+		self.assertIsNone(C.store_entries(pre["stores"], "method_notes"))
+		self.assertIsNone(C.watch_topics_for(
+			{"stores": {"watch_items": {C.STORE_NONEXISTENT_KEY: True}}}, "brew:t"))
+
+	def test_a_store_file_carrying_the_nonexistent_sentinel_is_not_a_store(self):
+		with tempfile.TemporaryDirectory() as td:
+			path = os.path.join(td, "method-notes.json")
+			with open(path, "w", encoding="utf-8") as fh:
+				json.dump({C.STORE_NONEXISTENT_KEY: True}, fh)
+			loaded = apply_converge._load_store(path)
+			self.assertEqual(C.store_status({"method_notes": loaded}, "method_notes"),
+				"unreadable")
+			self.assertIn(C.STORE_NONEXISTENT_KEY, loaded[C.STORE_UNREADABLE_KEY])
+
+	def test_prepare_tells_a_missing_store_from_an_uncopied_one(self):
+		"""--prepare reads only whether the LIVE store exists: none at
+		XDG_STATE_HOME → nonexistent; one there but no session copy → absent
+		(C6's note, whose remedy is to copy it). The session's own copy wins
+		whatever the live state."""
+		session_src, roots, _ = validate_items.fixture_session()
+		for live, want in ((False, "nonexistent"), (True, "absent")):
+			with tempfile.TemporaryDirectory() as td:
+				state = os.path.join(td, "state")
+				os.makedirs(os.path.join(state, "tool-update-review"))
+				if live:
+					with open(os.path.join(state, "tool-update-review",
+							"method-notes.json"), "w", encoding="utf-8") as fh:
+						fh.write("{}")
+				session = os.path.join(td, "session")
+				shutil.copytree(session_src, session)
+				argv = ["--session", session, "--prepare",
+					"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+					"--systems-root", roots[2]]
+				with mock.patch.dict(os.environ, {"XDG_STATE_HOME": state}), \
+						mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+					self.assertEqual(apply_converge.main(argv), 0)
+				with open(os.path.join(session, "converge-tables.json"),
+						encoding="utf-8") as fh:
+					tables = json.load(fh)
+				self.assertEqual(tables["store_state"],
+					{"watch_items": "present", "method_notes": want}, want)
+
 	def test_fixture_session_flags_only_the_missing_method_store(self):
 		"""The pinned session snapshots watch-items.json and nothing writes
 		method-notes.json — the effect must say so, once."""

@@ -174,7 +174,10 @@ silently useless without it:
   against the notes already stored (`references/convergence.md` §5).
   `apply_converge.py` reads `{session_dir}/method-notes.json`, so without the
   copy its store-dependent checks run against nothing at all, which is not the
-  same as running against an empty store.
+  same as running against an empty store. A store that does not exist yet is
+  not an omission: `--prepare` sees that no live store exists either, records
+  it as `nonexistent`, and C6 says nothing about it; only a live store left
+  uncopied draws `W-STORE-UNCHECKED`.
 
 Copy what the checkers were actually given, never a re-read of the live store
 at some later moment: a snapshot taken after a store changed grounds claims

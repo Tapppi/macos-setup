@@ -225,13 +225,18 @@ watch item for a tool in the run gets an `existing` row with
 `fired_this_run` (the applier recomputes it against the grounded hits) and
 `used_correctly` — a hit claimed with no item behind it, or a plain match
 with no hit labelled, is a `flag`. `converge-tables.json.store_state` says
-what each store's snapshot actually is — `present`, `absent`, or
-`unreadable`: **absent, present-but-empty and present-but-unreadable are
-three different facts** — the same distinction watch-hit grounding draws
-between "never checked" and "checked, no match" — and the non-present
-states each ship a `W-STORE-UNCHECKED` report note carrying their own
-remedy (copy the snapshot vs fix the copied file) rather than passing as
-an empty store.
+what each store's snapshot actually is — `present`, `absent`,
+`unreadable` or `nonexistent`: **absent, present-but-empty and
+present-but-unreadable are three different facts** — the same distinction
+watch-hit grounding draws between "never checked" and "checked, no match" —
+and `absent` and `unreadable` each ship a `W-STORE-UNCHECKED` report note
+carrying their own remedy (copy the snapshot vs fix the copied file) rather
+than passing as an empty store. `--prepare` tells a store nobody could copy
+from one nobody did: with no session snapshot it checks only whether the
+live store (`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/`)
+exists — missing there too is `nonexistent`, which grounds nothing and
+ships no note, because step 3 copies a store only when it exists; present
+there is `absent`, the never-copied case.
 
 **C7 — cross-tool collisions** (`delete`, `annotate`, `reword`, `trim`,
 `flag`). Per `file_collisions` cluster: are these one change or several —

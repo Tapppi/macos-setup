@@ -1138,11 +1138,15 @@ def verify_c6(entry, corpus_pre, tables, findings, ledger):
 	stores = corpus_pre.get("stores") or {}
 	for store_name in ("watch_items", "method_notes"):
 		status = contract.store_status(stores, store_name)
+		# `nonexistent` says nothing: no store existed to copy, so C6 ran
+		# against exactly what there is. Absent is a store that exists but
+		# was never copied.
 		if status == "absent":
 			findings.append(_finding("W-STORE-UNCHECKED",
-				"the {} store was never snapshotted into this session — C6's "
-				"store-dependent checks ran against nothing, not against an "
-				"empty store".format(store_name.replace("_", "-"))))
+				"the {} store was never snapshotted into this session although "
+				"a live store exists to copy — C6's store-dependent checks ran "
+				"against nothing, not against an empty store".format(
+					store_name.replace("_", "-"))))
 		elif status == "unreadable":
 			# The opposite remedy from absent: the operator DID copy the
 			# snapshot; the copy cannot be read. Say so, or the note sends
@@ -2223,14 +2227,38 @@ def _load_store(path):
 		return {contract.STORE_UNREADABLE_KEY:
 			"the file is {}, not an object keyed by tool id".format(
 				type(snapshot).__name__)}
-	if contract.STORE_UNREADABLE_KEY in snapshot:
-		# The sentinel is only ever written HERE. A file that carries it as a
-		# real key is not a store (store keys are tool ids, which contain a
-		# colon, or "global"); passed through, `store_status` would read it
-		# as unreadable and quote whatever the file held there as the reason.
-		return {contract.STORE_UNREADABLE_KEY:
-			"the file has a top-level key {!r}, which no store holds — store "
-			"keys are tool ids or \"global\"".format(contract.STORE_UNREADABLE_KEY)}
+	for reserved in contract.STORE_RESERVED_KEYS:
+		if reserved in snapshot:
+			# The sentinels are only ever written HERE. A file that carries
+			# one as a real key is not a store (store keys are tool ids, which
+			# contain a colon, or "global"); passed through, `store_status`
+			# would read it as unreadable or nonexistent — quoting whatever
+			# the file held there as the reason.
+			return {contract.STORE_UNREADABLE_KEY:
+				"the file has a top-level key {!r}, which no store holds — store "
+				"keys are tool ids or \"global\"".format(reserved)}
+	return snapshot
+
+
+def live_store_path(filename):
+	"""`${XDG_STATE_HOME:-~/.local/state}/tool-update-review/<filename>` — the
+	store SKILL.md step 3 copies from (an empty XDG_STATE_HOME falls back,
+	as the shell's `:-` does)."""
+	base = os.environ.get("XDG_STATE_HOME") or "~/.local/state"
+	return os.path.expanduser(os.path.join(base, "tool-update-review", filename))
+
+
+def _snapshot_store(session_dir, filename):
+	"""The session's snapshot of one store, in the four states the corpus
+	keeps apart. No session copy AND no live store is `nonexistent` — step 3
+	copies a store only when it exists, so there was nothing to copy — and
+	is recorded with its sentinel; no session copy of a store that DOES exist
+	stays absent (None), which C6 reports as never snapshotted. Only the
+	live store's EXISTENCE is read, never its content: the checkers were
+	given the snapshot, not whatever the store holds now."""
+	snapshot = _load_store(os.path.join(session_dir, filename))
+	if snapshot is None and not os.path.exists(live_store_path(filename)):
+		return {contract.STORE_NONEXISTENT_KEY: True}
 	return snapshot
 
 
@@ -2254,8 +2282,8 @@ def _prepare(session_dir, args):
 		return 4
 	collect = _read_json(os.path.join(session_dir, "collect.json"))
 	stores = {
-		"watch_items": _load_store(os.path.join(session_dir, "watch-items.json")),
-		"method_notes": _load_store(os.path.join(session_dir, "method-notes.json")),
+		"watch_items": _snapshot_store(session_dir, model.WATCH_ITEMS_STORE),
+		"method_notes": _snapshot_store(session_dir, model.METHOD_NOTES_STORE),
 	}
 	corpus_pre = contract.build_corpus_pre(validation, collect, stores)
 	_write_json(pre_path, corpus_pre)

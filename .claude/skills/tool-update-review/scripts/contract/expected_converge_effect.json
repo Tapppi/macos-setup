@@ -616,7 +616,7 @@
 			{
 				"code": "W-STORE-UNCHECKED",
 				"critical": false,
-				"detail": "the method-notes store was never snapshotted into this session — C6's store-dependent checks ran against nothing, not against an empty store"
+				"detail": "the method-notes store was never snapshotted into this session although a live store exists to copy — C6's store-dependent checks ran against nothing, not against an empty store"
 			}
 		],
 		"convergence_status": {

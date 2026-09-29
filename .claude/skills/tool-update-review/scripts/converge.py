@@ -239,23 +239,37 @@ def check_corpus_versions(corpus_pre) -> None:
 # reserved "global" section — and `apply_converge._load_store` refuses a
 # file that carries the sentinel as a key, so only the loader ever writes it.
 STORE_UNREADABLE_KEY = "__store_unreadable__"
-STORE_STATES = ("present", "absent", "unreadable")
+# The fourth fact: the session holds no snapshot BECAUSE no store existed to
+# copy (SKILL.md step 3: "a store that does not exist yet is simply not
+# copied"). `--prepare` records it when the session has no snapshot and the
+# live store is missing too, so "never copied" (absent — go and copy it) is
+# no longer said of a store nobody could have copied. Same reserved-entry
+# encoding and the same loader refusal as the unreadable sentinel.
+STORE_NONEXISTENT_KEY = "__store_nonexistent__"
+STORE_RESERVED_KEYS = (STORE_UNREADABLE_KEY, STORE_NONEXISTENT_KEY)
+STORE_STATES = ("present", "absent", "unreadable", "nonexistent")
 
 
 def store_status(stores, name) -> str:
-	"""present | absent | unreadable, for one store in corpus.pre's block."""
+	"""present | absent | unreadable | nonexistent, for one store in
+	corpus.pre's block."""
 	value = (stores or {}).get(name)
 	if not isinstance(value, dict):
 		return "absent"
 	if STORE_UNREADABLE_KEY in value:
 		return "unreadable"
+	if STORE_NONEXISTENT_KEY in value:
+		return "nonexistent"
 	return "present"
 
 
 def store_entries(stores, name):
 	"""The store's entries dict, or None when there is nothing readable —
 	an unreadable snapshot grounds nothing, exactly as the validator's own
-	load treats it (E-RESEARCH-UNREADABLE, then None)."""
+	load treats it (E-RESEARCH-UNREADABLE, then None). A nonexistent store
+	is None too: the validator read the session dir, found no snapshot and
+	grounded nothing, and the applier's re-derivation must read what it
+	read."""
 	return (stores or {}).get(name) if store_status(stores, name) == "present" 		else None
 
 
