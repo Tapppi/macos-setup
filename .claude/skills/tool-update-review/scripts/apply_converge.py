@@ -1971,21 +1971,33 @@ def _degrade_unapplied(corpus_pre, converge, attempt, findings, attempt_log):
 
 def _degraded_gate_explanation(forced, attempt):
 	"""→ (headline, body) for a degraded_gate run, saying what actually
-	happened per gate kind: a permissive failure is a move toward auto-update
-	the gate could not see justified; a demotion failure is a priority
-	lowered without a reason that survived — nothing moved toward
-	auto-update, and the page keeps the tool's PRIOR priority (§12 A-R3-3).
-	A tool that failed both is counted and explained under both."""
+	happened per gate kind. A permissive failure is one of two things, worded
+	apart: a tool that would have ENTERED `security_auto` (it would have sat
+	in the auto strip), or one that only GAINED pre-acceptance in another
+	bucket (it was never going to be in the strip; it would have started
+	accepted). A demotion failure is a priority lowered without a reason that
+	survived — nothing moved toward auto-update, and the page keeps the
+	tool's PRIOR priority (convergence.md §8). A tool that failed both is
+	counted and explained under both."""
 	def kinds(record):
 		return record.get("kinds") or [record.get("kind", "permissive")]
+
+	def entered_auto(record):
+		would = record.get("would_have_been")
+		return isinstance(would, dict) and would.get("bucket") == "security_auto"
 	permissive = sorted(t for t, r in forced.items()
 		if any(k != "demotion" for k in kinds(r)))
+	reached = [t for t in permissive if entered_auto(forced[t])]
+	accepted = [t for t in permissive if not entered_auto(forced[t])]
 	demoted = sorted(t for t, r in forced.items() if "demotion" in kinds(r))
 	both = sorted(set(permissive) & set(demoted))
 	clauses = []
-	if permissive:
+	if reached:
 		clauses.append("{} tool(s) reached auto-update without surviving the "
-			"gate".format(len(permissive)))
+			"gate".format(len(reached)))
+	if accepted:
+		clauses.append("{} tool(s) would have started accepted without surviving "
+			"the gate".format(len(accepted)))
 	if demoted:
 		clauses.append("{} tool(s) had their security priority lowered without "
 			"a reason that survived the gate".format(len(demoted)))
@@ -1997,18 +2009,23 @@ def _degraded_gate_explanation(forced, attempt):
 		" — a demoted tool keeps its prior priority" if demoted else "")
 	parts = ["After {} attempts the gate still failed on: {}.".format(
 		attempt, ", ".join(sorted(forced)))]
-	if permissive:
+	if reached:
 		parts.append("{} kept out of the auto strip and put into the review flow "
 			"instead of the move convergence could not justify.".format(
-				", ".join(permissive)))
+				", ".join(reached)))
+	if accepted:
+		parts.append("{} starts undecided instead of with the pre-acceptance "
+			"convergence could not justify.".format(", ".join(accepted)))
 	if demoted:
 		parts.append("{} stays at its pre-convergence priority on the page rather "
 			"than the lowered one, and is held for review rather than "
 			"accepted.".format(", ".join(demoted)))
-	if both:
-		parts.append("{} both reached auto-update and had {} priority lowered, and "
-			"neither survived the gate.".format(", ".join(both),
-				"its" if len(both) == 1 else "their"))
+	for group, moved in (([t for t in both if t in reached], "reached auto-update"),
+			([t for t in both if t not in reached], "would have started accepted")):
+		if group:
+			parts.append("{} both {} and had {} priority lowered, and neither "
+				"survived the gate.".format(", ".join(group), moved,
+					"its" if len(group) == 1 else "their"))
 	parts.append("The reviewer pays one card per tool, which is the safe failure. "
 		"The rest of the corpus keeps its convergence. Standing rejects and "
 		"findings are listed below.")

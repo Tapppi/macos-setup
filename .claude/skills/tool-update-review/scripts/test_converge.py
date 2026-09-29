@@ -2048,8 +2048,16 @@ class GSecConvergenceTests(unittest.TestCase):
 		self.assertFalse(post["initial_pre_accept"])
 		self.assertNotIn("initial_review_bucket",
 			result["effect"]["moved"].get("brew:t", {}).get("axes", {}))
-		self.assertIn("forced to attention",
-			result["effect"]["convergence_status"]["explanation"]["headline"])
+		explanation = result["effect"]["convergence_status"]["explanation"]
+		self.assertIn("forced to attention", explanation["headline"])
+		# Pass 7 finding 8: it only gained acceptance — never worded as a
+		# move to auto-update or a stay out of the auto strip.
+		self.assertIn("1 tool(s) would have started accepted without surviving the gate",
+			explanation["headline"])
+		self.assertNotIn("auto-update", explanation["headline"])
+		self.assertNotIn("auto strip", explanation["body"])
+		self.assertIn("brew:t starts undecided instead of with the pre-acceptance",
+			explanation["body"])
 
 	def test_the_forced_bucket_is_the_strictest_candidate(self):
 		def v(bucket, has_security=False):

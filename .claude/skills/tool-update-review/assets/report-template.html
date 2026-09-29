@@ -5470,15 +5470,21 @@
 				const kindAttr = [permissive ? 'permissive' : '', demoted ? 'demotion' : ''].filter(Boolean).join(' ');
 				const w = forced.would_have_been;
 				const to = (w && typeof w === 'object' && (w.priority === null || typeof w.priority === 'string')) ? (w.priority || 'not G-SEC') : '?';
+				/* A permissive failure is either a would-be entry into
+				 * security_auto (the auto strip) or pre-acceptance gained in
+				 * another bucket — worded apart, since only the first is a
+				 * move to auto-update. */
+				const intoAuto = !!(w && typeof w === 'object' && w.bucket === 'security_auto');
+				const permissiveWhat = intoAuto ? "this tool's move to auto-update" : 'starting this tool accepted';
 				const fd = forcedDisplayOf(tool);
 				const kept = fd ? ` It keeps its prior priority <b>${esc(fd.priority)}</b> here` : ' It keeps its prior priority here';
 				if (demoted && permissive) {
-					return `<div class="judge-line forced" data-forced-kind="${kindAttr}">Convergence could not justify this tool's move to auto-update (${codeOf('permissive')}), and it lowered this fix's priority to <b>${esc(to)}</b> without a reason that survived the gate (${codeOf('demotion')}), after five attempts.${kept}, is forced to <b>${bucket}</b> instead of <b>${esc(wouldHaveText(w))}</b>, is not accepted, and starts undecided. ${jump}</div>`;
+					return `<div class="judge-line forced" data-forced-kind="${kindAttr}">Convergence could not justify ${permissiveWhat} (${codeOf('permissive')}), and it lowered this fix's priority to <b>${esc(to)}</b> without a reason that survived the gate (${codeOf('demotion')}), after five attempts.${kept}, is forced to <b>${bucket}</b> instead of <b>${esc(wouldHaveText(w))}</b>, is not accepted, and starts undecided. ${jump}</div>`;
 				}
 				if (demoted) {
 					return `<div class="judge-line forced" data-forced-kind="demotion">Convergence lowered this fix's priority to <b>${esc(to)}</b> without a reason that survived the gate after five attempts (${codeOf('demotion')}).${kept}, is forced to <b>${bucket}</b>, is not accepted, and starts undecided. ${jump}</div>`;
 				}
-				return `<div class="judge-line forced" data-forced-kind="permissive">Convergence could not justify this tool's move to auto-update after five attempts (${codeOf(kinds[0])}); it was forced to <b>${bucket}</b> instead of <b>${esc(wouldHaveText(w))}</b> and starts undecided. ${jump}</div>`;
+				return `<div class="judge-line forced" data-forced-kind="permissive">Convergence could not justify ${permissiveWhat} after five attempts (${codeOf(kinds[0])}); it was forced to <b>${bucket}</b> instead of <b>${esc(wouldHaveText(w))}</b> and starts undecided. ${jump}</div>`;
 			}
 			if (!isJudged(tool)) return '';
 			const label = labelOf(tool);

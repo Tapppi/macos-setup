@@ -1276,6 +1276,31 @@ class JudgementPanelTests(PageDriveRunner):
 		self.assertEqual(out["l2"], "moved to auto-update, cause not attributable")
 		self.assertNotEqual(out["bg"], "rgba(0, 0, 0, 0)")
 
+	def test_a_forced_tool_that_only_gained_acceptance_is_not_worded_as_auto_update(self):
+		"""Pass 7 finding 8: the permissive gate also fires on a tool that
+		only gained pre-acceptance outside security_auto. It was never going
+		to be in the auto strip, so its line must not say it moved there."""
+		forced = {"forced_bucket": "attention", "forced_pre_accept": False,
+			"would_have_been": {"bucket": "routine", "pre_accept": True,
+				"priority": None},
+			"code": "E-GATE-UNDECLARED", "kind": "permissive"}
+		tool = page_tool("brew:plain", "plain", "1.0", "1.1", "attention")
+		tool["convergence"] = {"touched": True, "edit_ids": ["cv-001"], "forced": forced}
+		report = converged_report([tool], state="degraded_gate", attempt=5,
+			status={"attempts": 5, "state": "degraded_gate",
+				"explanation": {"headline": "h", "body": "b", "attempt_log": []},
+				"degraded_tools": [dict(forced, tool_id="brew:plain")],
+				"standing_rejects": []})
+		out = self.drive(report, """
+		key('2');
+		const s = document.querySelector('[data-tool-id="brew:plain"]');
+		s.classList.remove('collapsed');
+		log('line=' + s.querySelector('.judge-line').textContent.replace(/\\s+/g, ' ').trim());
+""")
+		self.assertIn("could not justify starting this tool accepted", out["line"])
+		self.assertNotIn("auto-update", out["line"])
+		self.assertIn("forced to attention instead of routine, accepted", out["line"])
+
 	def test_a_degraded_gate_run_is_first_class_and_the_forced_tool_starts_undecided(self):
 		forced = {"forced_bucket": "security_mixed", "forced_pre_accept": False,
 			"would_have_been": {"bucket": "security_auto", "pre_accept": True,

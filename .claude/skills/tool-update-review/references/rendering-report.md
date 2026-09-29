@@ -390,8 +390,10 @@ A forced tool carries **no** auto-update label: it appears in neither the
 judgement panel nor the auto strip, its header carries a red-ringed
 `forced conservative` badge, its body opens with a red line naming the gate
 code and saying what the gate caught by its `kinds` (falling back to `kind`)
-— `permissive`: a move to auto-update convergence could not justify, with
-both buckets; `demotion`: a priority lowered without a reason that survived,
+— `permissive`: a move to auto-update convergence could not justify when
+`would_have_been.bucket` is `security_auto`, else starting the tool accepted
+(pre-acceptance gained in another bucket, which was never an auto-strip
+entry), with both buckets; `demotion`: a priority lowered without a reason that survived,
 the tool kept at its prior priority, forced and not accepted (never worded as
 a move to auto-update); both: one line naming each with its own code from
 `code_by_kind` (`data-forced-kind="permissive demotion"`) —
