@@ -1989,9 +1989,11 @@ def _degraded_gate_explanation(forced, attempt):
 	if demoted:
 		clauses.append("{} tool(s) had their security priority lowered without "
 			"a reason that survived the gate".format(len(demoted)))
+	buckets = sorted({r.get("forced_bucket") or contract.FORCED_BUCKET
+		for r in forced.values()}, key=lambda b: -contract.BUCKET_RESTRICTIVENESS.get(b, 3))
 	headline = "{}; {} forced to {} and not accepted{}.".format(
 		" and ".join(clauses), "it was" if len(forced) == 1 else "they were",
-		contract.FORCED_BUCKET,
+		" or ".join(buckets),
 		" — a demoted tool keeps its prior priority" if demoted else "")
 	parts = ["After {} attempts the gate still failed on: {}.".format(
 		attempt, ", ".join(sorted(forced)))]
@@ -2052,7 +2054,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		view = next(v for v in corpus_post["tools"] if v.get("id") == tool_id)
 		pre_view = next((v for v in corpus_pre["tools"] if v.get("id") == tool_id), {})
 		forced[tool_id] = {
-			"forced_bucket": contract.FORCED_BUCKET,
+			"forced_bucket": contract.forced_bucket(pre_view, view),
 			"forced_pre_accept": False,
 			"would_have_been": entry["would_have_been"],
 			"code": entry["code"],
@@ -2064,7 +2066,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 		# priority, its reasons and their labels, so the page keeps the
 		# prominence the gate could not see justified — even when the forced
 		# view is no longer G-SEC (the sole fix deleted). Display only:
-		# acceptance stays off (FORCED_BUCKET, forced_pre_accept False, and
+		# acceptance stays off (the forced bucket, forced_pre_accept False, and
 		# the `forced-conservative` hold/bar), and `security_tier` stays the
 		# PURE recomputation of the forced view — never overwritten by the
 		# snapshot — so `valid_security_tier` and stored == security_tier(view)
@@ -2077,7 +2079,7 @@ def _finalize_terminal(corpus_pre, converge, result, edits_by_id, attempt,
 				"labels": {code: model.TIER_LABELS[code]["text"]
 					for code in pre_tier["reasons"]},
 			}
-		view["initial_review_bucket"] = contract.FORCED_BUCKET
+		view["initial_review_bucket"] = forced[tool_id]["forced_bucket"]
 		view["initial_pre_accept"] = False
 		view["forced_conservative"] = forced[tool_id]
 		view["security_tier"] = model.security_tier(view)

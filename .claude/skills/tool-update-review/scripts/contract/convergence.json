@@ -440,6 +440,7 @@
 		"degraded_unapplied"
 	],
 	"forced_bucket": "security_mixed",
+	"forced_bucket_rule": "the most restrictive of the tool's pre bucket, the bucket it would have shipped, and — for a security-bearing tool (security bucket, has_security or a G-SEC priority on either side) — forced_bucket; forcing never loosens a tool and never files a non-security tool as security",
 	"moved_axes": [
 		"initial_review_bucket",
 		"initial_pre_accept",

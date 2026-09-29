@@ -2025,6 +2025,49 @@ class GSecConvergenceTests(unittest.TestCase):
 		self.assertEqual(post["security_tier"]["tier"], "held")
 		self.assertIn("forced-conservative", post["pre_accept_bars"])
 
+	def test_forcing_never_loosens_a_tool_nor_files_it_as_security(self):
+		"""Review A2: a non-security `attention` tool that gained
+		pre-acceptance without surviving the gate goes back to `attention` —
+		not to `security_mixed`, which is both looser and a security label."""
+		item = make_item("brew:t", 1, severity="warning", local=plain_local(
+			statement="A statement long enough to quote from."))
+		view = make_view("brew:t", [item])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		pre = build_pre([view])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "rerate",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": "severity"},
+			"precondition": {"before": "warning"},
+			"quote": "A statement long enough to quote from.", "after": "notable",
+			"bucket_claim": lateral("attention"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]), terminal=True, attempt=5)
+		self.assertEqual(result["state"], "degraded_gate")
+		post = result["corpus_post"]["tools"][0]
+		self.assertEqual(post["initial_review_bucket"], "attention")
+		self.assertEqual(post["forced_conservative"]["forced_bucket"], "attention")
+		self.assertFalse(post["initial_pre_accept"])
+		self.assertNotIn("initial_review_bucket",
+			result["effect"]["moved"].get("brew:t", {}).get("axes", {}))
+		self.assertIn("forced to attention",
+			result["effect"]["convergence_status"]["explanation"]["headline"])
+
+	def test_the_forced_bucket_is_the_strictest_candidate(self):
+		def v(bucket, has_security=False):
+			return {"initial_review_bucket": bucket,
+				"bucket_inputs": {"has_security": has_security}}
+		cases = (
+			(v("attention"), v("routine"), "attention"),
+			(v("routine"), v("routine"), "routine"),
+			(v("security_mixed"), v("security_auto"), "security_mixed"),
+			(v("security_auto"), v("security_auto"), "security_mixed"),
+			(v("attention", True), v("security_auto"), "attention"),
+			(v("routine", True), v("routine", True), "security_mixed"),
+			(v("bogus"), v("routine"), "attention"),
+		)
+		for pre_v, post_v, want in cases:
+			with self.subTest(pre=pre_v, post=post_v):
+				self.assertEqual(C.forced_bucket(pre_v, post_v), want)
+
 	def test_a_forced_tool_whose_sole_fix_was_deleted_keeps_its_display(self):
 		"""§12 A-R3-3: the snapshot is carried even when G-SEC applicability
 		disappears — the recomputed tier is null, the display is not."""

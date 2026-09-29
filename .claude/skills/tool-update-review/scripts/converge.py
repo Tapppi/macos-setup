@@ -89,6 +89,29 @@ DEGRADATION_STATES = ("converged", "degraded_gate", "degraded_unapplied")
 # convergence, always recorded as forced.
 FORCED_BUCKET = "security_mixed"
 
+
+def forced_bucket(pre_view, post_view) -> str:
+	"""The bucket a gate-failing tool is forced to: the most restrictive of
+	its pre-convergence bucket, the bucket convergence would have shipped,
+	and — only for a security-bearing tool — FORCED_BUCKET. Forcing may
+	never LOOSEN a tool (an `attention` tool stays in `attention`), and a
+	tool with no security content is never filed as a security item (a
+	non-security tool that gained pre-acceptance goes back to where it
+	began, not into `security_mixed`). An unknown bucket reads as
+	`attention`, the way `classify_move` reads one."""
+	def security_bearing(view):
+		inputs = view.get("bucket_inputs") if isinstance(view.get("bucket_inputs"), dict) else {}
+		return (view.get("initial_review_bucket") in ("security_mixed", "security_auto")
+			or bool(inputs.get("has_security"))
+			or model.security_priority(view) is not None)
+	candidates = []
+	for view in (pre_view, post_view):
+		bucket = view.get("initial_review_bucket") if isinstance(view, dict) else None
+		candidates.append(bucket if bucket in BUCKET_RESTRICTIVENESS else "attention")
+	if any(isinstance(v, dict) and security_bearing(v) for v in (pre_view, post_view)):
+		candidates.append(FORCED_BUCKET)
+	return max(candidates, key=lambda b: BUCKET_RESTRICTIVENESS[b])
+
 # The artefact set, stage by stage, so the hand-offs are enumerable.
 ARTIFACTS = {
 	"corpus.pre.json": "stage 3+prepare — the frozen corpus of record; immutable for the run",
@@ -926,6 +949,10 @@ def contract() -> dict:
 			for code, (sev, phase, meaning) in CODES.items()},
 		"degradation_states": list(DEGRADATION_STATES),
 		"forced_bucket": FORCED_BUCKET,
+		"forced_bucket_rule": "the most restrictive of the tool's pre bucket, the bucket "
+			"it would have shipped, and — for a security-bearing tool (security bucket, "
+			"has_security or a G-SEC priority on either side) — forced_bucket; forcing "
+			"never loosens a tool and never files a non-security tool as security",
 		"moved_axes": list(MOVED_AXES),
 		"effect_fields": list(EFFECT_FIELDS),
 		"effect_safety_fields": list(EFFECT_SAFETY_FIELDS),
