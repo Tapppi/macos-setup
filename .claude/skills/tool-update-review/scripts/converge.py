@@ -293,7 +293,7 @@ def store_entries(stores, name):
 	is None too: the validator read the session dir, found no snapshot and
 	grounded nothing, and the applier's re-derivation must read what it
 	read."""
-	return (stores or {}).get(name) if store_status(stores, name) == "present" 		else None
+	return (stores or {}).get(name) if store_status(stores, name) == "present" else None
 
 
 # The finding codes that constitute C1's deterministic input. Includes
