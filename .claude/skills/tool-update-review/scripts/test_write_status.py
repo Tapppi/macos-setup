@@ -264,6 +264,10 @@ class InitMethodNoteTests(unittest.TestCase):
 			"--topic 'topic g' --note 'note g'"])
 		actions, _ = self._init({"brew:jq:method-g": {"decision": "reject"}}, record)
 		self.assertEqual(actions["brew:jq:method-g"]["state"], "skipped")
+		# A discuss holds a failed note back too — the page says so (review A9).
+		actions, _ = self._init({"brew:jq:method-g": {"decision": "discuss"}}, record)
+		self.assertNotIn("add-global-method-note", " ".join(
+			actions["brew:jq:method-g"].get("detail") or []))
 
 	def test_one_store_entry_shared_by_two_ids_withdraws_once_and_adds_once(self):
 		"""Round-2 finding 2: two tools' identical notes both promoted to

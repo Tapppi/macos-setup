@@ -3772,7 +3772,7 @@
 				: '';
 			const text = {
 				stored: `In the method-note store under ${en ? en.key : ''} — persisted at render. Reject to withdraw it; a comment attaches modification instructions.${shared}`,
-				failed: `NOT in the method-note store — render's write failed${why ? ` (${why})` : ''}. Apply writes it unless you reject it, so fix the store first; a comment attaches modification instructions.${shared}`,
+				failed: `NOT in the method-note store — render's write failed${why ? ` (${why})` : ''}. Apply writes it if you accept it or leave it undecided — a discuss or a reject holds it back — so fix the store first; a comment attaches modification instructions.${shared}`,
 				unreviewed: `NOT in the method-note store — convergence did not review this proposal, so nothing was persisted. Accept to write it at apply; a comment attaches modification instructions.${shared}`,
 				norecord: `NOT known to be in the method-note store — render left no record for this note${why ? ` (${why})` : ''}. Accept to write it at apply; a comment attaches modification instructions.${shared}`,
 			}[storage];
@@ -7815,7 +7815,7 @@
 		function notStoredHtml(en) {
 			if (en.storage === 'stored') return '';
 			const why = noteEntryReason(en);
-			const then = en.storage === 'failed' ? 'apply writes it unless you reject it' : 'accept writes it at apply';
+			const then = en.storage === 'failed' ? 'apply writes it if you accept it or leave it undecided; a discuss or a reject holds it back' : 'accept writes it at apply';
 			return `<span class="not-stored" data-storage="${esc(en.storage)}" title="${esc((why ? why + ' — ' : '') + then)}">not stored · ${esc(NOT_STORED_WORD[en.storage])}</span>`;
 		}
 
@@ -7890,7 +7890,7 @@
 				return `<p id="notes-lede" ${attrs}><b>Not in the store.</b> Convergence did not review these ${n(total)} research-method notes (state ${n(esc(rec.convergence_state || 'absent'))}), so nothing was persisted at render. Accept one to write it at apply; leave it and nothing is written; a comment attaches modification instructions.</p>`;
 			}
 			const parts = [];
-			if (by.failed) parts.push(`${n(by.failed)} failed to write at render${rec.store_problem ? ` (${esc(rec.store_problem)})` : ''} — apply writes them unless you reject them, so fix the store first`);
+			if (by.failed) parts.push(`${n(by.failed)} failed to write at render${rec.store_problem ? ` (${esc(rec.store_problem)})` : ''} — apply writes each one you accept or leave undecided (a discuss or a reject holds it back), so fix the store first`);
 			if (by.unreviewed) parts.push(`${n(by.unreviewed)} convergence did not review — accept one to write it at apply`);
 			if (by.norecord) parts.push(`${n(by.norecord)} have no render record${rec.store_problem && !by.failed ? ` (${esc(rec.store_problem)})` : ''} — accept one to write it at apply`);
 			if (by.stored) parts.push(`veto a stored one if it looks wrong`);

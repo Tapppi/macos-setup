@@ -1930,6 +1930,11 @@ class PersistenceLoopTests(PageDriveRunner):
 		self.assertNotIn("Nothing here needs your attention", out["lede"])
 		self.assertTrue(out["storeLine"].startswith("failed|NOT in the method-note store — render's write failed"),
 			out["storeLine"])
+		# Review A9: a discuss writes nothing at apply, so the page must not
+		# promise "unless you reject it".
+		for text in (out["storeLine"], out["lede"]):
+			self.assertIn("a discuss or a reject holds it back", text)
+			self.assertNotIn("unless you reject", text)
 		self.assertEqual(out["control"], "mirror")
 		self.assertEqual(out["notStored"], "not stored · write failed")
 		self.assertEqual(out["chipControls"], "mirror,mirror,mirror")
