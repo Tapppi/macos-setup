@@ -143,25 +143,34 @@ class Findings:
 
 # ── V1: load, per file and per entry ────────────────────────────────────────
 def v1_load(research_dir: str, findings: Findings):
-	"""→ (by_id, orphans). Every failure here costs one file or one entry.
+	"""→ (by_id, orphans, overwritten). Every failure here costs one file or
+	one entry.
+
+	Two entries for one tool id: the later file's entry is the tool's
+	research, and every earlier one goes to `overwritten[tool_id]` as
+	`{"file", "entry"}` — never silently dropped, since it may carry the very
+	item (a breaking change) that should hold the tool. `validate_tool`
+	quarantines it verbatim, which is content-losing and holds the tool.
 
 	One bare string in one research array used to raise AttributeError out of
 	`load_research` and abort the whole 78-tool run after the expensive part of
 	the session was already spent."""
 	by_id = {}
 	orphans = []
+	overwritten = {}
+	file_of = {}
 	if not os.path.isdir(research_dir):
 		findings.add("E-RESEARCH-UNREADABLE",
 			"no research/ directory — every tool will show research_error",
 			field=research_dir)
-		return by_id, orphans
+		return by_id, orphans, overwritten
 	try:
 		names = sorted(os.listdir(research_dir))
 	except OSError as exc:
 		findings.add("E-RESEARCH-UNREADABLE",
 			"could not list research/: {}: {}".format(type(exc).__name__, exc),
 			field=research_dir)
-		return by_id, orphans
+		return by_id, orphans, overwritten
 	for fname in names:
 		if not fname.endswith(".json"):
 			continue
@@ -197,10 +206,15 @@ def v1_load(research_dir: str, findings: Findings):
 				continue
 			if tid in by_id:
 				findings.add("W-ENTRY-DUPLICATE",
-					"a later file overwrites an earlier entry for this tool",
+					"a later entry replaces the one from {} for this tool; the earlier "
+					"entry is quarantined verbatim and the tool is held for "
+					"review".format(file_of[tid]),
 					tool_id=tid, field=fname)
+				overwritten.setdefault(tid, []).append(
+					{"file": file_of[tid], "entry": by_id[tid]})
 			by_id[tid] = entry
-	return by_id, orphans
+			file_of[tid] = fname
+	return by_id, orphans, overwritten
 
 
 # ── V3: shape normalization ─────────────────────────────────────────────────
@@ -1824,8 +1838,10 @@ def compute_initial_bucket(view, has_security, security_only, impact, risk_level
 
 # ── one tool ────────────────────────────────────────────────────────────────
 def validate_tool(candidate, research, findings: Findings, resolver: RootResolver,
-		manifest: Manifest, watch_topics=None):
-	"""V2–V6 for one candidate. Returns the tool's validation view."""
+		manifest: Manifest, watch_topics=None, overwritten=None):
+	"""V2–V6 for one candidate. Returns the tool's validation view.
+	`overwritten` — earlier research entries for this tool that a later one
+	replaced (`v1_load`); each is quarantined verbatim."""
 	tool_id = candidate["id"]
 	source = candidate.get("source")
 	name = candidate.get("name") or tool_id.split(":", 1)[-1]
@@ -1875,7 +1891,9 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"usage_item_ids": [],
 		"spec_violations": [],
 		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
-		"input_digest": input_digest(candidate, research, watch_topics),
+		"input_digest": input_digest(candidate,
+			[e["entry"] for e in overwritten] + [research] if overwritten else research,
+			watch_topics),
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1892,6 +1910,13 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		_guard(view, findings, "research section",
 			lambda: _read_research(view, research, findings, tool_id, resolver, manifest,
 				watch_topics))
+
+	# An overwritten duplicate entry is content the checker wrote and the tool
+	# no longer shows: quarantined verbatim, so it is on the card and the tool
+	# is content-losing (held, never pre-accepted) rather than a warning only.
+	for dropped in overwritten or ():
+		view["quarantine"].append({"field": "duplicate research entry ({})".format(
+			dropped["file"]), "item_id": None, "value": dropped["entry"]})
 
 	# version delta, then the derived axes, in dependency order.
 	_guard(view, findings, "derived axes",
@@ -2493,7 +2518,8 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 		raise NoCandidateSet("{!r} is {}, not a JSON object — there is no candidate "
 			"set to validate".format(collect_path, type(collect).__name__))
 
-	research_by_id, orphans = v1_load(os.path.join(session_dir, "research"), findings)
+	research_by_id, orphans, overwritten = v1_load(
+		os.path.join(session_dir, "research"), findings)
 
 	health, _ = assemble.read_findings_block(collect, "brew_health", "brew-health")
 	drift, _ = assemble.read_findings_block(collect, "skill_drift", "skill-drift")
@@ -2522,7 +2548,8 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 		# conformed — not as a blank replacement for it.
 		views.append(validate_tool(candidate, research_by_id.get(tool_id), findings,
 			resolver, manifest,
-			watch_topics=_watch_topics_for(watch_snapshot, tool_id)))
+			watch_topics=_watch_topics_for(watch_snapshot, tool_id),
+			overwritten=overwritten.get(tool_id)))
 
 	unmatched = []
 	for tool_id in sorted(research_by_id):

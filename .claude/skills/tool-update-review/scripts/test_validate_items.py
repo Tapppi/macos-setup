@@ -1702,6 +1702,25 @@ class DegradationTests(unittest.TestCase):
 			"b.json": [{"id": "brew:x", "links": [], "items": [_item()]}]})
 		self.assertIn("W-ENTRY-DUPLICATE", document["counts"]["by_code"])
 
+	def test_an_overwritten_duplicate_is_quarantined_and_holds_the_tool(self):
+		"""Review A5: the earlier entry may carry the breaking item that should
+		hold the tool. It is quarantined verbatim — content-losing, so the
+		tool is held and never pre-accepted — not dropped with a warning."""
+		breaking = _item()
+		breaking["tags"] = ["breaking"]
+		breaking["title"] = "Removes the --legacy flag"
+		first = {"id": "brew:x", "links": [], "items": [breaking]}
+		document = session_with({
+			"a.json": [first],
+			"b.json": [{"id": "brew:x", "links": [], "items": [_item()]}]})
+		view = document["tools"][0]
+		self.assertEqual(view["quarantine"], [{"field": "duplicate research entry (a.json)",
+			"item_id": None, "value": first}])
+		self.assertIn("quarantined-content", view["degradation"]["content_losing"])
+		self.assertEqual(view["initial_review_bucket"], "attention")
+		self.assertIn("a.json", next(f["message"] for f in document["findings"]
+			if f["code"] == "W-ENTRY-DUPLICATE"))
+
 	def test_an_entry_naming_no_candidate_is_kept_as_unmatched(self):
 		document = session_with({"a.json": [{"id": "brew:ghost", "links": [], "items": []}]})
 		self.assertEqual(document["unmatched"], ["brew:ghost"])
