@@ -447,7 +447,13 @@ the items the edit answers, by the part of the derived id after `#`
 (`slug:key-renamed`, `cve:CVE-2026-1234`), the full id, or the unquoted anchor
 spelling (`issue:org/repo#9`); the validator resolves them into
 `serves_item_ids` on the suggestion (the authored `serves` stays verbatim; no
-convergence op can write the resolution).
+convergence op can write the resolution). Every action suggestion names in
+`serves` the items it answers, `proposed` ones included — it is the edit's link
+to its motivating change; only an edit motivated by `config_status` alone
+serves nothing. An empty `serves` is not a finding: it never promotes (an
+`incompatible` item no required edit serves is P0 `incompatible-unfixed`, not
+accepted), and an edit answering `config_status` alone legitimately has none,
+so a marker would fire on conforming output.
 
 | input | finding | reads as |
 |---|---|---|
@@ -617,7 +623,7 @@ runs. The workflow surfaces it; it never aborts.
 | I-19 | a memory proposal carries its payload, and a `self_test_failed` tag carries its reason | `E-FIELD-MISSING` / `E-SELFTEST-NOREASON` |
 | I-20 | a watch-item hit names a stored watch item for this tool and says what it means here | `E-WATCH-HIT-UNGROUNDED` / `E-WATCH-HIT-NOLOCAL` / `W-WATCH-UNCHECKED` / `W-WATCH-HIT-UNRAISED` |
 | I-21 | `security.nature: fix` ⇒ tagged `security` ∧ `security` block ∧ cited `change` (§2.6) | `E-SEC-FIX-UNGROUNDED` / `W-SEC-FIX-NOID` |
-| I-22 | a `required` edit serves ≥1 resolved `incompatible` item, and only such; a `proposed` edit serves none (§4) | `E-SUG-REQUIRED-UNGROUNDED` / `E-SUG-SERVES-UNRESOLVED` / `E-REQUIREMENT-CONTRADICTED` |
+| I-22 | a `required` edit serves ≥1 resolved `incompatible` item, and only such; a `proposed` edit serves no `incompatible` item (§4) | `E-SUG-REQUIRED-UNGROUNDED` / `E-SUG-SERVES-UNRESOLVED` / `E-REQUIREMENT-CONTRADICTED` |
 | I-23 | a `usage` evidence quote occurs verbatim in its resolved file, on a line that is not the install declaration or a comment (§3) | `E-USAGE-UNGROUNDED` / `W-USAGE-INSTALL-ONLY` |
 
 I-14 is the mechanical replacement for the prose rule "if you can point at the

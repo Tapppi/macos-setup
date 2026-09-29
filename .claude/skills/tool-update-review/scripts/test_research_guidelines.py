@@ -844,5 +844,81 @@ class GSecGuidanceTests(GuidelineTestCase):
 			self.assertSays('"{}" — '.format(value), TEMPLATE)
 
 
+
+class FirstRealRunGuidanceTests(GuidelineTestCase):
+	"""Pass 6b — the checker-guidance shapes the first real item-model run
+	got wrong, each pinned to the text that now prevents it, and wherever the
+	guidance shows an example, the example is checked against the code that
+	judges it: a worked shape the validator rejects is worse than none."""
+
+	@staticmethod
+	def _model():
+		import sys
+		sys.path.insert(0, HERE)
+		import items as model
+		return model
+
+	def test_every_anchor_example_is_judged_as_the_template_says(self):
+		"""4 × E-ANCHOR-MALFORMED: `cask:obsidian#release:v1.13.4` (and
+		v1.13.6), `cask:vlc#release:3.0.24` — a bare version — and
+		`cask:kdiff3#issue:bugs.kde.org#519222`, a non-GitHub tracker."""
+		model = self._model()
+		good = (("cve", "CVE-2026-1234"), ("advisory", "GHSA-xxxx-xxxx-xxxx"),
+			("advisory", "RUSTSEC-2026-0001"), ("issue", "#123"),
+			("issue", "owner/repo#123"), ("release", "1.13.4/sync-conflict-fix"))
+		for kind, value in good:
+			self.assertSays('"{}"'.format(value), TEMPLATE)
+			self.assertTrue(model.anchor_is_wellformed({"kind": kind, "value": value}), value)
+		self.assertSays('not "v1.13.4"', TEMPLATE)
+		self.assertFalse(model.anchor_is_wellformed({"kind": "release", "value": "v1.13.4"}))
+		self.assertSays('slug: "kde-bug-519222"', TEMPLATE)
+		self.assertTrue(model.anchor_is_wellformed(
+			{"kind": "none", "value": None, "slug": "kde-bug-519222"}))
+		self.assertFalse(model.anchor_is_wellformed(
+			{"kind": "issue", "value": "bugs.kde.org#519222"}))
+
+	def test_the_title_bar_and_what_stays_out_of_the_title(self):
+		"""1 × W-TITLE-LONG: mise:go's title ran to 123 characters on a
+		trailing "(CVE-2026-39821)" its anchor already carried."""
+		model = self._model()
+		self.assertSays("<= {} characters".format(model.TITLE_MAX_CHARS), TEMPLATE)
+		self.assertSays("a CVE id or version the anchor or security block", TEMPLATE)
+
+	def test_serves_is_asked_of_every_action_suggestion_and_its_examples_resolve(self):
+		"""All six action suggestions left `serves` empty — the guidance asked
+		for it only on `required` edits."""
+		self.assertSays("on PROPOSED edits too", TEMPLATE)
+		self.assertSays("Fill `serves` on every action suggestion", RESEARCH)
+		import sys
+		sys.path.insert(0, HERE)
+		import validate_items
+		items = [
+			{"id": "brew:openssl@3#commit:Homebrew%2Fhomebrew-core%40f2e47cf7746c2ace",
+				"anchor": {"kind": "commit", "value": "Homebrew/homebrew-core@f2e47cf7746c2ace"}},
+			{"id": "brew:x#slug:key-renamed",
+				"anchor": {"kind": "none", "value": None, "slug": "key-renamed"}},
+			{"id": "brew:x#cve:CVE-2026-1234",
+				"anchor": {"kind": "cve", "value": "CVE-2026-1234"}},
+		]
+		refs = validate_items._item_refs(items)
+		for ref, item in (("commit:Homebrew/homebrew-core@f2e47cf7746c2ace", items[0]),
+				("slug:key-renamed", items[1]), ("cve:CVE-2026-1234", items[2])):
+			self.assertSays(ref, TEMPLATE + RESEARCH)
+			self.assertEqual(refs.get(ref), item["id"], ref)
+
+	def test_local_findings_is_said_to_be_a_count(self):
+		"""7 × E-FLAG-DISAGREE: `local_findings: true` against a count."""
+		self.assertSays("`local_findings` — an\n  **integer**", RESEARCH)
+		self.assertSays("not `has_security: true`", RESEARCH)
+
+	def test_app_state_is_named_as_usage_and_the_install_locations_as_not(self):
+		"""teamviewer and windows-app cited ~/Library app state as
+		`reference`, with no quote — the guidance described repo files only."""
+		for text in (RESEARCH, TEMPLATE):
+			self.assertSays("~/Library", text)
+			self.assertSays("plutil -convert xml1 -o -", text)
+			self.assertSays("Caskroom", text)
+
+
 if __name__ == "__main__":
 	unittest.main()

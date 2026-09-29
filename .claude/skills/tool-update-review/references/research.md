@@ -1086,7 +1086,19 @@ else (absent reads `proposed` — upgrade only by default). A `required` edit
 answers a change the upgrade breaks here, and that change is an
 `incompatible` item (`reaches`, `risk`, evidence) — name it in `serves`,
 by the part of its id after `#` or its anchor (`slug:key-renamed`,
-`cve:CVE-2026-1234`). The validator grounds it (I-22): a `required` edit
+`cve:CVE-2026-1234`).
+
+**Fill `serves` on every action suggestion, `proposed` ones too** — it is
+the link from the edit to the item that motivates it, whatever the
+requirement. Name each item the edit answers, spelled as above (for an
+anchored item, the anchor as you declared it: `commit:Homebrew/homebrew-core@f2e47cf7746c2ace`,
+`release:27.0/rosetta-not-restored`). Leave it empty only when no item
+motivates the edit — a `needs_attention` verdict in `config_status` alone
+(I-15). In the first real run all six action suggestions left it empty,
+so nothing linked `brew:openssl@3:path-versioned-opt` to the warning
+commit item it answers, or `mise:python:postinstall-openpyxl` to
+`slug:mise-upgrade-drops-site-packages`, and the validator had nothing to
+check. The validator grounds it (I-22): a `required` edit
 serving no `incompatible` item is `E-SUG-REQUIRED-UNGROUNDED` and still
 reads required; a `proposed` edit serving an `incompatible` item is
 `E-REQUIREMENT-CONTRADICTED` and reads required. A required edit keeps a

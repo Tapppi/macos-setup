@@ -126,9 +126,21 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
     anchor: {kind: "cve"|"advisory"|"issue"|"commit"|"release"|"none",
              value}  (for kind "none": value null plus a "slug" string;
              the validator derives the item id from the anchor — never
-             write an id yourself)
-    title:  one line, <= 120 chars — the fact and nothing else; the why/
-            how/consequence goes in the optional body
+             write an id yourself). value, per kind — anything else is
+             E-ANCHOR-MALFORMED:
+               cve      "CVE-2026-1234"
+               advisory "GHSA-xxxx-xxxx-xxxx", "RUSTSEC-2026-0001"
+               issue    "#123" or "owner/repo#123" — a GitHub/GitLab-style
+                        issue only; a bug in another tracker is kind
+                        "none" with a slug naming it:
+                        {kind: "none", value: null, slug: "kde-bug-519222"}
+               commit   7-40 hex digits, optionally "owner/repo@" first
+               release  "{version}/{slug}" — never the version alone:
+                        "1.13.4/sync-conflict-fix", not "v1.13.4"
+    title:  one line, <= 120 characters counted in full — the fact and
+            nothing else; the why/how/consequence goes in the optional
+            body, and a CVE id or version the anchor or security block
+            already carries does not go in it (W-TITLE-LONG)
     tags:   >= 1 of the closed eight: security | fix | feature |
             breaking | deprecation | perf | packaging | chore
     severity: info | notable | warning | incompatible — "how much does
@@ -181,9 +193,14 @@ Hold yourself to the exact shapes (`references/item-schema.md` §2):
     "edit" (the default) — a concrete Brewfile/dotfiles/config change.
     Every edit and structural suggestion carries requirement:
       "required" — the upgrade stops working here without it; then the
-      change it answers is an "incompatible" item and serves: [its ref,
-      e.g. "slug:key-renamed" or "cve:CVE-2026-1234"] names it;
+      change it answers is an "incompatible" item;
       "proposed" — everything else (absent reads proposed).
+    and serves: [the refs of the items it answers — the part of the item
+      id after "#", or the anchor as you declared it, e.g.
+      "slug:key-renamed", "cve:CVE-2026-1234",
+      "commit:Homebrew/homebrew-core@f2e47cf7746c2ace"] — on PROPOSED edits too;
+      empty only when no item motivates it (a config_status verdict
+      alone).
     "structural" — the change re-manages an entity (deprecated cask
       migrated, formula moved between sections, tap trusted/dropped,
       install handed between mechanisms, setup.sh subcommand or
