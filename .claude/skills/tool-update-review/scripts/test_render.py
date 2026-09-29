@@ -2658,16 +2658,84 @@ class GSecDegradedPageTests(PageDriveRunner):
 
 
 class GSecNarrowViewportTests(unittest.TestCase):
-	"""At a TRUE 390 px viewport (headless Chrome's window clamps at 500, so
-	this uses Python Playwright from the agent-skills venv), the panel and
-	the demotion disclosure populated, nothing scrolls sideways."""
+	"""At a TRUE 390×844 viewport (headless Chrome's window clamps at 500, so
+	this uses Python Playwright from the agent-skills venv): nothing scrolls
+	sideways on ANY tab or with every card expanded — a method note carrying a
+	long URL is planted, the pass 7 defect — and the phone layout the user
+	asked for on 2026-09-30 holds: the tiles are one summary line, the sticky
+	bar is short, decision controls are 44 px touch targets, and the first
+	"Security fixes for you" row is on screen at load. At desktop width none
+	of that applies."""
 
 	VENV_PY = os.path.expanduser("~/.local/share/agent-skills/venv/bin/python")
+	LONG_URL = ("https://learn.example.invalid/cli/azure/release-notes-azure-cli/"
+		+ "versions/" + "x" * 120 + "/notes")
 
-	def test_no_horizontal_overflow_at_390(self):
-		if not os.path.exists(self.VENV_PY):
-			self.skipTest("no agent-skills venv with Playwright")
+	# The probe runs under the venv's interpreter. JS is kept free of quote
+	# characters the Python layers use, so nothing needs escaping twice.
+	PROBE = r"""
+import sys, json
+from playwright.sync_api import sync_playwright
+
+LOAD = r'''() => {
+	const box = s => { const e = document.querySelector(s); if (!e) return null;
+		const r = e.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, h: r.height}; };
+	const row = document.querySelector("#sec-priority .prow");
+	return {sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
+		vh: window.innerHeight, row: box("#sec-priority .prow"), bar: box("#progress-bar-container"),
+		tiles: getComputedStyle(document.querySelector(".tilegroups")).display,
+		sum: getComputedStyle(document.getElementById("tilesum")).display,
+		sumText: document.getElementById("tilesum").textContent.replace(/\s+/g, " ").trim(),
+		rowButtons: row ? Array.from(row.querySelectorAll(".btn-d, .jump")).map(e => e.getBoundingClientRect().height) : [],
+		rows: document.querySelectorAll("#sec-priority .prow").length,
+		lowered: document.querySelectorAll("#lowered-block .lwrow").length};
+}'''
+WIDTH = '() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]'
+EXPAND = '''() => {
+	document.querySelectorAll(".tool-section.collapsed").forEach(s => s.classList.remove("collapsed"));
+	document.querySelectorAll(".item-fold").forEach(f => { f.dataset.open = "1"; });
+}'''
+EXPANDED = '''() => [document.documentElement.scrollWidth, document.documentElement.clientWidth,
+	Math.min(...Array.from(document.querySelectorAll(".btn-decision")).filter(e => e.offsetParent)
+		.map(e => e.getBoundingClientRect().height))]'''
+
+out = {}
+with sync_playwright() as p:
+	b = p.chromium.launch()
+	for w, h, key in ((390, 844, "phone"), (1280, 900, "desktop")):
+		pg = b.new_page(viewport={"width": w, "height": h})
+		errs = []
+		pg.on("pageerror", lambda e: errs.append(str(e)))
+		pg.goto("file://" + sys.argv[1])
+		pg.wait_for_timeout(600)
+		o = pg.evaluate(LOAD)
+		o["tabs"] = {}
+		for name in ("All tools", "Method notes", "Overview"):
+			pg.locator("#tab-strip [role=tab]", has_text=name).click()
+			pg.wait_for_timeout(300)
+			o["tabs"][name] = pg.evaluate(WIDTH)
+		o["longNote"] = pg.evaluate('() => document.querySelectorAll("#panel-notes .nrow .nt").length')
+		pg.locator("#tab-strip [role=tab]", has_text="All tools").click()
+		pg.wait_for_timeout(300)
+		pg.evaluate(EXPAND)
+		pg.wait_for_timeout(300)
+		o["expanded"] = pg.evaluate(EXPANDED)
+		o["errors"] = errs
+		out[key] = o
+		pg.close()
+	b.close()
+print(json.dumps(out))
+"""
+
+	def _render(self):
 		report = _gsec_pipeline()
+		planted = False
+		for tool in report["tools"]:
+			for sug in tool.get("suggestions") or []:
+				if sug.get("kind") == "method-note" and not planted:
+					sug["method_note"] = (sug.get("method_note") or "") + " See " + self.LONG_URL
+					planted = True
+		self.assertTrue(planted, "the fixture carries no method note to plant the URL in")
 		report_dir = tempfile.mkdtemp(prefix="gsec-390-")
 		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
 		state = tempfile.mkdtemp(prefix="gsec-390-state-")
@@ -2678,28 +2746,43 @@ class GSecNarrowViewportTests(unittest.TestCase):
 		p = subprocess.run([sys.executable, RENDER_PY, path], capture_output=True, text=True,
 			env=dict(os.environ, XDG_STATE_HOME=state), timeout=60)
 		self.assertEqual(p.returncode, 0, p.stderr)
-		probe = (
-			"from playwright.sync_api import sync_playwright\n"
-			"import sys, json\n"
-			"with sync_playwright() as p:\n"
-			"    b = p.chromium.launch()\n"
-			"    pg = b.new_page(viewport={'width': 390, 'height': 844})\n"
-			"    pg.goto('file://' + sys.argv[1]); pg.wait_for_timeout(600)\n"
-			"    print(json.dumps(pg.evaluate('''() => ({sw: document.documentElement.scrollWidth,\n"
-			"        cw: document.documentElement.clientWidth,\n"
-			"        rows: document.querySelectorAll('#sec-priority .prow').length,\n"
-			"        lowered: document.querySelectorAll('#lowered-block .lwrow').length})''')))\n"
-			"    b.close()\n")
-		r = subprocess.run([self.VENV_PY, "-c", probe, os.path.join(report_dir, "index.html")],
-			capture_output=True, text=True, timeout=120)
+		return os.path.join(report_dir, "index.html")
+
+	def test_the_phone_view_and_no_sideways_scroll_on_any_tab(self):
+		if not os.path.exists(self.VENV_PY):
+			self.skipTest("no agent-skills venv with Playwright")
+		page = self._render()
+		r = subprocess.run([self.VENV_PY, "-c", self.PROBE, page],
+			capture_output=True, text=True, timeout=180)
 		if r.returncode != 0 and "Executable doesn't exist" in r.stderr:
 			self.skipTest("Playwright has no Chromium installed")
 		self.assertEqual(r.returncode, 0, r.stderr[-1500:])
 		info = json.loads(r.stdout.strip().splitlines()[-1])
-		self.assertEqual(info["cw"], 390)
-		self.assertEqual(info["sw"], info["cw"], info)
-		self.assertGreater(info["rows"], 0)
-		self.assertEqual(info["lowered"], 1)
+		phone, desk = info["phone"], info["desktop"]
+		for view, width in ((phone, 390), (desk, 1280)):
+			self.assertEqual(view["errors"], [])
+			self.assertEqual(view["cw"], width)
+			self.assertEqual(view["sw"], view["cw"], view)
+			for name, (sw, cw) in view["tabs"].items():
+				self.assertEqual(sw, cw, (width, name))
+			self.assertEqual(view["expanded"][0], view["expanded"][1], (width, "expanded cards"))
+			self.assertGreater(view["rows"], 0)
+			self.assertEqual(view["lowered"], 1)
+			self.assertGreater(view["longNote"], 0)
+		# Phone: one summary line instead of the tiles, a short sticky bar,
+		# 44 px decision controls, and the first panel row on screen at load.
+		self.assertEqual(phone["tiles"], "none")
+		self.assertEqual(phone["sum"], "block")
+		self.assertRegex(phone["sumText"], r"\d+ updates: .*major.*security: .*CVEs fixed")
+		self.assertLessEqual(phone["bar"]["h"], 80)
+		self.assertGreaterEqual(min(phone["rowButtons"]), 44)
+		self.assertGreaterEqual(phone["expanded"][2], 44)
+		self.assertGreaterEqual(phone["row"]["top"], phone["bar"]["bottom"])
+		self.assertLessEqual(phone["row"]["bottom"], phone["vh"], phone["row"])
+		# Desktop: unchanged — tiles, no summary line, compact controls.
+		self.assertEqual(desk["sum"], "none")
+		self.assertNotEqual(desk["tiles"], "none")
+		self.assertLess(max(desk["rowButtons"]), 44)
 
 
 if __name__ == "__main__":

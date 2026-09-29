@@ -407,6 +407,9 @@ axis is *ordinal magnitude* and the security axis is *status* — different
 jobs, so they sit in two labelled groups rather than one undifferentiated row
 of six, which would read as a wall.
 
+At phone width (≤430 px) both groups render as one summary line instead —
+§Long Strings and Overflow, item 5.
+
 **Group A — "Change size — N updates"** (three tiles, then a proportion bar):
 
 | Tile | Value | Label | Secondary | Accent | Click |
@@ -1831,8 +1834,22 @@ of horizontal scroll on a 390px viewport**.
    routine chips' trailing version uses the same reading.
 3. `.chip { max-width: 230px }` with the same truncation and a `title`
    carrying name + version.
-4. **The page body must never scroll horizontally at 390px.** Assert it
-   directly: `document.documentElement.scrollWidth === clientWidth`.
+4. **The page body must never scroll horizontally at 390px** — on every
+   tab, and with every card expanded. Assert it directly:
+   `document.documentElement.scrollWidth === clientWidth`. Free text that can
+   carry a URL or a path (a method note, a judgement reason, a watch-item
+   note) sets `overflow-wrap: anywhere`: in the first real run a method
+   note's long URL widened the Method notes tab to 510 px.
+5. **The phone view (≤430 px, the user's call on 2026-09-30).** The two
+   tile groups collapse into one summary line (`#tilesum`: `N updates: 9
+   major · 57 minor · 26 patch — security: 214 CVEs fixed · 57 accepted · 6
+   held or need you`, each count acting like its tile); the header and the
+   sticky bar shrink (progress and a short "Auto-run" toggle share one
+   row); every decision control — the Accept / Reject / Discuss buttons,
+   mirrors and canonical alike, and the "open card →" jump — is a 44 px
+   touch target. The measure is that the first "Security fixes for you" row
+   is wholly on screen at load at 390×844. Desktop is unchanged.
+   `test_render.py` `GSecNarrowViewportTests` pins both widths.
 
 ## Brew-Health Rendering
 

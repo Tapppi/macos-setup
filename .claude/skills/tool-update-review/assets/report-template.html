@@ -274,7 +274,8 @@
 		/* Both strings always render; CSS picks one by viewport width, so
 		 * neither needs re-computing on resize — and nothing has to be
 		 * re-measured when the shell bar reflows. */
-		#progress-bar-container .short { display: none; }
+		#progress-bar-container .short,
+		#progress-bar-container .tiny { display: none; }
 
 		/* The gate is never invisible from either tab: this button mirrors
 		 * the Overview's blocking strip into the shell bar
@@ -378,8 +379,11 @@
 		.nrow[data-focused] { outline: 2px solid var(--blue); outline-offset: 2px; }
 		.nrow .tool { color: var(--base1); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 		.nrow .tool .jump { display: block; font-size: 11px; }
-		.nrow .topic { color: var(--base2); }
-		.nrow .nt { color: var(--base0); white-space: pre-wrap; }
+		/* A note is free text and can carry a long URL or path with no break
+		 * opportunity; without overflow-wrap it widened the whole Method
+		 * notes tab past a 390 px viewport. */
+		.nrow .topic { color: var(--base2); overflow-wrap: anywhere; }
+		.nrow .nt { color: var(--base0); white-space: pre-wrap; overflow-wrap: anywhere; }
 		.nrow[data-vetoed="1"] .nt,
 		.nrow[data-vetoed="1"] .topic .tt { text-decoration: line-through; color: var(--base01); }
 		.nrow .marks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
@@ -534,6 +538,18 @@
 		}
 
 		.tilegroup > .slabel { display: block; margin-bottom: 8px; }
+
+		/* The phone form of the two tile groups (≤430 px, the user's call on
+		 * 2026-09-30): one summary line whose counts act like the tiles, so
+		 * the first "Security fixes for you" rows are on screen at load. */
+		.tilesum { display: none; font-size: 13px; line-height: 1.55; color: var(--base0); margin: -8px 0 16px; }
+		.tilesum .k { color: var(--base01); }
+		.tilesum .tsl {
+			background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+			color: var(--base1); text-decoration: underline dotted; text-underline-offset: 3px;
+		}
+		.tilesum .tsl b { color: var(--base2); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+		.tilesum .tsl:disabled { cursor: default; text-decoration: none; color: var(--base01); }
 
 		.tiles {
 			display: grid;
@@ -1029,7 +1045,7 @@
 
 		/* The reasoning: verbatim, unbounded, behind an expansion — never
 		 * truncated, never rewritten. */
-		.jrow .reason { display: none; margin-top: 8px; font-size: 12.5px; color: var(--base1); max-width: 78ch; white-space: pre-wrap; }
+		.jrow .reason { display: none; margin-top: 8px; font-size: 12.5px; color: var(--base1); max-width: 78ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 		.jrow[data-open="1"] .reason { display: block; }
 		.jrow .reason-foot { margin-top: 4px; font-family: var(--mono); font-size: 11px; color: var(--base01); }
 		.jrow .more { font-size: 11.5px; color: var(--blue); }
@@ -2406,6 +2422,7 @@
 			font-size: 12px;
 			color: var(--base0);
 			white-space: pre-wrap;
+			overflow-wrap: anywhere;
 		}
 
 		/* ── Method-note proposal body (kind: "method-note", references/schemas.md §1.7b) ──
@@ -3190,6 +3207,37 @@
 			#progress-bar-container .short { display: inline; }
 		}
 
+		/* Phone (≤430 px, the user's decision of 2026-09-30): the tiles become
+		 * one summary line, the header and the sticky bar shrink, and every
+		 * decision control (Accept / Reject / Discuss, the card jump) is a
+		 * 44 px touch target — so the first "Security fixes for you" rows
+		 * are readable on load at 390×844. Desktop is untouched. */
+		@media (max-width: 430px) {
+			#page-header { padding: 6px 12px; gap: 2px 10px; }
+			#page-header h1 { font-size: 15px; }
+			.header-meta { font-size: 11px; gap: 2px 10px; }
+			#progress-bar-container { padding: 2px 12px 4px; gap: 2px 8px; }
+			.tab-btn { padding: 6px 9px; font-size: 12.5px; }
+			#submit-btn { padding: 4px 14px; }
+			/* One row for progress and the auto-run toggle, not two. */
+			#progress-wrap { order: 3; flex: 1 1 0; min-width: 0; gap: 6px; }
+			#progress-track { flex: 1 1 24px; min-width: 24px; }
+			#progress-text { flex: 0 0 auto; }
+			#auto-run-toggle { order: 4; flex: 0 0 auto; }
+			#auto-run-toggle .short { display: none; }
+			#auto-run-toggle .tiny { display: inline; }
+			#panel-overview { padding-top: 10px; }
+			#lede { font-size: 15px; line-height: 1.4; margin: 2px 0 12px; }
+			.tilegroups { display: none; }
+			.tilesum { display: block; margin: 0 0 14px; }
+			#sec-priority h2 { margin-bottom: 6px; }
+			.btn-d, .btn-decision { min-height: 44px; }
+			.btn-d { padding: 3px 12px; }
+			.jump { min-height: 44px; display: inline-flex; align-items: center; }
+			.prow .l1 .mirror { flex: 1 0 100%; }
+			.prow .l1 .mirror .btn-d { flex: 1 1 0; }
+		}
+
 		/* Only two animations exist on this page: the results spinner and
 		 * the static [data-flash] outline (no keyframes). Smooth scrolling
 		 * is dropped in JS when this query matches. */
@@ -3226,6 +3274,7 @@
 			<input type="checkbox" id="auto-run-upgrades" checked>
 			<span class="long">Auto-run accepted upgrades (I'll approve any admin prompts)</span>
 			<span class="short">Auto-run accepted upgrades</span>
+			<span class="tiny">Auto-run</span>
 		</label>
 		<button id="submit-btn" disabled title="Decide all suggestions on incompatible-severity tools first">Submit</button>
 	</div>
@@ -6092,6 +6141,22 @@
 				</div>`;
 			}
 
+			/* ── The phone form of both groups: one line, same counts, same
+			 * targets (CSS shows it instead of the tiles at ≤430 px). ── */
+			const tsl = (v, label, act, arg, title) => `<button type="button" class="tsl"` +
+				` data-act="${esc(act || '')}" data-arg="${esc(arg || '')}" title="${esc(title || '')}"` +
+				`${v === 0 || !act ? ' disabled' : ''}><b>${esc(v)}</b> ${esc(label)}</button>`;
+			const sumParts = [];
+			if (D) sumParts.push(`<span class="k">${esc(total)} updates:</span> ` + [
+				tsl(D.major, 'major', 'filter-delta', 'major', 'Show only major-delta tools'),
+				tsl(D.minor, 'minor', 'filter-delta', 'minor', 'Show only minor-delta tools'),
+				tsl(D.patch, 'patch', 'filter-delta', 'patch', 'Show only patch-delta tools')].join(' · '));
+			if (SEC) sumParts.push(`<span class="k">security:</span> ` + [
+				tsl(SEC.cve_count, 'CVEs fixed', 'scroll', 'sec-section', 'Jump to the security section'),
+				tsl(SEC.accepted_count, 'accepted', autoTarget.act, autoTarget.arg, autoTarget.title),
+				tsl(SEC.undecided_count, 'held or need you', 'scroll', 'sec-mixed', 'Jump to the security updates that are held or need you')].join(' · '));
+			const tileSummary = sumParts.length ? `<p class="tilesum" id="tilesum">${sumParts.join(' — ')}</p>` : '';
+
 			/* ── Security section ────────────────────────────────────────── */
 			let secSection = '';
 			if (SEC) {
@@ -6191,6 +6256,7 @@
 				`<p id="lede">${ledeHtml}</p>` +
 				renderDegradedStrip() +
 				((groupA || groupB) ? `<div class="tilegroups">${groupA}${groupB}</div>` : '') +
+				tileSummary +
 				renderPriorityPanel(tools) +
 				renderJudgementPanel(tools) +
 				secSection + hlSection + elseSection + renderNotesSection(tools);
