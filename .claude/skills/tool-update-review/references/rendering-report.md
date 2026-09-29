@@ -1345,8 +1345,9 @@ must not be expensive).
 |---|---|---|
 | `🛡 Security · reaches here or rated critical` | `security.display_item_ids` — the contract's own bar, no cap | the id list's order (the contract's total sort) |
 | `Breaking & deprecations` | decisive, tagged `breaking` or `deprecation` | severity worst-first, reaches-first within a tier, stable |
-| `Other changes that reach this machine` | decisive, remainder | same |
-| `▸ Everything else (N) — features, fixes and notes that do not reach this setup` | everything that fails the bar | one flat severity-ordered list |
+| `Other changes that reach this machine` | decisive, remainder, `local.direction` `reaches` — only what reaches | same |
+| `Other changes worth knowing — not shown to reach this machine` | decisive, remainder, not reaching, and decisive for its rating (`warning`+) or a grounded watch hit | same |
+| `▸ Everything else (N) — features, fixes and notes that do not reach this setup` | everything that fails the bar, plus a non-reaching item decisive only by its `security` tag (a CVE the security bar left out; its id stays in the security group's collapsed detail) | one flat severity-ordered list |
 
 An empty group renders **nothing** — no heading, no pill. The **fold** is one
 `<button>` (`data-toggle-fold`, `aria-expanded`) and one line that says what

@@ -775,6 +775,50 @@ class DecisionSurfaceTests(PageDriveRunner):
 		self.assertEqual(out["foldVisibleAfterClick"], "true")
 		self.assertEqual(out["foldTitles"], "Startup is 2x faster|Something oddly tagged")
 
+	def test_the_reaches_group_holds_only_what_reaches(self):
+		"""Pass 6: brew:libpq's card listed CVE-2026-15741, CVE-2026-16241 and
+		slug:server-side-cves — all does_not_reach — under "Other changes
+		that reach this machine", because the `security` tag alone made them
+		decisive. A decisive non-reaching item stays visible only when it is
+		decisive for its rating or a watch hit; by its tag alone it folds."""
+		tool = page_tool("brew:libpq", "libpq", "18.5", "18.6", "security_auto")
+		def item(slug, tags, severity, direction, security=None):
+			out = {"id": "brew:libpq#slug:" + slug, "title": slug, "tags": tags,
+				"severity": severity, "local": {"direction": direction, "effect": "none",
+					"statement": "s", "evidence": [], "citations": []}}
+			if security:
+				out["security"] = security
+			return out
+		sec = {"cve_id": None, "rating": "medium", "rating_basis": "nvd",
+			"exploited_in_wild": False, "nature": "fix"}
+		tool["items"] = [
+			item("server-side-cves", ["security", "fix"], "notable", "does_not_reach", sec),
+			item("client-cve", ["security", "fix"], "notable", "reaches", sec),
+			item("psql-risk", ["feature"], "notable", "reaches"),
+			item("warn-unclear", ["feature"], "warning", "unclear"),
+			item("info-reaches", ["feature"], "info", "reaches"),
+		]
+		tool["items"][2]["local"]["effect"] = "risk"
+		tool["security"] = {"cve_ids": [], "cve_count": 0, "cve_claimed_count": None,
+			"has_security": True, "security_only": False, "impact": "possible",
+			"severity_counts": None, "display_item_ids": ["brew:libpq#slug:client-cve"]}
+		out = self.drive(page_report([tool]), """
+		key('2');
+		const body = document.querySelector('#tool-list .tool-section .tool-body');
+		const titles = sel => Array.from(body.querySelectorAll(sel + ' .content-item .ci-text'))
+			.map(i => i.textContent.trim()).join('|');
+		log('security=' + titles('.cat-security'));
+		log('reaches=' + titles('.cat-reaches'));
+		log('other=' + titles('.cat-other'));
+		log('otherHead=' + (body.querySelector('.cat-other .content-group-title') || {textContent: 'none'}).textContent.trim().replace(/\\s+/g, ' '));
+		log('fold=' + titles('.item-fold'));
+""")
+		self.assertEqual(out["security"], "client-cve")
+		self.assertEqual(out["reaches"], "psql-risk")
+		self.assertEqual(out["other"], "warn-unclear")
+		self.assertIn("not shown to reach this machine", out["otherHead"])
+		self.assertEqual(sorted(out["fold"].split("|")), ["info-reaches", "server-side-cves"])
+
 	def test_the_chips_wear_ink_and_lead_the_line(self):
 		out = self.drive(page_report([decision_surface_tool()]), """
 		key('2');

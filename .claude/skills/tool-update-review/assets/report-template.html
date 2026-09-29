@@ -4036,10 +4036,18 @@
 				.map(entry => entry[2]);
 		}
 
+		/* Decisive for a reason other than its tag — rated warning or
+		 * worse, or a grounded watch hit — so it stays visible even when it
+		 * does not reach this machine. */
+		function decisiveBeyondTag(item, tool) {
+			if (item.severity === 'warning' || item.severity === 'incompatible') return true;
+			return !!(tool && typeof item.id === 'string' && groundedHitIds(tool).has(item.id));
+		}
+
 		function groupItems(tool) {
 			const sec = toolSecurity(tool);
 			const secIds = new Set(sec.display_item_ids);
-			const groups = { security: [], breaking: [], reaches: [], fold: [] };
+			const groups = { security: [], breaking: [], reaches: [], other: [], fold: [] };
 			for (const item of itemsOf(tool)) {
 				if (typeof item.id === 'string' && secIds.has(item.id)) {
 					groups.security.push(item);
@@ -4047,7 +4055,18 @@
 						&& (hasTag(item, 'breaking') || hasTag(item, 'deprecation'))) {
 					groups.breaking.push(item);
 				} else if (decisive(item, tool)) {
-					groups.reaches.push(item);
+					/* "Other changes that reach this machine" says what it
+					 * holds, so it holds only what reaches. A decisive item
+					 * that does not reach stays visible when it is decisive for
+					 * its rating or a watch hit; decisive only by its
+					 * `security` tag — a CVE the security bar left out because
+					 * it does not reach (pass 6: libpq's three server-side
+					 * CVEs) — it folds, and the security group's collapsed
+					 * detail still lists its id. */
+					const local = localOf(item);
+					if (local && local.direction === 'reaches') groups.reaches.push(item);
+					else if (decisiveBeyondTag(item, tool)) groups.other.push(item);
+					else groups.fold.push(item);
 				} else {
 					groups.fold.push(item);
 				}
@@ -4058,6 +4077,7 @@
 			groups.security.sort((a, b) => bySecRank.get(a.id) - bySecRank.get(b.id));
 			groups.breaking = stableBySeverity(groups.breaking);
 			groups.reaches = stableBySeverity(groups.reaches);
+			groups.other = stableBySeverity(groups.other);
 			groups.fold = stableBySeverity(groups.fold);
 			return groups;
 		}
@@ -4322,6 +4342,13 @@
 			<div class="content-group cat-reaches">
 				<div class="content-group-title">Other changes that reach this machine <span class="content-group-count">${groups.reaches.length}</span></div>
 				${groups.reaches.map(item => renderContentItem(item, 'reaches', links, tool)).join('')}
+			</div>`);
+			}
+			if (groups.other.length) {
+				parts.push(`
+			<div class="content-group cat-other">
+				<div class="content-group-title">Other changes worth knowing — not shown to reach this machine <span class="content-group-count">${groups.other.length}</span></div>
+				${groups.other.map(item => renderContentItem(item, 'other', links, tool)).join('')}
 			</div>`);
 			}
 			if (groups.fold.length) {
