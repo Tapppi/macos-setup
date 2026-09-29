@@ -776,6 +776,73 @@ class PrecheckTests(unittest.TestCase):
 			codes_of(self.one(self.delete_edit(op="obliterate"))))
 
 
+class GlobalNotePromotionTests(unittest.TestCase):
+	"""Pass 6, cv-017: five per-tool notes (karabiner-elements,
+	tailscale-app, spotify, obsidian, gcloud-cli) each recorded an app that
+	self-updated past its Caskroom version; convergence flagged it and kept
+	them per-tool, because promotion MOVES one tool-worded proposal and C6
+	had no op to say the general thing. With `reword` in C6's vocabulary the
+	route is: promote one, reword it general, cut the sibling it covers."""
+
+	def setUp(self):
+		def note(tool, app):
+			return {"id": "{}:method-caskroom-lag".format(tool), "kind": "method-note",
+				"title": "t", "method_topic": "{} version vs Caskroom".format(app),
+				"method_note": "{} updates itself; its Caskroom version lags "
+					"the running app.".format(app), "rationale": "r"}
+		self.a = note("cask:spotify", "Spotify")
+		self.b = note("cask:obsidian", "Obsidian")
+		self.pre = build_pre([
+			make_view("cask:spotify", [make_item("cask:spotify", 1)], suggestions=[self.a]),
+			make_view("cask:obsidian", [make_item("cask:obsidian", 2)], suggestions=[self.b]),
+		], watch_store={})
+		self.pre["stores"]["method_notes"] = {}
+
+	def submission(self, check="C6-memory"):
+		general_topic = "Self-updating cask app ahead of its Caskroom version"
+		general_note = ("A self-updating cask app runs ahead of the version the "
+			"Caskroom records; read the running app's version, not the Caskroom's.")
+		edits = [
+			{"edit_id": "cv-001", "check": check, "op": "reword",
+				"target": {"tool_id": "cask:spotify", "kind": "proposal",
+					"id": self.a["id"], "field": "method_topic"},
+				"precondition": {"before": self.a["method_topic"]}, "after": general_topic,
+				"reason": {"headline": "Say the cross-tool pattern, not one app."}},
+			{"edit_id": "cv-002", "check": check, "op": "reword",
+				"target": {"tool_id": "cask:spotify", "kind": "proposal",
+					"id": self.a["id"], "field": "method_note"},
+				"precondition": {"before": self.a["method_note"]}, "after": general_note,
+				"reason": {"headline": "Say the cross-tool pattern, not one app."}},
+			{"edit_id": "cv-003", "check": "C6-memory", "op": "delete",
+				"target": {"tool_id": "cask:obsidian", "kind": "proposal",
+					"id": self.b["id"], "field": None},
+				"quote": "Caskroom version lags",
+				"bucket_claim": lateral("attention"),
+				"reason": cut_reason("Covered by the promoted global note.")},
+		]
+		ledger = _auto_ledger(self.pre)
+		ledger["method_notes_tool"] = {"kept": [], "cut": [
+			{"suggestion_id": self.b["id"], "reason": "the global note says it"}],
+			"promoted_to_global": [
+			{"suggestion_id": self.a["id"], "reason": "two tools, one pattern"}]}
+		return make_submission(self.pre, edits, ledger=ledger), general_topic, general_note
+
+	def test_promote_reword_and_cut_converges_with_the_general_wording(self):
+		submission, topic, text = self.submission()
+		result = run(self.pre, submission)
+		self.assertEqual(result["state"], "converged", codes_of(result))
+		post = {v["id"]: v for v in result["corpus_post"]["tools"]}
+		promoted = next(s for s in post["cask:spotify"]["suggestions"] if s["id"] == self.a["id"])
+		self.assertEqual((promoted["method_topic"], promoted["method_note"]), (topic, text))
+		self.assertFalse(any(s["id"] == self.b["id"] for s in post["cask:obsidian"]["suggestions"]))
+
+	def test_the_reword_is_c6s_own_op(self):
+		self.assertIn("reword", dict(C.CHECKS)["C6-memory"]["ops"])
+		# filed under a check that does not own memory, it is still refused
+		submission, _, _ = self.submission(check="C4-notable-security")
+		self.assertIn("E-CHECK-OP", codes_of(run(self.pre, submission)))
+
+
 class ApplyAndScopeTests(unittest.TestCase):
 	def setUp(self):
 		self.item = make_item("brew:t", 1, body="The body carries the detail "

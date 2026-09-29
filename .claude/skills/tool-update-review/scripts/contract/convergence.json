@@ -286,7 +286,8 @@
 			"ops": [
 				"delete",
 				"add",
-				"flag"
+				"flag",
+				"reword"
 			],
 			"attests": "the ledger: every proposal in exactly one disposition; every tagged proposal reviewed in both directions; fired_this_run recomputed"
 		},

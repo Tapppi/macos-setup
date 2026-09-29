@@ -205,7 +205,7 @@ risk level, so expect ~25–40 rows per run rather than ~9. For a G-SEC tool
 checker miss a `required` edit or an `incompatible` item that would have held
 it? Fix the item — a `retag`/`rerate`/`redirect` — and the tier follows.
 
-**C6 — memory: three stores** (`delete`, `add`, `flag`). Stores: global
+**C6 — memory: three stores** (`delete`, `add`, `flag`, `reword`). Stores: global
 method notes (rare **by definition** — only convergence can see a note is
 general), per-tool method notes (many), watch items (many).
 Procedure: (1) **route before you judge** — a proposal no future changelog
@@ -217,8 +217,18 @@ anything; confirming the drop is a `delete` + ledger row with
 reason the self-test was wrong. Both are first-class. (3) Verify a passing
 self-test rather than re-deriving it. (4) Duplicate against the store on
 `(tool_id, topic)` and against this run's proposals. (5) Promote to global
-only on cross-tool evidence (`proposal_topic_index`); demotion runs the same
-way. (6) **No number** — no store has a target count. Convergence proposes;
+only on cross-tool evidence; demotion runs the same way. Cross-tool evidence
+is a shared topic in `proposal_topic_index`, **or several per-tool
+proposals that record one pattern in their own tool's words** — the first
+real run had five notes (karabiner-elements, tailscale-app, spotify,
+obsidian, gcloud-cli) each saying an app self-updated past its Caskroom
+version, no two sharing a topic. Promotion moves ONE proposal, so say the
+general thing: promote it (`promoted_to_global`), `reword` its
+`method_topic` and `method_note` into the statement that holds for every
+tool (target kind `proposal`, `precondition.before` the current text), and
+dispose of each sibling — `cut` with a `delete` when the global note says
+all it said, `kept` when it also carries a path or step only that tool has.
+A global note is never one tool's paths under the global key. (6) **No number** — no store has a target count. Convergence proposes;
 the stores are written only at render with the user's disposition. Attest
 via the `ledger`: every proposal in exactly one disposition; every existing
 watch item for a tool in the run gets an `existing` row with

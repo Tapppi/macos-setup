@@ -313,8 +313,12 @@ CHECKS = (
 	("C5-auto-approval", {
 		"ops": ("retag", "rerate", "redirect", "flag"),
 		"attests": "tools enumerates EVERY security_auto or pre-accept-eligible tool with deciding_input + verdict"}),
+	# `reword` so a promotion can say the general thing: cross-tool evidence
+	# is usually several per-tool notes each worded for its own tool (pass 6:
+	# five "self-updated past the Caskroom" notes), and promotion MOVES one of
+	# them — without a reword the global store gets one tool's paths.
 	("C6-memory", {
-		"ops": ("delete", "add", "flag"),
+		"ops": ("delete", "add", "flag", "reword"),
 		"attests": "the ledger: every proposal in exactly one disposition; every tagged proposal reviewed in both directions; fired_this_run recomputed"}),
 	("C7-collisions", {
 		"ops": ("delete", "annotate", "reword", "trim", "flag"),
