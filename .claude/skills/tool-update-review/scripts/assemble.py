@@ -961,24 +961,44 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	if set(pre_views) != set(post_views):
 		return inconsistent("corpus.pre and corpus.post carry different tool sets")
 
-	# One corpus: the views the validator produced JUST NOW must be the
-	# views corpus.pre froze — research re-run after convergence, or a
+	# One corpus: the fresh validation must have been validated from the same
+	# INPUTS corpus.pre froze — research re-run after convergence, or a
 	# candidate that appeared since, would otherwise render the stale
 	# converged view over the fresh one (run_id is the session id, so it
-	# cannot tell those apart). build_corpus_pre adds exactly three view
-	# fields on top of the validator's; everything else must match.
+	# cannot tell those apart). The comparison is on the validator's
+	# `input_digest` (candidate + research entry + watch topics), NOT on the
+	# whole view: a view also carries facts read from the machine — usage
+	# quotes and matched lines, whether an evidence path exists, the Brewfile
+	# and setup.sh — which drift between --prepare and assembly with no new
+	# research, and rejecting on them threw away every convergence edit for an
+	# app rewriting its own plist. Such drift is AMBIENT: the post views still
+	# describe what convergence reasoned over, so they ship, and the drift is
+	# named in the summary and on the page rather than silently absorbed.
 	if set(pre_views) != set(views_by_id):
 		missing = sorted(set(views_by_id) - set(pre_views))
 		extra = sorted(set(pre_views) - set(views_by_id))
 		return inconsistent("the fresh validation and corpus.pre carry different tool sets"
 			+ (f" — validated now but not in the corpus: {missing}" if missing else "")
 			+ (f" — in the corpus but not validated now: {extra}" if extra else ""))
-	for tool_id, fresh in views_by_id.items():
+	ambient = []
+	for tool_id, fresh in sorted(views_by_id.items()):
 		frozen = {k: v for k, v in pre_views[tool_id].items() if k not in CORPUS_PRE_VIEW_FIELDS}
-		if frozen != fresh:
-			differing = sorted(k for k in set(frozen) | set(fresh) if frozen.get(k) != fresh.get(k))
-			return inconsistent(f"{tool_id}: the fresh validation differs from corpus.pre "
-				f"on {differing} — research changed after convergence ran")
+		differing = sorted(k for k in set(frozen) | set(fresh) if frozen.get(k) != fresh.get(k))
+		frozen_digest, fresh_digest = frozen.get("input_digest"), fresh.get("input_digest")
+		if not (isinstance(frozen_digest, str) and frozen_digest.startswith("sha256:")):
+			return inconsistent(f"{tool_id}: corpus.pre carries no usable input_digest "
+				f"({frozen_digest!r}) — it was not built by this validator; re-run "
+				f"--prepare --force")
+		if frozen_digest != fresh_digest:
+			return inconsistent(f"{tool_id}: the research, candidate or watch snapshot "
+				f"differs from what corpus.pre was validated from (views differ on "
+				f"{differing}) — research changed after convergence ran")
+		if differing:
+			ambient.append({"tool_id": tool_id, "fields": differing})
+	if ambient:
+		note("warning: machine facts changed after convergence ran — "
+			+ "; ".join(f"{a['tool_id']}: {', '.join(a['fields'])}" for a in ambient)
+			+ "; the report renders the converged views, which read them as of --prepare")
 
 	# Every moved bucket the effect declares must be visible in the corpora
 	# themselves — the from/to on the record against the two views. This is
@@ -1022,6 +1042,10 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 		"rejected_count": len(effect.get("rejected") or []),
 		"tools": effect.get("tools") if isinstance(effect.get("tools"), dict) else {},
 	}
+	if ambient:
+		# Validator facts read from the machine that differ now from the
+		# frozen corpus — named, never silently absorbed. Absent when none.
+		summary["ambient_drift"] = ambient
 	# The report renders what convergence shipped: the post views, which
 	# carry the edited items, the re-derived axes, and (on a degraded run)
 	# the forced conservative buckets.

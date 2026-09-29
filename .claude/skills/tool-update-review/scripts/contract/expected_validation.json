@@ -996,7 +996,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:bb1a8cac674f71c08f40e7203d25dfbce055749e92f89b9411129cdfadc9d893"
 		},
 		{
 			"id": "brew:openssh",
@@ -1200,7 +1201,8 @@
 					"E-FIELD-MISSING"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:212101c8c3655d6f38222a0e6fc0c0685d462cec720046b43a5dee97b6a1e714"
 		},
 		{
 			"id": "cask:codex",
@@ -1403,7 +1405,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:9373d687fb1fe7349da5ae22af1f21471a65109df2597b65f955b47b7edd9791"
 		},
 		{
 			"id": "brew:attention",
@@ -1502,7 +1505,8 @@
 					"W-ATTENTION-NOSUG"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:80af81a0d739bbcc0a0b910b6591bafad7005e82f0107e9074c317c3c3d42d89"
 		},
 		{
 			"id": "brew:nonconforming",
@@ -1936,7 +1940,8 @@
 					"W-TITLE-LONG"
 				],
 				"quarantined": 1
-			}
+			},
+			"input_digest": "sha256:f9f8617344310fdbfe47ac70f2be15bf9b6eda2d92352bb408c10e4c316dfa52"
 		},
 		{
 			"id": "brew:watched",
@@ -2168,7 +2173,8 @@
 					"W-WATCH-HIT-UNRAISED"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:6dbebb27792684631a91062e23f4e1aa7a9d01f1e966d9896c238a95b422c8c9"
 		},
 		{
 			"id": "brew:quarantined",
@@ -2283,7 +2289,8 @@
 					"W-MEMBER-QUARANTINED"
 				],
 				"quarantined": 1
-			}
+			},
+			"input_digest": "sha256:a7546919d45523d3087ac7f9e15992ce11f54e2a1ee6b0b7e9d9322dd977f01e"
 		},
 		{
 			"id": "brew:coerced",
@@ -2347,7 +2354,8 @@
 				],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:a219e87c3c9c4bf809bdafca482806d942d2f53cd6ae8113af5ba55822fc7c1a"
 		},
 		{
 			"id": "brew:elevated",
@@ -2450,7 +2458,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:858a7197791833e10d1121168acc5f2ef2fa6dc1659d408e17be885f68c74f1a"
 		},
 		{
 			"id": "brew:legacy-shape",
@@ -2548,7 +2557,8 @@
 				],
 				"markers": [],
 				"quarantined": 3
-			}
+			},
+			"input_digest": "sha256:d9500453a409e8612afdb1c4c09f09f1f3b8a9389f17a0677b094d7a2000d030"
 		},
 		{
 			"id": "brew:tier-required",
@@ -2718,7 +2728,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:20fb97a0ed034c501ecb5d715f5cfa610878486e525cadd1a135eca958722f0d"
 		},
 		{
 			"id": "brew:tier-pinned",
@@ -2828,7 +2839,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:97cc07882e1ed2db32663683883873d91184e6eacaac80a61a785520eb0102c4"
 		},
 		{
 			"id": "brew:tier-incompatible",
@@ -2978,7 +2990,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:279d4de240dd061357af65e3adf2518a3194466ec1468b05f5257537b91df1bf"
 		},
 		{
 			"id": "brew:tier-proposed",
@@ -3104,7 +3117,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:8eb772ee3c63944a8545afc174fa1a8f6fffcf5e98675f72c6bd100280b682a7"
 		},
 		{
 			"id": "brew:tier-config",
@@ -3216,7 +3230,8 @@
 					"W-ATTENTION-NOSUG"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:d04e6bad8893c08ded996d1e78234634aade6b167fc6d5ea0337461a9e297818"
 		},
 		{
 			"id": "brew:libpq",
@@ -3354,7 +3369,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:4d7d833dd543a228065381c90c9af300a33e0ed4c85373acb0d194558f909905"
 		},
 		{
 			"id": "brew:duckdb",
@@ -3498,7 +3514,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:7977e59f2396815bb3605ca45e13668409de833c208f99313cdfc19786f67986"
 		},
 		{
 			"id": "brew:tier-breaking",
@@ -3627,7 +3644,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:c2378890ba8d1b11081c2cbd00424867a50686ecae415b8a2f2d22905efe31a1"
 		},
 		{
 			"id": "brew:tier-risk",
@@ -3771,7 +3789,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:a87e5fc7c2eb8c8b0416e049a64b22570e861f155de47684471fcb2d358263ea"
 		},
 		{
 			"id": "cask:tier-vendor",
@@ -3840,7 +3859,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:270195db5b1d0b41b935a86e9692a4f0abd2d78c2719b803ce4fd478dfc4d269"
 		},
 		{
 			"id": "brew:tier-fix",
@@ -3982,7 +4002,8 @@
 					"W-USAGE-INSTALL-ONLY"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:a2b8dd7a85d428c6841af6fc5fe2e448813844f715748fa2fe2176e6478582b2"
 		},
 		{
 			"id": "brew:elevated-fix",
@@ -4098,7 +4119,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:cf5ef4247e5df78c16a5560a18ea64b97d001498448b9c300239453480b17b4a"
 		},
 		{
 			"id": "brew:tier-held-p2",
@@ -4293,7 +4315,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:e2ae3e5643207b592c112e47e7785af53dbc087613f4cfcd0c0b78692325efac"
 		},
 		{
 			"id": "brew:tier-held-p1",
@@ -4454,7 +4477,8 @@
 					"E-WATCH-HIT-UNGROUNDED"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:db4ee53d35d731523e04a950aa595dab42e4f1eecb4825e9b05bba0a61c90bd3"
 		},
 		{
 			"id": "brew:tier-enum",
@@ -4569,7 +4593,8 @@
 					"E-ENUM-INVALID"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:3d23481c3dc4bac06c3cd34ff0ad83781890aa53a00650bacc2f6c638e13bdba"
 		},
 		{
 			"id": "brew:tier-container",
@@ -4706,7 +4731,8 @@
 					"E-FIELD-TYPE"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:0cf27915ff3c63e47b30b01e8d72277a0642e4aa50e639adea8f9129bce017f6"
 		},
 		{
 			"id": "brew:tier-research",
@@ -4817,7 +4843,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:33659c837794d9d0abe307331004e597ed095744c57f70a32dbfe7a316c8d39e"
 		},
 		{
 			"id": "brew:tier-p0-lost",
@@ -4987,7 +5014,8 @@
 					"W-MEMBER-QUARANTINED"
 				],
 				"quarantined": 1
-			}
+			},
+			"input_digest": "sha256:2c63999592ae028938419cd50d9d84d6bcd6baa3ac9f42769a3f7e262f849329"
 		},
 		{
 			"id": "brew:routine-unreadable",
@@ -5092,7 +5120,8 @@
 					"E-FIELD-TYPE"
 				],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:2aefed1244d4e82fe848c415fa65befb6d107eb3ec207f2671a9e19e02c093a5"
 		},
 		{
 			"id": "standalone:tier-manual",
@@ -5203,7 +5232,8 @@
 				"content_losing": [],
 				"markers": [],
 				"quarantined": 0
-			}
+			},
+			"input_digest": "sha256:7ebf5b6853178292d32fa70d25bf6934d47d38c877d388e20fcc743e3635f71b"
 		},
 		{
 			"id": "brew-health:path_note:gnubin",
@@ -5254,6 +5284,7 @@
 				"markers": [],
 				"quarantined": 0
 			},
+			"input_digest": "sha256:ca5159f295d9f35cfe85c5a84a4d6f3d8341e39b9f306e8697eb2523583779c4",
 			"health_expected": true
 		}
 	]

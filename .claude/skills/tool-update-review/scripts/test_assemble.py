@@ -2299,6 +2299,65 @@ class ConvergenceMergeTests(unittest.TestCase):
 		self.assertEqual(len(report["tools"][0]["items"]), 2)
 		self.assertIn("re-researched", report["tools"][0]["items"][0]["title"])
 
+	def test_machine_facts_that_drift_after_prepare_keep_the_converged_views(self):
+		"""Review A1: a view also carries facts the validator reads from the
+		machine (evidence paths, usage quotes, the Brewfile). When those drift
+		between --prepare and assembly while the research is unchanged, the
+		post corpus is still what convergence reasoned over: it ships, and the
+		drift is named in the summary rather than rejecting every edit."""
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		for corpus in (corpus_pre, corpus_post):
+			corpus["tools"][0]["spec_violations"] = ["E-EVID-404"]
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		conv = report["convergence"]
+		self.assertEqual(conv["state"], "converged", conv.get("detail"))
+		self.assertEqual(conv["ambient_drift"],
+			[{"tool_id": "brew:cm", "fields": ["spec_violations"]}])
+		self.assertEqual(len(report["tools"][0]["items"]), 1)
+		self.assertIn("machine facts changed after convergence ran", report["_log"])
+
+	def test_an_undrifted_session_carries_no_ambient_drift(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertNotIn("ambient_drift", report["convergence"])
+
+	def test_a_corpus_without_an_input_digest_is_inconsistent(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		del corpus_pre["tools"][0]["input_digest"]
+		effect = self._effect(corpus_pre, corpus_post)
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("input_digest", report["convergence"]["detail"])
+		self.assertEqual(len(report["tools"][0]["items"]), 2)
+
+	def test_the_input_digest_covers_candidate_research_and_watch_topics(self):
+		import validate_items
+		cand = {"id": "brew:cm", "current_version": "1.0"}
+		entry = {"id": "brew:cm", "items": []}
+		base = validate_items.input_digest(cand, entry, frozenset({"a"}))
+		self.assertTrue(base.startswith("sha256:"))
+		self.assertEqual(base, validate_items.input_digest(dict(cand), dict(entry), {"a"}))
+		for other in (validate_items.input_digest(dict(cand, current_version="1.1"), entry, {"a"}),
+				validate_items.input_digest(cand, dict(entry, links=["x"]), {"a"}),
+				validate_items.input_digest(cand, entry, {"b"}),
+				validate_items.input_digest(cand, entry, None),
+				validate_items.input_digest(cand, None, {"a"})):
+			self.assertNotEqual(base, other)
+
 	def test_a_tool_validated_now_but_absent_from_the_corpus_is_inconsistent(self):
 		collect, research = self._collect_and_research()
 		corpus_pre, corpus_post = self._build_corpora(collect, research)

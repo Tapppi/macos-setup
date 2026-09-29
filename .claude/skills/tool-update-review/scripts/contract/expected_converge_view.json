@@ -3,7 +3,7 @@
 	"generated_at": "2026-09-07T00:00:00Z",
 	"converge_version": 3,
 	"view_version": 2,
-	"corpus_digest": "sha256:4b4cea8d537ccb446883bb130c594be324519014997edf7513ba3ae7cdc01a6c",
+	"corpus_digest": "sha256:296dcd51021bf0a4960e00bc1e4811d80f1c421ebf36e069afd13111eead5a85",
 	"tools": [
 		{
 			"id": "brew:sops",

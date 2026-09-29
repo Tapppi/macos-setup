@@ -6208,6 +6208,12 @@
 					body: `${conv.detail || ''} The report renders the PRE-convergence corpus.`,
 					meta: 'corpus.pre.json · corpus.post.json · converge-effect.json' });
 			}
+			const drift = Array.isArray(conv.ambient_drift) ? conv.ambient_drift.filter(d => d && typeof d === 'object') : [];
+			if (drift.length) {
+				rows.push({ tone: 'warn', headline: 'Machine facts changed after convergence ran',
+					body: `The research is the one convergence reviewed, so its result renders, but what the validator reads from this machine (usage quotes, evidence paths, the Brewfile) now differs for ${drift.length} tool${drift.length === 1 ? '' : 's'}. Those tools show the facts as of the convergence run: ${drift.map(d => `${d.tool_id || '?'} (${(Array.isArray(d.fields) ? d.fields : []).join(', ')})`).join('; ')}.`,
+					meta: 'corpus.pre.json · validation.json' });
+			}
 			(conv.flags || []).forEach(f => {
 				if (!f || typeof f !== 'object') return;
 				rows.push({ headline: f.headline || 'convergence flag', body: f.body || '',

@@ -231,7 +231,19 @@ What the merge does, in order:
    deliberately the *cheap* half of the comparison — the applier already
    derived the record from these files; assembly verifies these are the
    files it derived it from, so a mixed-up session dir cannot render half of
-   one run against half of another.
+   one run against half of another. It then checks the fresh validation was
+   validated from the **same inputs** as `corpus.pre`: identical tool-id sets,
+   and per tool an identical `input_digest` — the validator's digest of the
+   collect.json candidate, the research entry and the watch-item topics. A
+   differing digest means research was re-run or a candidate changed after
+   convergence (`artefacts_inconsistent`). The digest, not the whole view, is
+   compared because a view also carries facts read from the machine — usage
+   quotes and matched lines, whether an evidence path exists, the Brewfile
+   and `setup.sh` — which drift between `--prepare` and assembly without the
+   research changing. Such **ambient drift** keeps the converged views (they
+   are what convergence reasoned over) and is named, never absorbed:
+   `convergence.ambient_drift` lists each tool and the view fields that now
+   differ, the Report notes band shows it, and `assemble.log` carries it.
 3. **Builds the report from the POST views.** The report renders the corpus
    convergence shipped: edited items, re-derived axes, appended memory
    suggestions, and — on a `degraded_gate` run — the forced conservative
@@ -271,11 +283,12 @@ recomputation, holding `forced-conservative`.
 **A stale corpus is refused.** `load_convergence` runs
 `converge.check_corpus_versions` on `corpus.pre.json`: a corpus built under
 another contract or converge version is `artefacts_inconsistent`, the
-versions named in `detail`. And since the validator owns `pre_accept_bars`,
-the fresh-vs-frozen comparison excludes only the three fields
-`build_corpus_pre` adds (`current_version`, `latest_version`,
-`initial_pre_accept`) — `pre_accept_bars`, `security_tier`, `usage_evidence`
-and `usage_item_ids` must compare equal.
+versions named in `detail`. A corpus whose views carry no `sha256:`
+`input_digest` was not built by this validator and is refused the same way.
+The ambient-drift listing ignores only the three fields `build_corpus_pre`
+adds (`current_version`, `latest_version`, `initial_pre_accept`), so a
+drifted `pre_accept_bars`, `security_tier`, `usage_evidence` or
+`usage_item_ids` is named there.
 
 ## Suggestion-ID Uniqueness
 Suggestion ids must be unique **globally across the whole report**, not just

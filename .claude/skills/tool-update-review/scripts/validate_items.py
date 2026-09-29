@@ -55,6 +55,7 @@ from __future__ import annotations  # Python 3.9 — same constraint as assemble
 import argparse
 import bisect
 import copy
+import hashlib
 import json
 import os
 import plistlib
@@ -1874,6 +1875,7 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		"usage_item_ids": [],
 		"spec_violations": [],
 		"degradation": {"content_losing": [], "markers": [], "quarantined": 0},
+		"input_digest": input_digest(candidate, research, watch_topics),
 	}
 	# Both finding sources spell the flag `expected` on the candidate and
 	# `{source}_expected` on the built tool; assemble.finding_expected() reads
@@ -1896,6 +1898,32 @@ def validate_tool(candidate, research, findings: Findings, resolver: RootResolve
 		lambda: _derive_axes(view, candidate, findings, watch_topics))
 	_finalize(view, findings)
 	return view
+
+
+def input_digest(candidate, research, watch_topics) -> str:
+	"""→ "sha256:…" over what this tool's view is validated FROM: the
+	collect.json candidate, the research entry (None when there is none) and
+	the watch-item topics the session snapshot holds for it (None when there
+	is no snapshot).
+
+	Assembly compares the frozen corpus.pre's digest with a fresh one to ask
+	"is this the corpus convergence reasoned over?" (assembly.md §Consuming
+	Convergence). The views themselves cannot answer that: they also carry
+	facts the validator reads from the machine — usage-grounding quotes and
+	matched lines, which evidence paths exist, the Brewfile and setup.sh —
+	and those drift between --prepare and assembly without the research
+	changing at all."""
+	try:
+		blob = json.dumps({
+			"candidate": candidate,
+			"research": research,
+			"watch_topics": None if watch_topics is None else sorted(watch_topics),
+		}, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=repr)
+	except Exception as exc:  # noqa: BLE001 — a pathological entry (RecursionError)
+		# must not cost the run; assembly refuses to match an undigestible
+		# input, so the report falls back to the pre corpus, loudly.
+		return "undigestible:" + type(exc).__name__
+	return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 # The conservative axes a view carries when a validator stage failed — the

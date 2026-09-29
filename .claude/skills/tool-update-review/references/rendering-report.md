@@ -381,7 +381,10 @@ whole submission was set aside. The same strip, red, renders for
 `artefacts_inconsistent` (`assembly.md` §Consuming Convergence): the report
 is then showing a corpus convergence did not produce, and that must not read
 as a report note. A `not_run` state is a Report notes row, not a strip —
-absence of convergence is worth saying, not shouting.
+absence of convergence is worth saying, not shouting. So is
+`convergence.ambient_drift` (machine facts that changed after convergence
+ran, with the converged views still shipping): one warn-toned Report notes
+row naming each tool and the view fields that differ.
 
 A forced tool carries **no** auto-update label: it appears in neither the
 judgement panel nor the auto strip, its header carries a red-ringed
