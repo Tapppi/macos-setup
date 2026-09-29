@@ -326,7 +326,7 @@
 		"E-EDIT-TARGET": {
 			"severity": "critical",
 			"phase": 2,
-			"meaning": "target.id does not resolve, or target.field is illegal for target.kind"
+			"meaning": "target.id does not resolve (or names more than one suggestion on its tool), or target.field is illegal for target.kind"
 		},
 		"E-EDIT-PRECOND": {
 			"severity": "critical",

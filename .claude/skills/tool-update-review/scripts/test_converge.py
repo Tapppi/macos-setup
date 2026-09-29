@@ -2223,6 +2223,44 @@ class GSecConvergenceTests(unittest.TestCase):
 		result = run(pre, make_submission(pre, [delete]))
 		self.assertEqual(codes_of(result), [])
 
+	def test_an_edit_on_a_duplicated_suggestion_id_is_refused(self):
+		"""Review A12: two suggestions on one tool sharing an id (W-SUG-DUP-ID)
+		name no ONE element. A delete of that id used to remove whichever
+		copy compared equal first; it is refused as E-EDIT-TARGET instead."""
+		item = _gfix("brew:g", 1)
+		edit = _edit("brew:g", "proposed")
+		twin = copy.deepcopy(edit)
+		twin["title"] = "A different edit with the same id."
+		view = _gview("brew:g", [item], [edit, twin])
+		pre = build_pre([view])
+		delete = {"edit_id": "cv-001", "check": "C7-collisions", "op": "delete",
+			"target": {"tool_id": "brew:g", "kind": "suggestion", "id": edit["id"],
+				"field": None},
+			"quote": "An edit title to quote.", "bucket_claim": lateral("security_auto"),
+			"reason": cut_reason()}
+		result = run(pre, make_submission(pre, [delete]))
+		self.assertIn("E-EDIT-TARGET", codes_of(result))
+		self.assertNotIn("E-APPLY-SCOPE", codes_of(result))
+		self.assertTrue(any("more than one suggestion" in f["detail"]
+			for f in result["critical"] if f["code"] == "E-EDIT-TARGET"))
+
+	def test_a_delete_removes_the_resolved_element_not_an_equal_one(self):
+		"""The identity half of review A12: `list.remove` takes the FIRST equal
+		element. Two equal items can never both exist (ids are unique), so
+		this is pinned on the helper directly."""
+		a, b = {"id": "x", "v": 1}, {"id": "x", "v": 1}
+		view = {"id": "brew:g", "items": [], "suggestions": [a, b]}
+
+		class Idx:
+			views = {"brew:g": view}
+
+			def resolve(self, tool_id, kind, element_id):
+				return b, "suggestion"
+		apply_converge._apply_edit({}, {"op": "delete", "target": {"tool_id": "brew:g",
+			"kind": "suggestion", "id": "x"}}, Idx())
+		self.assertEqual(len(view["suggestions"]), 1)
+		self.assertIs(view["suggestions"][0], a)
+
 	def test_a_rerate_of_the_served_item_rereads_a_proposed_edit(self):
 		"""Technical round-2 finding 6: the reading is over CURRENT items. A
 		proposed edit serving an incompatible item reads required (P0); rerated

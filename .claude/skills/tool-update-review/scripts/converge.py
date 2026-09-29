@@ -363,7 +363,7 @@ CODES = {
 	"E-SUBMIT-VERSION": ("critical", 1, "converge_version or view_version does not match this contract"),
 	"E-SUBMIT-DIGEST": ("critical", 1, "corpus_digest does not match the corpus about to be applied to"),
 	# phase 2 — PRECHECK, per edit
-	"E-EDIT-TARGET": ("critical", 2, "target.id does not resolve, or target.field is illegal for target.kind"),
+	"E-EDIT-TARGET": ("critical", 2, "target.id does not resolve (or names more than one suggestion on its tool), or target.field is illegal for target.kind"),
 	"E-EDIT-PRECOND": ("critical", 2, "precondition.before != the current value of target.field"),
 	"E-EDIT-QUOTE": ("critical", 2, "quote absent on a cut, or not verbatim-contained in the addressed element"),
 	"E-EDIT-OP": ("critical", 2, "op/kind/field combination illegal; bucket_claim on a non-bucket-capable op or absent on a bucket-capable one; changed_fields absent on a merge; trim's after not a shortening; a malformed reason"),

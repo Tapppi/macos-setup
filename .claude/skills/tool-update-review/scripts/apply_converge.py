@@ -118,6 +118,11 @@ class _Index:
 		# ids this submission's `add` edits create — a `reason.destination_id`
 		# may name one (a re-home's note), so resolution covers them too.
 		self.created_suggestion_ids = set()
+		# (tool_id, suggestion id) pairs more than one suggestion on the tool
+		# carries (W-SUG-DUP-ID). Such an id names no ONE element, so an edit
+		# addressing it is refused rather than applied to whichever copy the
+		# index happened to keep.
+		self.ambiguous_suggestions = set()
 		for view in corpus_pre.get("tools") or []:
 			if not isinstance(view, dict) or not isinstance(view.get("id"), str):
 				continue
@@ -128,6 +133,8 @@ class _Index:
 					self.items[(tool_id, item["id"])] = item
 			for sug in view.get("suggestions") or []:
 				if isinstance(sug, dict) and isinstance(sug.get("id"), str):
+					if (tool_id, sug["id"]) in self.suggestions:
+						self.ambiguous_suggestions.add((tool_id, sug["id"]))
 					self.suggestions[(tool_id, sug["id"])] = sug
 					self.all_suggestion_ids.add(sug["id"])
 
@@ -149,6 +156,9 @@ class _Index:
 			sug = self.suggestions.get((tool_id, element_id))
 			if sug is None:
 				return None, "{!r} names no suggestion on {}".format(element_id, tool_id)
+			if (tool_id, element_id) in self.ambiguous_suggestions:
+				return None, ("{!r} names more than one suggestion on {} (W-SUG-DUP-ID) — "
+					"no edit can address one of them".format(element_id, tool_id))
 			if kind == "proposal" and assemble.suggestion_kind(sug) \
 					not in model.MEMORY_SUGGESTION_KINDS:
 				return None, "{!r} is a {} suggestion, not a memory proposal".format(
@@ -628,13 +638,15 @@ def _apply_edit(corpus, edit, index_post):
 		view.setdefault("suggestions", []).append(copy.deepcopy(edit["after"]))
 		return
 	element, canonical = index_post.resolve(tool_id, target.get("kind"), target.get("id"))
+	# By identity, never by equality: `list.remove`/`index` would take the
+	# FIRST equal element, which need not be the one resolved.
 	if op == "delete":
 		array = view["items"] if canonical == "item" else view["suggestions"]
-		array.remove(element)
+		del array[next(i for i, e in enumerate(array) if e is element)]
 		return
 	if op == "merge":
 		items = view["items"]
-		items[items.index(element)] = copy.deepcopy(edit["after"])
+		items[next(i for i, e in enumerate(items) if e is element)] = copy.deepcopy(edit["after"])
 		return
 	if op == "move_evidence":
 		local = element["local"]
