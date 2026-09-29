@@ -1914,6 +1914,39 @@ class PreAcceptBaselineOnlyTests(unittest.TestCase):
 		self.assertFalse(by_id["brew:x:sneaky"]["pre_accept"])
 
 
+class UnrunnableBaselineBucketTests(unittest.TestCase):
+	"""Review A4: the validator's `runnable` and assembly's baseline must be
+	one fact. A G-SEC fix on a candidate with no latest_version used to land
+	in security_auto with initial_pre_accept True, while assembly built a
+	baseline with no command and never accepted it."""
+
+	def _run(self, source, latest):
+		collect = {"generated_at": "2026-08-22T11:33:44Z", "machine": {},
+			source: [_cand(f"{source}:cm", "cm", source, "1.0.0", latest)]}
+		research = [{"id": f"{source}:cm", "links": [], "items": [
+			_item("cve", tags=["security"], severity="notable",
+				title="Fixes CVE-2026-11111 in the parser",
+				security=dict(_sec("CVE-2026-11111", "high", "vendor"), nature="fix"))]}]
+		report, _ = assemble_session(collect, research, with_validation=True)
+		return report["tools"][0], report["_validation"]["tools"][0]
+
+	def test_a_security_fix_without_a_latest_version_is_not_auto(self):
+		tool, view = self._run("brew", None)
+		self.assertFalse(view["bucket_inputs"]["runnable"])
+		self.assertIn("not-runnable", view["security_tier"]["holds"])
+		self.assertEqual(view["initial_review_bucket"], "security_mixed")
+		self.assertEqual(tool["review_bucket"], "security_mixed")
+		import converge
+		self.assertFalse(converge.initial_pre_accept(view))
+		self.assertFalse(assemble.baseline_upgrade(tool)["pre_accept"])
+
+	def test_a_runnable_security_fix_still_is(self):
+		tool, view = self._run("brew", "1.0.1")
+		self.assertTrue(view["bucket_inputs"]["runnable"])
+		self.assertEqual(tool["review_bucket"], "security_auto")
+		self.assertTrue(assemble.baseline_upgrade(tool)["pre_accept"])
+
+
 class FindingsBlockGuardTests(unittest.TestCase):
 	"""read_findings_block's entry-level guards and source restamp. Each
 	block is detector output that can be an older version of itself, so a

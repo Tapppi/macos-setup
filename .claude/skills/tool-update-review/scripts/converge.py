@@ -423,8 +423,8 @@ def initial_pre_accept(view) -> bool:
 	conjuncts mapped onto their view-level equivalents: `sug is baseline`
 	becomes "a version source" (assembly synthesizes the baseline for exactly
 	those), and the baseline's `auto_runnable` becomes `bucket_inputs.runnable`
-	(both are `upgrade_command_and_runnable(source, name)[1]`, a pure function
-	of two immutable fields). Everything else is `items.accepts_baseline` —
+	(both are `upgrade_command_and_runnable(source, name)[1]` gated on a
+	latest_version being present — a pure function of immutable fields). Everything else is `items.accepts_baseline` —
 	the SAME function assembly calls, reading the same view fields — so the
 	two layers cannot tell two stories, and §3.4's differential recomputation
 	compares THIS predicate pre vs post, which is what makes "pre_accept went

@@ -2149,7 +2149,13 @@ def _derive_axes(view, candidate, findings, watch_topics=None):
 	impact = compute_impact(view)
 	security_only = compute_security_only(view, has_security)
 	risk_level = compute_risk_level(view)
-	runnable = (False if source in NON_VERSION_SOURCES
+	# Runnable exactly as assembly will build the baseline: a finding source
+	# has none, and a candidate with no latest_version gets a baseline with no
+	# command (assemble.build_tool — nothing to pin or verify against), so it
+	# is not runnable here either. Otherwise the tier (its `not-runnable`
+	# hold), the bucket and `initial_pre_accept` would promise an acceptance
+	# assembly never makes.
+	runnable = (False if source in NON_VERSION_SOURCES or not candidate.get("latest_version")
 		else bool(assemble.upgrade_command_and_runnable(source, name)[1]))
 	view["impact"] = impact
 	view["risk_level"] = risk_level
