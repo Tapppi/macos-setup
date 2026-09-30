@@ -1721,6 +1721,42 @@ class DegradationTests(unittest.TestCase):
 		self.assertIn("a.json", next(f["message"] for f in document["findings"]
 			if f["code"] == "W-ENTRY-DUPLICATE"))
 
+	def test_an_unpaired_surrogate_costs_its_tool_never_the_run(self):
+		"""`"\\ud800"` is valid JSON and decodes to a string no UTF-8 encoder
+		accepts, so it used to raise out of `input_digest` — outside every
+		per-tool guard — and abort validation for the whole report; had the
+		digest survived, the next UTF-8 write would have. It is scrubbed at
+		load instead: the tool is held as shape-coerced, its neighbour is
+		untouched, and the document writes."""
+		collect = {"generated_at": "2026-09-07T00:00:00Z", "machine": {},
+			"brew": [_candidate(), _candidate(id="brew:y", name="y")]}
+		document = session_with({"a.json": [
+			{"id": "brew:x", "links": [], "items": [_item(title="Fixes \ud800 the parser")]},
+			{"id": "brew:y", "links": [], "items": [_item()]}]}, collect=collect)
+		json.dumps(document, ensure_ascii=False).encode("utf-8")  # the write that raised
+		by_id = {t["id"]: t for t in document["tools"]}
+		x, y = by_id["brew:x"], by_id["brew:y"]
+		self.assertEqual(x["items"][0]["title"], "Fixes � the parser")
+		self.assertIn("W-SHAPE-COERCED", x["spec_violations"])
+		self.assertIn("shape-coerced", x["degradation"]["content_losing"])
+		self.assertEqual(x["initial_review_bucket"], "attention")
+		self.assertTrue(x["input_digest"].startswith("sha256:"))
+		self.assertNotIn("W-SHAPE-COERCED", y["spec_violations"])
+		self.assertEqual(y["degradation"]["content_losing"], [])
+
+	def test_the_scrub_reaches_keys_and_nested_members_and_nothing_else(self):
+		value = {"k\udc80": ["a\ud800b", 1, None, {"n": "\udfff"}], "plain": "ok"}
+		self.assertEqual(model.scrub_unencodable(value), (
+			{"k�": ["a�b", 1, None, {"n": "�"}], "plain": "ok"}, 3))
+		self.assertEqual(model.scrub_unencodable("\U0001f600 stays"), ("\U0001f600 stays", 0))
+
+	def test_the_digest_survives_an_unpaired_surrogate_in_the_candidate(self):
+		"""The candidate and the watch topics are not scrubbed; the digest
+		must still not raise, and must not collide with the scrubbed text."""
+		raw = V.input_digest(_candidate(name="x\ud800"), None, None)
+		self.assertTrue(raw.startswith("sha256:"), raw)
+		self.assertNotEqual(raw, V.input_digest(_candidate(name="x�"), None, None))
+
 	def test_an_entry_naming_no_candidate_is_kept_as_unmatched(self):
 		document = session_with({"a.json": [{"id": "brew:ghost", "links": [], "items": []}]})
 		self.assertEqual(document["unmatched"], ["brew:ghost"])

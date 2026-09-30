@@ -1114,7 +1114,9 @@ def load_research(research_dir: str) -> dict:
 		fpath = os.path.join(research_dir, fname)
 		try:
 			with open(fpath, "r", encoding="utf-8") as fh:
-				entries = json.load(fh)
+				# Scrubbed the way validate_items.v1_load scrubs it (which
+				# reports it): the fields read from this copy reach report.json.
+				entries = model.scrub_unencodable(json.load(fh))[0]
 		except Exception as exc:
 			# Deliberately wider than (OSError, json.JSONDecodeError): a
 			# subagent killed mid-write leaves a truncated multi-byte character
@@ -2003,7 +2005,7 @@ def main():
 	collect_path = os.path.join(session_dir, "collect.json")
 	try:
 		with open(collect_path, "r", encoding="utf-8") as fh:
-			collect = json.load(fh)
+			collect, unpaired = model.scrub_unencodable(json.load(fh))
 	except Exception as exc:
 		# Same width as load_research()'s handler, and for the same reasons
 		# (UnicodeDecodeError and RecursionError are neither OSError nor
@@ -2020,6 +2022,10 @@ def main():
 		print(f"Error: {collect_path!r} is {type(collect).__name__}, not a JSON object — "
 			f"there is no candidate set to assemble", file=sys.stderr)
 		sys.exit(1)
+	if unpaired:
+		# items.scrub_unencodable: not text, and the report write would raise.
+		note(f"warning: collect.json held {unpaired} unpaired UTF-16 surrogate "
+			f"escape(s); each was replaced with U+FFFD")
 
 	# Stage 3, deterministic validation, in process. `validate_session` writes
 	# nothing; the artifacts below are written from the document it returns.

@@ -2250,7 +2250,7 @@ def _load_store(path):
 	if not os.path.exists(path):
 		return None
 	try:
-		snapshot = _read_json(path)
+		snapshot = model.scrub_unencodable(_read_json(path))[0]
 	except Exception as exc:  # same width as _load_watch_snapshot, same reasons
 		return {contract.STORE_UNREADABLE_KEY: "{}: {}".format(
 			type(exc).__name__, exc)}
@@ -2310,7 +2310,10 @@ def _prepare(session_dir, args):
 	except validate_items.NoCandidateSet as exc:
 		print("Error: {}".format(exc), file=sys.stderr)
 		return 4
-	collect = _read_json(os.path.join(session_dir, "collect.json"))
+	# Scrubbed as the validator scrubs it (items.scrub_unencodable), so
+	# corpus.pre — written as UTF-8 — cannot raise on what it copies.
+	collect = model.scrub_unencodable(
+		_read_json(os.path.join(session_dir, "collect.json")))[0]
 	stores = {
 		"watch_items": _snapshot_store(session_dir, model.WATCH_ITEMS_STORE),
 		"method_notes": _snapshot_store(session_dir, model.METHOD_NOTES_STORE),

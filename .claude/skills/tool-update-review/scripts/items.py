@@ -1736,6 +1736,51 @@ PRE_ACCEPT_PREDICATE = (
 	"finalize_tool — assembly never recomputes them from assembled items, which can "
 	"hold synthesized reaching security items the bucket never saw")
 
+# ── unencodable input ───────────────────────────────────────────────────────
+# A UTF-16 surrogate code point on its own. JSON lets a checker write one as an
+# escape (`"\ud800"`) and `json.load` hands it back as a one-character string,
+# but it is not text: no UTF-8 encoder accepts it, so the first `.encode()` or
+# `json.dump(..., ensure_ascii=False)` into a UTF-8 file raises — which, before
+# inputs were scrubbed at load, aborted validation for the whole report. A valid
+# pair never survives decoding as two surrogates (the decoder joins it), so
+# every match here is unpaired. A file name holding an undecodable byte
+# arrives as one too (surrogateescape), so names are scrubbed the same way.
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def scrub_unencodable(value):
+	"""→ (value, count): `value` with every unpaired surrogate in its strings —
+	keys included — replaced by U+FFFD, and how many there were.
+
+	A shape normalization, not a trim: the code point it replaces carries no
+	character, and nothing else in the entry changes. Every reader of a session
+	input the pipeline later writes back out as UTF-8 calls it at load —
+	collect.json, the research files, the memory-store snapshots — so no such
+	write can raise. `validate_items.v1_load` reports a non-zero count in a
+	research entry as `W-SHAPE-COERCED` against the tool, which is
+	content-losing, so the tool is held for review rather than rendered as
+	though the checker's text arrived intact, and the failure stays that one
+	tool's instead of the run's."""
+	if isinstance(value, str):
+		return _LONE_SURROGATE.subn("\ufffd", value)
+	if isinstance(value, list):
+		out, total = [], 0
+		for member in value:
+			member, count = scrub_unencodable(member)
+			out.append(member)
+			total += count
+		return out, total
+	if isinstance(value, dict):
+		out, total = {}, 0
+		for key, member in value.items():
+			key, key_count = scrub_unencodable(key)
+			member, count = scrub_unencodable(member)
+			out[key] = member
+			total += key_count + count
+		return out, total
+	return value, 0
+
+
 # The memory stores (D4). Mirrored by `contract/stores.json`;
 # all are machine-global, all are written only through their write_status.py
 # subcommand, and all are read back at research time to fill

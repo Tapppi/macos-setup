@@ -171,13 +171,18 @@ def v1_load(research_dir: str, findings: Findings):
 			"could not list research/: {}: {}".format(type(exc).__name__, exc),
 			field=research_dir)
 		return by_id, orphans, overwritten
-	for fname in names:
-		if not fname.endswith(".json"):
+	for raw_name in names:
+		if not raw_name.endswith(".json"):
 			continue
-		fpath = os.path.join(research_dir, fname)
+		fpath = os.path.join(research_dir, raw_name)
+		# The name as findings and the quarantine record carry it — written
+		# to UTF-8 files, so scrubbed like the content.
+		fname = model.scrub_unencodable(raw_name)[0]
 		try:
 			with open(fpath, "r", encoding="utf-8") as fh:
 				entries = json.load(fh)
+			if isinstance(entries, list):
+				entries = [model.scrub_unencodable(entry) for entry in entries]
 		except Exception as exc:
 			# Deliberately wider than (OSError, json.JSONDecodeError): a
 			# subagent killed mid-write leaves a truncated multi-byte character
@@ -191,7 +196,15 @@ def v1_load(research_dir: str, findings: Findings):
 				"expected a JSON array of tool objects, got {}".format(type(entries).__name__),
 				field=fname)
 			continue
-		for entry in entries:
+		for entry, unpaired in entries:
+			if unpaired:
+				tid = entry.get("id") if isinstance(entry, dict) else None
+				findings.add("W-SHAPE-COERCED",
+					"{} string{} in this entry held an unpaired UTF-16 surrogate escape "
+					"(such as \\ud800), which is not text and cannot be written as UTF-8; "
+					"each was replaced with U+FFFD and the tool is held for review".format(
+						unpaired, "" if unpaired == 1 else "s"),
+					tool_id=tid if isinstance(tid, str) and tid else None, field=fname)
 			if not isinstance(entry, dict):
 				findings.add("E-ENTRY-NOTOBJECT",
 					"an entry is {}, not an object".format(type(entry).__name__),
@@ -1944,11 +1957,17 @@ def input_digest(candidate, research, watch_topics) -> str:
 			"research": research,
 			"watch_topics": None if watch_topics is None else sorted(watch_topics),
 		}, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=repr)
+		# `surrogatepass`: research is scrubbed of unpaired surrogates at load,
+		# but the candidate and the watch topics are not, and a strict encode
+		# of one raised outside every per-tool guard. Passing it through keeps
+		# the digest a faithful, stable identity of the input; it is identical
+		# to strict UTF-8 for every string that has no surrogate.
+		data = blob.encode("utf-8", "surrogatepass")
 	except Exception as exc:  # noqa: BLE001 — a pathological entry (RecursionError)
 		# must not cost the run; assembly refuses to match an undigestible
 		# input, so the report falls back to the pre corpus, loudly.
 		return "undigestible:" + type(exc).__name__
-	return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+	return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
 # The conservative axes a view carries when a validator stage failed — the
@@ -2471,7 +2490,9 @@ def _load_watch_snapshot(path, findings: Findings):
 		return None
 	try:
 		with open(path, "r", encoding="utf-8") as fh:
-			snapshot = json.load(fh)
+			# Scrubbed exactly as apply_converge's copy of the same file is,
+			# so the validator and convergence ground against one topic set.
+			snapshot = model.scrub_unencodable(json.load(fh))[0]
 	except Exception as exc:  # same width as v1_load, same reasons
 		findings.add("E-RESEARCH-UNREADABLE",
 			"{}: {}".format(type(exc).__name__, exc), field="watch-items.json")
@@ -2510,7 +2531,7 @@ def validate_session(session_dir: str, roots, manifest_root=None, unconfigured_r
 	collect_path = os.path.join(session_dir, "collect.json")
 	try:
 		with open(collect_path, "r", encoding="utf-8") as fh:
-			collect = json.load(fh)
+			collect = model.scrub_unencodable(json.load(fh))[0]
 	except Exception as exc:
 		raise NoCandidateSet("could not read {!r}: {}: {}".format(
 			collect_path, type(exc).__name__, exc))

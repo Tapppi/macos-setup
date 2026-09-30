@@ -68,7 +68,10 @@ import items as model  # noqa: E402
 import test_assemble as T  # noqa: E402
 
 HOSTILE = [None, "a string", 42, True, [], {}, ["x"], [None], [42], [[1]],
-	{"k": "v"}, [{"k": ["v"]}], [{"id": []}], "", [""], {"a": {"b": {"c": 1}}}]
+	{"k": "v"}, [{"k": ["v"]}], [{"id": []}], "", [""], {"a": {"b": {"c": 1}}},
+	# Unpaired UTF-16 surrogates: valid JSON escapes that no UTF-8 write
+	# accepts (items.scrub_unencodable). One in a value, one in a key.
+	"a lone \ud800 surrogate", {"k\udfff": ["\ud800"]}]
 
 # 3 — collect.json's top level (references/schemas.md §1.1).
 COLLECT_KEYS = ["brew", "mise", "standalone", "macos", "brew_health", "skill_drift",
