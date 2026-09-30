@@ -1015,6 +1015,59 @@ class LoudnessChannelTests(PageDriveRunner):
 		self.assertIn("1 tool lost content at validation", out["rows"])
 		self.assertEqual(out["metaHasTool"], "true")
 
+	def test_a_replaced_research_entry_is_readable_on_its_card_and_escaped(self):
+		"""The validator quarantines a replaced duplicate entry verbatim and
+		holds the tool, but the page used to render only "1 quarantined
+		entry" — so when the replaced entry carried the breaking change, the
+		reviewer decided without it. It is now behind a fold on the card,
+		naming its research file, as escaped text: checker output is shown,
+		never interpreted."""
+		tool = page_tool("brew:dup", "dup", "1.0", "1.1", "attention")
+		earlier = {"id": "brew:dup", "links": [], "items": [{
+			"title": "Removes the --legacy flag <img src=x onerror=\"window.PWNED=1\">",
+			"tags": ["breaking"], "severity": "warning"}]}
+		tool["quarantine"] = [{"field": "duplicate research entry (03-early.json)",
+			"item_id": None, "value": earlier}]
+		tool["spec_violations"] = ["W-ENTRY-DUPLICATE"]
+		tool["degradation"] = {"content_losing": ["quarantined-content"],
+			"markers": ["W-ENTRY-DUPLICATE"], "quarantined": 1}
+		clean = page_tool("brew:clean", "clean", "1.0", "1.1", "routine")
+		out = self.drive(page_report([tool, clean]), """
+		key('2');
+		const s = document.querySelector('#tool-list .tool-section[data-tool-id="brew:dup"]');
+		const fold = s.querySelector('.quarantine-fold');
+		log('fold=' + (fold ? fold.dataset.open : 'none'));
+		const body = fold.querySelector('.item-fold-body');
+		s.classList.remove('collapsed');  // two tools: only the first card opens on its own
+		log('foldVisible=' + (fold.offsetParent !== null));
+		log('hiddenBefore=' + (body.offsetParent === null));
+		log('head=' + fold.querySelector('.item-fold-head').textContent.replace(/\\s+/g, ' ').trim());
+		fold.querySelector('.item-fold-head').click();
+		log('open=' + fold.dataset.open);
+		log('visibleAfter=' + (body.offsetParent !== null));
+		log('field=' + fold.querySelector('.quarantine-field').textContent);
+		const pre = fold.querySelector('.quarantine-value');
+		log('hasLegacy=' + pre.textContent.includes('Removes the --legacy flag'));
+		log('hasTagText=' + pre.textContent.includes('<img src=x'));
+		log('imgElements=' + fold.querySelectorAll('img').length);
+		log('pwned=' + (window.PWNED === 1));
+		const c = document.querySelector('#tool-list .tool-section[data-tool-id="brew:clean"]');
+		log('cleanFold=' + c.querySelectorAll('.quarantine-fold').length);
+""")
+		self.assertEqual(out["fold"], "0")
+		self.assertEqual(out["foldVisible"], "true")
+		self.assertEqual(out["hiddenBefore"], "true")
+		self.assertIn("Quarantined content (1)", out["head"])
+		self.assertIn("a research entry a later one replaced", out["head"])
+		self.assertEqual(out["open"], "1")
+		self.assertEqual(out["visibleAfter"], "true")
+		self.assertEqual(out["field"], "duplicate research entry (03-early.json)")
+		self.assertEqual(out["hasLegacy"], "true")
+		self.assertEqual(out["hasTagText"], "true")
+		self.assertEqual(out["imgElements"], "0")
+		self.assertEqual(out["pwned"], "false")
+		self.assertEqual(out["cleanFold"], "0")
+
 	def test_a_warning_alone_is_a_note_not_out_of_spec(self):
 		"""Pass 6: 20 tools read "out of spec" for W-SEC-FIX-NOID alone — a
 		fix whose maintainer files no CVE, which the code's own text calls
@@ -2720,6 +2773,8 @@ with sync_playwright() as p:
 		pg.evaluate(EXPAND)
 		pg.wait_for_timeout(300)
 		o["expanded"] = pg.evaluate(EXPANDED)
+		o["quarantineShown"] = pg.evaluate('() => Array.from(document.querySelectorAll(".quarantine-value")).filter(e => e.offsetParent).length')
+		o["quarantineClipped"] = pg.evaluate('() => Array.from(document.querySelectorAll(".quarantine-value, .quarantine-field")).filter(e => e.offsetParent && e.scrollWidth > e.clientWidth + 1).length')
 		o["errors"] = errs
 		out[key] = o
 		pg.close()
@@ -2736,6 +2791,12 @@ print(json.dumps(out))
 					sug["method_note"] = (sug.get("method_note") or "") + " See " + self.LONG_URL
 					planted = True
 		self.assertTrue(planted, "the fixture carries no method note to plant the URL in")
+		# And a replaced research entry carrying the same unbroken URL, so the
+		# quarantine fold is measured expanded at 390 px too.
+		report["tools"][0]["quarantine"] = list(report["tools"][0].get("quarantine") or []) + [{
+			"field": "duplicate research entry (01-early.json)", "item_id": None,
+			"value": {"id": report["tools"][0]["id"], "links": [self.LONG_URL],
+				"items": [{"title": "Removes a flag " + self.LONG_URL}]}}]
 		report_dir = tempfile.mkdtemp(prefix="gsec-390-")
 		self.addCleanup(__import__("shutil").rmtree, report_dir, True)
 		state = tempfile.mkdtemp(prefix="gsec-390-state-")
@@ -2769,6 +2830,10 @@ print(json.dumps(out))
 			self.assertGreater(view["rows"], 0)
 			self.assertEqual(view["lowered"], 1)
 			self.assertGreater(view["longNote"], 0)
+			self.assertGreater(view["quarantineShown"], 0)
+			# Wrapped, not clipped: a card clips its overflow, so page width
+			# alone would not see an unbroken value cut off inside the fold.
+			self.assertEqual(view["quarantineClipped"], 0, width)
 		# Phone: one summary line instead of the tiles, a short sticky bar,
 		# 44 px decision controls, and the first panel row on screen at load.
 		self.assertEqual(phone["tiles"], "none")

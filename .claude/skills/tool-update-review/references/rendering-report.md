@@ -1674,6 +1674,17 @@ the codes a reader must act on. Nothing here changes a bucket: render, never
 re-rate. The header's `out of spec` badge opens the Report notes band, where
 the same codes are aggregated across tools.
 
+The strip counts quarantined entries; `renderQuarantine()` shows them. Right
+under the strip, a card with a non-empty `tool.quarantine[]` carries a
+**Quarantined content (N)** fold — the "Everything else" fold's component,
+closed by default — listing each entry's `field` (for a replaced duplicate,
+`duplicate research entry (<file>)`, which names the research file the
+earlier entry came from) and its `value`, pretty-printed and escaped in a
+wrapping `<pre>`. This is the payload the tool was held for: a later
+duplicate can carry benign research while the replaced entry carried the
+breaking change, and a count alone would leave the reviewer deciding without
+it. The head says when a replaced entry is among them.
+
 ### Risk and the pre-acceptance bars (D2)
 
 `data-risk` on the section (a CSS hook), the `elevated risk` header badge,

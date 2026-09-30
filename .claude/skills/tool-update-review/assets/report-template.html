@@ -2057,6 +2057,38 @@
 			white-space: nowrap;
 		}
 
+		/* The quarantine fold (references/rendering-report.md §Degradation (D1)):
+		 * what the checker wrote that the card does not otherwise show — an
+		 * earlier research entry a later one replaced, a wrong-typed member,
+		 * an unrecognized key's payload — verbatim, behind the same one-control
+		 * fold the item list uses. The strip counts it; this is where a
+		 * reviewer reads it before deciding, since the replaced entry may be
+		 * the one carrying the breaking change. Wraps rather than scrolls
+		 * sideways, so a long unbroken value cannot widen a phone page. */
+		.quarantine-fold { margin: -4px 0 12px; }
+		.quarantine-entry { margin: 6px 0 10px; }
+		.quarantine-field {
+			font-size: 12px;
+			color: var(--base1);
+			margin-bottom: 4px;
+			overflow-wrap: anywhere;
+		}
+		.quarantine-field code { font-family: var(--mono); }
+		.quarantine-value {
+			margin: 0;
+			padding: 6px 8px;
+			font-family: var(--mono);
+			font-size: 11px;
+			color: var(--base0);
+			background: var(--base02);
+			border: 1px solid var(--base01);
+			border-radius: 3px;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+			max-height: 360px;
+			overflow-y: auto;
+		}
+
 		/* Header badge: "out of spec", linking to the Report notes band
 		 * where the same codes are aggregated. A report-wide finding stays off
 		 * the cards — naming 22 tools it would render 22 times, each saying
@@ -4523,6 +4555,40 @@
 			</div>`;
 		}
 
+		/* The quarantined payload itself, which the strip above only counts.
+		 * Every value is serialized and escaped — it is checker output, and
+		 * the page must show it without ever interpreting it. Folded by
+		 * default, like "Everything else": it is evidence to read, not a
+		 * decision surface. */
+		function renderQuarantine(tool) {
+			const entries = Array.isArray(tool.quarantine)
+				? tool.quarantine.filter(q => q && typeof q === 'object' && !Array.isArray(q)) : [];
+			if (!entries.length) return '';
+			const fid = `fold-${++foldSeq}`;
+			const replaced = entries.some(q => typeof q.field === 'string'
+				&& q.field.startsWith('duplicate research entry'));
+			const rows = entries.map(q => {
+				const field = typeof q.field === 'string' && q.field ? q.field : 'quarantined value';
+				const item = typeof q.item_id === 'string' && q.item_id
+					? ` · item <code>${esc(q.item_id)}</code>` : '';
+				let body;
+				try { body = JSON.stringify(q.value, null, 2); } catch (e) { body = undefined; }
+				if (typeof body !== 'string') body = String(q.value);
+				return `<div class="quarantine-entry">
+					<div class="quarantine-field">${esc(field)}${item}</div>
+					<pre class="quarantine-value">${esc(body)}</pre>
+				</div>`;
+			}).join('');
+			return `<div class="item-fold quarantine-fold" id="${fid}" data-open="0">
+				<button type="button" class="item-fold-head" data-toggle-fold="${fid}" aria-expanded="false">
+					<span class="exp">▸</span>
+					<b>Quarantined content (${entries.length})</b>
+					<span>— ${replaced ? 'including a research entry a later one replaced; ' : ''}what the checker wrote that this card does not show — read it before deciding</span>
+				</button>
+				<div class="item-fold-body">${rows}</div>
+			</div>`;
+		}
+
 		/* A finding code's severity is its prefix: `E-` is `error` — the
 		 * output is out of spec — and `W-` is `warning`, worth saying but not
 		 * by itself a checker mistake (items.FINDING_CODES; test_items pins
@@ -4735,6 +4801,7 @@
 			<div class="tool-body">
 				${renderJudgeLine(tool)}
 				${renderDegradationStrip(tool)}
+				${renderQuarantine(tool)}
 				${renderWatchState(tool)}
 				${renderToolWhy(tool)}
 				${configBannerHtml}
