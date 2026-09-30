@@ -965,21 +965,21 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	# changed matched the fresh validation, and a stale corpus.post and effect
 	# (an empty `moved` above all) rode through on it, rendering the old
 	# converged views over the new research.
-	for name, doc in (("corpus.pre.json", pre), ("corpus.post.json", post)):
-		key = "corpus_pre_digest" if name == "corpus.pre.json" else "corpus_post_digest"
-		bound = effect.get(key)
-		if not (isinstance(bound, str) and bound.startswith("sha256:")):
+	problem = converge.effect_binding_problem(effect, pre, post)
+	if problem is not None:
+		name, key, bound, actual = problem
+		if actual is None:
 			return inconsistent(f"converge-effect.json carries no usable {key} "
 				f"({bound!r}) — it does not say which {name} it describes; run "
 				f"`apply_converge.py --prepare --force` (it retires this effect; "
 				f"--submit refuses while one exists), then converge again")
-		if converge.canonical_digest(doc) != bound:
-			return inconsistent(f"{name} is not the corpus converge-effect.json "
-				f"describes ({key} {bound[:19]}…, the file is "
-				f"{converge.canonical_digest(doc)[:19]}…)"
-				+ (" — corpus.pre.json was rebuilt after convergence ran; run "
-					"`apply_converge.py --prepare --force` to retire the stale "
-					"loop, then converge again against it" if name == "corpus.pre.json" else ""))
+		return inconsistent(f"{name} is not the corpus converge-effect.json "
+			f"describes ({key} {bound[:19]}…, the file is {actual[:19]}…)"
+			+ (" — corpus.pre.json was rebuilt after convergence ran; run "
+				"`apply_converge.py --prepare --force` to retire the stale "
+				"loop, then converge again against it" if name == "corpus.pre.json"
+				else " — run `apply_converge.py --prepare --force` to retire the "
+				"stale loop, then converge again"))
 
 	pre_views = {v.get("id"): v for v in pre.get("tools") or [] if isinstance(v, dict)}
 	post_views = {v.get("id"): v for v in post.get("tools") or [] if isinstance(v, dict)}

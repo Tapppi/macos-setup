@@ -2391,6 +2391,47 @@ def _same_corpus(pre_path, corpus_pre):
 		return False
 
 
+def _loop_problem(session_dir, corpus_pre):
+	"""Why the convergence loop on disk is not consistent with `corpus_pre`
+	(the corpus on disk, by digest) — a short reason, or None when it is, or
+	when there is no effect yet (the loop is in progress: attempts only)."""
+	effect_path = os.path.join(session_dir, "converge-effect.json")
+	if not os.path.exists(effect_path):
+		return None
+	effect, effect_problem = assemble._read_session_json(
+		session_dir, "converge-effect.json")
+	if effect is None:
+		return "converge-effect.json is {}".format(effect_problem)
+	post, post_problem = assemble._read_session_json(
+		session_dir, "corpus.post.json")
+	if post is None:
+		return "corpus.post.json is {}".format(post_problem)
+	problem = contract.effect_binding_problem(effect, corpus_pre, post)
+	if problem is None:
+		return None
+	name, key, bound, _actual = problem
+	return "converge-effect.json does not bind {} by {} ({!r})".format(
+		name, key, bound)
+
+
+def _write_derived(session_dir, corpus_pre, force=False):
+	"""Write the two pure projections of corpus.pre — the view and the tables
+	— when `force`, or when they are missing or differ from what the current
+	contract derives (an older VIEW_VERSION, a hand-edit). They are no part of
+	the loop, so refreshing them never touches the attempts or the effect."""
+	for name, document in (
+			("converge-view.json", contract.build_view(corpus_pre)),
+			("converge-tables.json", contract.build_tables(corpus_pre))):
+		path = os.path.join(session_dir, name)
+		if not force:
+			try:
+				if _read_json(path) == document:
+					continue
+			except Exception:  # noqa: BLE001 — missing or unreadable: rewrite
+				pass
+		_write_json(path, document)
+
+
 def _prepare(session_dir, args):
 	pre_path = os.path.join(session_dir, "corpus.pre.json")
 	if os.path.exists(pre_path) and not args.force:
@@ -2422,13 +2463,23 @@ def _prepare(session_dir, args):
 		# `--force` on inputs that rebuild the identical corpus: whatever
 		# converged over it still describes it, and the attempts file is the
 		# loop's own cap — retiring it would hand five fresh attempts to a
-		# loop that has used some. The corpus.pre stays byte for byte.
+		# loop that has used some. The corpus.pre stays byte for byte. Only a
+		# loop that is consistent with that corpus is kept: an effect that
+		# assembly would refuse (`converge.effect_binding_problem`) is what
+		# `--submit` refuses to run over, and the message that tells the
+		# operator to run `--prepare --force` must be able to retire it.
+		problem = _loop_problem(session_dir, corpus_pre)
+		if problem is None:
+			_write_derived(session_dir, corpus_pre)
+			print("Note: the rebuilt corpus.pre.json has the same digest as the "
+				"existing one, so it and its convergence loop (attempts, and any "
+				"effect) were kept as they are; nothing was retired.",
+				file=sys.stderr)
+			print(pre_path)
+			return 0
 		print("Note: the rebuilt corpus.pre.json has the same digest as the "
-			"existing one, so it and its convergence loop (attempts, and any "
-			"effect) were kept as they are; nothing was retired.",
-			file=sys.stderr)
-		print(pre_path)
-		return 0
+			"existing one, but the convergence effect is not consistent with it "
+			"({}); the loop is being retired.".format(problem), file=sys.stderr)
 	# Only now, with the new corpus built: a prepare that fails above leaves
 	# the previous loop exactly as it was.
 	retired = _retire_convergence(session_dir)
@@ -2438,10 +2489,7 @@ def _prepare(session_dir, args):
 			"{}. Converge again against the new corpus.".format(retired),
 			file=sys.stderr)
 	_write_json(pre_path, corpus_pre)
-	_write_json(os.path.join(session_dir, "converge-view.json"),
-		contract.build_view(corpus_pre))
-	_write_json(os.path.join(session_dir, "converge-tables.json"),
-		contract.build_tables(corpus_pre))
+	_write_derived(session_dir, corpus_pre, force=True)
 	print(pre_path)
 	return 0
 

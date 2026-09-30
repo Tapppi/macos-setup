@@ -2444,6 +2444,8 @@ class ConvergenceMergeTests(unittest.TestCase):
 			"converge-effect.json": dict(effect, moved={}), "converge.json": self._converge_json()})
 		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
 		self.assertIn("corpus.post.json is not the corpus", report["convergence"]["detail"])
+		# It too names the command that retires the loop (round 3, R3-1).
+		self.assertIn("apply_converge.py --prepare --force", report["convergence"]["detail"])
 
 	def test_machine_facts_that_drift_after_prepare_keep_the_converged_views(self):
 		"""Review A1: a view also carries facts the validator reads from the

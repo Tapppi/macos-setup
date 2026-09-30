@@ -414,6 +414,28 @@ def canonical_digest(document) -> str:
 	return "sha256:" + hashlib.sha256(blob).hexdigest()
 
 
+def effect_binding_problem(effect, corpus_pre, corpus_post):
+	"""Does `effect` describe THIS pair of corpora? → None when it does, else
+	`(name, key, bound, actual)`: the corpus file (`corpus.pre.json` /
+	`corpus.post.json`) that fails, the effect key that should have named it,
+	what the effect carries under that key (`bound`), and the file's own digest
+	(`actual`). An effect with no usable digest is the legacy or truncated
+	case: it says nothing about which corpus it describes, so it binds none.
+
+	The one binding check: assembly renders a failure as
+	`artefacts_inconsistent`, and `apply_converge --prepare --force` retires a
+	loop that fails it — so what one refuses the other recovers."""
+	for name, doc, key in (("corpus.pre.json", corpus_pre, "corpus_pre_digest"),
+			("corpus.post.json", corpus_post, "corpus_post_digest")):
+		bound = effect.get(key) if isinstance(effect, dict) else None
+		if not (isinstance(bound, str) and bound.startswith("sha256:")):
+			return name, key, bound, None
+		actual = canonical_digest(doc)
+		if actual != bound:
+			return name, key, bound, actual
+	return None
+
+
 # ── corpus.pre composition ──────────────────────────────────────────────────
 def initial_pre_accept(view) -> bool:
 	"""The deterministic pre-acceptance ELIGIBILITY of a tool's baseline

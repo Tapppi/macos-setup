@@ -70,9 +70,20 @@ over the old one no longer describes it. When it differs and any of
 stays readable — and says so on stderr. The new corpus then converges from
 attempt 1. When the rebuilt corpus has the **same
 `converge.canonical_digest`** as the one on disk — the inputs did not change —
-nothing is retired or rewritten: the loop, its attempt count and any
+a loop that is consistent with it is kept as it is: its attempt count and any
 converged effect still describe that corpus, and the applier says so instead.
-`--force` is not a way to reset the five-attempt cap.
+Consistent means the effect, when there is one, is readable and its
+`corpus_pre_digest` and `corpus_post_digest` name the corpus.pre and
+corpus.post on disk (`converge.effect_binding_problem`, the check assembly
+runs); with no effect yet the loop is in progress and its attempts are kept.
+An effect that fails the check — a legacy one with no digests, a truncated
+one, a corpus.post it does not name, a pair left over from an earlier
+corpus.pre — is the state assembly reports as `artefacts_inconsistent`, and
+`--submit` refuses to run while it exists, so it is retired exactly as on a
+changed digest. `converge-view.json` and `converge-tables.json` are pure
+projections of corpus.pre and are rewritten whenever they are missing or
+differ from what this version derives. `--force` is not a way to reset the
+five-attempt cap.
 
 A `--check` or `--submit` draft that carries an unpaired UTF-16 surrogate (a
 lone `\ud800`-`\udfff` escape in any string or key — valid JSON, but not

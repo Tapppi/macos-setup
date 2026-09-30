@@ -1701,6 +1701,31 @@ class TerminalStateMatrixTests(unittest.TestCase):
 		self.assertEqual(result["state"], "degraded_gate")
 
 
+class EffectBindingTests(unittest.TestCase):
+	"""`effect_binding_problem` — the one check assembly and `--prepare
+	--force` share (round 3, R3-1)."""
+
+	def test_names_the_corpus_the_effect_does_not_bind(self):
+		pre, post = {"run_id": "r", "n": 1}, {"run_id": "r", "n": 2}
+		effect = {"corpus_pre_digest": C.canonical_digest(pre),
+			"corpus_post_digest": C.canonical_digest(post)}
+		self.assertIsNone(C.effect_binding_problem(effect, pre, post))
+		name, key, bound, actual = C.effect_binding_problem(
+			effect, pre, {"run_id": "r", "n": 3})
+		self.assertEqual((name, key, bound), ("corpus.post.json",
+			"corpus_post_digest", effect["corpus_post_digest"]))
+		self.assertEqual(actual, C.canonical_digest({"run_id": "r", "n": 3}))
+		name, key, _, actual = C.effect_binding_problem(
+			effect, {"run_id": "r", "n": 0}, post)
+		self.assertEqual((name, key), ("corpus.pre.json", "corpus_pre_digest"))
+		for unbound in ({}, {"corpus_pre_digest": 7},
+				{"corpus_pre_digest": "md5:x"}):
+			name, key, bound, actual = C.effect_binding_problem(unbound, pre, post)
+			self.assertEqual((name, key, actual), ("corpus.pre.json",
+				"corpus_pre_digest", None))
+		self.assertEqual(C.effect_binding_problem(None, pre, post)[3], None)
+
+
 class LoopCliTests(unittest.TestCase):
 	"""The durable counter, the artefacts, and the refusals — through main()."""
 
@@ -1898,6 +1923,142 @@ class LoopCliTests(unittest.TestCase):
 				mock.patch("sys.stdout"), mock.patch("sys.stderr"):
 			assemble.main()
 		self.assertEqual(read("report.json")["convergence"]["state"], "converged")
+
+	def _assemble_state(self, session, roots):
+		import assemble
+		with mock.patch.object(sys, "argv", ["assemble.py", session,
+				"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+				"--systems-root", roots[2]]), \
+				mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+			assemble.main()
+		with open(os.path.join(session, "report.json"), encoding="utf-8") as fh:
+			return json.load(fh)["convergence"]["state"]
+
+	def test_force_on_unchanged_inputs_retires_a_loop_assembly_would_refuse(self):
+		"""Integration review round 3, R3-1: the equal-digest branch kept "the
+		loop" without asking whether it was one, so every state assembly
+		reports as `artefacts_inconsistent` — and whose message says to run
+		`--prepare --force` — survived that very command, and `--submit`
+		refused to run over the effect. An effect that does not bind this
+		corpus pair is retired as on a changed digest; no effect at all is
+		still a loop in progress and keeps its attempts."""
+		def converge_once(name):
+			session, roots, main, read = self._prepared_session(name)
+			self.assertEqual(main("--submit",
+				self._draft(make_submission(read("corpus.pre.json"), []))), 0)
+			self.assertEqual(self._assemble_state(session, roots), "converged")
+			return session, roots, main, read
+
+		def rewrite(session, name, edit):
+			path = os.path.join(session, name)
+			with open(path, encoding="utf-8") as fh:
+				document = json.load(fh)
+			edit(document)
+			with open(path, "w", encoding="utf-8") as fh:
+				json.dump(document, fh, ensure_ascii=False)
+
+		def legacy(session):  # an effect written before the digests existed
+			def drop(effect):
+				effect.pop("corpus_pre_digest"), effect.pop("corpus_post_digest")
+			rewrite(session, "converge-effect.json", drop)
+
+		def truncated(session):  # left by the pre-atomic-write crash
+			with open(os.path.join(session, "converge-effect.json"), "w") as fh:
+				fh.write('{"corpus_effe')
+
+		def other_post(session):  # a corpus.post the effect does not name
+			rewrite(session, "corpus.post.json",
+				lambda post: post.update(tools=post["tools"][:-1]))
+
+		def stale_pair(session):
+			# corpus.pre rebuilt over changed research after convergence ran:
+			# the effect and post that survive it describe the old pre. The
+			# session's current pre digest is then the rebuilt one.
+			keep = {}
+			for name in ("converge-effect.json", "corpus.post.json",
+					"converge.json", "converge-attempts.json"):
+				with open(os.path.join(session, name), "rb") as fh:
+					keep[name] = fh.read()
+			os.remove(os.path.join(session, "research", "07-watch.json"))
+			return keep
+
+		for label, break_it in (("legacy effect, no digests", legacy),
+				("truncated effect", truncated),
+				("corpus.post the effect does not name", other_post)):
+			with self.subTest(label):
+				session, roots, main, read = converge_once(
+					"stuck-" + label.split(",")[0].replace(" ", "-"))
+				break_it(session)
+				self.assertEqual(self._assemble_state(session, roots),
+					"artefacts_inconsistent")
+				self.assertEqual(main("--prepare", "--force"), 0)
+				self._assert_recovered(session, roots, main, read)
+
+		with self.subTest("stale effect/post pair over a rebuilt pre"):
+			session, roots, main, read = converge_once("stuck-stale-pair")
+			keep = stale_pair(session)
+			self.assertEqual(main("--prepare", "--force"), 0)  # changed: retires
+			for name, blob in keep.items():
+				with open(os.path.join(session, name), "wb") as fh:
+					fh.write(blob)
+			shutil.rmtree(os.path.join(session, "superseded"))
+			self.assertEqual(self._assemble_state(session, roots),
+				"artefacts_inconsistent")
+			self.assertEqual(main("--prepare", "--force"), 0)
+			self._assert_recovered(session, roots, main, read)
+
+		with self.subTest("consistent effect: kept"):
+			session, roots, main, read = converge_once("stuck-none")
+			effect = read("converge-effect.json")
+			self.assertEqual(main("--prepare", "--force"), 0)
+			self.assertEqual(read("converge-effect.json"), effect)
+			self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+			self.assertEqual(self._assemble_state(session, roots), "converged")
+
+		with self.subTest("no effect yet: attempts kept"):
+			session, roots, main, read = self._prepared_session("stuck-no-effect")
+			bad = make_submission(read("corpus.pre.json"), [])
+			bad["corpus_digest"] = "sha256:" + "0" * 64
+			self.assertEqual(main("--submit", self._draft(bad)), 1)
+			self.assertEqual(main("--prepare", "--force"), 0)
+			self.assertEqual(len(read("converge-attempts.json")["attempts"]), 1)
+			self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+
+	def _assert_recovered(self, session, roots, main, read):
+		"""After `--prepare --force`: the loop is retired, assembly says
+		`not_run`, and the session converges again."""
+		self.assertTrue(os.path.isdir(os.path.join(session, "superseded")))
+		for name in ("converge-effect.json", "corpus.post.json",
+				"converge-attempts.json"):
+			self.assertFalse(os.path.exists(os.path.join(session, name)), name)
+		self.assertEqual(self._assemble_state(session, roots), "not_run")
+		self.assertEqual(main("--submit",
+			self._draft(make_submission(read("corpus.pre.json"), []))), 0)
+		self.assertEqual(read("converge-effect.json")["attempt"], 1)
+		self.assertEqual(self._assemble_state(session, roots), "converged")
+
+	def test_force_on_unchanged_inputs_refreshes_the_derived_projections(self):
+		"""R3-2: the equal-digest branch returned before the view and tables
+		were written, and plain `--prepare` refuses while corpus.pre exists, so
+		a deleted or older-version view could not be regenerated. Both are
+		pure projections of corpus.pre: rewritten when missing or different,
+		without touching the loop."""
+		session, roots, main, read = self._prepared_session("force-derived")
+		bad = make_submission(read("corpus.pre.json"), [])
+		bad["corpus_digest"] = "sha256:" + "0" * 64
+		self.assertEqual(main("--submit", self._draft(bad)), 1)
+		view, tables = read("converge-view.json"), read("converge-tables.json")
+		attempts = read("converge-attempts.json")
+		os.remove(os.path.join(session, "converge-view.json"))
+		stale = dict(tables, view_version=tables.get("view_version", 0) - 1)
+		with open(os.path.join(session, "converge-tables.json"), "w",
+				encoding="utf-8") as fh:
+			json.dump(stale, fh)
+		self.assertEqual(main("--prepare", "--force"), 0)
+		self.assertEqual(read("converge-view.json"), view)
+		self.assertEqual(read("converge-tables.json"), tables)
+		self.assertEqual(read("converge-attempts.json"), attempts)
+		self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
 
 	def test_two_prepares_in_one_second_each_claim_their_own_superseded_dir(self):
 		"""R2-5: the retire loop claims the directory with the mkdir itself, so
