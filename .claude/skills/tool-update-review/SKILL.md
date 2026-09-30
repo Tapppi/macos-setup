@@ -58,6 +58,34 @@ it covers, not just when something breaks.
 - `references/rendering-results.md` — the post-Submit Results view design.
 - `references/research-prompt-template.md` — the subagent prompt skeleton
   (step 3).
+- `references/convergence.md` — step 3b: the agentic review of the whole
+  corpus, its edit vocabulary, the seven checks and the gate.
+
+## Labels
+
+Short labels in the code, tests and references each name one rule. They are
+defined here once. The `I-nn` invariants and the six stages are defined in
+`references/item-schema.md` §7, the checks `C1`–`C7` in
+`references/convergence.md` §5, and each `E-`/`W-` code where it is raised.
+
+| Label | The rule | Where it lives |
+|---|---|---|
+| G-SEC | a positively identified security fix is its own tier: accepted even at elevated risk, shown by priority P0–P3 in "Security fixes for you" | `references/item-schema.md` §2.6 and §7 |
+| D1 | degradation: content-losing input holds the tool at `attention` before any other clause | `references/item-schema.md` §8 |
+| D2 | the pre-acceptance bars (elevated risk, a reaching change, a watch hit) keep a tool from starting accepted | `references/assembly.md` §Review Buckets and Pre-Accept |
+| D3 | the watch-hit badge reads only the validator's grounded `watch_hit_item_ids` | `references/rendering-report.md` §Watch hits |
+| D4 | the memory stores' on-disk layout and golden post-write state | `scripts/contract/stores.json` |
+| E3 | any item that claims a watch hit bars pre-acceptance (fail-closed on the claim) | `scripts/items.py` `pre_accept_bars` |
+| R1 | a fix's display priority and its acceptance hold are separate axes; a held tool keeps its priority | `scripts/items.py` `TIER_HOLDS` |
+| R3 | the holds `research-incomplete`, `not-runnable` and `forced-conservative` | `scripts/items.py` `TIER_HOLDS` |
+| R4 | every fix that ships with a breaking change stays highlighted, ordered by whether it reaches this machine | `scripts/items.py` `BREAKING_REASONS` |
+| R6 | elevated risk is not a bar on a G-SEC fix; the priority panel is how the user sees it | `references/assembly.md` §Review Buckets and Pre-Accept |
+| R7 | the `enum-invalid` and `container-unreadable` bars apply to every tool, G-SEC or not | `references/item-schema.md` §7 |
+| U1 | a research file's top-level keys are a closed set; an unknown key is quarantined | `scripts/items.py` |
+| U3 | the bucket is decided once, as validation's final act, so no later stage can promote it | `scripts/validate_items.py` |
+| I2, WP5 | the applied upgrade is the reviewed version, or apply refuses | `references/apply.md` §Pinning the reviewed version |
+| WP0–WP4 | the redesign's workstreams: WP0 the design, WP1 the item contract, WP2 memory proposals, WP3 convergence, WP4 the report page | `scripts/contract/README.md` |
+| pass N | a numbered review of a real run; cited only to date a rule, never as its source | — |
 
 ## Sources & Finding Categories
 

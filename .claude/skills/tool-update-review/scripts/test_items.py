@@ -898,7 +898,7 @@ class GSecTierTests(unittest.TestCase):
 		self.assertEqual((tier["tier"], tier["priority"]), ("P0", "P0"))
 		self.assertIn("required-edit", tier["reasons"])
 		# the incompatible item is SERVED by the required edit, so it is not
-		# also "incompatible-unfixed" (R5)
+		# also "incompatible-unfixed"
 		self.assertNotIn("incompatible-unfixed", tier["reasons"])
 		self.assertEqual(tier["ids"]["required-edit"], ["brew:x:e"])
 
@@ -912,7 +912,7 @@ class GSecTierTests(unittest.TestCase):
 		self.assertEqual(tier["tier"], "P0")
 
 	def test_config_attention_and_edit_proposed_never_co_fire(self):
-		"""item-schema.md §7, the G-SEC tier table (R2 overridden): needs_attention with NO action suggestion is P1
+		"""item-schema.md §7, the G-SEC tier table: needs_attention with NO action suggestion is P1
 		`config-attention`; with a proposed edit it is P1 `edit-proposed` only;
 		with a required edit it is P0."""
 		attention = {"state": "needs_attention"}

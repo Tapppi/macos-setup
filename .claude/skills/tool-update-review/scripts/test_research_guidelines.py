@@ -795,6 +795,36 @@ class DocumentedScopeTests(GuidelineTestCase):
 								path, SKILL), number, line.strip()[:100]))
 		self.assertEqual(hits, [], "\n".join(hits))
 
+	def test_every_rule_label_used_is_in_the_skill_md_glossary(self):
+		"""A bare workstream label (G-SEC, D2, R7, WP5 …) names a rule the
+		reader cannot look up unless it is defined somewhere committed.
+		SKILL.md's Labels table is that one place: every label any skill
+		file uses has a row there, so a new label cannot land undefined."""
+		table = read("SKILL.md").split("## Labels", 1)[1].split("\n## ", 1)[0]
+		defined = set()
+		for row in re.findall(r"^\| ([^|]+) \|", table, re.M):
+			for label in re.split(r",\s*", row.strip()):
+				span = re.fullmatch(r"([A-Z]+)([0-9])–[A-Z]+([0-9])", label)
+				if span:
+					defined.update(span.group(1) + str(n) for n in
+						range(int(span.group(2)), int(span.group(3)) + 1))
+				else:
+					defined.add(label)
+		label = re.compile(r"(?<![\w-])(G-SEC|[DERU][0-9]|I[0-9]|WP[0-9])(?![\w-])")
+		used = {}
+		for root, dirs, files in os.walk(SKILL):
+			dirs[:] = [d for d in dirs if d != "__pycache__"]
+			for name in files:
+				path = os.path.join(root, name)
+				with open(path, "r", encoding="utf-8", errors="replace") as fh:
+					for number, line in enumerate(fh, 1):
+						for found in label.finditer(line):
+							used.setdefault(found.group(1), "{}:{}".format(
+								os.path.relpath(path, SKILL), number))
+		missing = sorted("{} ({})".format(k, v) for k, v in used.items() if k not in defined)
+		self.assertEqual(missing, [])
+		self.assertGreater(len(used), 10)
+
 
 # ── G-SEC checker guidance (item-schema.md §2.6, §3) ───────────────────────
 class GSecGuidanceTests(GuidelineTestCase):
