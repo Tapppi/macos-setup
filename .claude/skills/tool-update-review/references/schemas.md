@@ -594,9 +594,11 @@ fields of its own:
   (`references/collection.md` §Skill-Drift Collection). Read the flag, not
   the state.
 - `drift_vendor` / `drift_skill` (string) — the vendor directory and the
-  skill within it (`"anthropics"` / `"pptx"`). The vendor is the unit the
-  remediation acts on, so it is carried explicitly rather than re-split out
-  of the tool id.
+  skill within it (`"anthropics"` / `"pptx"`), carried explicitly rather than
+  re-split out of the tool id. The vendor names where the skill's
+  `CUSTOMISATION.md` lives and which upstream it tracks; it is **not** the
+  remediation's scope — the one sync command refreshes every vendor
+  (`references/apply.md` §Skill-Drift Remediation).
 
 Note: `claude CLI` and `codex CLI` are **not** current examples of
 `standalone` — both are plain Homebrew casks (`claude-code@latest`, `codex`)

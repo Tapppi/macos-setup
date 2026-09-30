@@ -232,8 +232,9 @@ both sides moved, so the sync lands on top of a local patch.
         "command": "bash sync-upstream.sh",  // from the skills repo root
         "auto_runnable": false,         // ALWAYS false — see references/apply.md
         "needs_sudo": false,
-        "label": "Sync anthropics from upstream (updates all 3 drifted anthropics skills)"
-      },
+        "label": "Sync every vendor from upstream (anthropics, softaworks) — review local patches first"
+      },                                // the SAME object on every drifted card: the command
+                                        //   syncs every vendor (§The One Sync)
       "pinned": false, "current_version": null, "latest_version": null
     }
   ],
@@ -346,6 +347,27 @@ assembly, rendering, remediation execution) is out of scope for collection
 `references/assembly.md` §Skill-Drift Assembly, `references/apply.md`
 §Skill-Drift Remediation.
 
+### The One Sync
+
+`sync-upstream.sh` takes **no vendor argument**. One run pulls every subtree
+vendor (a three-way `git subtree` merge, which can conflict with a local
+patch) and refreshes every sparse vendor by overwriting its copy with `rsync
+--delete` (which discards one). The detector therefore offers exactly one
+remediation, identical on every drifted card of every vendor, and says what
+it is: the `label` names every vendor in the tables, and each drifted card's
+`detail` ends with what that one run touches — every vendor and how it is
+synced, every drifted skill it resolves, every `diverged` or `local_only`
+skill whose patch it merges over or overwrites, any skill it stops shipping
+because upstream removed it, and any vendor this run could not check. A
+`local_only` card on a sparse vendor says the same from its side: any sync,
+taken for whichever card, discards its patch.
+
+No vendor-scoped command is offered in its place, because none exists that is
+safe: a hand-run `git subtree pull` would squash a vendor's excluded paths
+back into history, which the script's own header forbids. Scoping the sync
+needs a vendor selector in the Tapppi/skills script itself; until it has one,
+the honest action is the all-vendor one, labelled as such.
+
 ## Scoping
 
 If the user scoped the request ("just podman", "only claude"), filter the
@@ -360,10 +382,10 @@ my brew install" keeps brew-health and drops skill-drift; "did my vendored
 skills drift?" (or a request naming a vendor or a single skill) keeps
 `skill_drift` — filtered to the named vendor/skill — and drops everything
 else. Filtering a vendor out of `skill_drift.findings` is safe on its own,
-since each finding is self-contained; the only thing not to do is keep one
-skill of a vendor while dropping its siblings, because the remediation
-command is vendor-scoped and its `label` counts them (§Skill-Drift
-Collection).
+since each finding is self-contained and its `detail` still names everything
+the one sync touches — but filtering the cards never narrows the command:
+`bash sync-upstream.sh` still syncs every vendor, so say so when a scoped
+request leads to it (§The One Sync).
 
 ## Repo Freshness
 

@@ -106,8 +106,8 @@ defined here once. The `I-nn` invariants and the six stages are defined in
   moved" — also not a version delta. Detection, the five drift states and
   the scope rules: `references/collection.md`; enrichment:
   `references/research.md`; assembly: `references/assembly.md`; rendering:
-  `references/rendering-report.md`; apply (always manual, vendor-scoped):
-  `references/apply.md`.
+  `references/rendering-report.md`; apply (always manual, and one command
+  that syncs every vendor at once): `references/apply.md`.
 
 ## Workflow
 
@@ -430,8 +430,11 @@ Accepted suggestions split by `kind`:
 - **`skill-drift` remediations** → one structural `kind:"upgrade"` command,
   `bash sync-upstream.sh`, run from the Tapppi/skills repo
   root. **Always `auto_runnable:false`** — print it, never run it; it is
-  *not* covered by the `./setup.sh projects` exception above. The command
-  is vendor-scoped, so one run resolves every drifted skill of that vendor.
+  *not* covered by the `./setup.sh projects` exception above. The script
+  takes no vendor argument: one run syncs every vendor (merging subtrees,
+  overwriting sparse copies), so it resolves every drifted card and reaches
+  every local patch — say so, and list the patches the cards name, before
+  handing it over.
 - **`upgrade`** → execution depends on `auto_runnable` and the
   `auto_run_upgrades` toggle: not-auto-runnable prints the command and polls
   for completion; auto-runnable-and-toggle-on runs it directly (askpass for

@@ -1305,9 +1305,9 @@ story.** `baseline_upgrade()` accepts only an id ending `:upgrade`
 (§Baseline Suggestion Synthesis), so it returns `None` for a drift tool and
 `apply_pre_accept()` writes `pre_accept: false` on every suggestion the tool
 has. There is no flag to get wrong and no second code path: a sync rewrites
-vendored files inside the dotfiles submodule and can conflict with a local
-customisation, which is never a "just do it" — exactly the reasoning that
-bars a brew-health `:remediate`.
+vendored files across every vendor in the Tapppi/skills repo and can conflict
+with, or overwrite, a local customisation, which is never a "just do it" —
+exactly the reasoning that bars a brew-health `:remediate`.
 
 **Derived fields for skill-drift.** A drift finding goes through the same
 `finalize_tool()` entry point as every other tool (§Overview), so it cannot
@@ -1345,12 +1345,17 @@ detector's `suppressed` list (in-sync skills, our own `tapppi/` skills, the
 adopted skills of an unprobed vendor — see `references/collection.md`) is
 logged to stderr here, not rendered anywhere.
 
-**Granularity, stated openly.** `git subtree pull` is per-vendor, so every
-drifted skill of one vendor carries the *same* vendor-level command; the
-remediation `label` says so (`"Sync anthropics from upstream (updates all 3
-drifted anthropics skills)"`), and accepting one of them resolves its
-siblings too. Assembly does not merge them into a single card: each skill is
-its own finding because each may need its own read of what changed upstream.
+**Granularity, stated openly.** `sync-upstream.sh` takes no vendor argument:
+one run merges every subtree vendor and overwrites every sparse vendor's copy
+(`rsync --delete`). So every drifted skill, of every vendor, carries the
+*same* command; the remediation `label` says so (`"Sync every vendor from
+upstream (anthropics, softaworks) — review local patches first"`), each card's
+detail ends with what that one run touches — every vendor, every drifted
+skill it resolves, every local patch it merges over or overwrites, any skill
+it stops shipping and any vendor this run could not check — and accepting one
+card resolves all of them. Assembly does not merge them into a single card:
+each skill is its own finding because each may need its own read of what
+changed upstream.
 See `references/apply.md` §Skill-Drift Remediation for how the apply step
 handles the resulting one-command-many-actions case.
 

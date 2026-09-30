@@ -1357,8 +1357,9 @@ def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> 
 	in the Tapppi/skills repo that no longer matches the upstream it
 	was synced from. Structurally a sibling of build_health_tool(): a finding,
 	not a version update, so no current→latest pair and no synthesized
-	`brew upgrade` baseline — its action is the finding's own vendor-scoped
-	sync command."""
+	`brew upgrade` baseline — its action is the finding's own sync command,
+	which syncs every vendor at once (the detector's label and detail say
+	so)."""
 	research_obj = research_obj or {}
 	tool_id = candidate["id"]
 	# `or`, not a .get() default, throughout this builder: a detector that
@@ -1376,8 +1377,9 @@ def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> 
 		"drift_state": state,
 		# "no decision required", not "no drift" — local_only and probe_error.
 		"drift_expected": expected,
-		# Vendor is the granularity the sync command actually operates at, so
-		# the page can say which other cards one run would resolve.
+		# Which vendor this skill belongs to. Not the sync's scope — the one
+		# sync command refreshes every vendor — but where its CUSTOMISATION.md
+		# lives and which upstream it tracks.
 		"drift_vendor": candidate.get("vendor"),
 		"drift_skill": candidate.get("skill"),
 		"pinned": False,
@@ -1410,9 +1412,9 @@ def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> 
 		sug = {
 			# `:sync`, NEVER `:upgrade` — baseline_upgrade() identifies the
 			# pre-acceptable baseline by that suffix, so this one choice is
-			# what makes a vendored-skill sync impossible to auto-approve. A
-			# subtree pull rewrites files in the dotfiles submodule, needs a
-			# clean tree and can conflict; it is never a "just do it".
+			# what makes a vendored-skill sync impossible to auto-approve. It
+			# rewrites every vendor in the Tapppi/skills repo, needs a clean
+			# tree and can conflict; it is never a "just do it".
 			"id": f"{tool_id}:sync",
 			"kind": "upgrade",  # a single command to run, like an upgrade
 			"title": rem.get("label") or candidate.get("name") or "Sync from upstream",
@@ -1428,8 +1430,9 @@ def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> 
 		}
 		if not sug["auto_runnable"]:
 			sug["manual_reason"] = (
-				"Vendored-skill sync is always manual — `sync-upstream.sh` pulls a git "
-				"subtree into the dotfiles submodule, needs a clean tree, and can conflict.")
+				"Vendored-skill sync is always manual — `sync-upstream.sh` syncs every vendor "
+				"in the Tapppi/skills repo at once (merging subtrees, overwriting sparse "
+				"copies), needs a clean tree, and can conflict with a local patch.")
 		# Dedupe only an EQUIVALENT suggestion: one that runs the same
 		# command. The detector's copy is the one kept — its `:sync` id and
 		# manual flags are what keep a sync from being pre-accepted or run

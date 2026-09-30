@@ -206,40 +206,49 @@ it renames a plugin a workspace manifest enables, when the **existing**
 `./setup.sh projects` exception applies as written, for the manifest. It says
 nothing about `sync-upstream.sh`.
 
-**The command is vendor-scoped; the findings are per skill.** `git subtree
-pull` operates on a whole vendor prefix, so one run resolves **every**
-drifted skill of that vendor — the suggestion's `label` says so ("updates
-all 3 drifted anthropics skills"), and every affected skill's suggestion
-carries the identical command. This is a real granularity mismatch, stated
-rather than papered over. Two consequences at apply time:
+**The command syncs every vendor; the findings are per skill.**
+`sync-upstream.sh` takes no vendor argument: one run merges every subtree
+vendor and overwrites every sparse vendor's copy with `rsync --delete`, so it
+resolves **every** drifted skill of **every** vendor — and reaches every
+local patch too. The suggestion's `label` says so ("Sync every vendor from
+upstream (anthropics, softaworks) — review local patches first"), every
+drifted card carries the identical command, and each card's detail ends with
+what that run touches (`references/collection.md` §The One Sync). This is a
+real granularity mismatch, stated rather than papered over. Three
+consequences at apply time:
 
-- **Ask for it once per vendor, not once per accepted action.** When
-  several accepted suggestions carry the same command, surface it on the
-  first, poll for that one run, then resolve its siblings against it rather
-  than printing the identical command again for each. Mark each sibling
-  `"done"` with a note naming the run that covered it (`"Covered by the
-  anthropics sync above"`), so the action list stays honest about what
-  actually happened.
-- **A rejected sibling does not stop the run.** If the user accepted one
-  anthropics skill and rejected another, the sync still updates both —
-  there is no per-skill sync in this vendoring model. Say so plainly in the
-  action note instead of pretending the rejection was honoured; if the user
-  genuinely wants one skill held back, that is a `discuss`, not something to
-  simulate.
+- **Ask for it once, not once per accepted action.** When several accepted
+  suggestions carry the same command, surface it on the first, poll for
+  that one run, then resolve its siblings against it rather than printing
+  the identical command again for each. Mark each sibling `"done"` with a
+  note naming the run that covered it (`"Covered by the sync-upstream.sh run
+  above"`), so the action list stays honest about what actually happened.
+- **Say what it touches before handing it over.** Name every vendor it
+  syncs and every `diverged` or `local_only` skill the cards list, and say
+  plainly that a sparse vendor's local patch is overwritten and has to be
+  re-applied from its `CUSTOMISATION.md` — whichever card the run was
+  accepted for.
+- **A rejected card does not stop the run.** If the user accepted one card
+  and rejected another — of the same vendor or a different one — the sync
+  still updates both; there is no per-vendor or per-skill sync in this
+  vendoring model. Say so plainly in the action note instead of pretending
+  the rejection was honoured; if the user genuinely wants a skill or a
+  vendor held back, that is a `discuss`, not something to simulate.
 
 **Verification is not a version poll.** There is no installed version to
 check (§Executing Upgrade Suggestions' polling loop assumes one). Confirm
-instead that the sync landed: a new `git-subtree-split` squash commit in
-`git -C dotfiles log`, or simply re-run
-`python3 scripts/collect_skill_drift.py` and check that the vendor's
-findings are gone. A `probe_error` finding has no remediation at all and
-nothing to verify — it means the detector could not reach upstream, so the
-right outcome is to note that and move on, never to guess a drift verdict.
+instead that the sync landed: a new `git-subtree-split` squash commit in the
+Tapppi/skills repo's log, a sparse vendor's refreshed copy in its diff, or
+simply re-run `python3 scripts/collect_skill_drift.py` and check that the
+drifted findings are gone. A `probe_error` finding has no remediation at all
+and nothing to verify — it means the detector could not reach upstream, so
+the right outcome is to note that and move on, never to guess a drift
+verdict.
 
-Because the sync writes commits inside the submodule, everything after it
-follows the ordinary dotfiles-submodule path: the parent repo needs
-`git add dotfiles` + a pointer commit, and §Push and Terminal Status'
-ordering (dotfiles first, then macos-setup) applies unchanged.
+The sync writes its commits (and a sparse vendor's uncommitted refresh) in
+the Tapppi/skills repo, which the user reviews, commits and pushes there: it
+touches neither macos-setup nor the dotfiles submodule, so §Push and
+Terminal Status has nothing to push for it.
 
 ## Executing Upgrade Suggestions
 

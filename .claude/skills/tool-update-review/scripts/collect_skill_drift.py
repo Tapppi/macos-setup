@@ -84,6 +84,17 @@ SYNC_SCRIPT_REL = "sync-upstream.sh"
 MARKETPLACE_REL = ".claude-plugin/marketplace.json"
 # Run from the skills repo root — the script cds there itself, but the
 # command we hand the user is the one its own header documents.
+#
+# It is ALL-vendor, and nothing here may pretend otherwise. The script takes no
+# vendor argument: one run pulls every subtree vendor (a three-way `git
+# subtree` merge, which can conflict with a local patch) and refreshes every
+# sparse vendor by overwriting its copy with `rsync --delete` (which discards
+# one). So one command serves every drifted card, and its label and each
+# card's detail name every vendor it touches and every local patch it puts at
+# risk (`_sync_plan`). No vendor-scoped command can be offered in its place: a
+# hand-run `git subtree pull` would squash a vendor's excluded paths back into
+# history, which the script's own header forbids. Scoping it needs a vendor
+# selector in the Tapppi/skills script itself.
 SYNC_COMMAND = "bash sync-upstream.sh"
 # Where the skills repo is looked for when --skills-root is not given.
 SKILLS_ROOT_ENV = "TOOL_UPDATE_SKILLS_ROOT"
@@ -518,42 +529,118 @@ def _finding(**kw) -> dict:
 	return base
 
 
-def _remediation(vendor_name: str, drifted: int) -> dict:
-	label = "Sync {} from upstream".format(vendor_name)
-	if drifted > 1:
-		label += " (updates all {} drifted {} skills)".format(drifted, vendor_name)
+# What one run does to each kind of vendor, for the text that says so.
+_SYNC_EFFECT = {"subtree": "a git subtree merge",
+	"sparse": "a sparse copy, overwritten with `rsync --delete`"}
+# What that run does to a local patch, by (state, vendor kind).
+_PATCH_FATE = {
+	("diverged", "subtree"): "diverged: the merge can conflict with the patch",
+	("diverged", "sparse"): "diverged: the copy is overwritten, so the patch must be re-applied",
+	("local_only", "subtree"): "local patch: the merge keeps it while upstream leaves it alone",
+	("local_only", "sparse"): "local patch: the copy is overwritten, so the patch must be re-applied",
+}
+
+
+def _sync_plan(vendors: list, findings: list, unchecked: list) -> dict:
+	"""What ONE `bash sync-upstream.sh` run does, read off the finished finding
+	list: every vendor in its tables (it takes no vendor argument), the drifted
+	skills it resolves, the local patches it merges over or overwrites, the
+	skills it stops shipping because upstream removed them, and the vendors it
+	syncs that this run could not check."""
+	names = []
+	for vendor in vendors:
+		pair = (_vendor_name(vendor), vendor.get("kind") or "subtree")
+		if pair not in names:
+			names.append(pair)
+	def label(f):
+		return "{}/{}".format(f["vendor"], f["skill"])
+	skill_findings = [f for f in findings if f.get("skill")]
+	return {
+		"vendors": names,
+		"drifted": sorted(label(f) for f in skill_findings
+			if f["drift_state"] in ("upstream_ahead", "diverged")),
+		"patched": sorted((label(f), _PATCH_FATE.get((f["drift_state"],
+			f.get("vendor_kind") or "subtree"), "local patch"))
+			for f in skill_findings if f["drift_state"] in ("diverged", "local_only")),
+		"removed": sorted(label(f) for f in skill_findings
+			if f["drift_state"] == "probe_error"),
+		"unchecked": sorted(set(unchecked)),
+	}
+
+
+def _remediation(plan: dict) -> dict:
+	"""The one remediation every drifted card carries — the same command on
+	each, labelled as what it is: a sync of every vendor at once."""
+	label = "Sync every vendor from upstream ({})".format(
+		", ".join(name for name, _ in plan["vendors"]))
+	if plan["patched"]:
+		label += " — review local patches first"
 	return {"command": SYNC_COMMAND, "auto_runnable": False,
 		"needs_sudo": False, "label": label}
 
 
+def _sync_scope(plan: dict) -> str:
+	"""The paragraph every drifted card's detail ends with: what the one
+	command actually touches, so accepting one card's sync is never read as
+	a sync of that vendor alone."""
+	drifted = plan["drifted"]
+	parts = [("There is no per-vendor or per-skill sync: `{cmd}`, run from the skills "
+		"repo root on a clean tree, refreshes every vendor it lists at once: {vendors}. "
+		"One run resolves {what}: {skills}.").format(cmd=SYNC_COMMAND,
+		vendors=", ".join("{} ({})".format(name, _SYNC_EFFECT.get(kind, kind))
+			for name, kind in plan["vendors"]),
+		what=("the one drifted skill" if len(drifted) == 1
+			else "all {} drifted skills".format(len(drifted))),
+		skills=", ".join(drifted))]
+	if plan["patched"]:
+		parts.append("Before running it, review these local patches against their "
+			"vendor's `CUSTOMISATION.md`: {}.".format("; ".join(
+				"{} ({})".format(skill, fate) for skill, fate in plan["patched"])))
+	if plan["removed"]:
+		parts.append("It also stops shipping {}, which upstream removed or "
+			"renamed.".format(", ".join(plan["removed"])))
+	if plan["unchecked"]:
+		parts.append("Not checked this run, but synced by that same run anyway: "
+			"{}.".format(", ".join(plan["unchecked"])))
+	return " ".join(parts)
+
+
 def _detail(state, skill, vendor, vendor_dir, url, branch, subpath,
-		baseline_sha, upstream_sha, drifted) -> str:
+		baseline_sha, upstream_sha, kind="subtree") -> str:
+	"""The card's own statement. A drifted card's detail is completed with
+	`_sync_scope` once every vendor is classified."""
 	base = (baseline_sha or "?")[:12]
 	head = (upstream_sha or "?")[:12]
-	also = ("" if drifted <= 1 else
-		" The sync is per-vendor, so that one run also refreshes the other {} drifted "
-		"`{}` skill{}.".format(drifted - 1, vendor, "" if drifted == 2 else "s"))
 	if state == "upstream_ahead":
 		return ("The vendored copy of `{skill}` still matches the recorded `{vendor}` sync "
 			"({base}), but upstream {url} ({branch}) has moved on `{subpath}` since — it is "
-			"now at {head}. Nothing local is at risk: re-sync the vendor with `{cmd}` from the "
-			"skills repo root, on a clean tree.{also}").format(
+			"now at {head}. No local patch to this skill is at risk.").format(
 			skill=skill, vendor=vendor, base=base, url=url, branch=branch,
-			subpath=subpath, head=head, cmd=SYNC_COMMAND, also=also)
+			subpath=subpath, head=head)
 	if state == "diverged":
+		consequence = ("Syncing overwrites the patch rather than merging it: re-apply "
+			"what `{dir}/CUSTOMISATION.md` lists after the sync." if kind == "sparse" else
+			"Syncing needs conflict review rather than a straight pull: check that the "
+			"local patches listed in `{dir}/CUSTOMISATION.md` survive it.").format(dir=vendor_dir)
 		return ("The vendored copy of `{skill}` is patched relative to the recorded `{vendor}` "
 			"sync ({base}) AND upstream {url} ({branch}) has moved on `{subpath}` to {head}. "
-			"Syncing needs conflict review rather than a straight pull: check that the local "
-			"patches listed in `{dir}/CUSTOMISATION.md` survive it. Run `{cmd}` from the "
-			"skills repo root, on a clean tree.{also}").format(
+			"{consequence}").format(
 			skill=skill, vendor=vendor, base=base, url=url, branch=branch,
-			subpath=subpath, head=head, dir=vendor_dir, cmd=SYNC_COMMAND, also=also)
+			subpath=subpath, head=head, consequence=consequence)
+	if kind == "sparse":
+		fate = ("Nothing to decide, but any `{cmd}` run — it syncs every vendor, whichever "
+			"card it is taken for — overwrites this sparse copy with `rsync --delete` and "
+			"discards the patch: re-apply it from `{dir}/CUSTOMISATION.md` after a "
+			"sync.").format(cmd=SYNC_COMMAND, dir=vendor_dir)
+	else:
+		fate = ("Nothing to decide: a sync merges it three-way and keeps it while upstream "
+			"leaves `{subpath}` alone.").format(subpath=subpath)
 	return ("The vendored copy of `{skill}` differs from the recorded `{vendor}` sync "
 		"({base}), and upstream {url} ({branch}) has not moved on `{subpath}` since — so "
 		"this is a deliberate local patch, not upstream drift. It should be listed in "
-		"`{dir}/CUSTOMISATION.md`. Nothing to do; a sync would discard it.").format(
+		"`{dir}/CUSTOMISATION.md`. {fate}").format(
 		skill=skill, vendor=vendor, base=base, url=url, branch=branch,
-		subpath=subpath, dir=vendor_dir)
+		subpath=subpath, dir=vendor_dir, fate=fate)
 
 
 def _whole_source_failure(reason: str, missing: bool = False):
@@ -633,6 +720,7 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 
 	findings = []
 	seen_probe_ids = set()
+	unchecked = []
 	with tempfile.TemporaryDirectory(prefix="skill-drift-") as tmp_root:
 		for idx, vendor in enumerate(vendors):
 			entries = buckets.get(idx)
@@ -644,6 +732,7 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 				os.path.join(tmp_root, "probe-{}".format(idx)), timeout, no_network)
 			if error is not None:
 				# ONE quiet card per vendor — never one unknown card per skill.
+				unchecked.append(name)
 				probe_id = "skill-drift:{}:probe-failed".format(name)
 				for entry in entries:
 					suppressed.append("{}/{} not verified — the upstream probe for `{}` "
@@ -667,8 +756,9 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 					local_path=_vendor_path(vendor), expected=True))
 				continue
 
-			# Two passes: classify everything first, because the remediation
-			# label has to state how many of this vendor's skills one sync fixes.
+			# Two passes: classify every skill first — and the remediation is
+			# attached only after EVERY vendor is classified, because the one
+			# command it names syncs all of them (`_sync_plan`).
 			results = []
 			for entry in entries:
 				remainder = _remainder(vendor, entry["rel_path"])
@@ -685,7 +775,6 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 					subpath, LOCAL_GIT_TIMEOUT)
 				results.append((entry, local_path, subpath, local, baseline, upstream,
 					classify(local, baseline, upstream)))
-			drifted = sum(1 for r in results if r[6] in ("upstream_ahead", "diverged"))
 
 			for entry, local_path, subpath, local, baseline, upstream, state in results:
 				skill = entry["name"]
@@ -713,10 +802,11 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 								"The vendored copy of `{skill}` is still here and still matches the "
 								"recorded `{vendor}` sync ({base}), but `{subpath}` no longer exists "
 								"in upstream {url} ({branch}) at {head} — upstream has removed or "
-								"renamed it. Syncing `{vendor}` would therefore stop shipping this "
+								"renamed it. The next `{cmd}` run — it syncs every vendor, whichever "
+								"card it is taken for — would therefore stop shipping this "
 								"skill: find where upstream moved it, or decide to keep the copy as "
 								"our own, rather than discovering it gone after the next "
-								"sync.").format(
+								"sync.").format(cmd=SYNC_COMMAND,
 								skill=skill, vendor=name, base=(probe["baseline_sha"] or "?")[:12],
 								subpath=subpath, url=url, branch=branch,
 								head=(probe["upstream_sha"] or "?")[:12]),
@@ -737,14 +827,22 @@ def detect(skills_root: str, timeout: int, no_network: bool):
 					name="{} ({})".format(skill, name),
 					drift_state=state, severity=SEVERITY[state],
 					detail=_detail(state, skill, name, _vendor_dir(vendor, root), url, branch,
-						subpath, probe["baseline_sha"], probe["upstream_sha"], drifted),
+						subpath, probe["baseline_sha"], probe["upstream_sha"],
+						vendor.get("kind") or "subtree"),
 					vendor=name, skill=skill, vendor_kind=vendor.get("kind"),
 					upstream_url=url, upstream_branch=branch, upstream_subpath=subpath,
 					local_path=local_path, baseline_sha=probe["baseline_sha"],
 					upstream_sha=probe["upstream_sha"],
-					expected=(state == "local_only"),
-					remediation=(None if state == "local_only"
-						else _remediation(name, drifted))))
+					expected=(state == "local_only")))
+
+	# One run of the one command syncs every vendor, so every drifted card
+	# carries the same remediation and ends with the same statement of what
+	# that run touches — computed once everything is classified.
+	plan = _sync_plan(vendors, findings, unchecked)
+	for f in findings:
+		if f["drift_state"] in ("upstream_ahead", "diverged"):
+			f["remediation"] = _remediation(plan)
+			f["detail"] = f["detail"] + " " + _sync_scope(plan)
 
 	findings.sort(key=lambda f: (f["vendor"] or "", f["skill"] or ""))
 	return findings, suppressed

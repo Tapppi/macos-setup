@@ -1944,8 +1944,8 @@ page — the finding hands you `upstream_url`, `upstream_branch`,
 1. **Diff the upstream range for this skill's subpath, and only that.**
    `git log --oneline <baseline_sha>..<upstream_sha> -- <upstream_subpath>`
    plus a `--stat` diff of the same range, against a shallow clone or fetch
-   of `upstream_url`. The sync command is vendor-scoped but the *decision*
-   is per skill, so vendor-wide output is not an answer to this finding —
+   of `upstream_url`. The sync command covers every vendor but the
+   *decision* is per skill, so vendor-wide output is not an answer to this finding —
    it is how nine google skills turn into one undifferentiated "267 commits
    behind" shrug.
 2. **Read the `SKILL.md` frontmatter `description` diff first.** That string
@@ -1984,7 +1984,7 @@ re-deciding it. If the compare genuinely disagrees with `drift_state`, that
 is a finding about the compare page, not about the skill.
 
 **Two things not to author here.** Do not write a suggestion that runs the
-sync — the finding's own remediation already carries the vendor-scoped
+sync — the finding's own remediation already carries the one sync
 command, and a duplicate just splits one decision across two cards
 (`references/apply.md` §Skill-Drift Remediation). And never propose an
 `edit` that hand-edits vendored files to match upstream: that produces a

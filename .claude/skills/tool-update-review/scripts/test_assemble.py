@@ -996,7 +996,7 @@ COLLECT = {
 			"vendor": "anthropics", "skill": "pptx", "vendor_kind": "subtree",
 			"remediation": {"command": "bash sync-upstream.sh",
 				"auto_runnable": False, "needs_sudo": False,
-				"label": "Sync anthropics from upstream"},
+				"label": "Sync every vendor from upstream (anthropics)"},
 			"expected": False, "pinned": False, "current_version": None, "latest_version": None,
 		}],
 		"suppressed": ["anthropics/docx: in sync with upstream"],

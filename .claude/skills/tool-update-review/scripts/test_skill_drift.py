@@ -525,21 +525,51 @@ class EndToEndTests(unittest.TestCase):
 			self.assertEqual(jira["upstream_subpath"], "skills/jira")
 			self.assertNotEqual(jira["baseline_sha"], jira["upstream_sha"])
 
-	def test_vendor_scoped_remediation_counts_the_skills_one_run_fixes(self):
-		# `git subtree pull` is per-vendor, so two anthropics cards carry the
-		# same command; the label and the detail have to say so rather than
-		# reading as two independent fixes. One drifted skill (softaworks) gets
-		# neither the count nor the "also" clause.
+	def test_the_one_sync_is_labelled_all_vendor_and_lists_what_it_touches(self):
+		# `sync-upstream.sh` takes no vendor argument: one run merges every
+		# subtree vendor and overwrites every sparse one. So every drifted card
+		# — anthropics and softaworks alike — carries the SAME remediation,
+		# labelled as a sync of every vendor, and its detail names each vendor,
+		# every drifted skill it resolves and every local patch it touches.
+		# A "Sync anthropics" label here once invited a user to refresh jira
+		# without knowing it.
 		with tempfile.TemporaryDirectory() as tmp:
 			_, out = _detect(_build_world(tmp))
 			by_skill = {f["skill"]: f for f in out["findings"]}
-			self.assertEqual(by_skill["pptx"]["remediation"]["label"],
-				"Sync anthropics from upstream (updates all 2 drifted anthropics skills)")
-			self.assertIn("also refreshes the other 1 drifted `anthropics` skill.",
-				by_skill["pptx"]["detail"])
-			self.assertEqual(by_skill["jira"]["remediation"]["label"],
-				"Sync softaworks from upstream")
-			self.assertNotIn("also refreshes", by_skill["jira"]["detail"])
+			drifted = [by_skill[s] for s in ("pptx", "docx", "jira")]
+			label = ("Sync every vendor from upstream (anthropics, softaworks) — review "
+				"local patches first")
+			for f in drifted:
+				self.assertEqual(f["remediation"], {"command": "bash sync-upstream.sh",
+					"auto_runnable": False, "needs_sudo": False, "label": label})
+				detail = f["detail"]
+				self.assertIn("There is no per-vendor or per-skill sync", detail)
+				self.assertIn("anthropics (a git subtree merge), softaworks (a sparse copy, "
+					"overwritten with `rsync --delete`)", detail)
+				self.assertIn("all 3 drifted skills: anthropics/docx, anthropics/pptx, "
+					"softaworks/jira", detail)
+				self.assertIn("anthropics/docx (diverged: the merge can conflict", detail)
+				self.assertIn("anthropics/skill-creator (local patch: the merge keeps it",
+					detail)
+			self.assertIsNone(by_skill["skill-creator"]["remediation"])
+			self.assertNotIn("per-vendor", by_skill["skill-creator"]["detail"])
+
+	def test_another_vendors_sync_names_the_sparse_patch_it_overwrites(self):
+		# The review's scenario: accept an anthropics card while a softaworks
+		# (sparse) copy carries a local patch. The one command overwrites that
+		# copy with rsync --delete, so the anthropics card has to say so.
+		with tempfile.TemporaryDirectory() as tmp:
+			dot = _build_world(tmp)
+			write(dot, "softaworks/skills/jira/SKILL.md", "jira v1 + our jira patch\n")
+			_commit_all(dot, "patch jira locally")
+			_, out = _detect(dot)
+			by_skill = {f["skill"]: f for f in out["findings"]}
+			self.assertEqual(by_skill["jira"]["drift_state"], "diverged")
+			self.assertIn("softaworks/jira (diverged: the copy is overwritten, so the "
+				"patch must be re-applied)", by_skill["pptx"]["detail"])
+			self.assertIn("Syncing overwrites the patch rather than merging it",
+				by_skill["jira"]["detail"])
+			self.assertNotIn("conflict review", by_skill["jira"]["detail"])
 
 	def test_upstream_ahead_finding_is_fully_populated(self):
 		with tempfile.TemporaryDirectory() as tmp:
@@ -622,6 +652,10 @@ class EndToEndTests(unittest.TestCase):
 			ids = [f["id"] for f in out["findings"]]
 			self.assertIn("skill-drift:anthropics:probe-failed", ids)
 			self.assertNotIn("skill-drift:anthropics/pptx", ids)
+			# The one sync still runs the vendor nobody could check.
+			jira = next(f for f in out["findings"] if f["skill"] == "jira")
+			self.assertIn("Not checked this run, but synced by that same run anyway: "
+				"anthropics.", jira["detail"])
 
 	def test_upstream_deleting_a_skill_is_a_finding_not_a_shrug(self):
 		# LOCAL and BASELINE resolve, UPSTREAM does not: the skill was there at
@@ -662,24 +696,54 @@ class EndToEndTests(unittest.TestCase):
 
 
 class RemediationTextTests(unittest.TestCase):
-	"""One `sync-upstream.sh` run fixes a whole vendor, so both the label and
-	the detail state how many skills that covers — and both have to agree with
-	themselves at one, two and more than two."""
+	"""One `sync-upstream.sh` run syncs EVERY vendor, so the remediation and
+	the detail it ends each drifted card with are built from one plan of what
+	that run touches — and have to agree with themselves at one and more."""
 
-	def test_label_counts_only_when_one_run_fixes_more_than_one(self):
-		self.assertEqual(drift._remediation("google", 1)["label"],
-			"Sync google from upstream")
-		self.assertEqual(drift._remediation("google", 3)["label"],
-			"Sync google from upstream (updates all 3 drifted google skills)")
+	VENDORS = [{"kind": "subtree", "prefix": "anthropics"},
+		{"kind": "sparse", "dest": "softaworks/skills/jira"}]
 
-	def test_detail_also_clause_agrees_with_its_count(self):
-		def detail(drifted):
-			return drift._detail("upstream_ahead", "pptx", "anthropics",
-				"anthropics", "https://u", "main",
-				"skills/pptx", "a" * 40, "b" * 40, drifted)
-		self.assertNotIn("also refreshes", detail(1))
-		self.assertIn("the other 1 drifted `anthropics` skill.", detail(2))
-		self.assertIn("the other 2 drifted `anthropics` skills.", detail(3))
+	@staticmethod
+	def _f(vendor, skill, state, kind):
+		return {"vendor": vendor, "skill": skill, "drift_state": state, "vendor_kind": kind}
+
+	def test_the_label_names_every_vendor_and_asks_for_review_only_with_patches(self):
+		clean = drift._sync_plan(self.VENDORS,
+			[self._f("anthropics", "pptx", "upstream_ahead", "subtree")], [])
+		self.assertEqual(drift._remediation(clean)["label"],
+			"Sync every vendor from upstream (anthropics, softaworks)")
+		patched = drift._sync_plan(self.VENDORS,
+			[self._f("anthropics", "pptx", "upstream_ahead", "subtree"),
+			self._f("softaworks", "jira", "local_only", "sparse")], [])
+		self.assertEqual(drift._remediation(patched)["label"],
+			"Sync every vendor from upstream (anthropics, softaworks) — review local "
+			"patches first")
+		self.assertFalse(drift._remediation(patched)["auto_runnable"])
+
+	def test_the_scope_counts_agree_and_name_every_risk(self):
+		one = drift._sync_scope(drift._sync_plan(self.VENDORS,
+			[self._f("anthropics", "pptx", "upstream_ahead", "subtree")], []))
+		self.assertIn("One run resolves the one drifted skill: anthropics/pptx.", one)
+		self.assertNotIn("review these local patches", one)
+		many = drift._sync_scope(drift._sync_plan(self.VENDORS, [
+			self._f("anthropics", "pptx", "upstream_ahead", "subtree"),
+			self._f("anthropics", "docx", "diverged", "subtree"),
+			self._f("softaworks", "jira", "local_only", "sparse"),
+			self._f("anthropics", "pdf", "probe_error", "subtree"),
+		], ["google"]))
+		self.assertIn("all 2 drifted skills: anthropics/docx, anthropics/pptx.", many)
+		self.assertIn("softaworks/jira (local patch: the copy is overwritten, so the "
+			"patch must be re-applied)", many)
+		self.assertIn("It also stops shipping anthropics/pdf", many)
+		self.assertIn("synced by that same run anyway: google.", many)
+
+	def test_a_sparse_local_patch_is_told_any_sync_discards_it(self):
+		def detail(kind):
+			return drift._detail("local_only", "jira", "softaworks", "softaworks",
+				"https://u", "main", "skills/jira", "a" * 40, "a" * 40, kind)
+		self.assertIn("overwrites this sparse copy with `rsync --delete`", detail("sparse"))
+		self.assertIn("a sync merges it three-way and keeps it", detail("subtree"))
+		self.assertNotIn("would discard it", detail("subtree"))
 
 
 class DegradationTests(unittest.TestCase):

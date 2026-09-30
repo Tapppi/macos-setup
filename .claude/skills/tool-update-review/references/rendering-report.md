@@ -1126,9 +1126,10 @@ accepted` count read off its own chips:
    (`assembly.md` §Skill-Drift Assembly). The head carries the count, so the
    accounting is visible without the rows being. Counted separately from
    `total_outdated`, exactly as `skill_drift_count` is. Rows repeat the
-   vendor-scoped sync command per skill, which is honest rather than
-   redundant — it is genuinely the same command for every skill of a vendor,
-   and the remediation `label` says how many it covers.
+   one sync command per skill, which is honest rather than redundant — it is
+   genuinely the same command for every drifted skill of every vendor, and
+   the remediation `label` names every vendor it syncs
+   (`collection.md` §The One Sync).
 
 **Bands 1 and 2 must exclude *every* non-version source, not just
 brew-health.** They are chip clouds keyed on a version or a delta, so a
