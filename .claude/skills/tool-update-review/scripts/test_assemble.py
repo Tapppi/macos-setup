@@ -2219,7 +2219,18 @@ class ConvergenceMergeTests(unittest.TestCase):
 					"body": "All edits applied.", "attempt_log": []},
 				"degraded_tools": [], "standing_rejects": []},
 		}
+		# The applier binds the effect to both corpora (apply_converge.
+		# _bind_corpora); a test that edits a corpus afterwards rebinds with
+		# `_bind` or is testing exactly that mismatch.
+		self._bind(effect, corpus_pre, corpus_post)
 		effect.update(over)
+		return effect
+
+	@staticmethod
+	def _bind(effect, corpus_pre, corpus_post):
+		import converge as contract
+		effect["corpus_pre_digest"] = contract.canonical_digest(corpus_pre)
+		effect["corpus_post_digest"] = contract.canonical_digest(corpus_post)
 		return effect
 
 	def _converge_json(self):
@@ -2379,6 +2390,55 @@ class ConvergenceMergeTests(unittest.TestCase):
 		# The FRESH research renders, not the stale converged view.
 		self.assertEqual(len(report["tools"][0]["items"]), 2)
 		self.assertIn("re-researched", report["tools"][0]["items"][0]["title"])
+
+	def test_a_corpus_pre_rebuilt_after_convergence_does_not_carry_the_stale_post(self):
+		"""The integration review's must-fix, at the merge: research changes,
+		`--prepare --force` rebuilds corpus.pre from it — so the fresh
+		validation matches corpus.pre and the input_digest check passes — and
+		the OLD corpus.post and effect, with nothing moved for the bucket
+		check to catch, used to render as `converged`: the old items over the
+		new research, and the old acceptance with them."""
+		collect, research = self._collect_and_research()
+		corpus_pre, _ = self._build_corpora(collect, research)
+		stale_post = json.loads(json.dumps(corpus_pre))  # a no-op convergence
+		effect = self._effect(corpus_pre, stale_post)
+		self.assertEqual(effect["moved"], {})
+		changed = json.loads(json.dumps(research))
+		changed[0]["items"][1].update(tags=["breaking"], severity="incompatible",
+			title="Removes the --legacy flag this setup passes",
+			local=_local("reaches", "risk", evidence=[{"path": "Brewfile"}]))
+		rebuilt_pre, _ = self._build_corpora(collect, changed)
+		report, _ = assemble_session(collect, changed, session_files={
+			"corpus.pre.json": rebuilt_pre, "corpus.post.json": stale_post,
+			"converge-effect.json": effect, "converge.json": self._converge_json()})
+		conv = report["convergence"]
+		self.assertEqual(conv["state"], "artefacts_inconsistent", conv)
+		self.assertIn("corpus.pre.json was rebuilt after convergence ran", conv["detail"])
+		titles = [i["title"] for i in report["tools"][0]["items"]]
+		self.assertIn("Removes the --legacy flag this setup passes", titles)
+		self.assertFalse(assemble.baseline_upgrade(report["tools"][0])["pre_accept"])
+
+	def test_an_effect_that_binds_no_corpus_or_another_post_is_inconsistent(self):
+		collect, research = self._collect_and_research()
+		corpus_pre, corpus_post = self._build_corpora(collect, research)
+		self._delete_feature_item(corpus_post)
+		for key in ("corpus_pre_digest", "corpus_post_digest"):
+			with self.subTest(missing=key):
+				effect = self._effect(corpus_pre, corpus_post)
+				del effect[key]
+				report, _ = assemble_session(collect, research, session_files={
+					"corpus.pre.json": corpus_pre, "corpus.post.json": corpus_post,
+					"converge-effect.json": effect, "converge.json": self._converge_json()})
+				self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+				self.assertIn("no usable " + key, report["convergence"]["detail"])
+		# A corpus.post from some other convergence, beside the right pre.
+		effect = self._effect(corpus_pre, corpus_post)
+		other_post = json.loads(json.dumps(corpus_pre))
+		report, _ = assemble_session(collect, research, session_files={
+			"corpus.pre.json": corpus_pre, "corpus.post.json": other_post,
+			"converge-effect.json": dict(effect, moved={}), "converge.json": self._converge_json()})
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("corpus.post.json is not the corpus", report["convergence"]["detail"])
 
 	def test_machine_facts_that_drift_after_prepare_keep_the_converged_views(self):
 		"""Review A1: a view also carries facts the validator reads from the

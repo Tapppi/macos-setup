@@ -1750,6 +1750,93 @@ class LoopCliTests(unittest.TestCase):
 			self.assertEqual(apply_converge.main(argv), 4)
 			self.assertEqual(apply_converge.main(argv + ["--force"]), 0)
 
+	def test_a_stale_convergence_never_survives_a_rebuilt_corpus(self):
+		"""The integration review's must-fix: research changes after
+		convergence, `--prepare --force` rebuilds corpus.pre from it, and the
+		OLD corpus.post and effect — nothing moved, so no bucket check could
+		catch them — rendered as `converged` over the new research, because
+		the fresh validation matched the rebuilt corpus.pre and nothing bound
+		the terminal artefacts to the corpus they came from. Now the rebuild
+		retires them to superseded/, and a stale pair put back is refused by
+		the digests the effect carries."""
+		import assemble
+		session_src, roots, _ = validate_items.fixture_session()
+		session = os.path.join(self.tmp, "tool-update-review-20260930T000000Z")
+		shutil.copytree(session_src, session)
+		argv = ["--session", session, "--macos-setup-root", roots[0],
+			"--dotfiles-root", roots[1], "--systems-root", roots[2]]
+
+		def main(*extra):
+			with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+				return apply_converge.main(argv + list(extra))
+
+		def read(*parts):
+			with open(os.path.join(session, *parts), encoding="utf-8") as fh:
+				return json.load(fh)
+
+		def assemble_report():
+			with mock.patch.object(sys, "argv", ["assemble.py", session,
+					"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+					"--systems-root", roots[2]]), \
+					mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+				assemble.main()
+			return read("report.json")
+
+		self.assertEqual(main("--prepare"), 0)
+		pre = read("corpus.pre.json")
+		self.assertEqual(main("--submit", self._draft(make_submission(pre, []))), 0)
+		effect = read("converge-effect.json")
+		self.assertEqual(effect["corpus_pre_digest"], C.canonical_digest(pre))
+		self.assertEqual(effect["corpus_post_digest"],
+			C.canonical_digest(read("corpus.post.json")))
+		self.assertEqual(assemble_report()["convergence"]["state"], "converged")
+
+		# Research changes after convergence; the corpus is rebuilt from it.
+		research = read("research", "00-conforming.json")
+		research[0]["items"][0]["title"] = "Re-researched: the MAC fix also changes key rotation"
+		self._write(os.path.join(session, "research", "00-conforming.json"), research)
+		self.assertEqual(main("--prepare", "--force"), 0)
+		superseded = os.path.join(session, "superseded")
+		(retired,) = os.listdir(superseded)
+		self.assertEqual(sorted(os.listdir(os.path.join(superseded, retired))), sorted(
+			["corpus.pre.json", "corpus.post.json", "converge-effect.json",
+				"converge.json", "converge-attempts.json"]))
+		for name in apply_converge.CONVERGENCE_ARTEFACTS:
+			self.assertFalse(os.path.exists(os.path.join(session, name)), name)
+		report = assemble_report()
+		self.assertEqual(report["convergence"]["state"], "not_run")
+		sops = next(t for t in report["tools"] if t["id"] == research[0]["id"])
+		self.assertIn("Re-researched", " ".join(i["title"] for i in sops["items"]))
+
+		# The stale pair put back beside the rebuilt corpus is refused.
+		for name in ("corpus.post.json", "converge-effect.json", "converge.json"):
+			shutil.copy(os.path.join(superseded, retired, name), session)
+		report = assemble_report()
+		self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
+		self.assertIn("corpus.pre.json was rebuilt after convergence ran",
+			report["convergence"]["detail"])
+		sops = next(t for t in report["tools"] if t["id"] == research[0]["id"])
+		self.assertIn("Re-researched", " ".join(i["title"] for i in sops["items"]))
+
+		# And the rebuilt corpus converges on its own, fresh loop.
+		for name in ("corpus.post.json", "converge-effect.json", "converge.json"):
+			os.remove(os.path.join(session, name))
+		pre = read("corpus.pre.json")
+		self.assertEqual(main("--submit", self._draft(make_submission(pre, []))), 0)
+		self.assertEqual(read("converge-effect.json")["attempt"], 1)
+		self.assertEqual(assemble_report()["convergence"]["state"], "converged")
+
+	def test_a_rebuild_with_no_convergence_to_retire_retires_nothing(self):
+		session_src, roots, _ = validate_items.fixture_session()
+		session = os.path.join(self.tmp, "prepare-twice")
+		shutil.copytree(session_src, session)
+		argv = ["--session", session, "--prepare", "--macos-setup-root", roots[0],
+			"--dotfiles-root", roots[1], "--systems-root", roots[2]]
+		with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+			self.assertEqual(apply_converge.main(argv), 0)
+			self.assertEqual(apply_converge.main(argv + ["--force"]), 0)
+		self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+
 	def test_prepare_pins_an_unreadable_store_as_unreadable(self):
 		"""The CLI half of the three-state distinction: a corrupt
 		method-notes.json reaches corpus.pre as the sentinel, and the

@@ -54,7 +54,19 @@ critical findings bounces (exit 1) with the applier's coded findings and the
 resolved values — the corpus's actual content, which is usually the whole
 fix. **Five attempts, then the run degrades conservatively instead of
 dying** (§6). On success the applier writes `corpus.post.json`,
-`converge-effect.json` and the accepted `converge.json`.
+`converge-effect.json` and the accepted `converge.json`. The effect carries
+`corpus_pre_digest` and `corpus_post_digest` — `converge.canonical_digest` of
+the corpus the edits applied to and of the one they produced — and assembly
+refuses any corpus pair they do not name (`references/assembly.md` §Consuming
+Convergence).
+
+**`--prepare --force` starts a new loop.** A rebuilt corpus.pre is a
+different corpus, so whatever converged over the old one no longer
+describes it. When any of `corpus.post.json`, `converge-effect.json`,
+`converge.json` or `converge-attempts.json` exists, the rebuild moves them,
+with the old `corpus.pre.json`, to `superseded/<UTC timestamp>/` — moved,
+never deleted, so the retired loop stays readable — and says so on stderr.
+The new corpus then converges from attempt 1.
 
 You read: `converge-view.json` (every item minus its `body`, every
 suggestion whole, per-tool derived state — including, since view version 2,

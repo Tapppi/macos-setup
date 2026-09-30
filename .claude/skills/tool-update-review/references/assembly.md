@@ -231,7 +231,15 @@ What the merge does, in order:
    deliberately the *cheap* half of the comparison — the applier already
    derived the record from these files; assembly verifies these are the
    files it derived it from, so a mixed-up session dir cannot render half of
-   one run against half of another. It then checks the fresh validation was
+   one run against half of another. The effect also names both corpora by
+   digest (`corpus_pre_digest`, `corpus_post_digest`), and a corpus that is
+   not the one named — above all a `corpus.pre.json` rebuilt by `--prepare
+   --force` after research changed, which the input-digest check below
+   cannot catch because the fresh validation matches it — is
+   `artefacts_inconsistent`; so is an effect that names none. A rebuild
+   retires the old loop's artefacts to `superseded/` anyway
+   (`references/convergence.md` §1), so this is the check for a pair put
+   back or written by another run. It then checks the fresh validation was
    validated from the **same inputs** as `corpus.pre`: identical tool-id sets,
    and per tool an identical `input_digest` — the validator's digest of the
    collect.json candidate, the research entry and the watch-item topics. A

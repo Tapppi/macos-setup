@@ -1976,6 +1976,7 @@ def _degrade_unapplied(corpus_pre, converge, attempt, findings, attempt_log):
 		"findings": findings,
 		"convergence_status": status,
 	}
+	_bind_corpora(effect, corpus_pre, corpus_post)
 	return {"state": "degraded_unapplied", "critical": findings, "notes": [],
 		"rejected": rejects, "applied": [], "superseded": [],
 		"corpus_post": corpus_post, "effect": effect}
@@ -2166,7 +2167,7 @@ def _build_effect(corpus_pre, corpus_post, converge, result, edits_by_id,
 	declared = converge.get("corpus_effect")
 	shipped_effect["narrative"] = declared.get("narrative") \
 		if isinstance(declared, dict) else None
-	return {
+	return _bind_corpora({
 		"run_id": corpus_pre.get("run_id"),
 		"generated_at": corpus_pre.get("generated_at"),
 		"attempt": attempt,
@@ -2183,7 +2184,23 @@ def _build_effect(corpus_pre, corpus_post, converge, result, edits_by_id,
 		"corpus_effect": shipped_effect,
 		"findings": result["notes"] + [f for f in result["critical"]],
 		"convergence_status": status,
-	}
+	}, corpus_pre, corpus_post)
+
+
+def _bind_corpora(effect, corpus_pre, corpus_post):
+	"""Stamp the effect with the digests of the two corpora it describes —
+	`corpus_pre_digest` (the corpus the edits applied to) and
+	`corpus_post_digest` (the one they produced), `converge.canonical_digest`
+	both, the same identity the view and the submission carry. run_id is the
+	session id and cannot tell one corpus of a session from another, so
+	without these a corpus.pre rebuilt by `--prepare --force` after research
+	changed would still pass for the one this effect and corpus.post were
+	derived from, and assembly would render the stale converged views over
+	the fresh research (assembly.md §Consuming Convergence). Called last,
+	once the post corpus is final: nothing writes to it afterwards."""
+	effect["corpus_pre_digest"] = contract.canonical_digest(corpus_pre)
+	effect["corpus_post_digest"] = contract.canonical_digest(corpus_post)
+	return effect
 
 
 def finalize_clean(corpus_pre, converge, result, attempt, attempt_log):
@@ -2292,6 +2309,41 @@ def _snapshot_store(session_dir, filename):
 	return snapshot
 
 
+# The artefacts one convergence loop leaves beside corpus.pre.json. They
+# describe THAT corpus, so rebuilding it retires them (`_retire_convergence`).
+CONVERGENCE_ARTEFACTS = ("corpus.post.json", "converge-effect.json",
+	"converge.json", "converge-attempts.json")
+
+
+def _retire_convergence(session_dir):
+	"""Move the previous loop's artefacts — and the corpus.pre.json they were
+	derived from — to `superseded/<UTC timestamp>/`, before `--prepare
+	--force` writes a new corpus. → the directory, or None when there was
+	nothing to retire.
+
+	Left in place they describe a corpus that no longer exists: assembly
+	refuses them by digest (`_bind_corpora`), and `--submit` refuses to run
+	while an effect exists, so the rebuilt session could neither render its
+	convergence nor converge again. Moved rather than deleted, so the loop
+	that was retired — its attempts and its effect included — stays on disk
+	to read, and a rebuilt corpus starts its own loop."""
+	present = [name for name in CONVERGENCE_ARTEFACTS
+		if os.path.exists(os.path.join(session_dir, name))]
+	if not present:
+		return None
+	stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+	target, suffix = os.path.join(session_dir, "superseded", stamp), 1
+	while os.path.exists(target):
+		suffix += 1
+		target = os.path.join(session_dir, "superseded", "{}-{}".format(stamp, suffix))
+	os.makedirs(target)
+	for name in present + ["corpus.pre.json"]:
+		source = os.path.join(session_dir, name)
+		if os.path.exists(source):
+			os.replace(source, os.path.join(target, name))
+	return target
+
+
 def _prepare(session_dir, args):
 	pre_path = os.path.join(session_dir, "corpus.pre.json")
 	if os.path.exists(pre_path) and not args.force:
@@ -2319,6 +2371,14 @@ def _prepare(session_dir, args):
 		"method_notes": _snapshot_store(session_dir, model.METHOD_NOTES_STORE),
 	}
 	corpus_pre = contract.build_corpus_pre(validation, collect, stores)
+	# Only now, with the new corpus built: a prepare that fails above leaves
+	# the previous loop exactly as it was.
+	retired = _retire_convergence(session_dir)
+	if retired:
+		print("Note: corpus.pre.json is being rebuilt, so the convergence that ran "
+			"over the old one no longer describes it — its artefacts were moved to "
+			"{}. Converge again against the new corpus.".format(retired),
+			file=sys.stderr)
 	_write_json(pre_path, corpus_pre)
 	_write_json(os.path.join(session_dir, "converge-view.json"),
 		contract.build_view(corpus_pre))

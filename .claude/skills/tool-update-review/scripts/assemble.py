@@ -914,7 +914,8 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	    exists. The report renders the pre-convergence corpus and says so.
 	  * `artefacts_inconsistent` — the artefacts exist but do not describe
 	    one run over one corpus (one of the pair missing, unreadable, run
-	    ids disagreeing, or a moved bucket the corpora do not show). The
+	    ids disagreeing, a corpus that is not the one the effect's digests
+	    name, or a moved bucket the corpora do not show). The
 	    report renders the PRE corpus — the conservative side — and the
 	    state is loud on the page, never a silent fall-through."""
 	effect, effect_problem = _read_session_json(session_dir, "converge-effect.json")
@@ -955,6 +956,28 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 	if len({rid for _, rid in run_ids}) != 1:
 		return inconsistent("run_id disagrees across the artefacts: "
 			+ ", ".join(f"{name}={rid!r}" for name, rid in sorted(run_ids)))
+
+	# One corpus pair: the effect names the digests of the corpus.pre its
+	# edits applied to and the corpus.post they produced
+	# (apply_converge._bind_corpora). run_id cannot tell two corpora of one
+	# session apart, and the input_digest check below compares the fresh
+	# validation with corpus.pre ONLY — so a corpus.pre rebuilt after research
+	# changed matched the fresh validation, and a stale corpus.post and effect
+	# (an empty `moved` above all) rode through on it, rendering the old
+	# converged views over the new research.
+	for name, doc in (("corpus.pre.json", pre), ("corpus.post.json", post)):
+		key = "corpus_pre_digest" if name == "corpus.pre.json" else "corpus_post_digest"
+		bound = effect.get(key)
+		if not (isinstance(bound, str) and bound.startswith("sha256:")):
+			return inconsistent(f"converge-effect.json carries no usable {key} "
+				f"({bound!r}) — it does not say which {name} it describes; re-run "
+				f"convergence")
+		if converge.canonical_digest(doc) != bound:
+			return inconsistent(f"{name} is not the corpus converge-effect.json "
+				f"describes ({key} {bound[:19]}…, the file is "
+				f"{converge.canonical_digest(doc)[:19]}…)"
+				+ (" — corpus.pre.json was rebuilt after convergence ran; converge "
+					"again against it" if name == "corpus.pre.json" else ""))
 
 	pre_views = {v.get("id"): v for v in pre.get("tools") or [] if isinstance(v, dict)}
 	post_views = {v.get("id"): v for v in post.get("tools") or [] if isinstance(v, dict)}
