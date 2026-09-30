@@ -970,14 +970,16 @@ def load_convergence(session_dir: str, views_by_id: dict) -> tuple:
 		bound = effect.get(key)
 		if not (isinstance(bound, str) and bound.startswith("sha256:")):
 			return inconsistent(f"converge-effect.json carries no usable {key} "
-				f"({bound!r}) — it does not say which {name} it describes; re-run "
-				f"convergence")
+				f"({bound!r}) — it does not say which {name} it describes; run "
+				f"`apply_converge.py --prepare --force` (it retires this effect; "
+				f"--submit refuses while one exists), then converge again")
 		if converge.canonical_digest(doc) != bound:
 			return inconsistent(f"{name} is not the corpus converge-effect.json "
 				f"describes ({key} {bound[:19]}…, the file is "
 				f"{converge.canonical_digest(doc)[:19]}…)"
-				+ (" — corpus.pre.json was rebuilt after convergence ran; converge "
-					"again against it" if name == "corpus.pre.json" else ""))
+				+ (" — corpus.pre.json was rebuilt after convergence ran; run "
+					"`apply_converge.py --prepare --force` to retire the stale "
+					"loop, then converge again against it" if name == "corpus.pre.json" else ""))
 
 	pre_views = {v.get("id"): v for v in pre.get("tools") or [] if isinstance(v, dict)}
 	post_views = {v.get("id"): v for v in post.get("tools") or [] if isinstance(v, dict)}

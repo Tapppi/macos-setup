@@ -2414,6 +2414,9 @@ class ConvergenceMergeTests(unittest.TestCase):
 		conv = report["convergence"]
 		self.assertEqual(conv["state"], "artefacts_inconsistent", conv)
 		self.assertIn("corpus.pre.json was rebuilt after convergence ran", conv["detail"])
+		# The way out is the command that works: --submit refuses while an
+		# effect exists (integration review round 2, R2-3).
+		self.assertIn("apply_converge.py --prepare --force", conv["detail"])
 		titles = [i["title"] for i in report["tools"][0]["items"]]
 		self.assertIn("Removes the --legacy flag this setup passes", titles)
 		self.assertFalse(assemble.baseline_upgrade(report["tools"][0])["pre_accept"])
@@ -2431,6 +2434,8 @@ class ConvergenceMergeTests(unittest.TestCase):
 					"converge-effect.json": effect, "converge.json": self._converge_json()})
 				self.assertEqual(report["convergence"]["state"], "artefacts_inconsistent")
 				self.assertIn("no usable " + key, report["convergence"]["detail"])
+				self.assertIn("apply_converge.py --prepare --force",
+					report["convergence"]["detail"])
 		# A corpus.post from some other convergence, beside the right pre.
 		effect = self._effect(corpus_pre, corpus_post)
 		other_post = json.loads(json.dumps(corpus_pre))
