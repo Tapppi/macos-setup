@@ -60,6 +60,13 @@ checker's own guidelines, and in this schema.
 §Items Are Outward-Facing Changes states the rule to the agent that writes
 items, in the terms it decides in.
 
+**An item is a change.** A fact about the tool, its vendor or this machine
+that reports no change has a field of its own, and filing it as a `chore` item
+is the same scoping error: vendor silence goes in `vendor_silent_categories`
+and `release_inventory`, where the changelog lives goes in `links[]` and a
+method note, and local state goes in `config_status` or a real item's `local`
+block. Convergence routes one that escapes (`references/convergence.md` §5, C2).
+
 **`intel.Brewfile` is out of this tool entirely.** Not a source of candidates,
 no compatibility checks against it, no suggestions targeting it, and it does not
 appear in the report. I-17 makes that a runtime check.

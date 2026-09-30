@@ -740,6 +740,43 @@ class OutwardFacingTests(GuidelineTestCase):
 		self.assertSays("outward-facing changes only", model.contract()["scope"]["items_are"])
 		self.assertSays("outward-facing", self.section())
 
+	def test_a_non_change_is_routed_to_its_own_home(self):
+		"""The real run kept `chore` items that were not changes at all: five
+		"no published release notes", where claudebar's changelog lives (which
+		duplicated its method note), and datagrip "never launched on this
+		machine". Each kind is named with its home, in the checker's
+		guidelines, in the schema, and in convergence's C2 routing."""
+		text = flat(self.section())
+		self.assertSays("An item is a change, not a fact about the tool", text)
+		for home in ("`vendor_silent_categories`", "`release_inventory`", "`links[]`",
+				"a method note", "`config_status`"):
+			self.assertSays(home, text)
+		for example in ("no published release notes", "never launched here"):
+			self.assertSays(example, text)
+		schema = flat(section_of(read("references", "item-schema.md"),
+			"## 1. Scope", "## 2. The item"))
+		self.assertSays("An item is a change.", schema)
+		self.assertSays("vendor silence goes in `vendor_silent_categories`", schema)
+		c2 = flat(section_of(read("references", "convergence.md"),
+			"**C2 — tags → visibility**", "**C3 — security-only labelling**"))
+		self.assertSays("Route an item that is not a change", c2)
+		self.assertSays("`delete` it with the full record", c2)
+		self.assertSays("`flag` it naming the home", c2)
+
+	def test_credential_handling_is_security_not_chore(self):
+		"""raspberry-pi-imager's "hashes customisation credentials before
+		persisting them" was tagged `chore` — a missed security tag. The
+		guidance names it, and convergence is told it can only flag one:
+		retag cannot add the block I-4 requires."""
+		text = flat(self.section())
+		self.assertSays("is `security`, not `chore`", text)
+		self.assertSays("hashes customisation credentials", text)
+		self.assertSays("`fix` only when that text says a weakness was fixed", text)
+		c2 = flat(section_of(read("references", "convergence.md"),
+			"**C2 — tags → visibility**", "**C3 — security-only labelling**"))
+		self.assertSays("lacks the `security` tag is a `flag` too", c2)
+		self.assertSays("E-APPLY-SCHEMA", c2)
+
 
 # ── the claims stay true of the artifact they name ─────────────────────────
 class DocumentedScopeTests(GuidelineTestCase):

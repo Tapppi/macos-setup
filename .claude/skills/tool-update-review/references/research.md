@@ -383,6 +383,27 @@ Three boundaries worth stating, because they are where this gets misapplied:
     the deterministic layer enforces it — a regex that dropped
     "internal-looking" items would be exactly the behaviour this pipeline
     forbids — so it holds here or it does not hold at all.
+  - **An item is a change, not a fact about the tool, its vendor or this
+    machine.** Three kinds of non-change keep turning up as `chore` items.
+    Each has a home of its own, and none of them is an item at any tag:
+      - *The vendor published no notes, or no detail, for a version* ("15.81.6
+        has no published release notes") is vendor silence. Name the category
+        in `vendor_silent_categories` (§Don't Author "I Checked, Found
+        Nothing") and list the version in `release_inventory`.
+      - *Where the changelog lives, or how to read it* ("the detailed notes are
+        in CHANGELOG.md; the release bodies are boilerplate") is a link in
+        `links[]`, and a method note if the next run needs telling
+        (§Writing a Research-Method Note).
+      - *The state of this machine* ("installed but never launched here") is
+        `config_status`, or the `local` block of the real item it bears on.
+        On its own it is nothing.
+  - **A change to how the tool handles credentials, keys, tokens or signatures
+    is `security`, not `chore`.** "2.0.11 hashes customisation credentials
+    before persisting them" (raspberry-pi-imager) changes what someone who
+    reads the stored settings gets: tag it `security` with a security block.
+    Its `nature` follows the upstream text — `fix` only when that text says a
+    weakness was fixed, otherwise `boundary` or `unclear`
+    (§Security Items: Direction Decides the Display).
 
 Read this together with §Don't Author "I Checked, Found Nothing": an empty
 result for a tool whose whole range was internal maintenance is the correct

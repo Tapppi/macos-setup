@@ -170,8 +170,23 @@ believed the opposite decide differently — if not, `rerate`; deletion is for
 duplicates and strict subsumption, with the full record. Nothing is promoted to
 fill a slot. No project-internal-maintenance filter lives here (the checker is
 told not to emit such items at all); one that escapes is handled by the
-counterfactual like any other item. Attest `scanned.items` and `clean` — clean +
-your edited items must account for every item.
+counterfactual like any other item.
+
+**Route an item that is not a change.** Vendor silence ("no published release
+notes"), where the changelog lives, and local state ("never launched here")
+each have a home that is not `items[]` (`references/research.md` §Items Are
+Outward-Facing Changes). Look for them among the `chore` items above all. When
+the fact already lives in its home — a method note or `links[]` entry on the
+tool, `vendor_silent_categories`, `release_inventory`, `config_status` — the
+item is strictly subsumed: `delete` it with the full record. When it does not,
+`flag` it naming the home. No op writes those fields, and a delete would lose
+the only copy of the fact. A change to how the tool handles credentials, keys,
+tokens or signatures that lacks the `security` tag is a `flag` too: `retag`
+cannot add the security block the tag requires (I-4), so the submission
+bounces with `E-APPLY-SCHEMA`.
+
+Attest `scanned.items` and `clean` — clean + your edited items must account for
+every item.
 
 **C3 — security-only labelling** (`retag`, `rerate`, `flag`). For every
 tool with `bucket_inputs.security_only == true`: identify the load-bearing

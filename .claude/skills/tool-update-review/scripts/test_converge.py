@@ -966,6 +966,21 @@ class ApplyAndScopeTests(unittest.TestCase):
 		result = run(pre, make_submission(pre, [edit]))
 		self.assertIn("E-APPLY-SCHEMA", codes_of(result))
 
+	def test_retagging_a_chore_item_security_bounces_without_a_block(self):
+		"""convergence.md §5 C2 tells the agent a credential-handling change
+		filed as `chore` can only be flagged: a `retag` adding `security`
+		leaves the block I-4 requires missing, and the submission bounces."""
+		item = make_item("brew:t", 5, tags=("chore",), local=plain_local())
+		pre = build_pre([make_view("brew:t", [item])])
+		edit = {"edit_id": "cv-001", "check": "C2-tags-visibility", "op": "retag",
+			"target": {"tool_id": "brew:t", "kind": "item", "id": item["id"],
+				"field": "tags"},
+			"precondition": {"before": ["chore"]},
+			"quote": item["title"], "after": ["security", "chore"],
+			"bucket_claim": lateral("routine"), "reason": cut_reason()}
+		result = run(pre, make_submission(pre, [edit]))
+		self.assertIn("E-APPLY-SCHEMA", codes_of(result))
+
 	def test_added_proposal_missing_payload_is_schema_failure(self):
 		add = {"edit_id": "cv-001", "check": "C6-memory", "op": "add",
 			"target": {"tool_id": "brew:t", "kind": "suggestion", "id": None,
