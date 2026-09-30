@@ -60,7 +60,7 @@ mechanism).
 	"report_id": "tool-update-review-20260704T143012",   // stable within a session run
 	"generated_at": "2026-07-04T14:30:12Z",              // ISO-8601 UTC
 	"machine": {
-		"arch":    "x86_64",         // "x86_64" | "arm64"
+		"arch":    "arm64",          // "arm64" | "x86_64"
 		"os":      "macOS 15.3",
 		"hostname": "your-mac"
 	},
@@ -113,7 +113,7 @@ mechanism).
 			"up_to_date": true,             // HEAD == origin/master
 			"ahead": 0, "behind": 0,
 			"recent_commits": [              // last 20, oneline — research context only
-				"37e0774 Run install_podman_intel after mise runtimes; guard missing uv",
+				"37e0774 Add libepoxy: krunkit abort-traps at launch without it",
 				"1639adb Update dotfiles"
 			]
 		},
@@ -137,7 +137,7 @@ mechanism).
 			"severity": "warning",           // the item severity vocabulary, one palette
 			"suggestion_ids": [               // every suggestion on the tool, in array order
 				"cask:google-chrome:upgrade",
-				"cask:google-chrome:add-intel-note"
+				"cask:google-chrome:refresh-duti-mapping"
 			],
 			"reasons":  ["config_stale", "warning_finding", "major_bump", "cves"],  // stable codes → chips
 			"score":    250                   // exposed for debuggability; the UI need not show it
@@ -314,7 +314,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			"id_stability": "anchored",                                        // validator-assigned
 			"anchor":       {"kind": "issue", "value": "containers/podman#14123"},   // REQUIRED
 
-			"title":    "libkrun is now a required dependency, and it is Apple Silicon only",
+			"title":    "podman 5 requires libkrun 1.9, newer than the krunkit tap ships",
 			"body":     "Longer explanation with the concrete failure mode.",   // optional
 			"tags":     ["breaking", "packaging"],   // ≥1 from the closed set of eight
 			"severity": "incompatible",              // "info"|"notable"|"warning"|"incompatible"
@@ -323,7 +323,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			// is required whenever `change` is present — never null, never
 			// "none found". `link_index` indexes links[] below.
 			"change": {"version": "5.0.0",
-				"citation": "libkrun is now a required dependency", "link_index": 0},
+				"citation": "libkrun 1.9 or newer is now required", "link_index": 0},
 
 			// The finding about THIS setup, or null when nobody looked.
 			// `direction` answers "does this land on something this setup
@@ -333,7 +333,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 			"local": {
 				"direction":  "reaches",      // "reaches"|"does_not_reach"|"unclear"
 				"effect":     "risk",         // "risk"|"benefit"|"none"
-				"statement":  "The Brewfile pins podman for exactly this reason.",
+				"statement":  "The Brewfile takes krunkit from the slp/krun tap, which still bundles libkrun 1.8; the pin holds podman until it catches up.",
 				// PATHS ONLY, as objects. `lines` members are an int or a
 				// two-element [start, end]; `note` is a human label the
 				// validator ignores. Prose belongs in citations[] — splitting
@@ -342,7 +342,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 				"evidence":  [{"path": "Brewfile", "lines": [84], "note": "the pin"}],
 				// Prose. Never path-checked, never fetched — a citation is not
 				// checkable, so it is not checked, so it cannot warn.
-				"citations": [{"kind": "command", "text": "uname -m → arm64", "url": null}]
+				"citations": [{"kind": "command", "text": "krunkit --version → krunkit 0.2.1 (libkrun 1.8.1)", "url": null}]
 			},
 
 			// Present iff `security` is among the tags (I-4). Per-CVE grading
@@ -402,14 +402,14 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 	// config already been dealt with, and does that still hold?"
 	"config_status": {
 		"state":  "needs_attention",     // "up_to_date" | "needs_attention" | "unknown"
-		"detail": "Brewfile:84's Intel-incompatibility comment (commit a1b2c3d, 2026-05-02) was written against v5.0.0's libkrun requirement. The items above show v5.5 additionally requires X — re-verify the pin rationale still covers it.",
+		"detail": "Brewfile:84's pin comment (commit a1b2c3d, 2026-05-02) was written against v5.0.0's libkrun requirement. The items above show v5.5 additionally requires X — re-verify the pin rationale still covers it.",
 		// The same evidence/citation split an item's `local` gets, and for the
 		// same reason: config_status was the worst offender, 133 of the run's
 		// 272 "evidence not found" warnings against 286 strings.
 		"evidence":  [{"path": "Brewfile", "lines": [84]}],
 		"citations": [
 			{"kind": "prior_review",
-				"text": "commit a1b2c3d — \"Pin podman to 4.x on Intel (libkrun ARM-only)\"",
+				"text": "commit a1b2c3d — \"Pin podman to 4.x until krunkit ships libkrun 1.9\"",
 				"url": null}
 		]
 	},
@@ -482,14 +482,14 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 		{
 			"id":    "brew:podman:fix-machine-init-flags",  // bespoke-setup fix — see references/research.md §Bespoke Setup Testing
 			"kind":  "edit",
-			"title": "Update install_podman_intel for v5's changed `podman machine init` flags",
+			"title": "Update config_podman for v5's changed `podman machine init` flags",
 			"target_files": [
 				{
-					"path":        "tasks/install.sh",
-					"description": "install_podman_intel: replace the removed --image-path flag with --rootful"
+					"path":        "tasks/config.sh",
+					"description": "config_podman: replace the removed --image-path flag with --rootful"
 				}
 			],
-			"rationale": "v5.0.0 removed the --image-path flag install_podman_intel currently passes to `podman machine init`. Verified empirically (not just inferred from the changelog): ran `podman machine init --rootful pm-verify-tmp` in a scratch-named machine, confirmed it succeeds where the old flag combination now errors, then removed the scratch machine (`podman machine rm -f pm-verify-tmp`) — the user's real `podman-machine-default` was never touched.",
+			"rationale": "v5.0.0 removed the --image-path flag config_podman currently passes to `podman machine init`. Verified empirically (not just inferred from the changelog): ran `podman machine init --rootful pm-verify-tmp` in a scratch-named machine, confirmed it succeeds where the old flag combination now errors, then removed the scratch machine (`podman machine rm -f pm-verify-tmp`) — the user's real `podman-machine-default` was never touched.",
 			"motivating_link": {
 				"type":  "release",
 				"label": "podman v5.0.0",
@@ -508,7 +508,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 		{
 			"id":    "brew:podman:keep-pin-add-comment",   // unique within report
 			"kind":  "edit",                                 // may be omitted — "edit" is the default
-			"title": "Retain pin; annotate Brewfile with Intel-incompatibility note",
+			"title": "Retain pin; annotate Brewfile with the krunkit-compatibility note",
 			"target_files": [
 				{
 					"path":        "Brewfile",
@@ -521,7 +521,7 @@ count; a consumer that needs one counts `review_bucket` over the tools whose
 				"label": "podman v5.0.0",
 				"url":   "https://github.com/containers/podman/releases/tag/v5.0.0"
 			},
-			"diff_preview": "-brew \"podman\"\n+# Intel only — v5+ requires libkrun (ARM). Keep at 4.x.\n+brew \"podman\""
+			"diff_preview": "-brew \"podman\"\n+# Held at 4.x: v5 needs libkrun 1.9, newer than slp/krun's krunkit ships.\n+brew \"podman\""
 		},
 		{
 			// A proposed watch item (§1.7 below) — a standing, forward-looking

@@ -153,6 +153,26 @@ class IntelBrewfileTests(GuidelineTestCase):
 		self.assertSays("Brewfile", scan)
 		self.assertNotIn("intel.Brewfile", scan)
 
+	def test_no_checker_facing_example_models_intel_host_work(self):
+		"""schemas.md's worked examples used to be Intel-host work: an x86_64
+		machine, an "add-intel-note" suggestion id, an Intel pin rationale, an
+		`install_podman_intel` edit and an "Intel only" Brewfile diff. None
+		broke the manifest rule, but a checker copies its examples. So the
+		only Intel mentions left in a checker-facing document are the
+		exclusion rules themselves; `x86_64` appears only where the arch
+		vocabulary is spelled out or where an ARM-only dependency on it is
+		named as an incompatibility."""
+		for name, text in sorted(CHECKER_FACING.items()):
+			for line in text.splitlines():
+				low = line.lower()
+				with self.subTest(name + ": " + line.strip()[:60]):
+					self.assertNotIn("install_podman_intel", line)
+					self.assertNotIn("intel-", low)
+					self.assertNotIn("intel only", low)
+					self.assertNotIn("on intel", low)
+					self.assertNotRegex(line, r"\"arch\":\s*\"x86_64\"")
+		self.assertRegex(SCHEMAS, r"\"arch\":\s*\"arm64\"")
+
 
 # ── the orphans: every mechanism lives in the skill ─────────────────────────
 class OrphanedInstructionTests(GuidelineTestCase):

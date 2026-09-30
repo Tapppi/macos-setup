@@ -1809,7 +1809,7 @@ upstream fact.
 ### Bespoke `tasks/*.sh` Setup Testing
 
 Some tools have setup logic in `tasks/install.sh`/`tasks/config.sh` beyond a
-plain package-manager command (podman's `install_podman_intel`, custom
+plain package-manager command (podman's `config_podman` machine setup, custom
 `config_duti` mappings, etc.). The default posture for these is **not**
 "mark the baseline upgrade `auto_runnable: false` and tell the user to
 re-run `install.sh` themselves" — that punts on exactly the kind of fix this

@@ -568,7 +568,7 @@ never fires for it.
 ## Bespoke Setup Execution
 
 For tools with setup logic beyond a plain package command (podman's
-`install_podman_intel` and similar): the baseline `upgrade` suggestion still
+`config_podman` and similar): the baseline `upgrade` suggestion still
 just runs the plain package-manager command as described above — bespoke
 setup doesn't change that; `auto_runnable: false` is the fallback only for
 the rare case where no command at all is safely testable for that tool, not
