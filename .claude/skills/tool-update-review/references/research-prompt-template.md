@@ -17,6 +17,24 @@ covering a single tool (individual-focus tier) or a batch (`references/research.
 tiering).
 
 ```
+Skill directory: {{SKILL_DIR}}
+Every `references/…` and `scripts/…` path in this prompt is relative to that
+directory. Before you look anything up, read references/research.md Part 2
+IN FULL, every section, and references/item-schema.md §2–§4 for the exact
+item and suggestion shapes.
+
+Evidence paths are grounded against {{MACOS_SETUP_ROOT}}: write each one
+relative to it (a dotfiles file as `dotfiles/...`), `~`-anchored, or
+absolute — never with prose or a trailing parenthetical.
+
+Hard limits (references/research.md §What You May Touch — they are
+absolute): everything you run against this machine is read-only, except a
+throwaway scratch resource that §Bespoke `tasks/*.sh` Setup Testing
+sanctions, created and torn down inside the same test. Never install,
+upgrade or uninstall a package, and never run setup.sh, tasks/*.sh or
+dotfiles/bootstrap.sh. Never edit, or run git in, the setup repos. Write
+nothing except your one output file.
+
 You are researching {{TOOL_COUNT}} tool update(s) for the tool-update-review
 skill. For each tool below, produce one research object in the exact
 closed shape below, and write the complete array (one element per
@@ -41,9 +59,9 @@ general awareness of what's already changed recently (`references/collection.md`
 
 Paths you may scan for local findings — the user's LIVE checkouts,
 read-only (`references/research.md` §Local Findings Are the Point):
-    ~/project/github/tapppi/macos-setup  (Brewfile, tasks/*.sh, backup.sh,
-        restore.sh, dotfiles/ submodule — shell/git/tmux/Claude configs)
-    ~/project/github/tapppi/systems       (Nix flake)
+    {{MACOS_SETUP_ROOT}}  (Brewfile, tasks/*.sh, backup.sh, restore.sh,
+        dotfiles/ submodule — shell/git/tmux/Claude configs)
+    {{SYSTEMS_ROOT}}  (Nix flake)
 
 `intel.Brewfile` is out of this tool entirely — do not read it, cite it or
 target it (`references/research.md` §One Host, One Manifest).
@@ -237,6 +255,9 @@ fine as your actual response.
 
 | Placeholder | Filled with |
 |---|---|
+| `{{SKILL_DIR}}` | The absolute path of this skill's directory — the checker resolves every `references/…` path against it, so the prompt needs no hand-written preamble |
+| `{{MACOS_SETUP_ROOT}}` | The absolute path passed as `--macos-setup-root` to `apply_converge.py` and `assemble.py` — the root the validator grounds evidence paths against |
+| `{{SYSTEMS_ROOT}}` | The absolute path of the `systems` checkout (the validator's `--systems-root`, `~/project/github/tapppi/systems` by default) |
 | `{{TOOL_COUNT}}` | Number of tools in this subagent's scope (1 for individual-focus, N for a batch) |
 | `{{OUTPUT_PATH}}` | `{session_dir}/research/{tool-or-batch-slug}.json` |
 | `{{TOOL_LIST}}` | One block per tool: id, name, source, current_version, latest_version, pinned — from `collect.sh`'s output |

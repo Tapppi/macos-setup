@@ -297,6 +297,10 @@ bespoke-setup work. It is short and it is absolute:
   a throwaway scratch resource for what you are doing. Reading a config,
   running `--version`, grepping a repo: yes. Anything that writes, installs,
   upgrades, or changes state: no.
+- **Never install, upgrade or uninstall a package**, bespoke-setup testing
+  included. Its scratch resource is made with the tool already on this
+  machine; a fix that can only be exercised on the new version cannot be
+  tested here, and §Bespoke `tasks/*.sh` Setup Testing says what to do then.
 - **Never run `setup.sh`, `tasks/*.sh` or `dotfiles/bootstrap.sh`.** These
   modify system configuration, install software and require `sudo`. The repo's
   own `CLAUDE.md` says the same thing; a research subagent has no exception to
@@ -1815,7 +1819,10 @@ here):
    `brew:podman:fix-machine-init-flags` suggestion; if neither is possible
    for a given tool, that specific fix is not verifiable this way — fall
    back to the `auto_runnable: false` / `manual_reason` path for it
-   (`references/schemas.md` §Report Object) instead of guessing.
+   (`references/schemas.md` §Report Object) instead of guessing. The same
+   holds when the fix needs the new version to exercise: the test uses the
+   version installed now, and installing or upgrading a package to test is
+   never sanctioned (§What You May Touch).
 4. **Propose a normal `kind: "edit"` suggestion** targeting the
    `tasks/*.sh` file, with a `diff_preview` reflecting the *tested* fix and
    a `rationale` that says plainly what was tested and how — this is the

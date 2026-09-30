@@ -222,6 +222,35 @@ class OrphanedInstructionTests(GuidelineTestCase):
 		documented = set(re.findall(r"\{\{[A-Z_]+\}\}", table))
 		self.assertEqual(used - documented, set())
 
+	def test_the_template_carries_its_own_preamble(self):
+		"""The real run's prompts each opened with a hand-built preamble — the
+		skill path, what to read first, the grounding root, the hard limits —
+		because the template's relative `references/…` paths resolved against
+		nothing. The template now opens with that preamble itself: the skill
+		directory before anything else, then the reading order, the grounding
+		root, and limits stated in research.md's own terms."""
+		body = TEMPLATE.split("```", 2)[1]
+		first = body.strip().splitlines()[0]
+		self.assertEqual(first, "Skill directory: {{SKILL_DIR}}")
+		preamble = flat(body.split("You are researching", 1)[0])
+		self.assertSays("relative to that directory", preamble)
+		self.assertSays("references/research.md Part 2 IN FULL", preamble)
+		self.assertSays("references/item-schema.md §2–§4", preamble)
+		self.assertSays("grounded against {{MACOS_SETUP_ROOT}}", preamble)
+		self.assertSays("§What You May Touch", preamble)
+		self.assertSays("Never install, upgrade or uninstall a package", preamble)
+		self.assertSays("§Bespoke `tasks/*.sh` Setup Testing sanctions", preamble)
+		self.assertNotIn("~/project/github/tapppi", body)
+		# ...and the two rules no longer read as a contradiction: research.md
+		# says the bespoke scratch resource never extends to a package install.
+		touch = flat(section_of(RESEARCH, "### What You May Touch", "### Prior Findings"))
+		self.assertSays("Never install, upgrade or uninstall a package", touch)
+		self.assertSays("bespoke-setup testing included", touch)
+		bespoke = flat(section_of(RESEARCH, "### Bespoke `tasks/*.sh` Setup Testing",
+			"### Write `config_status`"))
+		self.assertSays("installing or upgrading a package to test is never sanctioned", bespoke)
+		self.assertSays("never write a preamble of your own", flat(SKILL_MD))
+
 
 # ── the three stores ────────────────────────────────────────────────────────
 class ThreeStoresTests(GuidelineTestCase):

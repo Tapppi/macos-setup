@@ -178,7 +178,10 @@ Loading-page design: `references/rendering-results.md`.
 
 Build each subagent's prompt by filling in
 `references/research-prompt-template.md` — a fixed skeleton so the
-boilerplate doesn't get retyped by hand and drift between runs.
+boilerplate doesn't get retyped by hand and drift between runs. Its opening
+(the skill directory, what to read first, the grounding root and the hard
+limits) is part of the template: fill it in, never write a preamble of your
+own.
 
 At the moment you fill `{{STANDING_NOTES}}`, snapshot **both** memory stores
 into the session — one `cp` each, no transformation:
