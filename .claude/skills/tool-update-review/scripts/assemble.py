@@ -1395,39 +1395,62 @@ def build_drift_tool(candidate: dict, research_obj: dict | None, view: dict) -> 
 			candidate.get("severity") or "notable",
 			expected)]
 
-	if not tool["suggestions"]:
-		rem = candidate.get("remediation")
-		# isinstance rather than truthiness: this block is written by a detector
-		# that can emit a half-built object, and a bare string here would raise
-		# on .get() and cost the whole report.
-		if isinstance(rem, dict) and rem.get("command"):
-			sug = {
-				# `:sync`, NEVER `:upgrade` — baseline_upgrade() identifies the
-				# pre-acceptable baseline by that suffix, so this one choice is
-				# what makes a vendored-skill sync impossible to auto-approve. A
-				# subtree pull rewrites files in the dotfiles submodule, needs a
-				# clean tree and can conflict; it is never a "just do it".
-				"id": f"{tool_id}:sync",
-				"kind": "upgrade",  # a single command to run, like an upgrade
-				"title": rem.get("label") or candidate.get("name") or "Sync from upstream",
-				"target_files": [],
-				"command": rem["command"],
-				# Defaults are the conservative half of each pair: a detector
-				# that omits the key gets manual, unprivileged.
-				"auto_runnable": rem.get("auto_runnable", False),
-				"needs_sudo": rem.get("needs_sudo", False),
-				"rationale": candidate.get("detail") or "",
-				"motivating_link": None,
-				"diff_preview": None,
-			}
-			if not sug["auto_runnable"]:
-				sug["manual_reason"] = (
-					"Vendored-skill sync is always manual — `sync-upstream.sh` pulls a git "
-					"subtree into the dotfiles submodule, needs a clean tree, and can conflict.")
-			tool["suggestions"] = [sug]
+	# The detector's sync is kept ALONGSIDE whatever research wrote, never
+	# replaced by it — unlike brew-health, whose research exists to replace the
+	# collect default with the right fix. Research here is told not to author
+	# the sync and is allowed a CUSTOMISATION.md edit (research.md §Skill-Drift
+	# Enrichment), so letting any research suggestion suppress the remediation
+	# turned "record the patch" into the card's only action and dropped the
+	# sync the finding exists to offer.
+	rem = candidate.get("remediation")
+	# isinstance rather than truthiness: this block is written by a detector
+	# that can emit a half-built object, and a bare string here would raise
+	# on .get() and cost the whole report.
+	if isinstance(rem, dict) and rem.get("command"):
+		sug = {
+			# `:sync`, NEVER `:upgrade` — baseline_upgrade() identifies the
+			# pre-acceptable baseline by that suffix, so this one choice is
+			# what makes a vendored-skill sync impossible to auto-approve. A
+			# subtree pull rewrites files in the dotfiles submodule, needs a
+			# clean tree and can conflict; it is never a "just do it".
+			"id": f"{tool_id}:sync",
+			"kind": "upgrade",  # a single command to run, like an upgrade
+			"title": rem.get("label") or candidate.get("name") or "Sync from upstream",
+			"target_files": [],
+			"command": rem["command"],
+			# Defaults are the conservative half of each pair: a detector
+			# that omits the key gets manual, unprivileged.
+			"auto_runnable": rem.get("auto_runnable", False),
+			"needs_sudo": rem.get("needs_sudo", False),
+			"rationale": candidate.get("detail") or "",
+			"motivating_link": None,
+			"diff_preview": None,
+		}
+		if not sug["auto_runnable"]:
+			sug["manual_reason"] = (
+				"Vendored-skill sync is always manual — `sync-upstream.sh` pulls a git "
+				"subtree into the dotfiles submodule, needs a clean tree, and can conflict.")
+		# Dedupe only an EQUIVALENT suggestion: one that runs the same
+		# command. The detector's copy is the one kept — its `:sync` id and
+		# manual flags are what keep a sync from being pre-accepted or run
+		# unattended, which a research-written duplicate need not carry.
+		same = [s for s in tool["suggestions"] if _runs_command(s, rem["command"])]
+		for dup in same:
+			note(f"note: {tool_id}: research suggestion {dup.get('id')!r} runs the "
+				f"detector's sync command; the detector's `:sync` suggestion replaces it")
+		tool["suggestions"] = [sug] + [s for s in tool["suggestions"]
+			if not any(s is dup for dup in same)]
 
 	finalize_tool(tool, view)
 	return tool
+
+
+def _runs_command(sug, command) -> bool:
+	"""Whether a suggestion runs `command` (whitespace-insensitive) — the one
+	sense in which a research suggestion duplicates a detector remediation."""
+	return (isinstance(sug, dict) and isinstance(sug.get("command"), str)
+		and isinstance(command, str)
+		and sug["command"].split() == command.split())
 
 
 def build_tool(candidate: dict, research_obj: dict | None, view: dict) -> dict:

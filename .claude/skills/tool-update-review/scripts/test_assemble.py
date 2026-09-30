@@ -675,6 +675,32 @@ class SemanticClassificationTests(unittest.TestCase):
 		self.assertFalse(tool["suggestions"][0]["pre_accept"])
 		self.assertIsNone(assemble.baseline_upgrade(tool))
 
+	def test_a_research_edit_rides_alongside_the_drift_sync_never_instead(self):
+		"""Drift research may add a CUSTOMISATION.md edit and must not author
+		the sync, so its edit used to become the card's only action. The
+		detector's `:sync` stays, first; only a research suggestion running
+		the same command is dropped, and the detector's copy is the one kept."""
+		_, candidate, _, _ = _fixture("S10")
+		edit = {"id": "skill-drift:anthropics/pptx:record-patch", "kind": "edit",
+			"title": "Record the local pptx patch in CUSTOMISATION.md",
+			"target_files": ["anthropics/CUSTOMISATION.md"], "rationale": "r",
+			"motivating_link": None, "diff_preview": "+ - pptx: local patch"}
+		dup = {"id": "skill-drift:anthropics/pptx:resync", "kind": "upgrade",
+			"title": "Re-sync", "target_files": [], "rationale": "r",
+			"motivating_link": None, "diff_preview": None,
+			"command": "bash  sync-upstream.sh", "auto_runnable": True, "needs_sudo": False}
+		research = {"id": candidate["id"], "links": [], "items": [],
+			"suggestions": [edit, dup]}
+		tool = build_one(candidate, research)
+		self.assertEqual([s["id"] for s in tool["suggestions"]],
+			["skill-drift:anthropics/pptx:sync", "skill-drift:anthropics/pptx:record-patch"])
+		self.assertFalse(any(s["pre_accept"] for s in tool["suggestions"]))
+		# Without the duplicate, the edit alone still leaves the sync on.
+		research["suggestions"] = [edit]
+		tool = build_one(candidate, research)
+		self.assertEqual([s["id"] for s in tool["suggestions"]],
+			["skill-drift:anthropics/pptx:sync", "skill-drift:anthropics/pptx:record-patch"])
+
 	def test_a_finding_item_is_synthesized_with_a_local_block_and_no_change(self):
 		"""A health finding is not an upstream change at all — it is a statement
 		about this install, so the synthesized item carries `local` and

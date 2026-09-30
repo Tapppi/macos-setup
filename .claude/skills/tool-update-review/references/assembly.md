@@ -1278,12 +1278,20 @@ unrecognized state falls back to `chore`/Notes rather than dropping the item,
 for the same reason the label map has a fallback: a state we don't know
 about is still a thing the user should see.)
 
-**Suggestions**: research's `suggestions[]` if present (research can author
-a better action than the default — e.g. an `edit` recording a newly
-discovered local patch in the vendor's `CUSTOMISATION.md`, or a `diverged`
-finding's conflict-review note); otherwise assembly synthesizes a single
-suggestion from the finding's `remediation` object, with
-`command`/`auto_runnable`/`needs_sudo` copied straight from it. A finding
+**Suggestions**: the finding's `remediation` object always becomes one
+synthesized `{tool_id}:sync` suggestion, first on the card, with
+`command`/`auto_runnable`/`needs_sudo` copied straight from it — and
+research's `suggestions[]` ride **alongside** it, never instead of it. This is
+the one place drift differs from brew-health, whose research exists to
+replace the collect default: drift research is told not to author the sync
+and is allowed only additions such as an `edit` recording a newly discovered
+local patch in the vendor's `CUSTOMISATION.md` (`references/research.md`
+§Skill-Drift Enrichment), so an addition must not silently take the sync off
+the card. The only suggestion dropped is an equivalent one — a research
+suggestion that runs the same command (whitespace-insensitive) — and the
+detector's copy is the one kept, since its `:sync` id and manual flags are
+what keep the sync from being pre-accepted or run; the drop is noted in
+`assemble.log`. A finding
 whose `remediation` is `null` — every `local_only` and every `probe_error`
 — gets **no** suggestion at all. That is a quiet card with nothing to decide
 in every case but one: the `probe_error` that means upstream removed or
