@@ -51,7 +51,15 @@ worth knowing when debugging this step (not just "run the script"):
   `summary.undecided`. An absent decision gets `state: "skipped"` like an
   explicit reject.
 - accepted/discuss → `state: "pending"`; rejected/undecided → `state:
-  "skipped"` immediately (they will never run). **One kind is different:**
+  "skipped"` immediately (they will never run). **Two kinds are different.**
+  Skill-drift `:sync` cards are grouped: `sync-upstream.sh` takes no vendor
+  argument, so every drifted card carries the identical command and one run
+  resolves them all. The first *accepted* card keeps the one pending action
+  (its note names every card the run covers); every other accepted card is
+  `skipped` with `covered_by` naming that carrier, and `finalize` counts it
+  with the carrier's outcome; a rejected card stays `skipped` with a note
+  that the run syncs it anyway; a `discuss` keeps its own pending action
+  (§Skill-Drift Remediation). And
   a `method-note` suggestion is mapped from `method-notes.render.json` (what
   `render.py` persisted at render): a *rejected persisted*
   note is a **pending withdraw** whose `detail[0]` is the exact

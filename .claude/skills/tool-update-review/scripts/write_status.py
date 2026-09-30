@@ -314,7 +314,11 @@ def _group_sync_actions(actions: list, suggestions_by_id: dict) -> None:
 	naming it; a rejected id stays `skipped` and its note says the run does
 	not honour the rejection (there is no per-vendor sync, so it syncs that
 	card too). Commands are compared token-wise (`split()`), as assembly
-	does. A `discuss` is not an accept and keeps its own pending action."""
+	does. A `discuss` is not an accept and keeps its own pending action.
+
+	A covered accepted id carries `covered_by: <carrier id>`, so `finalize`
+	counts it with the carrier's outcome (`applied` when the carrier is
+	`done`, `failed` when it failed) instead of dropping it from the summary."""
 	groups = {}
 	for sid, (_, sug) in suggestions_by_id.items():
 		command = sug.get("command")
@@ -335,6 +339,7 @@ def _group_sync_actions(actions: list, suggestions_by_id: dict) -> None:
 						+ ", ".join(ids))
 			elif action["decision"] == "accept":
 				action["state"] = "skipped"
+				action["covered_by"] = carrier
 				action["note"] = f"Same command as {carrier!r}, which runs it once for every drifted card"
 			elif action["decision"] == "reject":
 				action["note"] = (f"Rejected, but there is no per-skill sync: the run for {carrier!r} "
@@ -999,11 +1004,16 @@ def cmd_finalize(args):
 
 	actions = status.get("actions", [])
 	summary = {"applied": 0, "rejected": 0, "discussed": 0, "undecided": 0, "failed": 0}
+	states = {a.get("id"): a.get("state") for a in actions}
 	for a in actions:
 		if a.get("decision") == "accept":
-			if a["state"] == "done":
+			# An accepted card covered by another action's run (a `:sync`
+			# group sibling, `skipped` by init) shares that run's outcome.
+			state = states.get(a.get("covered_by")) \
+				if a["state"] == "skipped" and a.get("covered_by") else a["state"]
+			if state == "done":
 				summary["applied"] += 1
-			elif a["state"] == "failed":
+			elif state == "failed":
 				summary["failed"] += 1
 		elif a.get("decision") == "reject":
 			summary["rejected"] += 1

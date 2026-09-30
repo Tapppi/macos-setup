@@ -1472,9 +1472,21 @@ signal itself.
       // "running" — actively executing (spinner shown)
       // "done"    — completed successfully
       // "failed"  — execution error (detail lines explain)
-      // "skipped" — not executed (decision was reject/discuss/undecided, or
-      //             a dependency failed)
+      // "skipped" — not executed (decision was reject/discuss/undecided, a
+      //             dependency failed, or another action's run covers it:
+      //             a method-note entry written by a sibling id, or a
+      //             skill-drift `:sync` group, where `init` plans ONE run of
+      //             the shared command and skips the other accepted cards —
+      //             see `covered_by`)
       "state": "running",
+
+      // Optional; present only on an accepted `:sync` card `init` skipped
+      // because it is covered by the group's carrier: the carrier's action
+      // id (the first accepted card, which keeps the one pending run).
+      // `finalize` counts such a card in `summary` with the carrier's
+      // outcome — `applied` when the carrier is `done`, `failed` when it
+      // failed, neither while it has not run. Absent on every other action.
+      "covered_by": "skill:foo:sync",
 
       "started_at": "2026-07-04T14:52:11Z",  // ISO UTC; null if not started
       "finished_at": null,                    // ISO UTC; null if not finished
@@ -1603,7 +1615,8 @@ signal itself.
 
   // Written at done time. Counts are over user decisions (from feedback),
   // not over action execution states. "failed" counts execution failures
-  // among accepted suggestions (not user rejections).
+  // among accepted suggestions (not user rejections). An accepted card
+  // covered by another action's run (`covered_by`) counts with that run.
   "summary": {
     "applied":   3,   // accepted + execution succeeded
     "rejected":  2,   // user rejected

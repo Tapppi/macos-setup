@@ -431,7 +431,9 @@ class InitSyncGroupingTests(unittest.TestCase):
 			"needs_sudo": False, "rationale": "r", "motivating_link": None,
 			"diff_preview": None}
 
-	def _init(self, decisions, extra=()):
+	def _init(self, decisions, extra=(), then=None):
+		"""→ the actions by id; with `then` — a list of (action id, state) set
+		after init, followed by `finalize` — → (actions, summary)."""
 		ids = ["skill:a", "skill:b", "skill:c", *extra]
 		with tempfile.TemporaryDirectory(prefix="write-status-sync-") as session:
 			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
@@ -448,8 +450,38 @@ class InitSyncGroupingTests(unittest.TestCase):
 			p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
 				capture_output=True, text=True, timeout=60)
 			self.assertEqual(p.returncode, 0, p.stderr)
+			if then is not None:
+				for action_id, state in then:
+					subprocess.run([sys.executable, WRITE_STATUS, "set-action",
+						session, action_id, state], check=True,
+						capture_output=True, text=True, timeout=60)
+				subprocess.run([sys.executable, WRITE_STATUS, "finalize", session,
+					"--phase", "done"], check=True, capture_output=True,
+					text=True, timeout=60)
 			with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
-				return {a["id"]: a for a in json.load(fh)["actions"]}
+				status = json.load(fh)
+			actions = {a["id"]: a for a in status["actions"]}
+			return actions if then is None else (actions, status["summary"])
+
+	def test_a_covered_sibling_is_counted_with_its_carriers_outcome(self):
+		"""Integration review round 3, R3-3: an accepted card `init` skipped as
+		covered by the carrier's run was counted nowhere, so `applied` +
+		`failed` fell short of the accepted count. It shares the carrier's
+		outcome."""
+		accept = {"skill:a:sync": {"decision": "accept"},
+			"skill:b:sync": {"decision": "accept"},
+			"skill:c:sync": {"decision": "reject"}}
+		actions, summary = self._init(accept, then=[("skill:a:sync", "done")])
+		self.assertEqual(actions["skill:b:sync"]["covered_by"], "skill:a:sync")
+		self.assertNotIn("covered_by", actions["skill:a:sync"])
+		self.assertNotIn("covered_by", actions["skill:c:sync"])
+		self.assertEqual((summary["applied"], summary["failed"],
+			summary["rejected"]), (2, 0, 1))
+		_, summary = self._init(accept, then=[("skill:a:sync", "failed")])
+		self.assertEqual((summary["applied"], summary["failed"]), (0, 2))
+		# A carrier that never ran covers nothing.
+		_, summary = self._init(accept, then=[])
+		self.assertEqual((summary["applied"], summary["failed"]), (0, 0))
 
 	def test_identical_sync_commands_become_one_pending_action(self):
 		actions = self._init({"skill:a:sync": {"decision": "accept"},
