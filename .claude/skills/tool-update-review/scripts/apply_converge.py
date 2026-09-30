@@ -2223,9 +2223,23 @@ def _read_json(path):
 
 
 def _write_json(path, document):
-	with open(path, "w", encoding="utf-8") as fh:
-		json.dump(document, fh, ensure_ascii=False, indent="\t")
-		fh.write("\n")
+	"""Write `document` whole or not at all: to a temporary file beside `path`,
+	then `os.replace`. A document that cannot be encoded raises before `path`
+	is touched, so a crash never leaves a truncated artefact — above all a
+	truncated terminal `converge-effect.json`, whose mere existence makes
+	`--submit` refuse to run again."""
+	tmp = "{}.tmp".format(path)
+	try:
+		with open(tmp, "w", encoding="utf-8") as fh:
+			json.dump(document, fh, ensure_ascii=False, indent="\t")
+			fh.write("\n")
+		os.replace(tmp, path)
+	except BaseException:
+		try:
+			os.remove(tmp)
+		except OSError:
+			pass
+		raise
 
 
 class BrokenAttemptsFile(Exception):
@@ -2467,11 +2481,23 @@ def main(argv=None) -> int:
 		return 4
 	draft_path = args.check or args.submit
 	try:
-		converge = _read_json(draft_path)
+		converge, unpaired = model.scrub_unencodable(_read_json(draft_path))
 	except Exception as exc:
 		print(json.dumps({"state": "rejected", "critical": [_finding(
 			"E-SUBMIT-SHAPE", "{} could not be read as JSON: {}: {}".format(
 				draft_path, type(exc).__name__, exc))]}, indent=1))
+		return 1
+	if unpaired:
+		# Valid JSON, but the artefacts are written as UTF-8 and a lone
+		# surrogate cannot be. Refused like an unreadable draft — before the
+		# counter is read, so no attempt is spent on a mechanical encoding
+		# slip — rather than written with the text silently replaced: the
+		# narrative, an edit's `after` or a quote is what the agent verified.
+		print(json.dumps({"state": "rejected", "critical": [_finding(
+			"E-SUBMIT-SHAPE", "{} carries {} unpaired UTF-16 surrogate(s) (a "
+			"lone \\ud800-\\udfff escape) in a string or key; they cannot be "
+			"written as UTF-8. Remove them and resubmit.".format(
+				draft_path, unpaired))]}, indent=1))
 		return 1
 
 	try:

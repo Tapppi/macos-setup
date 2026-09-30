@@ -74,6 +74,13 @@ nothing is retired or rewritten: the loop, its attempt count and any
 converged effect still describe that corpus, and the applier says so instead.
 `--force` is not a way to reset the five-attempt cap.
 
+A `--check` or `--submit` draft that carries an unpaired UTF-16 surrogate (a
+lone `\ud800`-`\udfff` escape in any string or key — valid JSON, but not
+writable as UTF-8) is refused with `E-SUBMIT-SHAPE`, the way an unreadable
+draft is: before the attempt counter is read, so it spends no attempt. Every
+durable artefact the applier writes is written to a temporary file and
+`os.replace`d, so a failed write cannot leave a truncated one.
+
 You read: `converge-view.json` (every item minus its `body`, every
 suggestion whole, per-tool derived state — including, since view version 2,
 the validator's `security_tier`, its `usage_evidence` record and the

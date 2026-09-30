@@ -1957,11 +1957,13 @@ def input_digest(candidate, research, watch_topics) -> str:
 			"research": research,
 			"watch_topics": None if watch_topics is None else sorted(watch_topics),
 		}, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=repr)
-		# `surrogatepass`: research is scrubbed of unpaired surrogates at load,
-		# but the candidate and the watch topics are not, and a strict encode
-		# of one raised outside every per-tool guard. Passing it through keeps
-		# the digest a faithful, stable identity of the input; it is identical
-		# to strict UTF-8 for every string that has no surrogate.
+		# `surrogatepass` is defensive only: the candidate (collect.json), the
+		# research and the watch topics (the store snapshot) are all scrubbed
+		# of unpaired surrogates at load (`items.scrub_unencodable`), so a
+		# surrogate should not reach here. Were one to, a strict encode would
+		# raise outside every per-tool guard; passing it through keeps the
+		# digest a faithful, stable identity of the input, identical to strict
+		# UTF-8 for every string that has none.
 		data = blob.encode("utf-8", "surrogatepass")
 	except Exception as exc:  # noqa: BLE001 — a pathological entry (RecursionError)
 		# must not cost the run; assembly refuses to match an undigestible

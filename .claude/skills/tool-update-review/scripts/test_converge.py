@@ -26,6 +26,7 @@ Groups:
 7. The five-attempt loop and its conservative degradation, through the CLI.
 """
 import copy
+import io
 import json
 import os
 import shutil
@@ -1921,6 +1922,56 @@ class LoopCliTests(unittest.TestCase):
 		self.assertTrue(target.startswith(raced[0]))
 		self.assertEqual(sorted(os.listdir(target)),
 			["corpus.post.json", "corpus.pre.json"])
+
+	def test_a_lone_surrogate_in_the_draft_is_refused_before_anything_is_written(self):
+		"""R2-2: the draft was the one session input not scrubbed at load. Valid
+		JSON, exit 0 from --check, and --submit then recorded the attempt,
+		wrote corpus.post, and died mid-write of converge-effect.json — leaving
+		a truncated terminal artefact that locked the session. Now both modes
+		refuse it, as they refuse an unreadable draft: no attempt spent, no
+		artefact touched."""
+		session, roots, main, read = self._prepared_session("draft-surrogate")
+		pre = read("corpus.pre.json")
+		sub = make_submission(pre, [])
+		sub["corpus_effect"]["narrative"] += " \ud800"
+		draft = os.path.join(self.tmp, "surrogate.draft.json")
+		with open(draft, "w", encoding="utf-8") as fh:
+			json.dump(sub, fh)  # ensure_ascii writes the lone \ud800 escape
+		out = io.StringIO()
+		for mode in ("--check", "--submit"):
+			out.seek(0), out.truncate()
+			with mock.patch("sys.stdout", out), mock.patch("sys.stderr"):
+				rc = apply_converge.main(["--session", session, mode, draft])
+			self.assertEqual(rc, 1, mode)
+			verdict = json.loads(out.getvalue())
+			self.assertEqual(verdict["state"], "rejected", mode)
+			self.assertEqual([f["code"] for f in verdict["critical"]],
+				["E-SUBMIT-SHAPE"], mode)
+			self.assertIn("surrogate", verdict["critical"][0]["detail"])
+		for name in ("converge-attempts.json", "converge-effect.json",
+				"corpus.post.json", "converge.json"):
+			self.assertFalse(os.path.exists(os.path.join(session, name)), name)
+		self.assertEqual([n for n in os.listdir(session) if n.endswith(".tmp")], [])
+		# A clean resubmit is attempt 1 and converges.
+		self.assertEqual(main("--submit", self._draft(make_submission(pre, []))), 0)
+		self.assertEqual(read("converge-effect.json")["attempt"], 1)
+
+	def test_a_write_that_fails_leaves_the_previous_file_and_no_temporary(self):
+		"""R2-2: `_write_json` writes a temporary file and `os.replace`s it, so
+		an encode error mid-dump can neither truncate the target nor leave
+		the temporary behind."""
+		target = os.path.join(self.tmp, "artefact.json")
+		self._write(target, {"kept": True})
+		with self.assertRaises(UnicodeEncodeError):
+			apply_converge._write_json(target, {"narrative": "half \ud800 written"})
+		self.assertEqual(self._read_at(target), {"kept": True})
+		self.assertEqual([n for n in os.listdir(self.tmp) if n.endswith(".tmp")], [])
+		apply_converge._write_json(target, {"kept": False})
+		self.assertEqual(self._read_at(target), {"kept": False})
+
+	def _read_at(self, path):
+		with open(path, encoding="utf-8") as fh:
+			return json.load(fh)
 
 	def test_prepare_pins_an_unreadable_store_as_unreadable(self):
 		"""The CLI half of the three-state distinction: a corrupt

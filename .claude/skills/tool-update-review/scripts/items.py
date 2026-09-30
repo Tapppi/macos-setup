@@ -1755,8 +1755,8 @@ def scrub_unencodable(value):
 	A shape normalization, not a trim: the code point it replaces carries no
 	character, and nothing else in the entry changes. Every reader of a session
 	input the pipeline later writes back out as UTF-8 calls it at load —
-	collect.json, the research files, the memory-store snapshots — so no such
-	write can raise. `validate_items.v1_load` reports a non-zero count in a
+	collect.json, the research files, the memory-store snapshots, and the
+	convergence draft — so no such write can raise. `validate_items.v1_load` reports a non-zero count in a
 	research entry as `W-SHAPE-COERCED` against the tool, which is
 	content-losing, so the tool is held for review rather than rendered as
 	though the checker's text arrived intact, and the failure stays that one
