@@ -1800,7 +1800,8 @@ class LoopCliTests(unittest.TestCase):
 		(retired,) = os.listdir(superseded)
 		self.assertEqual(sorted(os.listdir(os.path.join(superseded, retired))), sorted(
 			["corpus.pre.json", "corpus.post.json", "converge-effect.json",
-				"converge.json", "converge-attempts.json"]))
+				"converge.json", "converge-attempts.json",
+				"converge-view.json", "converge-tables.json"]))
 		for name in apply_converge.CONVERGENCE_ARTEFACTS:
 			self.assertFalse(os.path.exists(os.path.join(session, name)), name)
 		report = assemble_report()
@@ -1836,6 +1837,90 @@ class LoopCliTests(unittest.TestCase):
 			self.assertEqual(apply_converge.main(argv), 0)
 			self.assertEqual(apply_converge.main(argv + ["--force"]), 0)
 		self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+
+	def _prepared_session(self, name):
+		"""A fixture session with `--prepare` run. → (session, argv, main, read)."""
+		session_src, roots, _ = validate_items.fixture_session()
+		session = os.path.join(self.tmp, name)
+		shutil.copytree(session_src, session)
+		argv = ["--session", session, "--macos-setup-root", roots[0],
+			"--dotfiles-root", roots[1], "--systems-root", roots[2]]
+
+		def main(*extra):
+			with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+				return apply_converge.main(argv + list(extra))
+
+		def read(*parts):
+			with open(os.path.join(session, *parts), encoding="utf-8") as fh:
+				return json.load(fh)
+
+		self.assertEqual(main("--prepare"), 0)
+		return session, roots, main, read
+
+	def test_force_on_unchanged_inputs_keeps_the_loop_and_its_attempt_count(self):
+		"""Integration review round 2, R2-1: `--prepare --force` retired the
+		loop even when the rebuilt corpus.pre had the digest of the old one,
+		resetting the five-attempt cap and discarding a valid convergence.
+		Retirement is for a corpus that differs."""
+		import assemble
+		session, roots, main, read = self._prepared_session("force-unchanged")
+		def pre_bytes():
+			with open(os.path.join(session, "corpus.pre.json"), "rb") as fh:
+				return fh.read()
+
+		pre_before = pre_bytes()
+		bad = make_submission(read("corpus.pre.json"), [])
+		bad["corpus_digest"] = "sha256:" + "0" * 64
+		for _ in range(4):
+			self.assertEqual(main("--submit", self._draft(bad)), 1)
+		self.assertEqual(len(read("converge-attempts.json")["attempts"]), 4)
+		self.assertEqual(main("--prepare", "--force"), 0)
+		self.assertEqual(len(read("converge-attempts.json")["attempts"]), 4)
+		self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+		self.assertEqual(pre_before, pre_bytes())
+		# The counter still governs: the fifth attempt is the terminal one.
+		self.assertEqual(main("--submit", self._draft(bad)), 0)
+		self.assertEqual(read("converge-effect.json")["attempt"], 5)
+
+		# A converged loop survives a same-input force, and still renders.
+		session, roots, main, read = self._prepared_session("force-converged")
+		self.assertEqual(main("--submit",
+			self._draft(make_submission(read("corpus.pre.json"), []))), 0)
+		effect_before = read("converge-effect.json")
+		self.assertEqual(main("--prepare", "--force"), 0)
+		self.assertEqual(read("converge-effect.json"), effect_before)
+		self.assertTrue(os.path.exists(os.path.join(session, "corpus.post.json")))
+		self.assertFalse(os.path.exists(os.path.join(session, "superseded")))
+		with mock.patch.object(sys, "argv", ["assemble.py", session,
+				"--macos-setup-root", roots[0], "--dotfiles-root", roots[1],
+				"--systems-root", roots[2]]), \
+				mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+			assemble.main()
+		self.assertEqual(read("report.json")["convergence"]["state"], "converged")
+
+	def test_two_prepares_in_one_second_each_claim_their_own_superseded_dir(self):
+		"""R2-5: the retire loop claims the directory with the mkdir itself, so
+		a directory that appears between the check and the mkdir costs a
+		suffix, not a FileExistsError partway through the move."""
+		session = os.path.join(self.tmp, "retire-race")
+		os.makedirs(session)
+		for name in ("corpus.pre.json", "corpus.post.json"):
+			self._write(os.path.join(session, name), {"name": name})
+		real_mkdir = os.mkdir
+		raced = []
+
+		def racing_mkdir(path, *args, **kwargs):
+			if not raced and os.path.basename(path) != "superseded":
+				raced.append(path)
+				real_mkdir(path)  # the other prepare wins this name
+			return real_mkdir(path, *args, **kwargs)
+
+		with mock.patch.object(os, "mkdir", racing_mkdir):
+			target = apply_converge._retire_convergence(session)
+		self.assertNotEqual(target, raced[0])
+		self.assertTrue(target.startswith(raced[0]))
+		self.assertEqual(sorted(os.listdir(target)),
+			["corpus.post.json", "corpus.pre.json"])
 
 	def test_prepare_pins_an_unreadable_store_as_unreadable(self):
 		"""The CLI half of the three-state distinction: a corrupt

@@ -2313,6 +2313,10 @@ def _snapshot_store(session_dir, filename):
 # describe THAT corpus, so rebuilding it retires them (`_retire_convergence`).
 CONVERGENCE_ARTEFACTS = ("corpus.post.json", "converge-effect.json",
 	"converge.json", "converge-attempts.json")
+# Derived from corpus.pre.json and overwritten by a rebuild, so they are not
+# what makes a loop worth retiring — but they go with it, so the retired
+# loop's view of the corpus stays readable without rebuilding it.
+DERIVED_ARTEFACTS = ("converge-view.json", "converge-tables.json")
 
 
 def _retire_convergence(session_dir):
@@ -2332,16 +2336,34 @@ def _retire_convergence(session_dir):
 	if not present:
 		return None
 	stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-	target, suffix = os.path.join(session_dir, "superseded", stamp), 1
-	while os.path.exists(target):
-		suffix += 1
-		target = os.path.join(session_dir, "superseded", "{}-{}".format(stamp, suffix))
-	os.makedirs(target)
-	for name in present + ["corpus.pre.json"]:
+	# The claim is the mkdir itself, not a prior exists(): two prepares in
+	# one second race on it, and the loser takes the next suffix.
+	superseded = os.path.join(session_dir, "superseded")
+	os.makedirs(superseded, exist_ok=True)
+	suffix = 1
+	while True:
+		target = os.path.join(superseded,
+			stamp if suffix == 1 else "{}-{}".format(stamp, suffix))
+		try:
+			os.mkdir(target)
+			break
+		except FileExistsError:
+			suffix += 1
+	for name in present + ["corpus.pre.json", *DERIVED_ARTEFACTS]:
 		source = os.path.join(session_dir, name)
 		if os.path.exists(source):
 			os.replace(source, os.path.join(target, name))
 	return target
+
+
+def _same_corpus(pre_path, corpus_pre):
+	"""Does the corpus.pre.json on disk have the digest of `corpus_pre`? An
+	unreadable file is not the same corpus."""
+	try:
+		return contract.canonical_digest(_read_json(pre_path)) == \
+			contract.canonical_digest(corpus_pre)
+	except Exception:  # noqa: BLE001 — unreadable, or not a corpus at all
+		return False
 
 
 def _prepare(session_dir, args):
@@ -2371,6 +2393,17 @@ def _prepare(session_dir, args):
 		"method_notes": _snapshot_store(session_dir, model.METHOD_NOTES_STORE),
 	}
 	corpus_pre = contract.build_corpus_pre(validation, collect, stores)
+	if os.path.exists(pre_path) and _same_corpus(pre_path, corpus_pre):
+		# `--force` on inputs that rebuild the identical corpus: whatever
+		# converged over it still describes it, and the attempts file is the
+		# loop's own cap — retiring it would hand five fresh attempts to a
+		# loop that has used some. The corpus.pre stays byte for byte.
+		print("Note: the rebuilt corpus.pre.json has the same digest as the "
+			"existing one, so it and its convergence loop (attempts, and any "
+			"effect) were kept as they are; nothing was retired.",
+			file=sys.stderr)
+		print(pre_path)
+		return 0
 	# Only now, with the new corpus built: a prepare that fails above leaves
 	# the previous loop exactly as it was.
 	retired = _retire_convergence(session_dir)

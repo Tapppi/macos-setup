@@ -60,13 +60,19 @@ the corpus the edits applied to and of the one they produced — and assembly
 refuses any corpus pair they do not name (`references/assembly.md` §Consuming
 Convergence).
 
-**`--prepare --force` starts a new loop.** A rebuilt corpus.pre is a
-different corpus, so whatever converged over the old one no longer
-describes it. When any of `corpus.post.json`, `converge-effect.json`,
-`converge.json` or `converge-attempts.json` exists, the rebuild moves them,
-with the old `corpus.pre.json`, to `superseded/<UTC timestamp>/` — moved,
-never deleted, so the retired loop stays readable — and says so on stderr.
-The new corpus then converges from attempt 1.
+**`--prepare --force` starts a new loop — when the corpus is a new one.** A
+rebuilt corpus.pre that differs is a different corpus, so whatever converged
+over the old one no longer describes it. When it differs and any of
+`corpus.post.json`, `converge-effect.json`, `converge.json` or
+`converge-attempts.json` exists, the rebuild moves them, with the old
+`corpus.pre.json`, `converge-view.json` and `converge-tables.json`, to
+`superseded/<UTC timestamp>/` — moved, never deleted, so the retired loop
+stays readable — and says so on stderr. The new corpus then converges from
+attempt 1. When the rebuilt corpus has the **same
+`converge.canonical_digest`** as the one on disk — the inputs did not change —
+nothing is retired or rewritten: the loop, its attempt count and any
+converged effect still describe that corpus, and the applier says so instead.
+`--force` is not a way to reset the five-attempt cap.
 
 You read: `converge-view.json` (every item minus its `body`, every
 suggestion whole, per-tool derived state — including, since view version 2,
