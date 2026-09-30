@@ -217,12 +217,15 @@ what that run touches (`references/collection.md` §The One Sync). This is a
 real granularity mismatch, stated rather than papered over. Three
 consequences at apply time:
 
-- **Ask for it once, not once per accepted action.** When several accepted
-  suggestions carry the same command, surface it on the first, poll for
-  that one run, then resolve its siblings against it rather than printing
-  the identical command again for each. Mark each sibling `"done"` with a
-  note naming the run that covered it (`"Covered by the sync-upstream.sh run
-  above"`), so the action list stays honest about what actually happened.
+- **It is one action, not one per card.** `write_status.py init` groups the
+  `:sync` suggestions that carry the same command, the way it groups method
+  notes per store entry: the first accepted id keeps the one pending action
+  and carries the run; every other accepted id is already `"skipped"` with a
+  note naming it, and a rejected id's note says the run syncs it anyway.
+  Surface the command once, on the carrier, and poll for that one run;
+  never print it again for a sibling. When the run is confirmed, the
+  carrier's `"done"` note names the vendors and cards it covered, so the
+  action list stays honest about what actually happened.
 - **Say what it touches before handing it over.** Name every vendor it
   syncs and every `diverged` or `local_only` skill the cards list, and say
   plainly that a sparse vendor's local patch is overwritten and has to be

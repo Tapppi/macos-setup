@@ -419,6 +419,88 @@ class InitMethodNoteTests(unittest.TestCase):
 		self.assertEqual(actions["brew:jq:upgrade"]["detail"], [])
 
 
+class InitSyncGroupingTests(unittest.TestCase):
+	"""`sync-upstream.sh` takes no vendor argument, so every drifted card of
+	every vendor carries the identical command. `init` plans it once."""
+
+	CMD = "bash sync-upstream.sh"
+
+	def _sync(self, tool_id, command=None):
+		return {"id": f"{tool_id}:sync", "kind": "upgrade", "title": "Sync every vendor",
+			"target_files": [], "command": command or self.CMD, "auto_runnable": False,
+			"needs_sudo": False, "rationale": "r", "motivating_link": None,
+			"diff_preview": None}
+
+	def _init(self, decisions, extra=()):
+		ids = ["skill:a", "skill:b", "skill:c", *extra]
+		with tempfile.TemporaryDirectory(prefix="write-status-sync-") as session:
+			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
+				"report_id": "tool-update-review-20260822T113344Z",
+				"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "summary": {},
+				"repo_context": {}, "highlights": [], "tools": [
+					{"id": tid, "name": tid, "source": "skill-drift",
+						"suggestions": [self._sync(tid)]} for tid in ids]}
+			feedback = {"report_id": report["report_id"], "tool_comments": {},
+				"decisions": decisions}
+			for name, obj in (("report.json", report), ("feedback.json", feedback)):
+				with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+					json.dump(obj, fh)
+			p = subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+				capture_output=True, text=True, timeout=60)
+			self.assertEqual(p.returncode, 0, p.stderr)
+			with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
+				return {a["id"]: a for a in json.load(fh)["actions"]}
+
+	def test_identical_sync_commands_become_one_pending_action(self):
+		actions = self._init({"skill:a:sync": {"decision": "accept"},
+			"skill:b:sync": {"decision": "accept"},
+			"skill:c:sync": {"decision": "reject"}})
+		self.assertEqual(actions["skill:a:sync"]["state"], "pending")
+		self.assertIn("skill:b:sync", actions["skill:a:sync"]["note"])
+		self.assertEqual(actions["skill:b:sync"]["state"], "skipped")
+		self.assertIn("skill:a:sync", actions["skill:b:sync"]["note"])
+		# The rejected card stays skipped, and says the run syncs it anyway.
+		self.assertEqual(actions["skill:c:sync"]["state"], "skipped")
+		self.assertIn("syncs this card too", actions["skill:c:sync"]["note"])
+		self.assertEqual([a for a, v in actions.items() if v["state"] == "pending"],
+			["skill:a:sync"])
+
+	def test_the_first_accepted_id_carries_the_run_not_the_first_card(self):
+		actions = self._init({"skill:a:sync": {"decision": "reject"},
+			"skill:b:sync": {"decision": "accept"}, "skill:c:sync": {"decision": "accept"}})
+		self.assertEqual([a for a, v in actions.items() if v["state"] == "pending"],
+			["skill:b:sync"])
+		self.assertEqual(actions["skill:c:sync"]["state"], "skipped")
+
+	def test_a_lone_accept_names_the_cards_its_run_covers_and_commands_group_by_tokens(self):
+		actions = self._init({"skill:a:sync": {"decision": "accept"}})
+		self.assertEqual(actions["skill:a:sync"]["state"], "pending")
+		# The one run still syncs the other two cards, and the note says so.
+		self.assertIn("skill:c:sync", actions["skill:a:sync"]["note"])
+		with tempfile.TemporaryDirectory(prefix="write-status-sync2-") as session:
+			def tool(tid, command):
+				return {"id": tid, "name": tid, "source": "skill-drift",
+					"suggestions": [self._sync(tid, command)]}
+			report = {"schema_version": 2, "contract_version": model.CONTRACT_VERSION,
+				"report_id": "tool-update-review-20260822T113344Z",
+				"generated_at": "2026-08-22T11:33:44Z", "machine": {}, "summary": {},
+				"repo_context": {}, "highlights": [], "tools": [
+					tool("skill:a", self.CMD), tool("skill:b", "bash  sync-upstream.sh"),
+					tool("skill:c", "bash other.sh")]}
+			feedback = {"report_id": report["report_id"], "tool_comments": {},
+				"decisions": {f"skill:{x}:sync": {"decision": "accept"} for x in "abc"}}
+			for name, obj in (("report.json", report), ("feedback.json", feedback)):
+				with open(os.path.join(session, name), "w", encoding="utf-8") as fh:
+					json.dump(obj, fh)
+			subprocess.run([sys.executable, WRITE_STATUS, "init", session],
+				capture_output=True, text=True, timeout=60, check=True)
+			with open(os.path.join(session, "status.json"), encoding="utf-8") as fh:
+				got = {a["id"]: a["state"] for a in json.load(fh)["actions"]}
+		# Same tokens (extra whitespace) group; a different command does not.
+		self.assertEqual(got, {"skill:a:sync": "pending", "skill:b:sync": "skipped",
+			"skill:c:sync": "pending"})
+
+
 class PinCheckGateTests(unittest.TestCase):
 	def _session(self, tool):
 		tmp = tempfile.mkdtemp(prefix="write-status-pin-test-")

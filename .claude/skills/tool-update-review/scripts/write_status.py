@@ -302,6 +302,45 @@ def _method_note_actions(notes: list, record, report: dict) -> list:
 	return actions
 
 
+def _group_sync_actions(actions: list, suggestions_by_id: dict) -> None:
+	"""Collapse skill-drift `:sync` actions that carry the same command to ONE
+	pending action, in place (references/apply.md §Skill-Drift Remediation).
+
+	`sync-upstream.sh` takes no vendor argument, so every drifted card of every
+	vendor carries the identical command and one run resolves them all; per
+	card, `init` would plan N runs of it. Grouped the way method notes are
+	grouped per store entry: the first ACCEPTED id keeps the pending action
+	and carries the run; every other accepted id is `skipped` with a note
+	naming it; a rejected id stays `skipped` and its note says the run does
+	not honour the rejection (there is no per-vendor sync, so it syncs that
+	card too). Commands are compared token-wise (`split()`), as assembly
+	does. A `discuss` is not an accept and keeps its own pending action."""
+	groups = {}
+	for sid, (_, sug) in suggestions_by_id.items():
+		command = sug.get("command")
+		if sug.get("kind") == "upgrade" and sid.endswith(":sync") \
+				and isinstance(command, str) and command.strip():
+			groups.setdefault(tuple(command.split()), []).append(sid)
+	by_id = {a["id"]: a for a in actions}
+	for ids in groups.values():
+		accepted = [sid for sid in ids if by_id[sid]["decision"] == "accept"]
+		if not accepted:
+			continue
+		carrier = accepted[0]
+		for sid in ids:
+			action = by_id[sid]
+			if sid == carrier:
+				if len(ids) > 1:
+					action["note"] = ("One run covers every drifted card: "
+						+ ", ".join(ids))
+			elif action["decision"] == "accept":
+				action["state"] = "skipped"
+				action["note"] = f"Same command as {carrier!r}, which runs it once for every drifted card"
+			elif action["decision"] == "reject":
+				action["note"] = (f"Rejected, but there is no per-skill sync: the run for {carrier!r} "
+					f"syncs this card too")
+
+
 def cmd_init(args):
 	session_dir = args.session_dir
 	feedback = load_json(os.path.join(session_dir, "feedback.json"))
@@ -415,6 +454,7 @@ def cmd_init(args):
 				"started_at": None, "finished_at": None, "note": None, "detail": [], "thread": [], "pin_checks": {},
 			})
 
+	_group_sync_actions(actions, suggestions_by_id)
 	actions.extend(_method_note_actions(notes, render_record, report))
 
 	# Investigation actions — one per tool_comments entry (references/apply.md §Tool Comments and Discuss).
