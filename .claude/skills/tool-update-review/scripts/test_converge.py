@@ -1969,6 +1969,34 @@ class LoopCliTests(unittest.TestCase):
 		apply_converge._write_json(target, {"kept": False})
 		self.assertEqual(self._read_at(target), {"kept": False})
 
+	def test_a_write_keeps_the_mode_of_the_file_it_replaces(self):
+		"""R3-5: the temporary file is created private (mkstemp), so replacing
+		a 0600 artefact must not widen it — nor narrow a 0644 one; a new file
+		gets the umask's mode, as `open(path, "w")` gave it. The temporary name
+		is unique and cleaned up beside the target."""
+		target = os.path.join(self.tmp, "mode.json")
+		for mode in (0o600, 0o644):
+			self._write(target, {})
+			os.chmod(target, mode)
+			apply_converge._write_json(target, {"m": mode})
+			self.assertEqual(os.stat(target).st_mode & 0o777, mode)
+		fresh = os.path.join(self.tmp, "fresh.json")
+		umask = os.umask(0o027)
+		try:
+			apply_converge._write_json(fresh, {})
+		finally:
+			os.umask(umask)
+		self.assertEqual(os.stat(fresh).st_mode & 0o777, 0o640)
+		# A stale `<name>.tmp` from a killed writer neither blocks nor is reused.
+		leftover = target + ".tmp"
+		with open(leftover, "w") as fh:
+			fh.write("stale")
+		apply_converge._write_json(target, {"again": True})
+		with open(leftover) as fh:
+			self.assertEqual(fh.read(), "stale")
+		self.assertEqual(sorted(n for n in os.listdir(self.tmp)
+			if n.endswith(".tmp")), ["mode.json.tmp"])
+
 	def _read_at(self, path):
 		with open(path, encoding="utf-8") as fh:
 			return json.load(fh)

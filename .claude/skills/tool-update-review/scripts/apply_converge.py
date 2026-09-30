@@ -51,6 +51,7 @@ import copy
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -2224,15 +2225,25 @@ def _read_json(path):
 
 def _write_json(path, document):
 	"""Write `document` whole or not at all: to a temporary file beside `path`,
-	then `os.replace`. A document that cannot be encoded raises before `path`
+	then `os.replace`, keeping the mode of the file it replaces. A document that cannot be encoded raises before `path`
 	is touched, so a crash never leaves a truncated artefact — above all a
 	truncated terminal `converge-effect.json`, whose mere existence makes
 	`--submit` refuse to run again."""
-	tmp = "{}.tmp".format(path)
 	try:
-		with open(tmp, "w", encoding="utf-8") as fh:
+		mode = os.stat(path).st_mode & 0o7777
+	except OSError:
+		# A new file gets what `open(path, "w")` would have given it (the
+		# umask's), not mkstemp's private 0600.
+		umask = os.umask(0)
+		os.umask(umask)
+		mode = 0o666 & ~umask
+	fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".",
+		prefix=os.path.basename(path) + ".", suffix=".tmp")
+	try:
+		with os.fdopen(fd, "w", encoding="utf-8") as fh:
 			json.dump(document, fh, ensure_ascii=False, indent="\t")
 			fh.write("\n")
+		os.chmod(tmp, mode)
 		os.replace(tmp, path)
 	except BaseException:
 		try:
