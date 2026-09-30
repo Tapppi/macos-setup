@@ -144,9 +144,8 @@ miscategorized into the individual tier for the wrong reason (or worse, a
 real touchpoint gets diluted by unrelated grep noise in its context). Re-run
 suspicious hits with `-w` before trusting them.
 
-**`dotfiles/config/agent-skills/**` is vendored third-party skill content,
-where a checkout still carries it** (the vendored skills moved to the
-Tapppi/skills repo, which is not a grounding root). Grep hits there are almost
+**The Tapppi/skills repo is vendored third-party skill content** (the
+vendored agent skills live there, and it is not a grounding root). Grep hits there are almost
 never a real touchpoint — they are somebody else's
 documentation and scripts, which happen to name the same tools the user
 installs. Ignore them unless the tool is genuinely configured there. This is a

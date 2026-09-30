@@ -428,7 +428,7 @@ Accepted suggestions split by `kind`:
   Trust/untap/link/uninstall default `auto_runnable:false`; a plain missing-
   dep install is `auto_runnable:true`.
 - **`skill-drift` remediations** → one structural `kind:"upgrade"` command,
-  `bash config/agent-skills/sync-upstream.sh`, run from the dotfiles repo
+  `bash sync-upstream.sh`, run from the Tapppi/skills repo
   root. **Always `auto_runnable:false`** — print it, never run it; it is
   *not* covered by the `./setup.sh projects` exception above. The command
   is vendor-scoped, so one run resolves every drifted skill of that vendor.

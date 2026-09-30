@@ -207,10 +207,10 @@ class OrphanedInstructionTests(GuidelineTestCase):
 	def test_vendored_skill_content_is_a_named_false_positive(self):
 		"""`grep -rn agent-skills` over the skill returned nothing before this."""
 		section = section_of(RESEARCH, "### Word-Boundary Grep Rule", "### Spawning")
-		self.assertSays("dotfiles/config/agent-skills", section)
+		self.assertSays("Tapppi/skills", section)
 		self.assertSays("almost never a real touchpoint", section)
 		# ...and the prompt a checker actually receives says so too.
-		self.assertSays("dotfiles/config/agent-skills", TEMPLATE)
+		self.assertSays("Tapppi/skills", TEMPLATE)
 
 	def test_the_tiering_decision_is_recorded_not_just_the_heuristic(self):
 		"""research.md documented the heuristic; the decision a given run made
