@@ -31,7 +31,7 @@ bash hooks/install.sh
   (`p1`/`p2`/`p3` for colored output, `ask`/`ask2`/`run` for AppleScript dialogs) and the sudo
   keep-alive pattern.
 - **`tasks/init.sh`** — System init: hostname, permissions, macOS updates, guest account, SSH/1Password setup, new account creation.
-- **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins, Claude Code MCP servers/plugins. context7 is set up via `npx ctx7 setup --claude` (OAuth login for higher rate limits; writes the API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill/rule under `~/.claude/` that dotfiles does not own; bootstrap leaves `~/.claude/skills/` alone and has no mirror for it).
+- **`tasks/install.sh`** — Software installation: Homebrew + Brewfile, Bash 5 as default shell, mise runtimes, dotfiles bootstrap, nnn plugins, Claude Code MCP servers/plugins, plus the `tapppi-skills` and `ikeh` marketplaces (see *Where skills live* below). context7 is set up via `npx ctx7 setup --claude` (OAuth login for higher rate limits; writes the API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill/rule under `~/.claude/` that dotfiles does not own; bootstrap leaves `~/.claude/skills/` alone and has no mirror for it).
 - **Cursor CLI (`cursor-agent`)** — Set up by `install_cursor_agent()` in `tasks/install.sh`, which
   only clears the cask quarantine; all config is dotfiles-managed. `cursor-agent` reads much of the
   Claude Code setup natively (repo `CLAUDE.md`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`,
@@ -46,7 +46,7 @@ bash hooks/install.sh
   split (`cli-config.json` is XDG-resolved, everything else is hardcoded to `~/.cursor/`).
 - **`tasks/config.sh`** — App configuration: `defaults write`, `PlistBuddy`, `duti` file associations, login items via AppleScript, VLC/Terminal customization, launches apps for first-run setup. Does not apply macOS system defaults (use `./setup.sh macos` separately).
 - **`tasks/macos.sh`** — macOS system defaults, keyboard/input sources, Finder/Dock preferences, and power-management settings. Run as a separate task because it kills UI processes (Finder, Dock, ControlCenter).
-- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own bundles published through a marketplace (e.g. `browser@tapppi-skills`, published by the `Tapppi/skills` repo's `.claude-plugin/marketplace.json`) get per-project scoping; only the root `tapppi-skills` marketplace at `~/project/github/tapppi/skills` is registered; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Idempotent; never auto-run.
+- **`tasks/projects.sh`** — Per-project setup from a workspace manifest. Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` manifests; per workspace it (1) enables each repo's named marketplace plugins at local scope via `claude plugin install --scope local`, which records `enabledPlugins` in that repo's gitignored `.claude/settings.local.json` — this is how third-party marketplace plugins (e.g. `frontend-design@claude-plugins-official`) and our own bundles published through a marketplace (e.g. `browser@tapppi-skills`, published by the `Tapppi/skills` repo's `.claude-plugin/marketplace.json`) get per-project scoping; only the root `tapppi-skills` marketplace at `~/project/github/tapppi/skills` and the root `ikeh` marketplace at `~/project/github/mantadevoy/ikeh` (home of `ikeh-git@ikeh`) are registered; (2) renders a `mise.local.toml` in the workspace dir whose `[env]` loads a local `0600` dotenv file via mise's `_.file` (mise walks up across git boundaries, so every repo under the workspace inherits the env; a plain file read is instant and never blocks the shell, unlike a blocking `op read` in mise's per-`cd` eval); and (3) for a `jira` block prints the one-time commands to write that dotenv file from 1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus `JIRA_CONFIG_FILE`/`JIRA_AUTH_TYPE`) and run `jira init`. Idempotent; never auto-run.
 
   It does not link skills into repos — see *Where skills live* below.
 - **`backup.sh` / `restore.sh`** — Backup/restore home directory files listed in `restore.bom` as timestamped `.tar.gz` archives. Requires Homebrew rsync.
@@ -89,6 +89,13 @@ A skill belongs to the repo that uses it, committed at
 **[docs/skills.md](docs/skills.md)** has the rest — the three routes capability
 arrives by, the bundle layout, why the symlink is relative, and the workspace
 trust requirement.
+
+Two marketplaces are registered on this machine: `tapppi-skills` and `ikeh`,
+each a checkout under `~/project/github/` declared as a directory source.
+`tasks/install.sh` registers them and installs no `ikeh` plugin: `claude plugin
+install` is user-scope by default, which would enable `ikeh-git`'s hooks in every
+repo. A repo enables `ikeh-git@ikeh` itself, through its committed
+`enabledPlugins` or a `tasks/projects.sh` manifest.
 
 ### Git Identity and Attribution
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no agent signatures).

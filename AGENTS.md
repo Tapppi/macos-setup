@@ -11,10 +11,10 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, cursor-agent quarantine)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
-    projects.sh         # Per-project plugin enablement + env from .tapppi-project manifests
+    projects.sh         # Per-project plugin enablement (tapppi-skills, ikeh marketplaces) + env from .tapppi-project manifests
   backup.sh             # Backup home dir files to tarball
   restore.sh            # Restore from backup tarball
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
@@ -249,6 +249,13 @@ A skill belongs to the repo that uses it, committed at
 **[docs/skills.md](docs/skills.md)** has the rest — the three routes capability
 arrives by, the bundle layout, why the symlink is relative, and the workspace
 trust requirement.
+
+Two marketplaces are registered on this machine: `tapppi-skills` and `ikeh`,
+each a checkout under `~/project/github/` declared as a directory source.
+`tasks/install.sh` registers them and installs no `ikeh` plugin: `claude plugin
+install` is user-scope by default, which would enable `ikeh-git`'s hooks in every
+repo. A repo enables `ikeh-git@ikeh` itself, through its committed
+`enabledPlugins` or a `tasks/projects.sh` manifest.
 
 ## Cursor CLI (`cursor-agent`)
 
