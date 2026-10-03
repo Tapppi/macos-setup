@@ -591,6 +591,21 @@ install_claude_code() {
 	claude plugin marketplace add "${skills_root}"
 	claude plugin install skill-creator@tapppi-skills
 
+	# The ikeh marketplace is likewise the mantadevoy/ikeh checkout, a
+	# directory source in the tracked settings. Only the marketplace is
+	# registered here, never a plugin from it: `claude plugin install` defaults
+	# to user scope, so installing ikeh-git would switch its hooks on in every
+	# repo. ikeh-git is enabled per repo, through the repo's committed
+	# enabledPlugins or tasks/projects.sh.
+	local ikeh_root="${HOME}/project/github/mantadevoy/ikeh"
+	if [[ ! -e "${ikeh_root}/.git" ]]; then
+		p3 "Cloning mantadevoy/ikeh to ${ikeh_root}..."
+		mkdir -p "$(dirname "${ikeh_root}")"
+		git clone git@github.com:mantadevoy/ikeh.git "${ikeh_root}" ||
+			p1 "Clone of mantadevoy/ikeh failed; ikeh plugins will not resolve until it exists."
+	fi
+	claude plugin marketplace add "${ikeh_root}"
+
 	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
 	# Set vim mode so it persists across dotfile syncs.
