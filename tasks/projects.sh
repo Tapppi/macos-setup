@@ -13,8 +13,9 @@
 #      .claude-plugin/marketplace.json, checked out at SKILLS_ROOT) —
 #      unlike raw skills, Claude Code has no `enabledSkills` toggle, so a
 #      skill only gets this per-project scoping if it's packaged as a plugin.
-#      The `tapppi-skills` marketplace at SKILLS_ROOT is registered so its
-#      plugins resolve by name — only that one, not the marketplaces the
+#      The `tapppi-skills` marketplace at SKILLS_ROOT and the `ikeh`
+#      marketplace at IKEH_ROOT (e.g. `ikeh-git@ikeh`) are registered so their
+#      plugins resolve by name — only those, not the marketplaces the
 #      vendored upstream trees carry (see projects_ensure_marketplaces).
 #   2. provisions a shared per-workspace environment: renders a `mise.local.toml`
 #      in the workspace dir whose [env] loads a local 0600 dotenv file via mise's
@@ -57,6 +58,7 @@
 
 PROJECT_ROOT="${HOME}/project"
 SKILLS_ROOT="${HOME}/project/github/tapppi/skills"
+IKEH_ROOT="${HOME}/project/github/mantadevoy/ikeh"
 
 # Define Function =projects_warn=
 projects_warn() {
@@ -83,12 +85,13 @@ projects_resolve_path() {
 }
 
 # Define Function =projects_ensure_marketplaces= — idempotently register the
-# `tapppi-skills` marketplace (SKILLS_ROOT/.claude-plugin/marketplace.json) so
-# `claude plugin install <plugin>@tapppi-skills` can resolve it. No-op if
-# `claude` is not on PATH (plugin scoping is best-effort, not a hard
-# requirement).
+# `tapppi-skills` marketplace (SKILLS_ROOT/.claude-plugin/marketplace.json) and
+# the `ikeh` marketplace (IKEH_ROOT/.claude-plugin/marketplace.json) so
+# `claude plugin install <plugin>@tapppi-skills` and `<plugin>@ikeh` can
+# resolve them. No-op if `claude` is not on PATH (plugin scoping is
+# best-effort, not a hard requirement).
 #
-# Only the root marketplace, deliberately. Registering every
+# Only the root marketplace of each checkout, deliberately. Registering every
 # `.claude-plugin/marketplace.json` found under SKILLS_ROOT would also catch any
 # a vendored upstream tree carries, and those declare their publisher's own
 # marketplace name — `anthropic-agent-skills`, for one. Registering such a
@@ -104,14 +107,22 @@ projects_resolve_path() {
 projects_ensure_marketplaces() {
 	command -v claude >/dev/null 2>&1 || return 0
 
-	if [[ ! -f "${SKILLS_ROOT}/.claude-plugin/marketplace.json" ]]; then
-		projects_warn "no marketplace manifest at ${SKILLS_ROOT}/.claude-plugin/ — clone Tapppi/skills there first"
+	projects_ensure_marketplace "${SKILLS_ROOT}" Tapppi/skills
+	projects_ensure_marketplace "${IKEH_ROOT}" mantadevoy/ikeh
+}
+
+# Define Function =projects_ensure_marketplace= — register one checkout's root
+# marketplace; ${2} names the repo to clone when it is missing.
+projects_ensure_marketplace() {
+	local root="${1}" repo="${2}"
+	if [[ ! -f "${root}/.claude-plugin/marketplace.json" ]]; then
+		projects_warn "no marketplace manifest at ${root}/.claude-plugin/ — clone ${repo} there first"
 		return 0
 	fi
-	if claude plugin marketplace add "${SKILLS_ROOT}" >/dev/null 2>&1; then
-		p3 "marketplace ok: ${SKILLS_ROOT}"
+	if claude plugin marketplace add "${root}" >/dev/null 2>&1; then
+		p3 "marketplace ok: ${root}"
 	else
-		projects_warn "could not register marketplace at ${SKILLS_ROOT}"
+		projects_warn "could not register marketplace at ${root}"
 	fi
 }
 
