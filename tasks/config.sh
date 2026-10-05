@@ -238,8 +238,8 @@ config_podman() {
 
 	case "${HOST_NAME}" in
 	asterix)
-		cpus=8
-		memory_mib=20000
+		cpus=3
+		memory_mib=10240
 		disk_gib=200
 		;;
 	tmopro18)
