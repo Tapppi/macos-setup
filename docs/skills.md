@@ -15,12 +15,26 @@ A skill reaches a repo by exactly three routes:
    user-level skill directory, or a plugin enabled at user scope — and active
    in every repo. Machine-global by construction, so nothing repo-specific
    goes here: a user-level copy cannot follow a branch.
+
+   Route 1 has more than one location, and each harness reads its own set:
+   - `~/.agents/skills` is written by hand, and Codex and OpenCode read it.
+   - Codex enables plugins user-wide, so `browser` and `frontend-design` are
+     global there. This is a recorded exception: Claude Code enables them per
+     repo.
+   - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
+     directories.
+   - The claude.ai account sync writes `~/.claude/skills/synced/`, and
+     `skillOverrides` in `settings.json` hides synced skills from Claude Code
+     by name.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
    history. Which marketplaces a given repo consumes is that repo's business.
-   Anthropic's document family arrives this way and only this way — its licence forbids redistribution, so it is
-   vendored in no repo of ours, public or private.
+   Anthropic's document family (docx, pdf, pptx, xlsx) is never vendored,
+   because its licence forbids redistribution, so it is in no repo of ours,
+   public or private. On this machine the claude.ai sync delivers the newer
+   copies. Their plugin, `document-skills@anthropic-agent-skills`, is off at
+   user level, and a repo can still enable it.
 
    Which configuration switches a plugin on belongs to the harness and to the
    repo, not to this document: each harness keeps its own, each repo settles
