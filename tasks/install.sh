@@ -21,7 +21,8 @@ install() {
 	# produces a state that looks configured and is not. Skip and say so instead.
 	if [[ "${dotfiles_ok}" -ne 0 ]]; then
 		p1 "Skipping Claude Code, Codex, Cursor and herdr setup — dotfiles sync failed."
-		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations."
+		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations,"
+		p3 "and './setup.sh codex' for Codex (or './setup.sh install' for the rest)."
 		return "${dotfiles_ok}"
 	fi
 
@@ -601,9 +602,10 @@ install_claude_marketplaces() {
 # the dotfiles-rendered ~/.codex/AGENTS.md; neither is used here.
 #
 # The entry is stdio with the literal env value ${CONTEXT7_API_KEY:-}, which
-# Claude Code expands at launch. An entry carrying a key is migrated only when
-# the key is available from the environment, so a re-run never silently drops
-# a working key; a run without it says what to do instead.
+# Claude Code expands at launch. An entry carrying a key (an `--api-key` or
+# `--api-key=…` arg, a header or a literal env value) is migrated only when the
+# key is exported or in ~/.config/bash/.credentials, so a re-run never silently
+# drops a working key. If ~/.claude.json cannot be read, the entry is left alone.
 install_claude_context7() {
 	local claude_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 	local claude_json="${CLAUDE_CONFIG_DIR:-${HOME}}/.claude.json"
@@ -618,20 +620,37 @@ install_claude_context7() {
 	if [[ "${have_ctx7}" -eq 1 ]] && jq -e --arg ref "${env_ref}" '.mcpServers.context7 // empty
 		| (.type // "stdio") == "stdio" and .command == "npx"
 			and .env.CONTEXT7_API_KEY == $ref and (has("headers") | not)
-			and ((.args // []) | index("--api-key") | not)' \
+			and (any((.args // [])[]; startswith("--api-key")) | not)' \
 		"${claude_json}" >/dev/null 2>&1; then
 		p3 "context7 MCP server already reads CONTEXT7_API_KEY from the environment"
 		return 0
 	fi
-	if jq -e --arg ref "${env_ref}" '.mcpServers.context7 // empty
-		| ((.args // []) | index("--api-key") != null)
-			or ((.headers // {}) | length > 0)
-			or ((.env.CONTEXT7_API_KEY // $ref) != $ref)' \
-		"${claude_json}" >/dev/null 2>&1 && ! context7_key_available; then
-		p1 "The context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
-		p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
-		return 1
+	# Whether the entry holds a key: 0 yes, 1 no (or no file), anything else is
+	# an unreadable file or a missing jq, which leaves the entry alone.
+	local keyed=1
+	if [[ -e "${claude_json}" ]]; then
+		keyed=0
+		jq -e --arg ref "${env_ref}" '.mcpServers.context7
+			| if . == null then false else
+				any((.args // [])[]; startswith("--api-key"))
+				or ((.headers // {}) | length > 0)
+				or ((.env.CONTEXT7_API_KEY // $ref) != $ref) end' \
+			"${claude_json}" >/dev/null 2>&1 || keyed=$?
 	fi
+	case "${keyed}" in
+	0)
+		if ! context7_key_available; then
+			p1 "The context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
+			p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
+			return 1
+		fi
+		;;
+	1) ;;
+	*)
+		p1 "Could not read ${claude_json}; the context7 MCP server is left as it is."
+		return 1
+		;;
+	esac
 
 	# After the key check: ctx7 replaces whatever entry it finds, keyed or not.
 	if [[ "${have_ctx7}" -eq 0 ]]; then
@@ -716,17 +735,12 @@ install_claude_code() {
 # trust decision in Codex's /hooks, which no script can make.
 install_codex() {
 	p2 "Configuring Codex plugins and MCP servers..."
-	if ! command -v codex >/dev/null 2>&1; then
-		p3 "Codex not installed (tapppi/systems provides it), skipping"
-		p3 "After 'nix run .#build-switch' in systems, run './setup.sh codex'."
-		return 0
-	fi
-	# A running Codex (the CLI, the ChatGPT app's app-server, the Claude codex
-	# plugin's broker) rewrites config.toml and could drop these edits.
-	if pgrep -x codex >/dev/null 2>&1; then
-		p1 "Codex is running; close every Codex session, then run './setup.sh codex'."
-		return 1
-	fi
+	local ready=0
+	codex_ready || ready=$?
+	case "${ready}" in
+	1) return 0 ;;
+	2) return 1 ;;
+	esac
 
 	ensure_checkout "${tapppi_skills_root}" git@github.com:Tapppi/skills.git Tapppi/skills
 	ensure_checkout "${ikeh_root}" git@github.com:mantadevoy/ikeh.git mantadevoy/ikeh
@@ -774,6 +788,43 @@ install_codex() {
 	p3 "Codex configured. Review new or changed plugin hooks in Codex's /hooks."
 }
 
+# Define Function =codex_ready=
+# 0 when the codex CLI exists and no Codex process runs. 1 when codex is absent
+# (skip; it comes from tapppi/systems, so a fresh Mac may not have it yet). 2
+# when Codex runs: the CLI, the ChatGPT app's app-server and the Claude codex
+# plugin's broker all rewrite config.toml and could drop these edits.
+codex_ready() {
+	if ! command -v codex >/dev/null 2>&1; then
+		p3 "Codex not installed (tapppi/systems provides it), skipping"
+		p3 "After 'nix run .#build-switch' in systems, run './setup.sh codex'."
+		return 1
+	fi
+	if pgrep -x codex >/dev/null 2>&1; then
+		p1 "Codex is running; close every Codex session, then re-run."
+		return 2
+	fi
+}
+
+# Define Function =install_context7=
+# context7 alone, for Claude Code and Codex (`./setup.sh context7`): re-asserts
+# both MCP servers on the exported key, and ctx7's skill and rule, without the
+# rest of install. Same guards as the full install.
+install_context7() {
+	p2 "Configuring context7 for Claude Code and Codex..."
+	local status=0 ready=0
+	if command -v claude >/dev/null 2>&1; then
+		install_claude_context7 || status=1
+	else
+		p3 "Claude Code not installed, skipping"
+	fi
+	codex_ready || ready=$?
+	case "${ready}" in
+	0) install_codex_context7 || status=1 ;;
+	2) status=1 ;;
+	esac
+	return "${status}"
+}
+
 # Define Function =install_codex_context7=
 # Codex's context7 MCP server, stdio, with the key passed through from the
 # environment by `env_vars` (Codex gives stdio servers only a fixed environment
@@ -782,37 +833,56 @@ install_codex() {
 # table header that a fresh `codex mcp add` writes. A later `codex mcp add`
 # drops it again, so the server is only ever re-added together with the line.
 # An entry carrying a key is migrated only when the key is available, as for
-# Claude Code. Every check is jq -e on `codex mcp get --json`; nothing prints a
+# Claude Code, and nothing is changed when Codex cannot read its config or jq
+# fails. Every check is jq -e on `codex mcp get --json`; nothing prints a
 # config value.
 install_codex_context7() {
 	local config="${CODEX_HOME:-${HOME}/.codex}/config.toml"
 
+	# Codex must read its config, or a failing `codex mcp get` below would look
+	# like an absent server.
+	if ! codex mcp list --json >/dev/null 2>&1; then
+		p1 "Codex cannot read ${config}; its context7 MCP server is left as it is."
+		return 1
+	fi
 	if codex mcp get context7 --json 2>/dev/null | jq -e '.transport
 		| .type == "stdio" and .command == "npx"
 			and ((.env_vars // []) | index("CONTEXT7_API_KEY") != null)
 			and ((.env // {}) | has("CONTEXT7_API_KEY") | not)
-			and ((.args // []) | index("--api-key") | not)' >/dev/null; then
+			and (any((.args // [])[]; startswith("--api-key")) | not)' >/dev/null; then
 		p3 "Codex context7 MCP server already reads CONTEXT7_API_KEY from the environment"
 		return 0
 	fi
 	if codex mcp get context7 --json >/dev/null 2>&1; then
-		if codex mcp get context7 --json 2>/dev/null | jq -e '.transport
-			| ((.args // []) | index("--api-key") != null)
+		# 0 holds a key, 1 does not, anything else (jq failing) leaves it alone.
+		local keyed=0
+		codex mcp get context7 --json 2>/dev/null | jq -e '.transport
+			| any((.args // [])[]; startswith("--api-key"))
 				or ((.env // {}) | has("CONTEXT7_API_KEY"))
-				or ((.http_headers // {}) | length > 0)' >/dev/null &&
-			! context7_key_available; then
-			p1 "Codex's context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
-			p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
+				or ((.http_headers // {}) | length > 0)' >/dev/null 2>&1 || keyed=$?
+		case "${keyed}" in
+		0)
+			if ! context7_key_available; then
+				p1 "Codex's context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
+				p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
+				return 1
+			fi
+			;;
+		1) ;;
+		*)
+			p1 "Could not read Codex's context7 MCP server; it is left as it is."
 			return 1
-		fi
+			;;
+		esac
 		codex mcp remove context7 >/dev/null
 	fi
 
 	codex mcp add context7 -- npx -y @upstash/context7-mcp >/dev/null
 	# `command`: install() above shadows install(1) once this file is sourced.
 	local tmp="${config}.context7-tmp"
-	awk '{ print } $0 == "[mcp_servers.context7]" && !done {
-		print "env_vars = [\"CONTEXT7_API_KEY\"]"; done = 1 }' "${config}" > "${tmp}" &&
+	# The copy holds all of config.toml, so it is never readable by others.
+	(umask 077 && awk '{ print } $0 == "[mcp_servers.context7]" && !done {
+		print "env_vars = [\"CONTEXT7_API_KEY\"]"; done = 1 }' "${config}" > "${tmp}") &&
 		command install -m 600 "${tmp}" "${config}"
 	rm -f "${tmp}"
 	if ! codex mcp get context7 --json 2>/dev/null |

@@ -23,7 +23,8 @@ A skill reaches a repo by exactly three routes:
    - Codex enables plugins user-wide, so `browser` and `frontend-design` are
      global there. This is a recorded exception: Claude Code enables them per
      repo. `install_codex` installs them with `ikeh-development`, and
-     `./setup.sh codex` re-runs it once systems provides `codex`.
+     `./setup.sh codex` re-runs it once systems provides `codex` (an owner
+     command: `setup.sh` asks for `sudo` first).
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
      directories. oh-my-openagent's own `skill` tool ignores that key, so
      `skills.sources` in `oh-my-openagent.json` must list the same
