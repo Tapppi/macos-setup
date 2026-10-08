@@ -392,7 +392,7 @@ XDG-resolved, everything else is hardcoded to `~/.cursor/`.
 | ripgrep (rg) | Fast search             | `dotfiles/config/ripgrep/ripgreprc`        |
 | fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
-| opencode     | AI coding agent         | `dotfiles/config/opencode/` (`opencode.json`, `oh-my-openagent.json`, generated `AGENTS.md`) |
+| opencode     | AI coding agent         | `dotfiles/config/opencode/` (`opencode.json`, generated `AGENTS.md`) |
 | codex        | AI coding agent (CLI)   | `dotfiles/home/.codex/AGENTS.md` (generated); `~/.codex/config.toml` is Codex-owned and untracked |
 | cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, generated rules/00-environment.mdc) |
 | btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
