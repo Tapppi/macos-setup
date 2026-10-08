@@ -24,7 +24,8 @@ A skill reaches a repo by exactly three routes:
      global there. This is a recorded exception: Claude Code enables them per
      repo. `install_codex` installs them with `ikeh-development`, and
      `./setup.sh codex` re-runs it once systems provides `codex` (an owner
-     command: `setup.sh` asks for `sudo` first).
+     command: `setup.sh` asks for `sudo` first). Codex also loads its own
+     bundled skills from `~/.codex/skills/.system`.
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
      directories: `browser`, `frontend-design` and the ikeh-development
      plugin's skills from the ikeh checkout. As with Codex, these are global
@@ -36,6 +37,10 @@ A skill reaches a repo by exactly three routes:
      `permission.skill` in `opencode.json` denies the unwanted ones in
      OpenCode, which also drops them from its skill list. Cursor ignores
      `skillOverrides`, so it lists every synced skill.
+   - Cursor reads `~/.cursor/skills-cursor` (its own), `~/.claude/skills`
+     under the home directory (it ignores `CLAUDE_CONFIG_DIR`, so another
+     Claude profile's skills never reach it), `~/.agents/skills` and the
+     caches of enabled Claude Code plugins.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
