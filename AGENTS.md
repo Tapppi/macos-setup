@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project plugin enablement (tapppi-skills, ikeh marketplaces) + env from .tapppi-project manifests
@@ -20,8 +20,68 @@ macos-setup/
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
   .extra                # Personal bash config (git author, extra aliases)
   .path                 # PATH extensions (GNU utils, Go, brew)
-  .credentials.dist     # Template for secret env vars (DO NOT commit filled version)
+  .credentials.dist     # Template for ~/.config/bash/.credentials (DO NOT commit filled version)
 ```
+
+## What the tasks do
+
+- **`setup.sh`** is the entry point. It sources and dispatches to `tasks/*.sh` and defines the
+  shared helpers (`p1`/`p2`/`p3` for coloured output, `ask`/`ask2`/`run` for AppleScript dialogs)
+  and the sudo keep-alive pattern.
+- **`tasks/init.sh`**: hostname, permissions, macOS updates, guest account, SSH and 1Password
+  setup, new-account creation.
+- **`tasks/install.sh`**: Homebrew and the Brewfile, Bash 5 as the default shell, mise runtimes,
+  the dotfiles bootstrap, nnn plugins, Claude Code and Codex marketplaces, plugins and context7
+  (see *Where skills live* below). context7's key lives only in `~/.config/bash/.credentials`:
+  when ctx7's skill or rule is missing, `install_claude_context7` runs
+  `npx ctx7 setup --claude --oauth --yes`, which installs them under `~/.claude/` and writes no
+  key; it then re-creates the user-scope MCP server as stdio with
+  `CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}`. `install_codex_context7` gives Codex the same server
+  with `env_vars = ["CONTEXT7_API_KEY"]`. An entry that still holds a key is migrated only when
+  the key is exported or in `~/.config/bash/.credentials`, and an unreadable config is left
+  alone. A hand-run `ctx7 setup` without `--oauth` writes the plain key back into
+  `~/.claude.json`; never run `ctx7 setup --codex`, which also appends to the rendered
+  `~/.codex/AGENTS.md`.
+  `install_codex` installs Codex's user-wide plugins (`browser`, `frontend-design`,
+  `ikeh-development`) and ikeh-development's Codex roles, and links ctx7's skill into
+  `~/.agents/skills`. Codex comes from systems, so on a fresh Mac it may be skipped; the owner
+  runs `./setup.sh codex` (it asks for `sudo`) after `nix run .#build-switch`, with every Codex
+  process closed. `./setup.sh context7`, also an owner command, re-asserts only the two context7
+  servers and ctx7's skill and rule.
+  Plugins: `superpowers` is installed per repo from a
+  workspace manifest, and `document-skills@anthropic-agent-skills` is off at user level (the
+  claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills); there is no user-scope
+  chrome-devtools MCP, since `browser@tapppi-skills` ships it per repo.
+- **`tasks/config.sh`**: app configuration (`defaults write`, `PlistBuddy`, `duti` file
+  associations, login items via AppleScript, VLC and Terminal customisation), and it launches
+  apps for first-run setup. It does not apply macOS system defaults.
+- **`tasks/macos.sh`**: macOS system defaults, keyboard and input sources, Finder and Dock
+  preferences, power management. It is a separate task because it kills UI processes (Finder,
+  Dock, ControlCenter).
+- **`tasks/projects.sh`**: per-project setup from a workspace manifest. It scans `~/project` for
+  gitignored `.tapppi-project.{json,yml,yaml}` manifests and, per workspace:
+  1. enables each repo's named marketplace plugins at local scope with
+     `claude plugin install --scope local`, which records `enabledPlugins` in that repo's
+     gitignored `.claude/settings.local.json`. This is how third-party marketplace plugins (such
+     as `frontend-design@claude-plugins-official`) and our own bundles published through a
+     marketplace (such as `browser@tapppi-skills`, published by the `Tapppi/skills` repo's
+     `.claude-plugin/marketplace.json`) get per-project scoping. Only the root `tapppi-skills`
+     marketplace at `~/project/github/tapppi/skills` and the root `ikeh` marketplace at
+     `~/project/github/mantadevoy/ikeh` (home of `ikeh-git@ikeh`) are registered;
+  2. renders a `mise.local.toml` in the workspace directory whose `[env]` loads a local `0600`
+     dotenv file through mise's `_.file`. mise walks up across git boundaries, so every repo
+     under the workspace inherits the env, and a plain file read is instant, unlike a blocking
+     `op read` in mise's per-`cd` evaluation;
+  3. for a `jira` block, prints the one-time commands that write that dotenv file from
+     1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus
+     `JIRA_CONFIG_FILE` and `JIRA_AUTH_TYPE`) and run `jira init`.
+
+  It is idempotent and never auto-run, and it does not link skills into repos (see *Where skills
+  live*).
+- **`backup.sh` / `restore.sh`**: back up and restore the home directory files listed in
+  `restore.bom` as timestamped `.tar.gz` archives. They require Homebrew's rsync.
+- **`.extra`** holds the git identity and personal aliases, **`.path`** the PATH extensions, and
+  **`.credentials.dist`** the template for secrets.
 
 ## dotfiles/ Submodule
 
@@ -29,25 +89,32 @@ macos-setup/
 See `dotfiles/README.md` for details. It has two sync directories:
 
 - `home/` — rsynced to `~/` (files without XDG support):
-  `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hushlogin`, `.parallel/`
+  `.bash_profile`, `.bashrc`, `.claude/`, `.codex/`, `.cursor/`, `.hushlogin`, `.parallel/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
   `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
-  `git/` (config + global ignore), `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`,
-  `ghostty/`, `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `ripgrep/`,
-  `fd/`, `terminal/`
+  `claude/`, `containers/`, `cursor/`, `fd/`, `gh/`, `ghostty/`, `git/` (config + global
+  ignore), `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `readline/inputrc`,
+  `ripgrep/`, `terminal/`, `tmux/tmux.conf`, `curlrc`, `wgetrc`
+- `agents/` — outside the synced trees: the sources of the user-level agent instructions
+  (`core.md` plus one header per harness) and `render.sh`, which writes header plus core into
+  `home/.claude/CLAUDE.md`, `home/.codex/AGENTS.md`, `config/opencode/AGENTS.md` and
+  `home/.cursor/rules/00-environment.mdc`. Those outputs are generated: edit `agents/`, run
+  `agents/render.sh`, and check with `agents/render.sh --check`. See `dotfiles/AGENTS.md`.
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
 ### Tool-owned config is re-asserted, not vendored
 
-`ctx7` and `herdr` write their own config into files the submodule tracks —
+`herdr` writes its own config into files the submodule tracks —
 `herdr integration install claude` adds a hook script under `~/.claude/hooks/`
-and a `SessionStart` entry to `~/.claude/settings.json`.
+and a `SessionStart` entry to `~/.claude/settings.json`, and `herdr integration install codex`
+adds `~/.codex/herdr-agent-state.sh` and `~/.codex/hooks.json` beside the tracked
+`~/.codex/AGENTS.md`.
 
 None of it is vendored in dotfiles. `install()` relies on ordering instead:
 `install_dotfiles` runs first and `bootstrap.sh` overwrites the tracked files,
-dropping the tool's keys; `install_herdr_integrations` and the `ctx7` setup run
-afterwards and write them back. The live `~/.claude/settings.json` therefore has
+dropping the tool's keys; `install_herdr_integrations` runs afterwards and writes
+them back. The live `~/.claude/settings.json` therefore has
 a `hooks` key the tracked copy does not, and that is correct.
 
 Both halves are easy to break:
@@ -94,7 +161,10 @@ bash hooks/install.sh
 ./setup.sh init     # System initialization
 ./setup.sh install  # Install all software
 ./setup.sh dotfiles # Bootstrap dotfiles only
-./setup.sh config   # Apply app configuration
+./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
+./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
+./setup.sh context7 # context7 for Claude Code and Codex only (also part of install)
+./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 ./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
 reload              # Reloads all shell configurations
@@ -112,7 +182,8 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 ```
 
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
-**Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing.
+**Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file
+before committing.
 
 **Bootstrap code must be portable; everything else can assume GNU.** This repo *installs* the
 tooling, so its scripts can run on a freshly imaged Mac against the stock BSD userland, before the
@@ -131,6 +202,9 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 - **Line endings:** LF (Unix)
 - **Final newline:** Always insert
 - **Trailing whitespace:** Always trim
+- **Markdown (`.md`, `.mdc`):** spaces with two-space list indentation, and prose wrapped at 100
+  columns (`[*.{md,mdc}]` in `.editorconfig`). Tables, fenced code and a line that is one long
+  link or code span may overflow. Fenced code carries a language.
 
 ### Shell Scripts
 
@@ -154,20 +228,24 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 
 ### Error Handling
 
-- Check for required tools before using them (`if ! which brew >/dev/null`)
+- Check for required tools before using them (`if ! command -v brew >/dev/null`)
 - Use `return 1` in functions for errors (not `exit 1` which kills the shell)
 - Redirect stderr: `2>/dev/null` for expected failures
 - The sudo keep-alive pattern in setup.sh maintains elevated privileges
 
 ### Git Conventions
 
-- GPG signing is enabled (`commit.gpgsign = true` in dotfiles/config/git/config)
+- Commits are SSH-signed through 1Password (`commit.gpgsign = true` in
+  `dotfiles/config/git/config`); handle signing failures as the user-level instructions
+  describe
 - Default branch: `main` for new repos (set in gitconfig)
 - This repo and dotfiles use `master` branch
 - Commit messages: imperative mood, concise (e.g. "Add podman", "Update dotfiles")
 - Use `diff-so-fancy` as pager (configured in gitconfig)
 - URL shorthands: `gh:user/repo` expands to `git@github.com:user/repo`
-- Useful aliases: `g s` (status), `g d` (diff), `g cam "msg"` (add all + commit)
+- Useful aliases: `g s` (status), `g d` (diff). The `cam` alias stages every change, untracked
+  files included (submodule pointers excepted), so do not use it here (see *Git workflows and
+  pushing branches*)
 
 ### Brewfile
 
@@ -200,6 +278,12 @@ Homebrew therefore wins over the nix-darwin config in `tapppi/systems` for anyth
 PATH.** That is how `nvim` resolves to the nixCats build; an earlier attempt to prepend the Nix
 profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` and `zsh`.
 
+### XDG Base Directory
+
+`XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`. Tools that support XDG
+read config from `~/.config/`. Env var overrides (`INPUTRC`, `WGETRC`, `KUBECONFIG`,
+`PGPASSFILE` and others) are also set there for tools that need explicit paths.
+
 ### Git Identity and Attribution
 
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no
@@ -207,13 +291,6 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
   Commits must look like normal developer commits.
 - **NEVER** change `user.name`, `user.email`, or any git identity
   configuration. The repository owner's identity must remain on all commits.
-- **Exception — unattended workflows**: If the agent must commit in an
-  unattended context (e.g. CI, cron, background automation) where the
-  owner's signing key is unavailable, it may temporarily set a placeholder
-  identity to allow the commit to proceed. In this case:
-  1. Clearly inform the user that commits were made with a placeholder identity.
-  2. Note that these commits need `git rebase` / `git commit --amend` to
-     restore the correct author before pushing to a shared remote.
 
 ### Do Not Run Setup Scripts
 
@@ -221,23 +298,48 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
   automatically. These scripts modify system configuration,
   install software, and require `sudo`. The user must always run them manually.
 
+**Narrow exception:** the `tool-update-review` skill's apply step may run `./setup.sh projects`,
+and only that subcommand (never `install`, `macos`, `init` or bare `setup.sh`), when an accepted
+suggestion edits a file that `tasks/projects.sh` manages (workspace `.tapppi-project.json`
+manifests, rendered `mise.local.toml`). That task is idempotent, needs no `sudo` and touches no
+system-wide state: it only re-enables plugins and re-renders workspace-local env config. The
+exception is scoped to that one skill and that one subcommand and does not loosen the rule for
+any other automation.
+
 ### Edit Dotfiles in the Submodule, Not in `~/`
 
-**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.cursor/` or
+**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.codex/`, `~/.cursor/` or
 `~/.config/`. Edit the source in the `dotfiles/` submodule (`home/` or
 `config/`) and copy the changed file to its destination (`cp
 dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.
+
+The user-level instruction files (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
+`~/.config/opencode/AGENTS.md`, `~/.cursor/rules/00-environment.mdc`) are generated, so their
+source is one step further back, in `dotfiles/agents/`.
+
+Live files with no dotfiles source (`~/.config/bash/.credentials`, `~/.codex/config.toml`,
+`~/.claude.json`) are edited by the owner or through the owning tool's CLI, and are never copied
+into dotfiles.
 
 The exception is config a tool writes into a tracked path — see *Tool-owned
 config is re-asserted, not vendored* above.
 
 ### Files to Never Commit
 
-- `.credentials` (use `.credentials.dist` as template)
+- `.credentials`, the live `~/.config/bash/.credentials` (use `.credentials.dist` as template)
 - `.DS_Store`, `Thumbs.db`, `._*` (in .gitignore)
 - Anything containing API keys, tokens, or passwords
 - Backup tarballs
+
+## Credentials and keys
+
+Tool API keys live in the untracked, `0600` file `~/.config/bash/.credentials`, which
+`dotfiles/config/bash/.bash_profile` sources first and which exports variables such as
+`CONTEXT7_API_KEY`. Every interactive shell sees them; non-interactive shells (including
+`bash -lc`), cron and GUI-launched apps do not. `.credentials.dist` is its template, and
+`restore.bom` lists the file for `backup.sh`. Never commit or print a key, and never resolve a
+variable into a tracked file.
 
 ## Where skills live
 
@@ -268,13 +370,14 @@ and every `cursor-agent` invocation then dies with `library load disallowed by
 system policy` (plus a Gatekeeper popup per run). Re-run
 `xattr -dr com.apple.quarantine "$(brew --prefix)/Caskroom/cursor-cli"`.
 
-Cursor reads much of the Claude Code setup natively — repo `CLAUDE.md`,
-`.claude/skills/**/SKILL.md`, `.claude/agents/**`, `~/.claude/commands/`, and
-`enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` — so
-`tasks/projects.sh` needs no Cursor-specific handling: a repo's committed
-`.claude/skills/` and `.agents/skills/` are both discovered as-is. It does **not** read
-`~/.claude/CLAUDE.md` (ported to `dotfiles/home/.cursor/rules/*.mdc`) or Claude's
-`Bash(...)` permission entries (Cursor's shell tool is `Shell(...)`).
+Cursor reads much of the Claude Code setup natively — a repo's `AGENTS.md` and `CLAUDE.md`
+(following its `@` imports), `.claude/skills/**/SKILL.md`, `.claude/agents/**`,
+`~/.claude/commands/`, and `enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` —
+so `tasks/projects.sh` needs no Cursor-specific handling: a repo's committed `.claude/skills/`
+and `.agents/skills/` are both discovered as-is. It does **not** read
+`~/.claude/CLAUDE.md` (the generated `~/.cursor/rules/00-environment.mdc` carries the user-level
+instructions instead) or Claude's `Bash(...)` permission entries (Cursor's shell tool is
+`Shell(...)`).
 
 See `dotfiles/AGENTS.md` for the two-directory config split — `cli-config.json` is
 XDG-resolved, everything else is hardcoded to `~/.cursor/`.
@@ -289,8 +392,9 @@ XDG-resolved, everything else is hardcoded to `~/.cursor/`.
 | ripgrep (rg) | Fast search             | `dotfiles/config/ripgrep/ripgreprc`        |
 | fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
-| opencode     | AI coding agent         | `dotfiles/config/opencode/opencode.json`   |
-| cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, rules/) |
+| opencode     | AI coding agent         | `dotfiles/config/opencode/` (`opencode.json`, generated `AGENTS.md`) |
+| codex        | AI coding agent (CLI)   | `dotfiles/home/.codex/AGENTS.md` (generated); `~/.codex/config.toml` is Codex-owned and untracked |
+| cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, generated rules/00-environment.mdc) |
 | btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
 | lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
 | tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |

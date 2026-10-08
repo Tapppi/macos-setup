@@ -498,7 +498,7 @@ here):
 2. **If a change is needed, identify the specific underlying command(s)
    affected** — not the whole function, and never the whole
    `tasks/install.sh`/`./setup.sh install` entrypoint (that has broad,
-   unrelated side effects and is exactly what CLAUDE.md's setup-script rule
+   unrelated side effects and is exactly what AGENTS.md's setup-script rule
    exists to prevent running unattended).
 3. **Test those specific commands directly, non-destructively, before
    proposing anything.** This is the load-bearing safety rule: never run a
