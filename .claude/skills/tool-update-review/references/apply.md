@@ -119,8 +119,8 @@ Applied directly to the macos-setup repo in-session:
 - Commit per `AGENTS.md`: specific paths staged, imperative-mood messages,
   no AI attribution.
 - **When a target file is managed by `tasks/projects.sh`** (workspace
-  `.tapppi-project.json` manifests, rendered `mise.local.toml`, per-repo
-  skill symlinks): apply the edit, then run `./setup.sh projects` — the one
+  `.tapppi-project.json` manifests, rendered `mise.local.toml`): apply the
+  edit, then run `./setup.sh projects` — the one
   documented, narrow exception to `AGENTS.md`'s never-run-setup-scripts
   rule, scoped to that single idempotent subcommand — instead of
   hand-simulating what that task does.

@@ -38,9 +38,9 @@ macos-setup/
   `~/.claude/`, which dotfiles does not own (bootstrap leaves `~/.claude/skills/` alone and has
   no mirror for it). The live context7 entries in Claude Code and Codex read the key from the
   exported `CONTEXT7_API_KEY` instead, but `ctx7 setup` writes the plain key back into
-  `~/.claude.json` whenever it runs: on a fresh machine `install.sh` runs it without `--stdio`,
-  and a manual re-run does the same. The guard in `install_claude_code` skips the run once the
-  entry mentions `CONTEXT7_API_KEY`. Plugins: `superpowers` is installed per repo from a
+  `~/.claude.json` whenever it runs, whether from `install.sh` on a fresh machine or by hand. The
+  guard in `install_claude_code` skips the run once the entry mentions `CONTEXT7_API_KEY`.
+  Plugins: `superpowers` is installed per repo from a
   workspace manifest, and `document-skills@anthropic-agent-skills` is off at user level (the
   claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills); there is no user-scope
   chrome-devtools MCP, since `browser@tapppi-skills` ships it per repo.
@@ -233,8 +233,9 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 - Commit messages: imperative mood, concise (e.g. "Add podman", "Update dotfiles")
 - Use `diff-so-fancy` as pager (configured in gitconfig)
 - URL shorthands: `gh:user/repo` expands to `git@github.com:user/repo`
-- Useful aliases: `g s` (status), `g d` (diff). The `cam` alias stages every tracked change, so
-  do not use it here (see *Git workflows and pushing branches*)
+- Useful aliases: `g s` (status), `g d` (diff). The `cam` alias stages every change, untracked
+  files included (submodule pointers excepted), so do not use it here (see *Git workflows and
+  pushing branches*)
 
 ### Brewfile
 
@@ -307,6 +308,10 @@ The user-level instruction files (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
 `~/.config/opencode/AGENTS.md`, `~/.cursor/rules/00-environment.mdc`) are generated, so their
 source is one step further back, in `dotfiles/agents/`.
 
+Live files with no dotfiles source (`~/.config/bash/.credentials`, `~/.codex/config.toml`,
+`~/.claude.json`) are edited by the owner or through the owning tool's CLI, and are never copied
+into dotfiles.
+
 The exception is config a tool writes into a tracked path — see *Tool-owned
 config is re-asserted, not vendored* above.
 
@@ -321,9 +326,10 @@ config is re-asserted, not vendored* above.
 
 Tool API keys live in the untracked, `0600` file `~/.config/bash/.credentials`, which
 `dotfiles/config/bash/.bash_profile` sources first and which exports variables such as
-`CONTEXT7_API_KEY`. Only interactive login shells see them: non-interactive shells and
-GUI-launched apps do not. `.credentials.dist` is its template, and `restore.bom` lists the file
-for `backup.sh`. Never commit or print a key, and never resolve a variable into a tracked file.
+`CONTEXT7_API_KEY`. Every interactive shell sees them; non-interactive shells (including
+`bash -lc`), cron and GUI-launched apps do not. `.credentials.dist` is its template, and
+`restore.bom` lists the file for `backup.sh`. Never commit or print a key, and never resolve a
+variable into a tracked file.
 
 ## Where skills live
 
@@ -354,15 +360,14 @@ and every `cursor-agent` invocation then dies with `library load disallowed by
 system policy` (plus a Gatekeeper popup per run). Re-run
 `xattr -dr com.apple.quarantine "$(brew --prefix)/Caskroom/cursor-cli"`.
 
-Cursor reads much of the Claude Code setup natively — repo `CLAUDE.md`,
-`.claude/skills/**/SKILL.md`, `.claude/agents/**`, `~/.claude/commands/`, and
-`enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` — so
-`tasks/projects.sh` needs no Cursor-specific handling: a repo's committed
-`.claude/skills/` and `.agents/skills/` are both discovered as-is. It does **not** read
+Cursor reads much of the Claude Code setup natively — a repo's `AGENTS.md` and `CLAUDE.md`
+(following its `@` imports), `.claude/skills/**/SKILL.md`, `.claude/agents/**`,
+`~/.claude/commands/`, and `enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` —
+so `tasks/projects.sh` needs no Cursor-specific handling: a repo's committed `.claude/skills/`
+and `.agents/skills/` are both discovered as-is. It does **not** read
 `~/.claude/CLAUDE.md` (the generated `~/.cursor/rules/00-environment.mdc` carries the user-level
 instructions instead) or Claude's `Bash(...)` permission entries (Cursor's shell tool is
-`Shell(...)`). It follows an `@file` import in a repo `CLAUDE.md`, which is why this repo's
-`CLAUDE.md` is just `@AGENTS.md`.
+`Shell(...)`).
 
 See `dotfiles/AGENTS.md` for the two-directory config split — `cli-config.json` is
 XDG-resolved, everything else is hardcoded to `~/.cursor/`.
