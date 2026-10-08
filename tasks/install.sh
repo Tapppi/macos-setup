@@ -404,7 +404,7 @@ install_mise_runtimes() {
 
 	# Libraries, not CLI tools, so `uv tool install` is the wrong verb — these must be
 	# importable by the default `python3`. The agent-skills venv (see
-	# setup_agent_skills_venv) carries its own copies, but ad-hoc scripts run on the
+	# install_agent_skills_venv) carries its own copies, but ad-hoc scripts run on the
 	# mise interpreter and cannot see that venv.
 	p3 "Installing Python libraries into the mise-managed interpreter"
 	# Reference: https://openpyxl.readthedocs.io — xlsx read/write for report scripts.
@@ -444,12 +444,13 @@ install_powershell_modules() {
 
 # Define Function =install_agent_skills_venv=
 # Creates a shared uv venv at ~/.local/share/agent-skills/venv/ used by
-# agent skills that need Python libraries. Its first users are the docx, pdf,
-# pptx and xlsx skills of Anthropic's document-skills plugin, which is
-# installed from Anthropic's own marketplace (document-skills@anthropic-
-# agent-skills in the tracked ~/.claude/settings.json) rather than vendored in
-# dotfiles, because their licence forbids redistribution. The deps are the same
-# either way. Per-skill dependencies are appended below as skills are adopted.
+# agent skills that need Python libraries. Its first users are Anthropic's
+# docx, pdf, pptx and xlsx skills, which reach this machine through the
+# claude.ai skill sync (anthropic-skills:* in Claude Code, bare names in
+# OpenCode and Cursor) and are never vendored, because their licence forbids
+# redistribution. The document-skills@anthropic-agent-skills plugin carries
+# the same skills and needs the same deps. Per-skill dependencies are
+# appended below as skills are adopted.
 install_agent_skills_venv() {
 	p2 "Setting up agent-skills uv venv..."
 
@@ -470,9 +471,10 @@ install_agent_skills_venv() {
 	# uv pip install --python is idempotent — safe to re-run.
 	# Add deps here as skills are adopted; document each one's purpose.
 	local venv_python="${venv_dir}/bin/python"
-	p3 "Installing Python deps for Anthropic's document-skills plugin (docx/pdf/pptx/xlsx)..."
+	# pdfplumber: the pdf skill's scripts/extract_form_structure.py.
+	p3 "Installing Python deps for Anthropic's document skills (docx/pdf/pptx/xlsx)..."
 	uv pip install --python "${venv_python}" --quiet \
-		pypdf pdf2image pillow reportlab numpy \
+		pypdf pdfplumber pdf2image pillow reportlab numpy \
 		defusedxml lxml \
 		openpyxl pandas
 
@@ -551,30 +553,30 @@ install_claude_code() {
 				|| claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
 		fi
 	fi
-	# chrome-devtools: browser debugging, Lighthouse audits, performance tracing
-	if ! claude mcp list 2>/dev/null | grep -q chrome-devtools; then
-		claude mcp add --scope user --transport stdio chrome-devtools -- npx -y chrome-devtools-mcp@latest
-	fi
+	# No user-scope chrome-devtools MCP: browser@tapppi-skills ships it per repo.
+	#
 	# Every plugin below is enabled in the tracked ~/.claude/settings.json,
 	# which enables but fetches nothing — the cache is materialised here.
 	# `marketplace add` is a no-op once a marketplace is registered, so each
 	# add is followed by an update or an existing machine keeps resolving
-	# against a stale catalog.
+	# against a stale catalog. A `claude plugin install` is user scope and
+	# writes `true` into the live settings, so a plugin the tracked settings
+	# set to `false` is never installed here:
+	# - superpowers is a per-repo choice, installed at local scope from a
+	#   workspace manifest by tasks/projects.sh.
+	# - document-skills@anthropic-agent-skills is off at user level: the
+	#   docx/pdf/pptx/xlsx skills synced from claude.ai (anthropic-skills:*)
+	#   are the newer copies. The marketplace stays registered in the tracked
+	#   settings, so a repo can still enable the plugin locally.
 	#
 	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
-	# (`codex login`). document-skills is Anthropic's docx/pdf/pptx/xlsx,
-	# installed rather than vendored because their licence forbids it.
+	# (`codex login`).
 	claude plugin marketplace update claude-plugins-official
-	claude plugin install superpowers@claude-plugins-official
 	claude plugin install duckdb-skills@claude-plugins-official
 
 	claude plugin marketplace add openai/codex-plugin-cc
 	claude plugin marketplace update openai-codex
 	claude plugin install codex@openai-codex
-
-	claude plugin marketplace add anthropics/skills
-	claude plugin marketplace update anthropic-agent-skills
-	claude plugin install document-skills@anthropic-agent-skills
 
 	# The tapppi-skills marketplace is the Tapppi/skills checkout itself — the
 	# tracked settings name it as a directory source. The repo is private, so
