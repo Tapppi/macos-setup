@@ -23,6 +23,51 @@ macos-setup/
   .credentials.dist     # Template for secret env vars (DO NOT commit filled version)
 ```
 
+## What the tasks do
+
+- **`setup.sh`** is the entry point. It sources and dispatches to `tasks/*.sh` and defines the
+  shared helpers (`p1`/`p2`/`p3` for coloured output, `ask`/`ask2`/`run` for AppleScript dialogs)
+  and the sudo keep-alive pattern.
+- **`tasks/init.sh`**: hostname, permissions, macOS updates, guest account, SSH and 1Password
+  setup, new-account creation.
+- **`tasks/install.sh`**: Homebrew and the Brewfile, Bash 5 as the default shell, mise runtimes,
+  the dotfiles bootstrap, nnn plugins, Claude Code MCP servers and plugins, and the
+  `tapppi-skills` and `ikeh` marketplaces (see *Where skills live* below). context7 is set up
+  with `npx ctx7 setup --claude`: an OAuth login for higher rate limits that writes the
+  API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill and rule under
+  `~/.claude/`, which dotfiles does not own (bootstrap leaves `~/.claude/skills/` alone and has
+  no mirror for it).
+- **`tasks/config.sh`**: app configuration (`defaults write`, `PlistBuddy`, `duti` file
+  associations, login items via AppleScript, VLC and Terminal customisation), and it launches
+  apps for first-run setup. It does not apply macOS system defaults.
+- **`tasks/macos.sh`**: macOS system defaults, keyboard and input sources, Finder and Dock
+  preferences, power management. It is a separate task because it kills UI processes (Finder,
+  Dock, ControlCenter).
+- **`tasks/projects.sh`**: per-project setup from a workspace manifest. It scans `~/project` for
+  gitignored `.tapppi-project.{json,yml,yaml}` manifests and, per workspace:
+  1. enables each repo's named marketplace plugins at local scope with
+     `claude plugin install --scope local`, which records `enabledPlugins` in that repo's
+     gitignored `.claude/settings.local.json`. This is how third-party marketplace plugins (such
+     as `frontend-design@claude-plugins-official`) and our own bundles published through a
+     marketplace (such as `browser@tapppi-skills`, published by the `Tapppi/skills` repo's
+     `.claude-plugin/marketplace.json`) get per-project scoping. Only the root `tapppi-skills`
+     marketplace at `~/project/github/tapppi/skills` and the root `ikeh` marketplace at
+     `~/project/github/mantadevoy/ikeh` (home of `ikeh-git@ikeh`) are registered;
+  2. renders a `mise.local.toml` in the workspace directory whose `[env]` loads a local `0600`
+     dotenv file through mise's `_.file`. mise walks up across git boundaries, so every repo
+     under the workspace inherits the env, and a plain file read is instant, unlike a blocking
+     `op read` in mise's per-`cd` evaluation;
+  3. for a `jira` block, prints the one-time commands that write that dotenv file from
+     1Password (`op read` into a `0600` file holding `JIRA_API_TOKEN` plus
+     `JIRA_CONFIG_FILE` and `JIRA_AUTH_TYPE`) and run `jira init`.
+
+  It is idempotent and never auto-run, and it does not link skills into repos (see *Where skills
+  live*).
+- **`backup.sh` / `restore.sh`**: back up and restore the home directory files listed in
+  `restore.bom` as timestamped `.tar.gz` archives. They require Homebrew's rsync.
+- **`.extra`** holds the git identity and personal aliases, **`.path`** the PATH extensions, and
+  **`.credentials.dist`** the template for secrets.
+
 ## dotfiles/ Submodule
 
 `dotfiles/` is a **separate git submodule** at `git@github.com:tapppi/dotfiles.git`.
@@ -32,9 +77,9 @@ See `dotfiles/README.md` for details. It has two sync directories:
   `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hushlogin`, `.parallel/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
   `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
-  `git/` (config + global ignore), `tmux/tmux.conf`, `readline/inputrc`, `curlrc`, `wgetrc`,
-  `ghostty/`, `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `ripgrep/`,
-  `fd/`, `terminal/`
+  `claude/`, `containers/`, `cursor/`, `fd/`, `gh/`, `ghostty/`, `git/` (config + global
+  ignore), `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `readline/inputrc`,
+  `ripgrep/`, `terminal/`, `tmux/tmux.conf`, `curlrc`, `wgetrc`
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
@@ -94,7 +139,8 @@ bash hooks/install.sh
 ./setup.sh init     # System initialization
 ./setup.sh install  # Install all software
 ./setup.sh dotfiles # Bootstrap dotfiles only
-./setup.sh config   # Apply app configuration
+./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
+./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 ./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
 reload              # Reloads all shell configurations
@@ -112,7 +158,8 @@ shellcheck dotfiles/bootstrap.sh dotfiles/config/bash/.functions
 ```
 
 There is no test suite. Use `shellcheck` to validate shell scripts before committing.
-**Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file before committing.
+**Never introduce new shellcheck warnings.** Run `shellcheck` on every modified `.sh` file
+before committing.
 
 **Bootstrap code must be portable; everything else can assume GNU.** This repo *installs* the
 tooling, so its scripts can run on a freshly imaged Mac against the stock BSD userland, before the
@@ -154,20 +201,23 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 
 ### Error Handling
 
-- Check for required tools before using them (`if ! which brew >/dev/null`)
+- Check for required tools before using them (`if ! command -v brew >/dev/null`)
 - Use `return 1` in functions for errors (not `exit 1` which kills the shell)
 - Redirect stderr: `2>/dev/null` for expected failures
 - The sudo keep-alive pattern in setup.sh maintains elevated privileges
 
 ### Git Conventions
 
-- GPG signing is enabled (`commit.gpgsign = true` in dotfiles/config/git/config)
+- Commits are SSH-signed through 1Password (`commit.gpgsign = true` in
+  `dotfiles/config/git/config`); handle signing failures as the user-level instructions
+  describe
 - Default branch: `main` for new repos (set in gitconfig)
 - This repo and dotfiles use `master` branch
 - Commit messages: imperative mood, concise (e.g. "Add podman", "Update dotfiles")
 - Use `diff-so-fancy` as pager (configured in gitconfig)
 - URL shorthands: `gh:user/repo` expands to `git@github.com:user/repo`
-- Useful aliases: `g s` (status), `g d` (diff), `g cam "msg"` (add all + commit)
+- Useful aliases: `g s` (status), `g d` (diff). The `cam` alias stages every tracked change, so
+  do not use it here (see *Git workflows and pushing branches*)
 
 ### Brewfile
 
@@ -200,6 +250,12 @@ Homebrew therefore wins over the nix-darwin config in `tapppi/systems` for anyth
 PATH.** That is how `nvim` resolves to the nixCats build; an earlier attempt to prepend the Nix
 profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` and `zsh`.
 
+### XDG Base Directory
+
+`XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`. Tools that support XDG
+read config from `~/.config/`. Env var overrides (`INPUTRC`, `WGETRC`, `KUBECONFIG`,
+`PGPASSFILE` and others) are also set there for tools that need explicit paths.
+
 ### Git Identity and Attribution
 
 - **NEVER** add AI attribution to commits (no `Co-authored-by`, no
@@ -207,19 +263,20 @@ profile instead was reverted because it also shadowed Homebrew's `bash`, `sh` an
   Commits must look like normal developer commits.
 - **NEVER** change `user.name`, `user.email`, or any git identity
   configuration. The repository owner's identity must remain on all commits.
-- **Exception — unattended workflows**: If the agent must commit in an
-  unattended context (e.g. CI, cron, background automation) where the
-  owner's signing key is unavailable, it may temporarily set a placeholder
-  identity to allow the commit to proceed. In this case:
-  1. Clearly inform the user that commits were made with a placeholder identity.
-  2. Note that these commits need `git rebase` / `git commit --amend` to
-     restore the correct author before pushing to a shared remote.
 
 ### Do Not Run Setup Scripts
 
 - **NEVER** run `setup.sh`, `tasks/*.sh`, or `dotfiles/bootstrap.sh`
   automatically. These scripts modify system configuration,
   install software, and require `sudo`. The user must always run them manually.
+
+**Narrow exception:** the `tool-update-review` skill's apply step may run `./setup.sh projects`,
+and only that subcommand (never `install`, `macos`, `init` or bare `setup.sh`), when an accepted
+suggestion edits a file that `tasks/projects.sh` manages (workspace `.tapppi-project.json`
+manifests, rendered `mise.local.toml`). That task is idempotent, needs no `sudo` and touches no
+system-wide state: it only re-enables plugins and re-renders workspace-local env config. The
+exception is scoped to that one skill and that one subcommand and does not loosen the rule for
+any other automation.
 
 ### Edit Dotfiles in the Submodule, Not in `~/`
 
