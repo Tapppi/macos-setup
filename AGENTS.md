@@ -33,17 +33,21 @@ macos-setup/
 - **`tasks/install.sh`**: Homebrew and the Brewfile, Bash 5 as the default shell, mise runtimes,
   the dotfiles bootstrap, nnn plugins, Claude Code and Codex marketplaces, plugins and context7
   (see *Where skills live* below). context7's key lives only in `~/.config/bash/.credentials`:
-  `install_claude_context7` runs `npx ctx7 setup --claude --oauth --yes`, which installs
-  ctx7's own skill and rule under `~/.claude/` and writes no key, then re-creates the user-scope
-  MCP server as stdio with `CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}`. `install_codex_context7`
-  gives Codex the same server with `env_vars = ["CONTEXT7_API_KEY"]`. An entry that still holds
-  a key is migrated only when the key is exported. A hand-run `ctx7 setup` without `--oauth`
-  writes the plain key back into `~/.claude.json`; never run `ctx7 setup --codex`, which also
-  appends to the rendered `~/.codex/AGENTS.md`.
+  when ctx7's skill or rule is missing, `install_claude_context7` runs
+  `npx ctx7 setup --claude --oauth --yes`, which installs them under `~/.claude/` and writes no
+  key; it then re-creates the user-scope MCP server as stdio with
+  `CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}`. `install_codex_context7` gives Codex the same server
+  with `env_vars = ["CONTEXT7_API_KEY"]`. An entry that still holds a key is migrated only when
+  the key is exported or in `~/.config/bash/.credentials`, and an unreadable config is left
+  alone. A hand-run `ctx7 setup` without `--oauth` writes the plain key back into
+  `~/.claude.json`; never run `ctx7 setup --codex`, which also appends to the rendered
+  `~/.codex/AGENTS.md`.
   `install_codex` installs Codex's user-wide plugins (`browser`, `frontend-design`,
   `ikeh-development`) and ikeh-development's Codex roles, and links ctx7's skill into
-  `~/.agents/skills`. Codex comes from systems, so on a fresh Mac it may be skipped; run
-  `./setup.sh codex` after `nix run .#build-switch`, with every Codex process closed.
+  `~/.agents/skills`. Codex comes from systems, so on a fresh Mac it may be skipped; the owner
+  runs `./setup.sh codex` (it asks for `sudo`) after `nix run .#build-switch`, with every Codex
+  process closed. `./setup.sh context7`, also an owner command, re-asserts only the two context7
+  servers and ctx7's skill and rule.
   Plugins: `superpowers` is installed per repo from a
   workspace manifest, and `document-skills@anthropic-agent-skills` is off at user level (the
   claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills); there is no user-scope
@@ -159,6 +163,7 @@ bash hooks/install.sh
 ./setup.sh dotfiles # Bootstrap dotfiles only
 ./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
 ./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
+./setup.sh context7 # context7 for Claude Code and Codex only (also part of install)
 ./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 ./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
