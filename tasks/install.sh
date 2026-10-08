@@ -695,7 +695,11 @@ install_claude_code() {
 	#   workspace manifest by tasks/projects.sh.
 	# - document-skills@anthropic-agent-skills is off at user level.
 	# A user-scope plugin also loads in OpenCode, through oh-my-openagent's
-	# Claude Code compatibility, unless something sets it `false`.
+	# Claude Code compatibility, unless something sets it `false`: the tracked
+	# settings' enabledPlugins, or `claude_code.plugins_override` in
+	# oh-my-openagent.json (which turns codex off there). Cursor reads the same
+	# enabledPlugins but loads a plugin only when it says `true`, with no
+	# per-harness override, so codex, skill-creator and duckdb-skills load there.
 	#
 	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
 	# (`codex login`).

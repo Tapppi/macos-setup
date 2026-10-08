@@ -50,6 +50,12 @@ A skill reaches a repo by exactly three routes:
    whether that configuration is committed, and the set of harnesses differs
    from repo to repo. In this repo, `tasks/projects.sh` writes a repo's
    gitignored local list from a workspace manifest; its own comments say how.
+
+   OpenCode (through oh-my-openagent) loads every user-scope Claude Code
+   plugin unless `enabledPlugins` or its `plugins_override` sets it `false`;
+   Cursor loads one only when the user `enabledPlugins` says `true`. A new
+   user-scope plugin therefore reaches OpenCode silently, and Cursor only
+   when it is enabled by name.
 3. **Repo-committed `.agents/skills` or `.claude/skills`**, discovered in
    place. In our repos this is the bundle layout below. In other people's
    repos it is whatever they commit under their own conventions, read as-is.
