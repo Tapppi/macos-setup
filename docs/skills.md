@@ -17,15 +17,21 @@ A skill reaches a repo by exactly three routes:
    goes here: a user-level copy cannot follow a branch.
 
    Route 1 has more than one location, and each harness reads its own set:
-   - `~/.agents/skills` is written by hand, and Codex and OpenCode read it.
+   - `~/.agents/skills` is written by hand, and Codex, OpenCode and Cursor
+     read it.
    - Codex enables plugins user-wide, so `browser` and `frontend-design` are
      global there. This is a recorded exception: Claude Code enables them per
      repo.
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
-     directories.
-   - The claude.ai account sync writes `~/.claude/skills/synced/`, and
-     `skillOverrides` in `settings.json` hides synced skills from Claude Code
-     by name.
+     directories. oh-my-openagent's own `skill` tool ignores that key, so
+     `skills.sources` in `oh-my-openagent.json` must list the same
+     directories. Keep the two lists in sync.
+   - The claude.ai account sync writes `~/.claude/skills/synced/`, which
+     Claude Code, OpenCode and Cursor all read. `skillOverrides` in
+     `settings.json` hides synced skills from Claude Code by name, and
+     `permission.skill` in `opencode.json` denies the unwanted ones in
+     OpenCode. Cursor
+     ignores `skillOverrides`, so it lists every synced skill.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
@@ -46,8 +52,10 @@ A skill reaches a repo by exactly three routes:
    repos it is whatever they commit under their own conventions, read as-is.
    We impose no layout there.
 
-Verified harnesses: Claude Code 2.1.267, codex-cli 0.154.0, Cursor
-2026.09.02, OpenCode 1.15.12.
+Verified harnesses: Claude Code 2.1.293, codex-cli 0.159.1, Cursor
+2026.10.01, OpenCode 1.18.31 with oh-my-openagent 4.5.1 for the route-1
+locations. Routes 2 and 3 were last verified on Claude Code 2.1.267,
+codex-cli 0.154.0, Cursor 2026.09.02 and OpenCode 1.15.12.
 
 **Route 3 in our repos is a committed bundle**, in this shape:
 

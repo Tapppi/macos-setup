@@ -35,7 +35,7 @@ Backed up configs include:
 - **iTerm2** — preferences plist
 - **Postico** — preferences and saved connections
 - **Tmuxinator** — session/project configs from `~/.config/tmuxinator`
-- **Keys/credentials** — `~/.ssl`, `~/.credentials`, `~/.pgpass`
+- **Keys/credentials** — `~/.ssl`, `~/.config/bash/.credentials`, `~/.pgpass`
 
 [`restore.sh`](/restore.sh) extracts the backup tarball back to home folder.
 
