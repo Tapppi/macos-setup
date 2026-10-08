@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code MCP via ctx7, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project plugin enablement (tapppi-skills, ikeh marketplaces) + env from .tapppi-project manifests
@@ -31,15 +31,19 @@ macos-setup/
 - **`tasks/init.sh`**: hostname, permissions, macOS updates, guest account, SSH and 1Password
   setup, new-account creation.
 - **`tasks/install.sh`**: Homebrew and the Brewfile, Bash 5 as the default shell, mise runtimes,
-  the dotfiles bootstrap, nnn plugins, Claude Code MCP servers and plugins, and the
-  `tapppi-skills` and `ikeh` marketplaces (see *Where skills live* below). context7 is set up
-  with `npx ctx7 setup --claude`: an OAuth login for higher rate limits that writes the
-  API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill and rule under
-  `~/.claude/`, which dotfiles does not own (bootstrap leaves `~/.claude/skills/` alone and has
-  no mirror for it). The live context7 entries in Claude Code and Codex read the key from the
-  exported `CONTEXT7_API_KEY` instead, but `ctx7 setup` writes the plain key back into
-  `~/.claude.json` whenever it runs, whether from `install.sh` on a fresh machine or by hand. The
-  guard in `install_claude_code` skips the run once the entry mentions `CONTEXT7_API_KEY`.
+  the dotfiles bootstrap, nnn plugins, Claude Code and Codex marketplaces, plugins and context7
+  (see *Where skills live* below). context7's key lives only in `~/.config/bash/.credentials`:
+  `install_claude_context7` runs `npx ctx7 setup --claude --oauth --yes`, which installs
+  ctx7's own skill and rule under `~/.claude/` and writes no key, then re-creates the user-scope
+  MCP server as stdio with `CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}`. `install_codex_context7`
+  gives Codex the same server with `env_vars = ["CONTEXT7_API_KEY"]`. An entry that still holds
+  a key is migrated only when the key is exported. A hand-run `ctx7 setup` without `--oauth`
+  writes the plain key back into `~/.claude.json`; never run `ctx7 setup --codex`, which also
+  appends to the rendered `~/.codex/AGENTS.md`.
+  `install_codex` installs Codex's user-wide plugins (`browser`, `frontend-design`,
+  `ikeh-development`) and ikeh-development's Codex roles, and links ctx7's skill into
+  `~/.agents/skills`. Codex comes from systems, so on a fresh Mac it may be skipped; run
+  `./setup.sh codex` after `nix run .#build-switch`, with every Codex process closed.
   Plugins: `superpowers` is installed per repo from a
   workspace manifest, and `document-skills@anthropic-agent-skills` is off at user level (the
   claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills); there is no user-scope
@@ -97,7 +101,7 @@ See `dotfiles/README.md` for details. It has two sync directories:
 
 ### Tool-owned config is re-asserted, not vendored
 
-`ctx7` and `herdr` write their own config into files the submodule tracks —
+`herdr` writes its own config into files the submodule tracks —
 `herdr integration install claude` adds a hook script under `~/.claude/hooks/`
 and a `SessionStart` entry to `~/.claude/settings.json`, and `herdr integration install codex`
 adds `~/.codex/herdr-agent-state.sh` and `~/.codex/hooks.json` beside the tracked
@@ -105,8 +109,8 @@ adds `~/.codex/herdr-agent-state.sh` and `~/.codex/hooks.json` beside the tracke
 
 None of it is vendored in dotfiles. `install()` relies on ordering instead:
 `install_dotfiles` runs first and `bootstrap.sh` overwrites the tracked files,
-dropping the tool's keys; `install_herdr_integrations` and the `ctx7` setup run
-afterwards and write them back. The live `~/.claude/settings.json` therefore has
+dropping the tool's keys; `install_herdr_integrations` runs afterwards and writes
+them back. The live `~/.claude/settings.json` therefore has
 a `hooks` key the tracked copy does not, and that is correct.
 
 Both halves are easy to break:
@@ -154,6 +158,7 @@ bash hooks/install.sh
 ./setup.sh install  # Install all software
 ./setup.sh dotfiles # Bootstrap dotfiles only
 ./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
+./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
 ./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 ./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
