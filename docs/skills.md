@@ -26,15 +26,16 @@ A skill reaches a repo by exactly three routes:
      `./setup.sh codex` re-runs it once systems provides `codex` (an owner
      command: `setup.sh` asks for `sudo` first).
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
-     directories. oh-my-openagent's own `skill` tool ignores that key, so
-     `skills.sources` in `oh-my-openagent.json` must list the same
-     directories. Keep the two lists in sync.
+     directories: `browser`, `frontend-design` and the ikeh-development
+     plugin's skills from the ikeh checkout. As with Codex, these are global
+     in OpenCode while Claude Code enables them per repo, a recorded
+     exception; OpenCode has no plugin form for them.
    - The claude.ai account sync writes `~/.claude/skills/synced/`, which
      Claude Code, OpenCode and Cursor all read. `skillOverrides` in
      `settings.json` hides synced skills from Claude Code by name, and
      `permission.skill` in `opencode.json` denies the unwanted ones in
-     OpenCode. Cursor
-     ignores `skillOverrides`, so it lists every synced skill.
+     OpenCode, which also drops them from its skill list. Cursor ignores
+     `skillOverrides`, so it lists every synced skill.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
@@ -51,20 +52,19 @@ A skill reaches a repo by exactly three routes:
    from repo to repo. In this repo, `tasks/projects.sh` writes a repo's
    gitignored local list from a workspace manifest; its own comments say how.
 
-   OpenCode (through oh-my-openagent) loads every user-scope Claude Code
-   plugin unless `enabledPlugins` or its `plugins_override` sets it `false`;
-   Cursor loads one only when the user `enabledPlugins` says `true`. A new
-   user-scope plugin therefore reaches OpenCode silently, and Cursor only
-   when it is enabled by name.
+   OpenCode loads no Claude Code plugins; it reads only Claude Code's skill
+   directories. Cursor loads a user-scope plugin only when the user
+   `enabledPlugins` says `true`, so a new user-scope plugin reaches Cursor
+   only when it is enabled by name.
 3. **Repo-committed `.agents/skills` or `.claude/skills`**, discovered in
    place. In our repos this is the bundle layout below. In other people's
    repos it is whatever they commit under their own conventions, read as-is.
    We impose no layout there.
 
 Verified harnesses: Claude Code 2.1.293, codex-cli 0.159.1, Cursor
-2026.10.01, OpenCode 1.18.31 with oh-my-openagent 4.5.1 for the route-1
-locations. Routes 2 and 3 were last verified on Claude Code 2.1.267,
-codex-cli 0.154.0, Cursor 2026.09.02 and OpenCode 1.15.12.
+2026.10.01 and OpenCode 1.18.31 for the route-1 locations. Routes 2 and 3
+were last verified on Claude Code 2.1.267, codex-cli 0.154.0, Cursor
+2026.09.02 and OpenCode 1.15.12.
 
 **Route 3 in our repos is a committed bundle**, in this shape:
 
