@@ -518,6 +518,138 @@ clear_cask_quarantine() {
 	fi
 }
 
+# Checkouts that double as plugin marketplaces (directory sources), shared by
+# the Claude Code and Codex setup below. Both repos are private.
+tapppi_skills_root="${HOME}/project/github/tapppi/skills"
+ikeh_root="${HOME}/project/github/mantadevoy/ikeh"
+
+# Define Function =ensure_checkout=
+# Args: <root> <ssh url> <label>. Clones the repo unless a checkout is already
+# there; an existing one is left exactly as it is, whatever branch it is on.
+# The clone goes over SSH through the 1Password agent.
+ensure_checkout() {
+	local root="${1}" url="${2}" label="${3}"
+	# .git is a directory in a clone and a file in a linked worktree.
+	if [[ -e "${root}/.git" ]]; then
+		return 0
+	fi
+	p3 "Cloning ${label} to ${root}..."
+	mkdir -p "$(dirname "${root}")"
+	if ! git clone "${url}" "${root}"; then
+		p1 "Clone of ${label} failed; its marketplace will not resolve until it exists."
+		return 1
+	fi
+}
+
+# Define Function =context7_key_available=
+# True when CONTEXT7_API_KEY is set, here or in ~/.config/bash/.credentials
+# (template: .credentials.dist). Prints nothing, so the value never reaches
+# the output.
+context7_key_available() {
+	[[ -n "${CONTEXT7_API_KEY:-}" ]] && return 0
+	local credentials="${HOME}/.config/bash/.credentials"
+	[[ -f "${credentials}" ]] || return 1
+	# shellcheck disable=SC2016 # expanded by the inner shell, after sourcing
+	bash -c 'source "${1}" >/dev/null 2>&1; [[ -n "${CONTEXT7_API_KEY:-}" ]]' _ "${credentials}"
+}
+
+# Define Function =install_claude_marketplaces=
+# Registers every marketplace the tracked ~/.claude/settings.json declares in
+# extraKnownMarketplaces, and the official one. The settings alone register
+# nothing for the CLI (only an interactive session acts on them), so without
+# these adds a non-interactive install, and tasks/projects.sh after it, would
+# not resolve their plugins. `marketplace add` is a no-op once a marketplace is
+# registered, so each Git one is followed by an update or an existing machine
+# keeps resolving against a stale catalog.
+install_claude_marketplaces() {
+	claude plugin marketplace add anthropics/claude-plugins-official
+	claude plugin marketplace update claude-plugins-official
+
+	claude plugin marketplace add openai/codex-plugin-cc
+	claude plugin marketplace update openai-codex
+
+	# document-skills' marketplace only: the plugin is off at user level (the
+	# docx/pdf/pptx/xlsx skills synced from claude.ai are the newer copies),
+	# and a repo can still enable it locally.
+	claude plugin marketplace add anthropics/skills
+	claude plugin marketplace update anthropic-agent-skills
+
+	ensure_checkout "${tapppi_skills_root}" git@github.com:Tapppi/skills.git Tapppi/skills
+	claude plugin marketplace add "${tapppi_skills_root}"
+
+	# Only the ikeh marketplace is registered, never a plugin from it: `claude
+	# plugin install` defaults to user scope, so installing ikeh-git would
+	# switch its hooks on in every repo. ikeh-git is enabled per repo, through
+	# the repo's committed enabledPlugins or tasks/projects.sh.
+	ensure_checkout "${ikeh_root}" git@github.com:mantadevoy/ikeh.git mantadevoy/ikeh
+	claude plugin marketplace add "${ikeh_root}"
+}
+
+# Define Function =install_claude_context7=
+# context7 (library documentation lookup, not built into Claude Code): ctx7's
+# skill and rule, and a user-scope MCP server that reads its key from the
+# exported CONTEXT7_API_KEY. The key lives only in ~/.config/bash/.credentials;
+# unset, context7 answers at anonymous rate limits.
+#
+# ctx7 owns the skill (skills/context7-mcp/) and the rule (rules/context7.md);
+# dotfiles tracks neither, and bootstrap leaves ~/.claude/skills/ alone. ctx7
+# runs with --oauth only, which logs nothing in and writes no key, just a
+# keyless HTTP entry that is replaced below. Its default mode logs in and
+# writes the plain key into ~/.claude.json, and its --codex target appends to
+# the dotfiles-rendered ~/.codex/AGENTS.md; neither is used here.
+#
+# The entry is stdio with the literal env value ${CONTEXT7_API_KEY:-}, which
+# Claude Code expands at launch. An entry carrying a key is migrated only when
+# the key is available from the environment, so a re-run never silently drops
+# a working key; a run without it says what to do instead.
+install_claude_context7() {
+	local claude_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+	local claude_json="${CLAUDE_CONFIG_DIR:-${HOME}}/.claude.json"
+	# shellcheck disable=SC2016 # a literal for Claude Code to expand, not the shell
+	local env_ref='${CONTEXT7_API_KEY:-}'
+
+	local have_ctx7=0
+	[[ -f "${claude_dir}/skills/context7-mcp/SKILL.md" && -f "${claude_dir}/rules/context7.md" ]] &&
+		have_ctx7=1
+
+	# Every check below is jq -e on the entry; nothing prints a config value.
+	if [[ "${have_ctx7}" -eq 1 ]] && jq -e --arg ref "${env_ref}" '.mcpServers.context7 // empty
+		| (.type // "stdio") == "stdio" and .command == "npx"
+			and .env.CONTEXT7_API_KEY == $ref and (has("headers") | not)
+			and ((.args // []) | index("--api-key") | not)' \
+		"${claude_json}" >/dev/null 2>&1; then
+		p3 "context7 MCP server already reads CONTEXT7_API_KEY from the environment"
+		return 0
+	fi
+	if jq -e --arg ref "${env_ref}" '.mcpServers.context7 // empty
+		| ((.args // []) | index("--api-key") != null)
+			or ((.headers // {}) | length > 0)
+			or ((.env.CONTEXT7_API_KEY // $ref) != $ref)' \
+		"${claude_json}" >/dev/null 2>&1 && ! context7_key_available; then
+		p1 "The context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
+		p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
+		return 1
+	fi
+
+	# After the key check: ctx7 replaces whatever entry it finds, keyed or not.
+	if [[ "${have_ctx7}" -eq 0 ]]; then
+		npx -y ctx7 setup --claude --oauth --yes ||
+			p1 "ctx7 setup failed; the context7 skill and rule are missing until it succeeds."
+	fi
+
+	claude mcp remove context7 -s user >/dev/null 2>&1
+	# env_ref holds the literal reference; the single quotes on its assignment
+	# are load-bearing, or the shell would expand the key into the config.
+	claude mcp add -s user --transport stdio context7 -e "CONTEXT7_API_KEY=${env_ref}" \
+		-- npx -y @upstash/context7-mcp >/dev/null
+	if ! jq -e --arg ref "${env_ref}" '.mcpServers.context7.env.CONTEXT7_API_KEY == $ref' \
+		"${claude_json}" >/dev/null 2>&1; then
+		p1 "context7 MCP server could not be set to read CONTEXT7_API_KEY; check 'claude mcp get context7'."
+		return 1
+	fi
+	p3 "context7 MCP server reads CONTEXT7_API_KEY from the environment"
+}
+
 # Install Claude Code MCP servers and plugins
 install_claude_code() {
 	p2 "Install Claude Code specifics..."
@@ -531,82 +663,28 @@ install_claude_code() {
 	# clear_cask_quarantine for why this must run before first exec).
 	clear_cask_quarantine claude-code@latest
 
-	p3 "Claude Code MCP servers and plugins..."
-	# context7: library/framework documentation lookup (not built into Claude
-	# Code). Set up via the ctx7 CLI: it OAuth-logs into context7.com (opens
-	# a browser) for higher rate limits, writes the MCP server with an API
-	# key into ~/.claude.json, and installs its own skill
-	# (~/.claude/skills/context7-mcp/) and rule (~/.claude/rules/context7.md).
-	# Those files are ctx7-managed, not tracked in dotfiles; bootstrap leaves
-	# ~/.claude/skills/ alone.
-	# Guard on the API key so a keyless entry from the old automation is
-	# upgraded, but a completed setup is not re-run. Match both shapes ctx7
-	# writes: stdio transport with an `--api-key` arg (default) and http
-	# transport with a CONTEXT7_API_KEY header (--oauth mode).
-	if ! jq -e '.mcpServers.context7 // {} | tostring | test("--api-key|CONTEXT7_API_KEY")' \
-		"${HOME}/.claude.json" >/dev/null 2>&1; then
-		if ! npx -y ctx7 setup --claude --yes; then
-			# Fallback (e.g. headless run, OAuth aborted): keyless server so
-			# context7 still works, at anonymous rate limits.
-			p3 "ctx7 setup failed, adding keyless context7 MCP server..."
-			claude mcp list 2>/dev/null | grep -q context7 \
-				|| claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp
-		fi
-	fi
-	# No user-scope chrome-devtools MCP: browser@tapppi-skills ships it per repo.
-	#
+	p3 "Claude Code marketplaces and plugins..."
+	install_claude_marketplaces
 	# Every plugin below is enabled in the tracked ~/.claude/settings.json,
-	# which enables but fetches nothing — the cache is materialised here.
-	# `marketplace add` is a no-op once a marketplace is registered, so each
-	# add is followed by an update or an existing machine keeps resolving
-	# against a stale catalog. A `claude plugin install` is user scope and
-	# writes `true` into the live settings, so a plugin the tracked settings
-	# set to `false` is never installed here:
+	# which enables but fetches nothing — the cache is materialised here. A
+	# `claude plugin install` is user scope and writes `true` into the live
+	# settings, so a plugin the tracked settings set to `false` is never
+	# installed here:
 	# - superpowers is a per-repo choice, installed at local scope from a
 	#   workspace manifest by tasks/projects.sh.
-	# - document-skills@anthropic-agent-skills is off at user level: the
-	#   docx/pdf/pptx/xlsx skills synced from claude.ai (anthropic-skills:*)
-	#   are the newer copies. The marketplace stays registered in the tracked
-	#   settings, so a repo can still enable the plugin locally.
+	# - document-skills@anthropic-agent-skills is off at user level.
+	# A user-scope plugin also loads in OpenCode, through oh-my-openagent's
+	# Claude Code compatibility, unless something sets it `false`.
 	#
 	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
 	# (`codex login`).
-	claude plugin marketplace update claude-plugins-official
 	claude plugin install duckdb-skills@claude-plugins-official
-
-	claude plugin marketplace add openai/codex-plugin-cc
-	claude plugin marketplace update openai-codex
 	claude plugin install codex@openai-codex
-
-	# The tapppi-skills marketplace is the Tapppi/skills checkout itself — the
-	# tracked settings name it as a directory source. The repo is private, so
-	# the clone goes over SSH through the 1Password agent; a checkout that
-	# already exists is left exactly as it is, whatever branch it is on.
-	local skills_root="${HOME}/project/github/tapppi/skills"
-	# .git is a directory in a clone and a file in a linked worktree.
-	if [[ ! -e "${skills_root}/.git" ]]; then
-		p3 "Cloning Tapppi/skills to ${skills_root}..."
-		mkdir -p "$(dirname "${skills_root}")"
-		git clone git@github.com:Tapppi/skills.git "${skills_root}" ||
-			p1 "Clone of Tapppi/skills failed; tapppi-skills plugins will not resolve until it exists."
-	fi
-	claude plugin marketplace add "${skills_root}"
 	claude plugin install skill-creator@tapppi-skills
+	# No user-scope chrome-devtools MCP: browser@tapppi-skills ships it per repo.
 
-	# The ikeh marketplace is likewise the mantadevoy/ikeh checkout, a
-	# directory source in the tracked settings. Only the marketplace is
-	# registered here, never a plugin from it: `claude plugin install` defaults
-	# to user scope, so installing ikeh-git would switch its hooks on in every
-	# repo. ikeh-git is enabled per repo, through the repo's committed
-	# enabledPlugins or tasks/projects.sh.
-	local ikeh_root="${HOME}/project/github/mantadevoy/ikeh"
-	if [[ ! -e "${ikeh_root}/.git" ]]; then
-		p3 "Cloning mantadevoy/ikeh to ${ikeh_root}..."
-		mkdir -p "$(dirname "${ikeh_root}")"
-		git clone git@github.com:mantadevoy/ikeh.git "${ikeh_root}" ||
-			p1 "Clone of mantadevoy/ikeh failed; ikeh plugins will not resolve until it exists."
-	fi
-	claude plugin marketplace add "${ikeh_root}"
+	p3 "Claude Code context7..."
+	install_claude_context7
 
 	p3 "Claude Code vim mode..."
 	# editorMode lives in ~/.claude.json (untracked, contains MCP state).
