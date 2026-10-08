@@ -20,7 +20,7 @@ macos-setup/
   dotfiles/             # Git submodule -> github.com/tapppi/dotfiles (see below)
   .extra                # Personal bash config (git author, extra aliases)
   .path                 # PATH extensions (GNU utils, Go, brew)
-  .credentials.dist     # Template for secret env vars (DO NOT commit filled version)
+  .credentials.dist     # Template for ~/.config/bash/.credentials (DO NOT commit filled version)
 ```
 
 ## What the tasks do
@@ -36,7 +36,14 @@ macos-setup/
   with `npx ctx7 setup --claude`: an OAuth login for higher rate limits that writes the
   API-keyed MCP server into `~/.claude.json` and installs a ctx7-owned skill and rule under
   `~/.claude/`, which dotfiles does not own (bootstrap leaves `~/.claude/skills/` alone and has
-  no mirror for it).
+  no mirror for it). The live context7 entries in Claude Code and Codex read the key from the
+  exported `CONTEXT7_API_KEY` instead, but `ctx7 setup` writes the plain key back into
+  `~/.claude.json` whenever it runs: on a fresh machine `install.sh` runs it without `--stdio`,
+  and a manual re-run does the same. The guard in `install_claude_code` skips the run once the
+  entry mentions `CONTEXT7_API_KEY`. Plugins: `superpowers` is installed per repo from a
+  workspace manifest, and `document-skills@anthropic-agent-skills` is off at user level (the
+  claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills); there is no user-scope
+  chrome-devtools MCP, since `browser@tapppi-skills` ships it per repo.
 - **`tasks/config.sh`**: app configuration (`defaults write`, `PlistBuddy`, `duti` file
   associations, login items via AppleScript, VLC and Terminal customisation), and it launches
   apps for first-run setup. It does not apply macOS system defaults.
@@ -74,12 +81,17 @@ macos-setup/
 See `dotfiles/README.md` for details. It has two sync directories:
 
 - `home/` — rsynced to `~/` (files without XDG support):
-  `.bash_profile`, `.bashrc`, `.claude/`, `.cursor/`, `.hushlogin`, `.parallel/`
+  `.bash_profile`, `.bashrc`, `.claude/`, `.codex/`, `.cursor/`, `.hushlogin`, `.parallel/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
   `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
   `claude/`, `containers/`, `cursor/`, `fd/`, `gh/`, `ghostty/`, `git/` (config + global
   ignore), `karabiner/`, `lazygit/`, `micro/`, `mise/`, `nnn/`, `opencode/`, `readline/inputrc`,
   `ripgrep/`, `terminal/`, `tmux/tmux.conf`, `curlrc`, `wgetrc`
+- `agents/` — outside the synced trees: the sources of the user-level agent instructions
+  (`core.md` plus one header per harness) and `render.sh`, which writes header plus core into
+  `home/.claude/CLAUDE.md`, `home/.codex/AGENTS.md`, `config/opencode/AGENTS.md` and
+  `home/.cursor/rules/00-environment.mdc`. Those outputs are generated: edit `agents/`, run
+  `agents/render.sh`, and check with `agents/render.sh --check`. See `dotfiles/AGENTS.md`.
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
@@ -87,7 +99,9 @@ See `dotfiles/README.md` for details. It has two sync directories:
 
 `ctx7` and `herdr` write their own config into files the submodule tracks —
 `herdr integration install claude` adds a hook script under `~/.claude/hooks/`
-and a `SessionStart` entry to `~/.claude/settings.json`.
+and a `SessionStart` entry to `~/.claude/settings.json`, and `herdr integration install codex`
+adds `~/.codex/herdr-agent-state.sh` and `~/.codex/hooks.json` beside the tracked
+`~/.codex/AGENTS.md`.
 
 None of it is vendored in dotfiles. `install()` relies on ordering instead:
 `install_dotfiles` runs first and `bootstrap.sh` overwrites the tracked files,
@@ -178,6 +192,9 @@ Once setup has run, GNU is first on PATH and non-bootstrap code can rely on it.
 - **Line endings:** LF (Unix)
 - **Final newline:** Always insert
 - **Trailing whitespace:** Always trim
+- **Markdown (`.md`, `.mdc`):** spaces with two-space list indentation, and prose wrapped at 100
+  columns (`[*.{md,mdc}]` in `.editorconfig`). Tables, fenced code and a line that is one long
+  link or code span may overflow. Fenced code carries a language.
 
 ### Shell Scripts
 
@@ -280,21 +297,33 @@ any other automation.
 
 ### Edit Dotfiles in the Submodule, Not in `~/`
 
-**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.cursor/` or
+**NEVER** edit files directly in `~/`, `~/.claude/`, `~/.codex/`, `~/.cursor/` or
 `~/.config/`. Edit the source in the `dotfiles/` submodule (`home/` or
 `config/`) and copy the changed file to its destination (`cp
 dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.
+
+The user-level instruction files (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
+`~/.config/opencode/AGENTS.md`, `~/.cursor/rules/00-environment.mdc`) are generated, so their
+source is one step further back, in `dotfiles/agents/`.
 
 The exception is config a tool writes into a tracked path — see *Tool-owned
 config is re-asserted, not vendored* above.
 
 ### Files to Never Commit
 
-- `.credentials` (use `.credentials.dist` as template)
+- `.credentials`, the live `~/.config/bash/.credentials` (use `.credentials.dist` as template)
 - `.DS_Store`, `Thumbs.db`, `._*` (in .gitignore)
 - Anything containing API keys, tokens, or passwords
 - Backup tarballs
+
+## Credentials and keys
+
+Tool API keys live in the untracked, `0600` file `~/.config/bash/.credentials`, which
+`dotfiles/config/bash/.bash_profile` sources first and which exports variables such as
+`CONTEXT7_API_KEY`. Only interactive login shells see them: non-interactive shells and
+GUI-launched apps do not. `.credentials.dist` is its template, and `restore.bom` lists the file
+for `backup.sh`. Never commit or print a key, and never resolve a variable into a tracked file.
 
 ## Where skills live
 
@@ -330,8 +359,10 @@ Cursor reads much of the Claude Code setup natively — repo `CLAUDE.md`,
 `enabledPlugins`/hooks/`permissions` from `.claude/settings*.json` — so
 `tasks/projects.sh` needs no Cursor-specific handling: a repo's committed
 `.claude/skills/` and `.agents/skills/` are both discovered as-is. It does **not** read
-`~/.claude/CLAUDE.md` (ported to `dotfiles/home/.cursor/rules/*.mdc`) or Claude's
-`Bash(...)` permission entries (Cursor's shell tool is `Shell(...)`).
+`~/.claude/CLAUDE.md` (the generated `~/.cursor/rules/00-environment.mdc` carries the user-level
+instructions instead) or Claude's `Bash(...)` permission entries (Cursor's shell tool is
+`Shell(...)`). It follows an `@file` import in a repo `CLAUDE.md`, which is why this repo's
+`CLAUDE.md` is just `@AGENTS.md`.
 
 See `dotfiles/AGENTS.md` for the two-directory config split — `cli-config.json` is
 XDG-resolved, everything else is hardcoded to `~/.cursor/`.
@@ -346,8 +377,9 @@ XDG-resolved, everything else is hardcoded to `~/.cursor/`.
 | ripgrep (rg) | Fast search             | `dotfiles/config/ripgrep/ripgreprc`        |
 | fd           | Fast find               | `dotfiles/config/fd/ignore`                |
 | nvim         | Default editor          | Separate nix flake config                  |
-| opencode     | AI coding agent         | `dotfiles/config/opencode/opencode.json`   |
-| cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, rules/) |
+| opencode     | AI coding agent         | `dotfiles/config/opencode/` (`opencode.json`, `oh-my-openagent.json`, generated `AGENTS.md`) |
+| codex        | AI coding agent (CLI)   | `dotfiles/home/.codex/AGENTS.md` (generated); `~/.codex/config.toml` is Codex-owned and untracked |
+| cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, generated rules/00-environment.mdc) |
 | btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
 | lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
 | tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |
