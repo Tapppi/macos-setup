@@ -20,12 +20,14 @@ install() {
 	# holds if the sync actually completed — re-asserting onto a half-synced tree
 	# produces a state that looks configured and is not. Skip and say so instead.
 	if [[ "${dotfiles_ok}" -ne 0 ]]; then
-		p1 "Skipping Claude Code, Cursor and herdr setup — dotfiles sync failed."
+		p1 "Skipping Claude Code, Codex, Cursor and herdr setup — dotfiles sync failed."
 		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations."
 		return "${dotfiles_ok}"
 	fi
 
 	install_claude_code
+	# After install_claude_code, whose ctx7 run provides the skill install_codex links.
+	install_codex
 	install_cursor_agent
 	install_herdr_integrations
 }
@@ -697,6 +699,128 @@ install_claude_code() {
 		printf '%s\n' '{"editorMode":"vim"}' > "${claude_json}"
 	fi
 	p3 "Claude Code configured..."
+}
+
+# Define Function =install_codex=
+# Codex's user-wide plugin set, its ikeh roles, the context7 MCP server and the
+# ~/.agents/skills link. Codex enables plugins for every project, so the set is
+# the recorded exception in docs/skills.md: browser and frontend-design (per
+# repo in Claude Code) and ikeh-development. Everything here lives in
+# ~/.codex/config.toml, which Codex owns and tapppi/systems never writes, so it
+# goes through the codex CLI. `codex plugin add` re-copies a plugin from its
+# marketplace, so a re-run also refreshes the cache to the checkout's version.
+#
+# Codex itself comes from tapppi/systems (modules/darwin/codex.nix), so on a
+# fresh Mac it may not exist yet: then this skips, and `./setup.sh codex` runs
+# it after `nix run .#build-switch`. A new or changed plugin hook still needs a
+# trust decision in Codex's /hooks, which no script can make.
+install_codex() {
+	p2 "Configuring Codex plugins and MCP servers..."
+	if ! command -v codex >/dev/null 2>&1; then
+		p3 "Codex not installed (tapppi/systems provides it), skipping"
+		p3 "After 'nix run .#build-switch' in systems, run './setup.sh codex'."
+		return 0
+	fi
+	# A running Codex (the CLI, the ChatGPT app's app-server, the Claude codex
+	# plugin's broker) rewrites config.toml and could drop these edits.
+	if pgrep -x codex >/dev/null 2>&1; then
+		p1 "Codex is running; close every Codex session, then run './setup.sh codex'."
+		return 1
+	fi
+
+	ensure_checkout "${tapppi_skills_root}" git@github.com:Tapppi/skills.git Tapppi/skills
+	ensure_checkout "${ikeh_root}" git@github.com:mantadevoy/ikeh.git mantadevoy/ikeh
+	local source
+	for source in "${tapppi_skills_root}" "${ikeh_root}" anthropics/claude-plugins-official; do
+		codex plugin marketplace add "${source}" >/dev/null ||
+			p1 "Codex marketplace ${source} could not be added."
+	done
+	codex plugin marketplace upgrade >/dev/null ||
+		p1 "Codex Git marketplaces could not be upgraded."
+
+	local plugin
+	for plugin in browser@tapppi-skills ikeh-development@ikeh frontend-design@claude-plugins-official; do
+		codex plugin add "${plugin}" >/dev/null ||
+			p1 "Codex plugin ${plugin} could not be installed."
+	done
+
+	# ikeh-development's Codex roles (~/.codex/agents/ikeh-*.toml), per the
+	# plugin's README. --check installs the committed roles and refuses if they
+	# are out of date, instead of regenerating them inside the checkout.
+	local build_agents="${ikeh_root}/plugins/ikeh-development/scripts/build-agents.py"
+	if [[ -f "${build_agents}" ]] && command -v uv >/dev/null 2>&1; then
+		uv run --quiet --script "${build_agents}" --check --install-codex ||
+			p1 "ikeh Codex roles were not installed."
+	else
+		p1 "ikeh Codex roles skipped: ${build_agents} or uv is missing."
+	fi
+
+	install_codex_context7
+
+	# ctx7's skill for Codex, which reads ~/.agents/skills. It is the same skill
+	# Claude Code has (ctx7's own Codex target would write the key into
+	# config.toml), so link that copy rather than run ctx7 again.
+	local skill="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/context7-mcp"
+	local link="${HOME}/.agents/skills/context7-mcp"
+	if [[ ! -d "${skill}" ]]; then
+		p3 "No ctx7 context7-mcp skill to link (Claude Code setup has not run)"
+	elif [[ -e "${link}" && ! -L "${link}" ]]; then
+		p1 "${link} exists and is not a symlink; left as it is."
+	else
+		mkdir -p "$(dirname "${link}")"
+		ln -sfn "${skill}" "${link}"
+	fi
+
+	p3 "Codex configured. Review new or changed plugin hooks in Codex's /hooks."
+}
+
+# Define Function =install_codex_context7=
+# Codex's context7 MCP server, stdio, with the key passed through from the
+# environment by `env_vars` (Codex gives stdio servers only a fixed environment
+# otherwise). `codex mcp add --env` would write the value into the file, and
+# `codex mcp add` has no `env_vars` flag, so the line goes in right after the
+# table header that a fresh `codex mcp add` writes. A later `codex mcp add`
+# drops it again, so the server is only ever re-added together with the line.
+# An entry carrying a key is migrated only when the key is available, as for
+# Claude Code. Every check is jq -e on `codex mcp get --json`; nothing prints a
+# config value.
+install_codex_context7() {
+	local config="${CODEX_HOME:-${HOME}/.codex}/config.toml"
+
+	if codex mcp get context7 --json 2>/dev/null | jq -e '.transport
+		| .type == "stdio" and .command == "npx"
+			and ((.env_vars // []) | index("CONTEXT7_API_KEY") != null)
+			and ((.env // {}) | has("CONTEXT7_API_KEY") | not)
+			and ((.args // []) | index("--api-key") | not)' >/dev/null; then
+		p3 "Codex context7 MCP server already reads CONTEXT7_API_KEY from the environment"
+		return 0
+	fi
+	if codex mcp get context7 --json >/dev/null 2>&1; then
+		if codex mcp get context7 --json 2>/dev/null | jq -e '.transport
+			| ((.args // []) | index("--api-key") != null)
+				or ((.env // {}) | has("CONTEXT7_API_KEY"))
+				or ((.http_headers // {}) | length > 0)' >/dev/null &&
+			! context7_key_available; then
+			p1 "Codex's context7 MCP server holds its own key and CONTEXT7_API_KEY is not set; left as it is."
+			p3 "Export the key from ~/.config/bash/.credentials (see .credentials.dist), then re-run."
+			return 1
+		fi
+		codex mcp remove context7 >/dev/null
+	fi
+
+	codex mcp add context7 -- npx -y @upstash/context7-mcp >/dev/null
+	# `command`: install() above shadows install(1) once this file is sourced.
+	local tmp="${config}.context7-tmp"
+	awk '{ print } $0 == "[mcp_servers.context7]" && !done {
+		print "env_vars = [\"CONTEXT7_API_KEY\"]"; done = 1 }' "${config}" > "${tmp}" &&
+		command install -m 600 "${tmp}" "${config}"
+	rm -f "${tmp}"
+	if ! codex mcp get context7 --json 2>/dev/null |
+		jq -e '.transport.env_vars // [] | index("CONTEXT7_API_KEY") != null' >/dev/null; then
+		p1 "Codex's context7 MCP server could not be set to read CONTEXT7_API_KEY; check ${config}."
+		return 1
+	fi
+	p3 "Codex context7 MCP server reads CONTEXT7_API_KEY from the environment"
 }
 
 # Clear macOS quarantine from cursor-cli cask
