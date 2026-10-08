@@ -17,11 +17,13 @@ A skill reaches a repo by exactly three routes:
    goes here: a user-level copy cannot follow a branch.
 
    Route 1 has more than one location, and each harness reads its own set:
-   - `~/.agents/skills` is written by hand, and Codex, OpenCode and Cursor
-     read it.
+   - `~/.agents/skills` holds one link, to ctx7's `context7-mcp` skill, which
+     `install_codex` in `tasks/install.sh` writes. Codex, OpenCode and Cursor
+     read the directory.
    - Codex enables plugins user-wide, so `browser` and `frontend-design` are
      global there. This is a recorded exception: Claude Code enables them per
-     repo.
+     repo. `install_codex` installs them with `ikeh-development`, and
+     `./setup.sh codex` re-runs it once systems provides `codex`.
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
      directories. oh-my-openagent's own `skill` tool ignores that key, so
      `skills.sources` in `oh-my-openagent.json` must list the same
