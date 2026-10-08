@@ -29,5 +29,5 @@ Library/Containers/at.eggerapps.Postico/Data/Library/Application Support/Postico
 ## KEYS
 
 .ssl/
-.credentials
+.config/bash/.credentials
 .pgpass
