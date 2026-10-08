@@ -114,14 +114,14 @@ not something to script.
 Applied directly to the macos-setup repo in-session:
 - Dotfiles paths go through the submodule workflow (commit inside
   `dotfiles/` first, then `git add dotfiles` + commit in the parent repo —
-  see the macos-setup `CLAUDE.md`'s Dotfiles Submodule Workflow section).
+  see the macos-setup `AGENTS.md`'s *Committing to the dotfiles submodule* section).
 - Brewfile edits need per-host decisions (`Brewfile` vs. `intel.Brewfile`).
-- Commit per `CLAUDE.md`: specific paths staged, imperative-mood messages,
+- Commit per `AGENTS.md`: specific paths staged, imperative-mood messages,
   no AI attribution.
 - **When a target file is managed by `tasks/projects.sh`** (workspace
   `.tapppi-project.json` manifests, rendered `mise.local.toml`, per-repo
   skill symlinks): apply the edit, then run `./setup.sh projects` — the one
-  documented, narrow exception to `CLAUDE.md`'s never-run-setup-scripts
+  documented, narrow exception to `AGENTS.md`'s never-run-setup-scripts
   rule, scoped to that single idempotent subcommand — instead of
   hand-simulating what that task does.
 - The `systems` repo (nix) is out of scope for direct edits — surface nix

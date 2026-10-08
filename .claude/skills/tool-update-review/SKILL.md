@@ -244,7 +244,7 @@ open threads get picked up promptly.
 
 Accepted suggestions split by `kind`:
 - **`edit`** → applied directly to the macos-setup repo in-session; commit
-  per CLAUDE.md. When the target file is managed by `tasks/projects.sh`, run
+  per the repo `AGENTS.md`. When the target file is managed by `tasks/projects.sh`, run
   `./setup.sh projects` after — the one documented exception to the
   never-run-setup-scripts rule.
 - **`brew-health` remediations** → either a normal `edit`, or a structural
