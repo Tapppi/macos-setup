@@ -696,14 +696,17 @@ install_claude_code() {
 	# - document-skills@anthropic-agent-skills is off at user level.
 	# OpenCode loads no Claude Code plugins. Cursor reads the same
 	# enabledPlugins but loads a plugin only when it says `true`, with no
-	# per-harness override, so codex, skill-creator and duckdb-skills load there.
+	# per-harness override, so every plugin installed here loads there too.
 	#
 	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
-	# (`codex login`).
+	# (`codex login`). browser and frontend-design are user-level in every
+	# harness (docs/skills.md); browser brings its playwright and chrome-devtools
+	# MCP servers to every session.
 	claude plugin install duckdb-skills@claude-plugins-official
 	claude plugin install codex@openai-codex
 	claude plugin install skill-creator@tapppi-skills
-	# No user-scope chrome-devtools MCP: browser@tapppi-skills ships it per repo.
+	claude plugin install browser@tapppi-skills
+	claude plugin install frontend-design@claude-plugins-official
 
 	p3 "Claude Code context7..."
 	install_claude_context7
@@ -724,8 +727,8 @@ install_claude_code() {
 # Define Function =install_codex=
 # Codex's user-wide plugin set, its ikeh roles, the context7 MCP server and the
 # ~/.agents/skills link. Codex enables plugins for every project, so the set is
-# the recorded exception in docs/skills.md: browser and frontend-design (per
-# repo in Claude Code) and ikeh-development. Everything here lives in
+# what every harness has user-wide (browser and frontend-design, see
+# docs/skills.md) plus ikeh-development. Everything here lives in
 # ~/.codex/config.toml, which Codex owns and tapppi/systems never writes, so it
 # goes through the codex CLI. `codex plugin add` re-copies a plugin from its
 # marketplace, so a re-run also refreshes the cache to the checkout's version.
