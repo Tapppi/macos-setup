@@ -90,7 +90,7 @@ macos-setup/
 See `dotfiles/README.md` for details. It has two sync directories:
 
 - `home/` — rsynced to `~/` (files without XDG support):
-  `.bash_profile`, `.bashrc`, `.claude/`, `.codex/`, `.cursor/`, `.hushlogin`, `.parallel/`
+  `.bash_profile`, `.bashrc`, `.claude/`, `.codex/`, `.cursor/`, `.hushlogin`, `.parallel/`, `.pi/`
 - `config/` — rsynced to `~/.config/` (XDG-compliant config):
   `bash/` (aliases, exports, functions, prompt), `btop/` (btop.conf + catppuccin theme),
   `claude/`, `containers/`, `cursor/`, `fd/`, `gh/`, `ghostty/`, `git/` (config + global
@@ -98,9 +98,10 @@ See `dotfiles/README.md` for details. It has two sync directories:
   `ripgrep/`, `terminal/`, `tmux/tmux.conf`, `curlrc`, `wgetrc`
 - `agents/` — outside the synced trees: the sources of the user-level agent instructions
   (`core.md` plus one header per harness) and `render.sh`, which writes header plus core into
-  `home/.claude/CLAUDE.md`, `home/.codex/AGENTS.md`, `config/opencode/AGENTS.md` and
-  `home/.cursor/rules/00-environment.mdc`. Those outputs are generated: edit `agents/`, run
-  `agents/render.sh`, and check with `agents/render.sh --check`. See `dotfiles/AGENTS.md`.
+  `home/.claude/CLAUDE.md`, `home/.codex/AGENTS.md`, `config/opencode/AGENTS.md`,
+  `home/.cursor/rules/00-environment.mdc` and `home/.pi/agent/AGENTS.md`. Those outputs are
+  generated: edit `agents/`, run `agents/render.sh`, and check with `agents/render.sh --check`.
+  See `dotfiles/AGENTS.md`.
 - `bootstrap.sh` - Two rsyncs: `home/` → `~/` and `config/` → `~/.config/`
 - `keyboard-layouts/Finnish-prog.bundle` - Custom keyboard layout (copied separately)
 
@@ -317,8 +318,9 @@ dotfiles/home/.claude/foo ~/.claude/foo`). The home directory copies are
 deployment targets — the dotfiles repo is the source of truth.
 
 The user-level instruction files (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
-`~/.config/opencode/AGENTS.md`, `~/.cursor/rules/00-environment.mdc`) are generated, so their
-source is one step further back, in `dotfiles/agents/`.
+`~/.config/opencode/AGENTS.md`, `~/.cursor/rules/00-environment.mdc`,
+`~/.pi/agent/AGENTS.md`) are generated, so their source is one step further back, in
+`dotfiles/agents/`.
 
 Live files with no dotfiles source (`~/.config/bash/.credentials`, `~/.codex/config.toml`,
 `~/.claude.json`) are edited by the owner or through the owning tool's CLI, and are never copied
@@ -397,6 +399,7 @@ XDG-resolved, everything else is hardcoded to `~/.cursor/`.
 | opencode     | AI coding agent         | `dotfiles/config/opencode/` (`opencode.json`, generated `AGENTS.md`) |
 | codex        | AI coding agent (CLI)   | `dotfiles/home/.codex/AGENTS.md` (generated); `~/.codex/config.toml` is Codex-owned and untracked |
 | cursor-agent | AI coding agent (CLI)   | `dotfiles/config/cursor/cli-config.json` (XDG-resolved) + `dotfiles/home/.cursor/` (mcp.json, generated rules/00-environment.mdc) |
+| pi           | AI coding agent (CLI)   | `dotfiles/home/.pi/agent/AGENTS.md` (generated); the rest of `~/.pi/agent/` is Pi-owned and untracked |
 | btop         | System resource monitor  | `dotfiles/config/btop/btop.conf`           |
 | lazygit      | Git TUI                 | `dotfiles/config/lazygit/config.yml`       |
 | tmux         | Terminal multiplexer    | `dotfiles/config/tmux/tmux.conf` (Ctrl+A)  |
