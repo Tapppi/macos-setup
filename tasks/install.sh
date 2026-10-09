@@ -899,6 +899,29 @@ install_codex_context7() {
 	p3 "Codex context7 MCP server reads CONTEXT7_API_KEY from the environment"
 }
 
+# Define Function =pi_mcp_add_missing=
+# Add one MCP server to Pi's user-level mcp.json unless an entry of that name is
+# already there, so a server the owner changed or disabled in /mcp keeps that
+# state across reruns. Pi adds with `pi mcp add`, which replaces an existing
+# entry, hence the check first. A changed definition (say a new argument in the
+# browser plugin's .mcp.json) therefore reaches an existing entry only through a
+# hand-run `pi mcp add`. Exposure is left at Pi's default, codemode.
+# Args: <name> <description> <command> [args...]
+pi_mcp_add_missing() {
+	local name="${1}" description="${2}"
+	shift 2
+	local mcp_json="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}/mcp.json"
+	if [[ -f "${mcp_json}" ]] && jq -e --arg name "${name}" '.mcpServers[$name] // empty' "${mcp_json}" >/dev/null 2>&1; then
+		p3 "Pi MCP server ${name} already configured"
+		return 0
+	fi
+	if ! pi mcp add "${name}" --description "${description}" -- "$@" >/dev/null; then
+		p1 "Pi MCP server ${name} could not be added."
+		return 1
+	fi
+	p3 "Pi MCP server ${name} added"
+}
+
 # Define Function =install_pi=
 # Pi's user-level skills: browser and frontend-design, the same set every
 # harness has (docs/skills.md). Pi reads no Claude Code plugins, so each plugin
@@ -912,8 +935,15 @@ install_codex_context7() {
 # (modules/darwin/pi-coding-agent.nix), which writes no Pi config; on a fresh
 # Mac it may not exist yet, and `./setup.sh pi` runs this after
 # `nix run .#build-switch`.
+#
+# Pi has no plugin form, so the browser plugin's two MCP servers and context7
+# are added to Pi's own ~/.pi/agent/mcp.json (`pi mcp add`, Pi 0.99 or later;
+# an older Pi would read `mcp` as a prompt). The browser definitions mirror the
+# plugin's .mcp.json and OpenCode's `mcp` entries. context7 gets no env key: Pi
+# starts stdio servers with its own environment, so CONTEXT7_API_KEY reaches it
+# when set and is simply absent otherwise (anonymous).
 install_pi() {
-	p2 "Configuring Pi skills..."
+	p2 "Configuring Pi skills and MCP servers..."
 	if ! command -v pi >/dev/null 2>&1; then
 		p3 "Pi not installed (tapppi/systems provides it), skipping"
 		p3 "After 'nix run .#build-switch' in systems, run './setup.sh pi'."
@@ -935,6 +965,21 @@ install_pi() {
 			status=1
 		fi
 	done
+
+	local pi_version
+	pi_version="$(pi --version 2>/dev/null | head -n 1)"
+	if [[ -n "${pi_version}" && "$(printf '%s\n0.99.0\n' "${pi_version}" | sort -V | head -n 1)" == "0.99.0" ]]; then
+		pi_mcp_add_missing context7 "Current library, framework, SDK and API documentation" \
+			npx -y @upstash/context7-mcp || status=1
+		pi_mcp_add_missing browser-playwright \
+			"Playwright browser automation: navigate, snapshot, click, type, screenshots, console and network" \
+			npx -y @playwright/mcp@latest || status=1
+		pi_mcp_add_missing browser-chrome-devtools \
+			"Chrome DevTools: audits, performance traces, heap snapshots, network and console inspection" \
+			npx -y chrome-devtools-mcp@latest --no-performance-crux --no-usage-statistics || status=1
+	else
+		p3 "Pi ${pi_version:-unknown} has no MCP support (0.99 or later needed); MCP servers skipped"
+	fi
 	return "${status}"
 }
 

@@ -39,7 +39,10 @@ A skill reaches a repo by exactly three routes:
      packages listed in its own `~/.pi/agent/settings.json`. `install_pi`
      adds `browser` and `frontend-design` there with `pi install <dir>`,
      which loads a plugin directory's `skills/` in place, and `./setup.sh pi`
-     re-runs it once systems provides `pi`.
+     re-runs it once systems provides `pi`. A Pi package carries no MCP
+     servers, so on Pi 0.99 or later `install_pi` also adds the browser
+     plugin's two servers and context7 to `~/.pi/agent/mcp.json`, each only
+     when missing.
    - The claude.ai account sync writes `~/.claude/skills/synced/`, which
      Claude Code, OpenCode and Cursor all read. `skillOverrides` in
      `settings.json` hides synced skills from Claude Code by name, and

@@ -139,7 +139,7 @@ else
 	echo "  projects sets up per-project plugins and env from .tapppi-project manifests."
 	echo "  herdr installs herdr's agent-state integrations only (also part of install)."
 	echo "  codex installs Codex's plugins, ikeh roles and context7 only (also part of install)."
-	echo "  pi adds Pi's user-level skills only (also part of install)."
+	echo "  pi adds Pi's user-level skills and MCP servers only (also part of install)."
 	echo "  context7 re-asserts context7 for Claude Code and Codex only (also part of install)."
 	echo "  config with names runs only those (e.g. 'config podman spotify')."
 	echo "See README.md for more information."

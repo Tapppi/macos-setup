@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, Pi skills, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, Pi skills and MCP servers, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project plugin enablement (tapppi-skills, ikeh marketplaces) + env from .tapppi-project manifests
@@ -48,7 +48,9 @@ macos-setup/
   runs `./setup.sh codex` (it asks for `sudo`) after `nix run .#build-switch`, with every Codex
   process closed. `./setup.sh context7`, also an owner command, re-asserts only the two context7
   servers and ctx7's skill and rule. `install_pi` adds `browser` and `frontend-design` to Pi as
-  local-path packages; Pi also comes from systems, so `./setup.sh pi` is its owner re-run.
+  local-path packages and, on Pi 0.99 or later, adds context7 and the browser plugin's two MCP
+  servers to Pi's `mcp.json` when an entry is missing (context7 inherits `CONTEXT7_API_KEY` from
+  the environment); Pi also comes from systems, so `./setup.sh pi` is its owner re-run.
   Plugins: `browser` and `frontend-design` are user-wide in every harness, so `browser`'s
   chrome-devtools and playwright MCP servers start in every Claude Code session; `superpowers` is
   installed per repo from a workspace manifest, and `document-skills@anthropic-agent-skills` is
@@ -165,7 +167,7 @@ bash hooks/install.sh
 ./setup.sh dotfiles # Bootstrap dotfiles only
 ./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
 ./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
-./setup.sh pi       # Pi's user-level skills only (also part of install)
+./setup.sh pi       # Pi's user-level skills and MCP servers only (also part of install)
 ./setup.sh context7 # context7 for Claude Code and Codex only (also part of install)
 ./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
