@@ -17,20 +17,29 @@ A skill reaches a repo by exactly three routes:
    goes here: a user-level copy cannot follow a branch.
 
    Route 1 has more than one location, and each harness reads its own set:
+   - `browser` and `frontend-design` are user-level in every harness, and
+     each reaches it once. Claude Code enables them at user scope (the
+     tracked `enabledPlugins`; `install_claude_code` fetches them), and Cursor
+     follows that list. Codex has them as user-wide plugins, OpenCode through
+     `skills.paths` and Pi as local-path packages. A repo that also enables
+     them at local scope is redundant and harmless.
    - `~/.agents/skills` holds one link, to ctx7's `context7-mcp` skill, which
-     `install_codex` in `tasks/install.sh` writes. Codex, OpenCode and Cursor
-     read the directory.
-   - Codex enables plugins user-wide, so `browser` and `frontend-design` are
-     global there. This is a recorded exception: Claude Code enables them per
-     repo. `install_codex` installs them with `ikeh-development`, and
-     `./setup.sh codex` re-runs it once systems provides `codex` (an owner
-     command: `setup.sh` asks for `sudo` first). Codex also loads its own
-     bundled skills from `~/.codex/skills/.system`.
+     `install_codex` in `tasks/install.sh` writes. Codex, OpenCode, Cursor and
+     Pi read the directory, so a skill linked there reaches all four.
+   - Codex enables plugins user-wide: `install_codex` installs `browser`,
+     `frontend-design` and `ikeh-development`, and `./setup.sh codex` re-runs
+     it once systems provides `codex` (an owner command: `setup.sh` asks for
+     `sudo` first). Codex also loads its own bundled skills from
+     `~/.codex/skills/.system`.
    - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
      directories: `browser`, `frontend-design` and the ikeh-development
-     plugin's skills from the ikeh checkout. As with Codex, these are global
-     in OpenCode while Claude Code enables them per repo, a recorded
-     exception; OpenCode has no plugin form for them.
+     plugin's skills from the ikeh checkout. OpenCode has no plugin form for
+     them.
+   - Pi reads `~/.pi/agent/skills`, `~/.agents/skills` and the skills of the
+     packages listed in its own `~/.pi/agent/settings.json`. `install_pi`
+     adds `browser` and `frontend-design` there with `pi install <dir>`,
+     which loads a plugin directory's `skills/` in place, and `./setup.sh pi`
+     re-runs it once systems provides `pi`.
    - The claude.ai account sync writes `~/.claude/skills/synced/`, which
      Claude Code, OpenCode and Cursor all read. `skillOverrides` in
      `settings.json` hides synced skills from Claude Code by name, and
@@ -58,18 +67,19 @@ A skill reaches a repo by exactly three routes:
    gitignored local list from a workspace manifest; its own comments say how.
 
    OpenCode loads no Claude Code plugins; it reads only Claude Code's skill
-   directories. Cursor loads a user-scope plugin only when the user
-   `enabledPlugins` says `true`, so a new user-scope plugin reaches Cursor
-   only when it is enabled by name.
+   directories. Pi reads neither. Cursor loads a user-scope plugin only when
+   the user `enabledPlugins` says `true`, so a new user-scope plugin reaches
+   Cursor only when it is enabled by name.
 3. **Repo-committed `.agents/skills` or `.claude/skills`**, discovered in
    place. In our repos this is the bundle layout below. In other people's
    repos it is whatever they commit under their own conventions, read as-is.
    We impose no layout there.
 
 Verified harnesses: Claude Code 2.1.293, codex-cli 0.159.1, Cursor
-2026.10.01 and OpenCode 1.18.31 for the route-1 locations. Routes 2 and 3
-were last verified on Claude Code 2.1.267, codex-cli 0.154.0, Cursor
-2026.09.02 and OpenCode 1.15.12.
+2026.10.01, OpenCode 1.18.31 and Pi 0.87.1 for the route-1 locations.
+Routes 2 and 3 were last verified on Claude Code 2.1.267, codex-cli 0.154.0,
+Cursor 2026.09.02 and OpenCode 1.15.12; Pi's `.agents/skills` reading comes
+from its 0.87.1 documentation and source.
 
 **Route 3 in our repos is a committed bundle**, in this shape:
 
@@ -82,12 +92,13 @@ were last verified on Claude Code 2.1.267, codex-cli 0.154.0, Cursor
 ```
 
 Both paths are needed because no single one is universal: Claude Code reads
-only `.claude/skills`, Codex reads only `.agents/skills`, and Cursor and
-OpenCode read both. Claude Code loads a directory containing `.claude-plugin/`
-as a zero-install `<bundle>@skills-dir` plugin at scope `project` — no
-marketplace, no `enabledPlugins` entry, discovered in place, so edits on a
-branch are live. It works through the committed relative symlink; discovery
-accepts a symlinked entry deliberately, not by accident.
+only `.claude/skills`, Codex and Pi read only `.agents/skills` (Pi once the
+project is trusted), and Cursor and OpenCode read both. Claude Code loads a
+directory containing `.claude-plugin/` as a zero-install `<bundle>@skills-dir`
+plugin at scope `project` — no marketplace, no `enabledPlugins` entry,
+discovered in place, so edits on a branch are live. It works through the
+committed relative symlink; discovery accepts a symlinked entry deliberately,
+not by accident.
 
 **The symlink must be relative, and it must be committed.** That is the whole
 reason worktrees work without provisioning: git carries the symlink, and a
