@@ -92,13 +92,13 @@ from its 0.87.1 documentation and source.
 ```
 
 Both paths are needed because no single one is universal: Claude Code reads
-only `.claude/skills`, Codex and Pi read only `.agents/skills` (Pi once the
-project is trusted), and Cursor and OpenCode read both. Claude Code loads a
-directory containing `.claude-plugin/` as a zero-install `<bundle>@skills-dir`
-plugin at scope `project` — no marketplace, no `enabledPlugins` entry,
-discovered in place, so edits on a branch are live. It works through the
-committed relative symlink; discovery accepts a symlinked entry deliberately,
-not by accident.
+only `.claude/skills`, Codex and Pi read `.agents/skills`, not
+`.claude/skills` (Pi once the project is trusted), and Cursor and OpenCode
+read both. Claude Code loads a directory containing `.claude-plugin/` as a
+zero-install `<bundle>@skills-dir` plugin at scope `project` — no
+marketplace, no `enabledPlugins` entry, discovered in place, so edits on a
+branch are live. It works through the committed relative symlink; discovery
+accepts a symlinked entry deliberately, not by accident.
 
 **The symlink must be relative, and it must be committed.** That is the whole
 reason worktrees work without provisioning: git carries the symlink, and a

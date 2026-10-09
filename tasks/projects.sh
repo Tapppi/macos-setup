@@ -7,14 +7,14 @@
 #   1. enables each named plugin for the repo via `claude plugin install
 #      --scope local`, which records it in that repo's gitignored
 #      `.claude/settings.local.json` (enabledPlugins). This covers both
-#      third-party marketplace plugins (e.g. `frontend-design@claude-plugins-
+#      third-party marketplace plugins (e.g. `superpowers@claude-plugins-
 #      official`) and our own skills that have been wrapped as plugins (e.g.
-#      `browser@tapppi-skills`, published by the Tapppi/skills repo's
-#      .claude-plugin/marketplace.json, checked out at SKILLS_ROOT) —
+#      `ikeh-git@ikeh`, published by the ikeh repo's
+#      .claude-plugin/marketplace.json, checked out at IKEH_ROOT) —
 #      unlike raw skills, Claude Code has no `enabledSkills` toggle, so a
 #      skill only gets this per-project scoping if it's packaged as a plugin.
 #      The `tapppi-skills` marketplace at SKILLS_ROOT and the `ikeh`
-#      marketplace at IKEH_ROOT (e.g. `ikeh-git@ikeh`) are registered so their
+#      marketplace at IKEH_ROOT are registered so their
 #      plugins resolve by name — only those, not the marketplaces the
 #      vendored upstream trees carry (see projects_ensure_marketplaces).
 #   2. provisions a shared per-workspace environment: renders a `mise.local.toml`
@@ -37,7 +37,7 @@
 # Manifest schema (in a workspace dir, e.g. ~/project/acme/.tapppi-project.json):
 #   {
 #     "plugins": {                        # repo path (rel. to workspace) -> plugin@marketplace
-#       "service-a": ["frontend-design@claude-plugins-official", "browser@tapppi-skills"]
+#       "service-a": ["superpowers@claude-plugins-official", "ikeh-git@ikeh"]
 #     },
 #     "jira": {
 #       "installation": "local",

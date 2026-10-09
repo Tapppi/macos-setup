@@ -64,11 +64,11 @@ macos-setup/
   1. enables each repo's named marketplace plugins at local scope with
      `claude plugin install --scope local`, which records `enabledPlugins` in that repo's
      gitignored `.claude/settings.local.json`. This is how third-party marketplace plugins (such
-     as `frontend-design@claude-plugins-official`) and our own bundles published through a
-     marketplace (such as `browser@tapppi-skills`, published by the `Tapppi/skills` repo's
+     as `superpowers@claude-plugins-official`) and our own bundles published through a
+     marketplace (such as `ikeh-git@ikeh`, published by the ikeh repo's
      `.claude-plugin/marketplace.json`) get per-project scoping. Only the root `tapppi-skills`
      marketplace at `~/project/github/tapppi/skills` and the root `ikeh` marketplace at
-     `~/project/github/mantadevoy/ikeh` (home of `ikeh-git@ikeh`) are registered;
+     `~/project/github/mantadevoy/ikeh` are registered;
   2. renders a `mise.local.toml` in the workspace directory whose `[env]` loads a local `0600`
      dotenv file through mise's `_.file`. mise walks up across git boundaries, so every repo
      under the workspace inherits the env, and a plain file read is instant, unlike a blocking
