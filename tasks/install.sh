@@ -20,7 +20,7 @@ install() {
 	# holds if the sync actually completed — re-asserting onto a half-synced tree
 	# produces a state that looks configured and is not. Skip and say so instead.
 	if [[ "${dotfiles_ok}" -ne 0 ]]; then
-		p1 "Skipping Claude Code, Codex, Cursor and herdr setup — dotfiles sync failed."
+		p1 "Skipping Claude Code, Codex, Pi, Cursor and herdr setup — dotfiles sync failed."
 		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations,"
 		p3 "and './setup.sh codex' for Codex (or './setup.sh install' for the rest)."
 		return "${dotfiles_ok}"
@@ -29,6 +29,8 @@ install() {
 	install_claude_code
 	# After install_claude_code, whose ctx7 run provides the skill install_codex links.
 	install_codex
+	# After install_claude_code, whose marketplace clone holds frontend-design.
+	install_pi
 	install_cursor_agent
 	install_herdr_integrations
 }
@@ -895,6 +897,45 @@ install_codex_context7() {
 		return 1
 	fi
 	p3 "Codex context7 MCP server reads CONTEXT7_API_KEY from the environment"
+}
+
+# Define Function =install_pi=
+# Pi's user-level skills: browser and frontend-design, the same set every
+# harness has (docs/skills.md). Pi reads no Claude Code plugins, so each plugin
+# directory is added as a local-path Pi package: `pi install <dir>` records it
+# in Pi's own ~/.pi/agent/settings.json, loads its skills/ in place and skips a
+# package already listed. They are not linked into ~/.agents/skills, which Pi
+# reads too, because Codex reads it as well and already has both as plugins.
+#
+# frontend-design comes from Claude Code's clone of its marketplace, so this
+# runs after install_claude_code. Pi itself comes from tapppi/systems
+# (modules/darwin/pi-coding-agent.nix), which writes no Pi config; on a fresh
+# Mac it may not exist yet, and `./setup.sh pi` runs this after
+# `nix run .#build-switch`.
+install_pi() {
+	p2 "Configuring Pi skills..."
+	if ! command -v pi >/dev/null 2>&1; then
+		p3 "Pi not installed (tapppi/systems provides it), skipping"
+		p3 "After 'nix run .#build-switch' in systems, run './setup.sh pi'."
+		return 0
+	fi
+
+	ensure_checkout "${tapppi_skills_root}" git@github.com:Tapppi/skills.git Tapppi/skills
+	local claude_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+	local status=0 package
+	for package in "${tapppi_skills_root}/tapppi/browser" \
+		"${claude_dir}/plugins/marketplaces/claude-plugins-official/plugins/frontend-design"; do
+		if [[ ! -d "${package}/skills" ]]; then
+			p1 "No skills in ${package}; Pi package skipped."
+			status=1
+			continue
+		fi
+		if ! pi install "${package}" >/dev/null; then
+			p1 "Pi package ${package} could not be added."
+			status=1
+		fi
+	done
+	return "${status}"
 }
 
 # Clear macOS quarantine from cursor-cli cask
