@@ -62,15 +62,19 @@ export PATH="${HOME}/.local/share/mise/shims:${PATH}"
 # herdr's remote auto-install being the one that matters here.
 export PATH="${HOME}/.local/bin:${PATH}"
 
-# Ask for the administrator password upfront and keep-alive
-sudo -v
+# Ask for the administrator password upfront and keep it alive, except for
+# `projects`, which needs no root: it only enables local-scope plugins and
+# renders workspace files, and the tool-update-review skill runs it unattended.
+if [[ "${1}" != projects ]]; then
+	sudo -v
 
-# Keep-alive: update existing `sudo` time stamp until has finished
-while true; do
-	sudo -n true
-	sleep 120
-	kill -0 "$$" || exit
-done 2>/dev/null &
+	# Keep-alive: update existing `sudo` time stamp until has finished
+	while true; do
+		sudo -n true
+		sleep 120
+		kill -0 "$$" || exit
+	done 2>/dev/null &
+fi
 
 # Define Function =ask=
 ask() {
@@ -196,7 +200,7 @@ config) # [name...] App configuration: all config_* and custom_* steps, or only 
 macos) # macOS system defaults (restarts Finder, Dock and ControlCenter)
 	./tasks/macos.sh
 	;;
-projects) # Per-project plugins and env from .tapppi-project manifests
+projects) # Per-project plugins and env from .tapppi-project manifests (no sudo)
 	. tasks/projects.sh
 	projects
 	;;

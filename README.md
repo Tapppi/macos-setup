@@ -70,7 +70,7 @@ On a fresh Mac:
 [`setup.sh`](/setup.sh) orchestrates [`tasks/`](/tasks) for setting up a new
 Mac. To use, run `./setup.sh <task>` in the root folder of this repo.
 `./setup.sh` with no argument (or `help`) prints the commands and exits
-before asking for `sudo`.
+before asking for `sudo`; every task except `projects` asks for it.
 
 Available tasks:
 
@@ -91,7 +91,7 @@ Available tasks:
 | `agent-skills` | The document skills' venv, markitdown and npm packages only (also part of `install`) |
 | `config` | Apply application configuration (VLC, duti, login items, etc.); `config <name...>` runs only those steps |
 | `macos` | Apply macOS system defaults (Finder, Dock, keyboard, power, etc.) |
-| `projects` | Per-project plugins and env from `.tapppi-project` manifests |
+| `projects` | Per-project plugins and env from `.tapppi-project` manifests (no `sudo`) |
 
 #### init
 
@@ -199,8 +199,9 @@ manifests. For each workspace it enables the listed marketplace plugins at
 local scope in the named repos, renders a `mise.local.toml` that loads a
 local `0600` dotenv file into every repo under the workspace, and, for a
 `jira` block, prints the one-time commands that write that file from
-1Password. It is idempotent and never runs on its own. The header of
-[`tasks/projects.sh`](/tasks/projects.sh) documents the manifest.
+1Password. It is idempotent, never runs on its own and does not ask for
+`sudo`. The header of [`tasks/projects.sh`](/tasks/projects.sh) documents the
+manifest.
 
 ## Manual steps
 
