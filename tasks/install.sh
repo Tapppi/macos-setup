@@ -737,12 +737,12 @@ context7_key_available() {
 
 # Define Function =install_claude_marketplaces=
 # Registers every marketplace the tracked ~/.claude/settings.json declares in
-# extraKnownMarketplaces, and the official one. The settings alone register
-# nothing for the CLI (only an interactive session acts on them), so without
-# these adds a non-interactive install, and tasks/projects.sh after it, would
-# not resolve their plugins. `marketplace add` is a no-op once a marketplace is
-# registered, so each Git one is followed by an update or an existing machine
-# keeps resolving against a stale catalog.
+# extraKnownMarketplaces. The settings alone register nothing for the CLI (only
+# an interactive session acts on them), so without these adds a non-interactive
+# install, and tasks/projects.sh after it, would not resolve their plugins.
+# `marketplace add` is a no-op once a marketplace is registered, so each Git one
+# is followed by an update or an existing machine keeps resolving against a
+# stale catalog.
 install_claude_marketplaces() {
 	claude plugin marketplace add anthropics/claude-plugins-official
 	claude plugin marketplace update claude-plugins-official
