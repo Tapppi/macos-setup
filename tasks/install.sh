@@ -1089,7 +1089,8 @@ codex_plugin_disable() {
 	fi
 	local tmp="${config}.disable-tmp"
 	rm -f "${tmp}"
-	# cp -p first: the copy takes config.toml's mode before it holds any content.
+	# cp -p gives the copy config.toml's mode; the awk output then replaces its
+	# content, and `>` keeps that mode.
 	if ! cp -p "${config}" "${tmp}" ||
 		! awk -v header="${header}" '
 			function finish() { if (in_table && !done) print "enabled = false"; in_table = 0 }
