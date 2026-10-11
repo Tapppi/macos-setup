@@ -524,14 +524,19 @@ install_agent_skills_venv() {
 	local extras_file=""
 	local rebuilding=0
 
+	# A rebuild that was interrupted (or failed to restore) leaves the old venv here, whether
+	# the new venv is missing, partial or complete. Stop before building anything on top of it.
+	if [[ -e "${old_dir}" || -L "${old_dir}" ]]; then
+		p1 "${old_dir} is left over from an interrupted venv rebuild; nothing was changed."
+		p3 "If ${venv_dir} is missing or incomplete, run: rm -rf '${venv_dir}' && mv '${old_dir}' '${venv_dir}'"
+		p3 "Otherwise remove ${old_dir}. Then re-run."
+		return 1
+	fi
+
 	if [[ -e "${venv_dir}" || -L "${venv_dir}" ]]; then
 		if agent_skills_venv_bound "${venv_dir}"; then
 			p3 "Venv at ${venv_dir} is already bound to a managed Python ${agent_skills_python}"
 		else
-			if [[ -e "${old_dir}" || -L "${old_dir}" ]]; then
-				p1 "Cannot rebuild the venv: ${old_dir} is left over from an earlier rebuild. Remove it, or move it back to ${venv_dir}, and re-run."
-				return 1
-			fi
 			p2 "The venv at ${venv_dir} is not bound to a managed Python ${agent_skills_python}; rebuilding it"
 			p3 "(its packages are reinstalled; the old venv is kept at ${old_dir} until the new one is ready)"
 			# Keep what agents added to the old venv, if it still runs.
@@ -539,6 +544,15 @@ install_agent_skills_venv() {
 			if [[ -x "${venv_python}" ]]; then
 				uv pip freeze --python "${venv_python}" 2>/dev/null |
 					sed -n 's/^\([A-Za-z0-9._-]*\)==.*/\1/p' >"${extras_file}"
+			fi
+			if [[ ! -s "${extras_file}" ]]; then
+				# The old interpreter does not run (a dangling link): take the package names
+				# from the installed dist-info directories (<name>-<version>.dist-info).
+				local dist_info
+				for dist_info in "${venv_dir}"/lib/python*/site-packages/*.dist-info; do
+					[[ -d "${dist_info}" ]] || continue
+					basename "${dist_info}" | sed -n 's/^\(.*\)-[^-]*\.dist-info$/\1/p'
+				done >"${extras_file}"
 			fi
 			mv "${venv_dir}" "${old_dir}" || {
 				rm -f "${extras_file}"
