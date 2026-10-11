@@ -185,7 +185,7 @@ cask "spotify"
 
 # Office tooling and workspaces
 cask "google-drive"
-# LibreOffice — soffice CLI used by the document-skills plugin (docx, pdf, pptx, xlsx)
+# LibreOffice — soffice CLI used by the claude.ai-synced document skills (docx, pdf, pptx, xlsx)
 cask "libreoffice"
 mas "Keynote", id: 361285480
 mas "Numbers", id: 361304891
@@ -318,6 +318,10 @@ brew "aspell"
 brew "marp-cli"
 # Ghostscript for pdf utility scripts
 brew "ghostscript"
+# pandoc — the docx skill reads documents with it (pandoc -t markdown, --track-changes=accept)
+brew "pandoc"
+# qpdf — the pdf skill merges, splits, rotates, decrypts and repairs PDFs with it
+brew "qpdf"
 
 ## Archives and File Systems
 
@@ -432,7 +436,7 @@ brew "mpv"
 
 # Do pretty much anything to images - https://www.imagemagick.org/
 brew "imagemagick"
-# PDF rendering CLI used by pdf2image (the pdf skill of Anthropic's document-skills plugin)
+# PDF rendering CLI used by pdf2image (the claude.ai-synced pdf skill)
 brew "poppler"
 # Download YouTube videos from the command line
 brew "yt-dlp"
