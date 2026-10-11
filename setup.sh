@@ -123,6 +123,9 @@ elif [[ "${1}" = "codex" ]]; then
 elif [[ "${1}" = "pi" ]]; then
 	. tasks/install.sh
 	install_pi
+elif [[ "${1}" = "opencode" ]]; then
+	. tasks/install.sh
+	install_opencode
 elif [[ "${1}" = "context7" ]]; then
 	. tasks/install.sh
 	install_context7
@@ -142,12 +145,13 @@ elif [[ "${1}" = "projects" ]]; then
 	. tasks/projects.sh
 	projects
 else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | herdr | codex | pi | context7 | agent-skills | config [name...] | macos | projects]"
+	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | herdr | codex | pi | opencode | context7 | agent-skills | config [name...] | macos | projects]"
 	echo "  config without args runs all config_* and custom_* steps."
 	echo "  projects sets up per-project plugins and env from .tapppi-project manifests."
 	echo "  herdr installs herdr's agent-state integrations only (also part of install)."
 	echo "  codex installs Codex's plugins, ikeh roles, skill links and context7 only (also part of install)."
 	echo "  pi adds Pi's user-level skills and MCP servers only (also part of install)."
+	echo "  opencode checks OpenCode's skill paths and provider logins only (also part of install)."
 	echo "  context7 re-asserts context7 for Claude Code and Codex only (also part of install)."
 	echo "  agent-skills sets up the document skills' venv, markitdown and npm packages only (also part of install)."
 	echo "  config with names runs only those (e.g. 'config podman spotify')."

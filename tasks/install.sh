@@ -21,9 +21,10 @@ install() {
 	# holds if the sync actually completed — re-asserting onto a half-synced tree
 	# produces a state that looks configured and is not. Skip and say so instead.
 	if [[ "${dotfiles_ok}" -ne 0 ]]; then
-		p1 "Skipping Claude Code, Codex, Pi, Cursor and herdr setup — dotfiles sync failed."
+		p1 "Skipping Claude Code, Codex, OpenCode, Pi, Cursor and herdr setup — dotfiles sync failed."
 		p3 "Fix the sync, then run './setup.sh dotfiles' to re-assert the integrations,"
-		p3 "and './setup.sh codex' for Codex (or './setup.sh install' for the rest)."
+		p3 "and './setup.sh codex', './setup.sh opencode' and './setup.sh pi' for those"
+		p3 "harnesses (or './setup.sh install' for the rest)."
 		return "${dotfiles_ok}"
 	fi
 
@@ -32,6 +33,8 @@ install() {
 	# After install_claude_code, whose ctx7 run provides the skill install_codex links.
 	install_codex
 	# After install_claude_code, whose marketplace clone holds frontend-design.
+	install_opencode
+	# After install_claude_code, for frontend-design and ctx7's skill as above.
 	install_pi
 	install_cursor_agent
 	install_herdr_integrations
@@ -1342,6 +1345,74 @@ install_pi() {
 			npx -y @upstash/context7-mcp || status=1
 	else
 		p3 "Pi ${pi_version:-unknown} has no MCP support (0.99 or later needed); MCP servers skipped"
+	fi
+	return "${status}"
+}
+
+# Define Function =install_opencode=
+# OpenCode's configuration is tracked in dotfiles (config/opencode/:
+# opencode.json for skills, MCP, permissions and models; tui.json for the TUI)
+# and arrives with the sync, so this only checks what a sync cannot bring and
+# says what to do. It never edits OpenCode's files: `opencode mcp add` would
+# write the global config that the next sync overwrites.
+# - Each `skills.paths` entry and each local `plugin` path in the live global
+#   config must exist, or OpenCode drops it with only a log line. They point
+#   into checkouts and Claude Code's marketplace clone, so this runs after
+#   install_claude_code.
+# - Provider logins are interactive owner steps: with no credential and no
+#   provider variable, the two login commands are printed. Only
+#   `opencode providers list` is consulted, which prints provider names and
+#   credential types, never a secret; auth.json is never read here.
+# OpenCode comes from tapppi/systems (modules/darwin/opencode.nix), so on a fresh
+# Mac it may not exist yet, and `./setup.sh opencode` runs this after
+# `nix run .#build-switch`.
+install_opencode() {
+	p2 "Checking OpenCode setup..."
+	if ! command -v opencode >/dev/null 2>&1; then
+		p3 "OpenCode not installed (tapppi/systems provides it), skipping"
+		p3 "After 'nix run .#build-switch' in systems, run './setup.sh opencode'."
+		return 0
+	fi
+	local config="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
+	if [[ ! -f "${config}" ]]; then
+		p1 "No ${config}; run './setup.sh dotfiles' first."
+		return 1
+	fi
+	local paths
+	if ! paths="$(jq -r '((.skills.paths // [])[] | "skills\t" + .),
+		((.plugin // [])[] | strings | "plugin\t" + .)' "${config}" 2>/dev/null)"; then
+		p1 "Could not read ${config}; OpenCode's skill and plugin paths not checked."
+		return 1
+	fi
+	local status=0 kind entry path
+	while IFS=$'\t' read -r kind entry; do
+		[[ -n "${entry}" ]] || continue
+		path="${entry#file://}"
+		case "${path}" in
+		\~/*) path="${HOME}/${path#\~/}" ;;
+		"{env:HOME}/"*) path="${HOME}/${path#"{env:HOME}/"}" ;;
+		/*) ;;
+		# An npm package name, not a path.
+		*) continue ;;
+		esac
+		if [[ ! -e "${path}" ]]; then
+			p1 "OpenCode ${kind} path missing: ${entry}"
+			status=1
+		fi
+	done <<<"${paths}"
+	if [[ "${status}" -ne 0 ]]; then
+		p3 "Those point into the tapppi/skills and ikeh checkouts or Claude Code's"
+		p3 "marketplace clone; run './setup.sh install' (or clone the checkout), then re-run."
+	fi
+
+	# The summary lines ("2 credentials", "1 environment variable") are plain
+	# text; the output is captured, never printed.
+	local providers
+	providers="$(opencode providers list 2>/dev/null)"
+	if ! grep -Eq '(^|[^0-9])[1-9][0-9]* (credentials?|environment variables?)' <<<"${providers}"; then
+		p3 "OpenCode has no provider credentials yet. Log in (interactive owner steps):"
+		p3 "  opencode providers login -p openai             # ChatGPT, OAuth in a browser"
+		p3 "  opencode providers login -p zai-coding-plan    # z.ai, asks for the API key"
 	fi
 	return "${status}"
 }
