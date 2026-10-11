@@ -1035,7 +1035,7 @@ install_codex() {
 	install_codex_context7
 
 	# User-level skills outside plugins, linked into ~/.codex/skills, a root only
-	# Codex (and Cursor, SYSMI-67) reads; Codex calls it deprecated but still
+	# Codex (and Cursor) reads; Codex calls it deprecated but still
 	# scans it (docs/skills.md). ctx7's skill is the copy Claude Code has (ctx7's
 	# own Codex target would write the key into config.toml), and
 	# my-machine-configs is the dotfiles source.

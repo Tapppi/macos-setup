@@ -68,7 +68,7 @@ A skill reaches a repo by exactly three routes:
      Claude profile's skills never reach it), `~/.agents/skills`,
      `~/.codex/skills` and the caches of enabled Claude Code plugins. It
      therefore lists `my-machine-configs` and `context7-mcp` twice, an
-     accepted residue carried with the Cursor refresh (SYSMI-67).
+     accepted residue carried with the pending Cursor configuration refresh.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
