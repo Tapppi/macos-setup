@@ -27,6 +27,7 @@ install() {
 		return "${dotfiles_ok}"
 	fi
 
+	install_claude_user_skills
 	install_claude_code
 	# After install_claude_code, whose ctx7 run provides the skill install_codex links.
 	install_codex
@@ -705,6 +706,74 @@ clear_cask_quarantine() {
 tapppi_skills_root="${HOME}/project/github/tapppi/skills"
 ikeh_root="${HOME}/project/github/mantadevoy/ikeh"
 
+# Define Function =macos_setup_main_root=
+# Prints this repo's main checkout, also when the script runs from a linked
+# worktree: user-level skill links must outlive any worktree, and a worktree's
+# dotfiles submodule is usually not even initialised. Resolved from this file's
+# own directory rather than the cwd. Returns 1 outside a git checkout.
+macos_setup_main_root() {
+	local common
+	common="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse \
+		--path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+	[[ -n "${common}" ]] || return 1
+	dirname "${common}"
+}
+
+# Define Function =machine_configs_skill_dir=
+# Prints the source of the user-level my-machine-configs skill, which lives in
+# dotfiles beside the instruction sources (agents/), outside the trees
+# bootstrap.sh syncs, so every harness reaches it through a link or a package
+# path rather than a copy.
+machine_configs_skill_dir() {
+	local root
+	root="$(macos_setup_main_root)" || return 1
+	printf '%s\n' "${root}/dotfiles/agents/skills/my-machine-configs"
+}
+
+# Define Function =link_user_skill=
+# Args: <skill dir> <link path> <why the source may be missing>. Points an
+# absolute symlink at a skill directory: created when absent, re-pointed when it
+# points elsewhere, left alone when it already points there. A source without a
+# SKILL.md is never linked (a dangling link is ignored by every harness in
+# silence), and a link path that is not a symlink is never replaced.
+link_user_skill() {
+	local skill="${1}" link="${2}" why="${3}"
+	if [[ ! -f "${skill}/SKILL.md" ]]; then
+		p3 "Not linking ${link}: ${skill} has no SKILL.md (${why})."
+		return 0
+	fi
+	if [[ -e "${link}" && ! -L "${link}" ]]; then
+		p1 "${link} exists and is not a symlink; left as it is."
+		return 1
+	fi
+	if [[ -L "${link}" && "$(readlink "${link}")" == "${skill}" ]]; then
+		p3 "${link} already links ${skill}"
+		return 0
+	fi
+	mkdir -p "$(dirname "${link}")"
+	ln -sfn "${skill}" "${link}"
+	p3 "Linked ${link} -> ${skill}"
+}
+
+# Define Function =install_claude_user_skills=
+# User-level skills from dotfiles for Claude Code: my-machine-configs, linked
+# into ~/.claude/skills. OpenCode and Cursor read that directory too, so this
+# one link reaches all three, and no other root may carry the skill for them
+# (each would list it twice). Codex and Pi get their own routes in
+# install_codex and install_pi. Not gated on the claude CLI, since the link
+# serves the other two as well. bootstrap.sh does not write ~/.claude/skills,
+# so `./setup.sh dotfiles` calls this after a successful sync.
+install_claude_user_skills() {
+	p2 "Linking user-level skills for Claude Code, OpenCode and Cursor..."
+	local source
+	if ! source="$(machine_configs_skill_dir)"; then
+		p1 "Could not resolve the macos-setup checkout; my-machine-configs not linked."
+		return 1
+	fi
+	link_user_skill "${source}" "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/my-machine-configs" \
+		"the dotfiles submodule of the main checkout lacks it; update it and re-run"
+}
+
 # Define Function =ensure_checkout=
 # Args: <root> <ssh url> <label>. Clones the repo unless a checkout is already
 # there; an existing one is left exactly as it is, whatever branch it is on.
@@ -873,18 +942,19 @@ install_claude_code() {
 	# - superpowers is a per-repo choice, installed at local scope from a
 	#   workspace manifest by tasks/projects.sh.
 	# - document-skills@anthropic-agent-skills is off at user level.
+	# - browser@tapppi-skills is enabled per repo, by the repo's committed
+	#   .claude/settings.json, and its tapppi-skills marketplace is a directory
+	#   source, so it needs no install here (docs/skills.md).
 	# OpenCode loads no Claude Code plugins. Cursor reads the same
 	# enabledPlugins but loads a plugin only when it says `true`, with no
 	# per-harness override, so every plugin installed here loads there too.
 	#
 	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
-	# (`codex login`). browser and frontend-design are user-level in every
-	# harness (docs/skills.md); browser brings its playwright and chrome-devtools
-	# MCP servers to every session.
+	# (`codex login`). frontend-design is user-level in every harness
+	# (docs/skills.md).
 	claude plugin install duckdb-skills@claude-plugins-official
 	claude plugin install codex@openai-codex
 	claude plugin install skill-creator@tapppi-skills
-	claude plugin install browser@tapppi-skills
 	claude plugin install frontend-design@claude-plugins-official
 
 	p3 "Claude Code context7..."
@@ -904,13 +974,19 @@ install_claude_code() {
 }
 
 # Define Function =install_codex=
-# Codex's user-wide plugin set, its ikeh roles, the context7 MCP server and the
-# ~/.agents/skills link. Codex enables plugins for every project, so the set is
-# what every harness has user-wide (browser and frontend-design, see
-# docs/skills.md) plus ikeh-development. Everything here lives in
-# ~/.codex/config.toml, which Codex owns and tapppi/systems never writes, so it
-# goes through the codex CLI. `codex plugin add` re-copies a plugin from its
-# marketplace, so a re-run also refreshes the cache to the checkout's version.
+# Codex's plugins, its ikeh roles, the context7 MCP server and its user-level
+# skill links. A plugin enabled in ~/.codex/config.toml applies in every
+# project, so frontend-design (user-level in every harness, see docs/skills.md)
+# and ikeh-development are enabled there. browser is installed but disabled
+# there: its cache is what a repo's committed .codex/config.toml switches on
+# (`enabled = true`, honoured once the project is trusted).
+#
+# Everything here lives in ~/.codex/config.toml, which Codex owns and
+# tapppi/systems never writes, so it goes through the codex CLI, except two
+# edits the CLI has no verb for (browser's `enabled = false`, context7's
+# `env_vars`). `codex plugin add` re-copies a plugin from its marketplace, so a
+# re-run also refreshes the cache to the checkout's version, and it also
+# re-enables the plugin, which is why browser is disabled again after every add.
 #
 # Codex itself comes from tapppi/systems (modules/darwin/codex.nix), so on a
 # fresh Mac it may not exist yet: then this skips, and `./setup.sh codex` runs
@@ -940,6 +1016,7 @@ install_codex() {
 		codex plugin add "${plugin}" >/dev/null ||
 			p1 "Codex plugin ${plugin} could not be installed."
 	done
+	codex_plugin_disable browser@tapppi-skills
 
 	# ikeh-development's Codex roles (~/.codex/agents/ikeh-*.toml), per the
 	# plugin's README. --check installs the committed roles and refuses if they
@@ -954,21 +1031,81 @@ install_codex() {
 
 	install_codex_context7
 
-	# ctx7's skill for Codex, which reads ~/.agents/skills. It is the same skill
-	# Claude Code has (ctx7's own Codex target would write the key into
-	# config.toml), so link that copy rather than run ctx7 again.
-	local skill="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/context7-mcp"
-	local link="${HOME}/.agents/skills/context7-mcp"
-	if [[ ! -d "${skill}" ]]; then
-		p3 "No ctx7 context7-mcp skill to link (Claude Code setup has not run)"
-	elif [[ -e "${link}" && ! -L "${link}" ]]; then
-		p1 "${link} exists and is not a symlink; left as it is."
+	# User-level skills outside plugins, linked into ~/.codex/skills, a root only
+	# Codex (and Cursor, SYSMI-67) reads; Codex calls it deprecated but still
+	# scans it (docs/skills.md). ctx7's skill is the copy Claude Code has (ctx7's
+	# own Codex target would write the key into config.toml), and
+	# my-machine-configs is the dotfiles source.
+	local codex_skills="${CODEX_HOME:-${HOME}/.codex}/skills"
+	local ctx7_skill="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/context7-mcp"
+	link_user_skill "${ctx7_skill}" "${codex_skills}/context7-mcp" \
+		"Claude Code setup has not run ctx7 yet"
+	local machine_configs
+	if machine_configs="$(machine_configs_skill_dir)"; then
+		link_user_skill "${machine_configs}" "${codex_skills}/my-machine-configs" \
+			"the dotfiles submodule of the main checkout lacks it; update it and re-run"
 	else
-		mkdir -p "$(dirname "${link}")"
-		ln -sfn "${skill}" "${link}"
+		p1 "Could not resolve the macos-setup checkout; my-machine-configs not linked for Codex."
 	fi
+	remove_agents_ctx7_link "${ctx7_skill}"
 
 	p3 "Codex configured. Review new or changed plugin hooks in Codex's /hooks."
+}
+
+# Define Function =remove_agents_ctx7_link=
+# Arg: <ctx7 skill dir>. Earlier installs linked ctx7's skill into
+# ~/.agents/skills for Codex. OpenCode and Cursor read that root too and listed
+# the skill twice, so Codex and Pi now have their own links. The old link goes
+# only when it is a symlink to that exact skill; anything else there is not
+# ours and stays.
+remove_agents_ctx7_link() {
+	local skill="${1}"
+	local link="${HOME}/.agents/skills/context7-mcp"
+	if [[ -L "${link}" && "$(readlink "${link}")" == "${skill}" ]]; then
+		rm -f "${link}"
+		p3 "Removed the old ${link} link"
+	elif [[ -e "${link}" || -L "${link}" ]]; then
+		p3 "${link} is not the old ctx7 link; left as it is."
+	fi
+}
+
+# Define Function =codex_plugin_disable=
+# Arg: <plugin@marketplace>. Sets `enabled = false` in the plugin's table in
+# Codex's config.toml, which `codex plugin` has no verb for. Only that table's
+# `enabled` line changes (inserted when the table has none), an unchanged file
+# is not rewritten, and the rewrite keeps the file's mode. A missing table means
+# the add failed, and is reported rather than created. install_codex runs this
+# only after codex_ready, so no Codex process rewrites the file meanwhile.
+codex_plugin_disable() {
+	local plugin="${1}"
+	local config="${CODEX_HOME:-${HOME}/.codex}/config.toml"
+	local header="[plugins.\"${plugin}\"]"
+	if ! grep -qxF "${header}" "${config}" 2>/dev/null; then
+		p1 "Codex plugin ${plugin} has no table in ${config}; not disabled."
+		return 1
+	fi
+	local tmp="${config}.disable-tmp"
+	rm -f "${tmp}"
+	# cp -p first: the copy takes config.toml's mode before it holds any content.
+	if ! cp -p "${config}" "${tmp}" ||
+		! awk -v header="${header}" '
+			function finish() { if (in_table && !done) print "enabled = false"; in_table = 0 }
+			$0 == header { finish(); print; in_table = 1; done = 0; next }
+			in_table && /^[[:space:]]*\[/ { finish() }
+			in_table && /^[[:space:]]*enabled[[:space:]]*=/ { print "enabled = false"; done = 1; next }
+			{ print }
+			END { finish() }' "${config}" > "${tmp}"; then
+		rm -f "${tmp}"
+		p1 "Codex plugin ${plugin} could not be disabled; check ${config}."
+		return 1
+	fi
+	if cmp -s "${tmp}" "${config}"; then
+		rm -f "${tmp}"
+		p3 "Codex plugin ${plugin} already disabled at user level"
+		return 0
+	fi
+	mv -f "${tmp}" "${config}"
+	p3 "Codex plugin ${plugin} disabled at user level (enabled per repo)"
 }
 
 # Define Function =codex_ready=
@@ -1087,17 +1224,36 @@ install_codex_context7() {
 # Add one MCP server to Pi's user-level mcp.json unless an entry of that name is
 # already there, so a server the owner changed or disabled in /mcp keeps that
 # state across reruns. Pi adds with `pi mcp add`, which replaces an existing
-# entry, hence the check first. A changed definition (say a new argument in the
-# browser plugin's .mcp.json) therefore reaches an existing entry only through a
-# hand-run `pi mcp add`. Exposure is left at Pi's default, codemode.
+# entry, hence the check first, and nothing is added when that check cannot run
+# (no jq, or an unreadable mcp.json). A changed definition therefore reaches an
+# existing entry only through a hand-run `pi mcp add`. Exposure is left at Pi's
+# default, codemode.
 # Args: <name> <description> <command> [args...]
 pi_mcp_add_missing() {
 	local name="${1}" description="${2}"
 	shift 2
 	local mcp_json="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}/mcp.json"
-	if [[ -f "${mcp_json}" ]] && jq -e --arg name "${name}" '.mcpServers[$name] // empty' "${mcp_json}" >/dev/null 2>&1; then
-		p3 "Pi MCP server ${name} already configured"
-		return 0
+	if ! command -v jq >/dev/null 2>&1; then
+		p1 "jq not found; Pi MCP server ${name} not checked or added."
+		return 1
+	fi
+	if [[ -f "${mcp_json}" ]]; then
+		# jq -e: 0 the entry exists, 1 or 4 it does not, anything else is an
+		# unreadable file.
+		local found=0
+		jq -e --arg name "${name}" '.mcpServers[$name] // empty' "${mcp_json}" >/dev/null 2>&1 ||
+			found=$?
+		case "${found}" in
+		0)
+			p3 "Pi MCP server ${name} already configured"
+			return 0
+			;;
+		1 | 4) ;;
+		*)
+			p1 "Could not read ${mcp_json}; Pi MCP server ${name} left as it is."
+			return 1
+			;;
+		esac
 	fi
 	if ! pi mcp add "${name}" --description "${description}" -- "$@" >/dev/null; then
 		p1 "Pi MCP server ${name} could not be added."
@@ -1106,26 +1262,50 @@ pi_mcp_add_missing() {
 	p3 "Pi MCP server ${name} added"
 }
 
+# Define Function =pi_install_package=
+# Args: <package dir> <why its skills may be missing>. Adds a local-path Pi
+# package with `pi install <dir>`, which records it in Pi's own
+# ~/.pi/agent/settings.json, loads its skills/ in place and keeps one entry on a
+# re-run. A directory without skills/ is skipped with the reason.
+pi_install_package() {
+	local package="${1}" why="${2}"
+	if [[ ! -d "${package}/skills" ]]; then
+		p3 "No skills in ${package}; Pi package skipped (${why})."
+		return 0
+	fi
+	if ! pi install "${package}" >/dev/null; then
+		p1 "Pi package ${package} could not be added."
+		return 1
+	fi
+	p3 "Pi package ${package} added"
+}
+
 # Define Function =install_pi=
-# Pi's user-level skills: browser and frontend-design, the same set every
-# harness has (docs/skills.md). Pi reads no Claude Code plugins, so each plugin
-# directory is added as a local-path Pi package: `pi install <dir>` records it
-# in Pi's own ~/.pi/agent/settings.json, loads its skills/ in place and skips a
-# package already listed. They are not linked into ~/.agents/skills, which Pi
-# reads too, because Codex reads it as well and already has both as plugins.
+# Pi's user-level skills and MCP servers. Pi reads no Claude Code plugins, and
+# each skill reaches Pi once, by a route only Pi reads (docs/skills.md):
+# - frontend-design, user-level in every harness, as a local-path package from
+#   Claude Code's clone of its marketplace (so this runs after
+#   install_claude_code);
+# - pi-config, the generic Pi configuration skill from tapppi/skills, as a
+#   package;
+# - my-machine-configs, as a package of dotfiles' agents/ directory, whose
+#   skills/ is the only convention directory Pi loads from it;
+# - ctx7's context7-mcp, the copy Claude Code has, linked into Pi's own skills
+#   directory. Pi has no command that writes a `skills` entry, and a link edits
+#   no Pi-owned file.
+# None goes into ~/.agents/skills, which Pi reads too, because OpenCode and
+# Cursor read it as well and would list each skill twice. browser is not here:
+# a repo enables it in its committed .pi/settings.json (once the repo is
+# trusted), and the plugin's own Pi extension registers its MCP servers.
 #
-# frontend-design comes from Claude Code's clone of its marketplace, so this
-# runs after install_claude_code. Pi itself comes from tapppi/systems
-# (modules/darwin/pi-coding-agent.nix), which writes no Pi config; on a fresh
-# Mac it may not exist yet, and `./setup.sh pi` runs this after
-# `nix run .#build-switch`.
+# context7's MCP server goes into Pi's own ~/.pi/agent/mcp.json (`pi mcp add`,
+# Pi 0.99 or later; an older Pi would read `mcp` as a prompt). It gets no env
+# key: Pi starts stdio servers with its own environment, so CONTEXT7_API_KEY
+# reaches it when set and is simply absent otherwise (anonymous).
 #
-# Pi has no plugin form, so the browser plugin's two MCP servers and context7
-# are added to Pi's own ~/.pi/agent/mcp.json (`pi mcp add`, Pi 0.99 or later;
-# an older Pi would read `mcp` as a prompt). The browser definitions mirror the
-# plugin's .mcp.json and OpenCode's `mcp` entries. context7 gets no env key: Pi
-# starts stdio servers with its own environment, so CONTEXT7_API_KEY reaches it
-# when set and is simply absent otherwise (anonymous).
+# Pi itself comes from tapppi/systems (modules/darwin/pi-coding-agent.nix),
+# which writes no Pi config; on a fresh Mac it may not exist yet, and
+# `./setup.sh pi` runs this after `nix run .#build-switch`.
 install_pi() {
 	p2 "Configuring Pi skills and MCP servers..."
 	if ! command -v pi >/dev/null 2>&1; then
@@ -1136,31 +1316,30 @@ install_pi() {
 
 	ensure_checkout "${tapppi_skills_root}" git@github.com:Tapppi/skills.git Tapppi/skills
 	local claude_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
-	local status=0 package
-	for package in "${tapppi_skills_root}/tapppi/browser" \
-		"${claude_dir}/plugins/marketplaces/claude-plugins-official/plugins/frontend-design"; do
-		if [[ ! -d "${package}/skills" ]]; then
-			p1 "No skills in ${package}; Pi package skipped."
+	local status=0
+	pi_install_package "${claude_dir}/plugins/marketplaces/claude-plugins-official/plugins/frontend-design" \
+		"Claude Code setup has not cloned its marketplace yet" || status=1
+	pi_install_package "${tapppi_skills_root}/tapppi/pi-config" \
+		"the tapppi/skills checkout predates it; pull it and re-run" || status=1
+	local machine_configs
+	if machine_configs="$(machine_configs_skill_dir)"; then
+		# The package is agents/, two levels up from the skill directory.
+		pi_install_package "$(dirname "$(dirname "${machine_configs}")")" \
+			"the dotfiles submodule of the main checkout lacks my-machine-configs; update it and re-run" ||
 			status=1
-			continue
-		fi
-		if ! pi install "${package}" >/dev/null; then
-			p1 "Pi package ${package} could not be added."
-			status=1
-		fi
-	done
+	else
+		p1 "Could not resolve the macos-setup checkout; my-machine-configs not added for Pi."
+		status=1
+	fi
+	link_user_skill "${claude_dir}/skills/context7-mcp" \
+		"${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}/skills/context7-mcp" \
+		"Claude Code setup has not run ctx7 yet" || status=1
 
 	local pi_version
 	pi_version="$(pi --version 2>/dev/null | head -n 1)"
 	if [[ -n "${pi_version}" && "$(printf '%s\n0.99.0\n' "${pi_version}" | sort -V | head -n 1)" == "0.99.0" ]]; then
 		pi_mcp_add_missing context7 "Current library, framework, SDK and API documentation" \
 			npx -y @upstash/context7-mcp || status=1
-		pi_mcp_add_missing browser-playwright \
-			"Playwright browser automation: navigate, snapshot, click, type, screenshots, console and network" \
-			npx -y @playwright/mcp@latest || status=1
-		pi_mcp_add_missing browser-chrome-devtools \
-			"Chrome DevTools: audits, performance traces, heap snapshots, network and console inspection" \
-			npx -y chrome-devtools-mcp@latest --no-performance-crux --no-usage-statistics || status=1
 	else
 		p3 "Pi ${pi_version:-unknown} has no MCP support (0.99 or later needed); MCP servers skipped"
 	fi

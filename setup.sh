@@ -101,14 +101,16 @@ elif [[ "${1}" = "dotfiles" ]]; then
 	# Gated on the sync succeeding: bootstrap.sh has just overwritten the tracked
 	# agent config files, dropping the keys herdr writes into them, and putting
 	# them back is what keeps a dotfiles-only sync from silently disabling the
-	# integration. But re-asserting onto a half-synced tree is worse than not
-	# re-asserting at all, so a failed sync stops here and says why.
+	# integration. The user-level skill link that bootstrap.sh does not write is
+	# re-asserted here too. But re-asserting onto a half-synced tree is worse
+	# than not re-asserting at all, so a failed sync stops here and says why.
 	dotfiles_status=0
 	install_dotfiles || dotfiles_status=$?
 	if [[ "${dotfiles_status}" -eq 0 ]]; then
+		install_claude_user_skills
 		install_herdr_integrations
 	else
-		p1 "Skipping herdr integrations — dotfiles sync failed (exit ${dotfiles_status})."
+		p1 "Skipping skill links and herdr integrations — dotfiles sync failed (exit ${dotfiles_status})."
 		p3 "Fix the sync, then re-run './setup.sh dotfiles'."
 		exit "${dotfiles_status}"
 	fi
@@ -144,7 +146,7 @@ else
 	echo "  config without args runs all config_* and custom_* steps."
 	echo "  projects sets up per-project plugins and env from .tapppi-project manifests."
 	echo "  herdr installs herdr's agent-state integrations only (also part of install)."
-	echo "  codex installs Codex's plugins, ikeh roles and context7 only (also part of install)."
+	echo "  codex installs Codex's plugins, ikeh roles, skill links and context7 only (also part of install)."
 	echo "  pi adds Pi's user-level skills and MCP servers only (also part of install)."
 	echo "  context7 re-asserts context7 for Claude Code and Codex only (also part of install)."
 	echo "  agent-skills sets up the document skills' venv, markitdown and npm packages only (also part of install)."

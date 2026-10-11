@@ -1,0 +1,4 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	"plugin": ["{env:HOME}/project/github/tapppi/skills/tapppi/browser/opencode/browser.js"]
+}
