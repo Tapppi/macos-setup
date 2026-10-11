@@ -98,7 +98,7 @@ A skill reaches a repo by exactly three routes:
 
 **`browser` is enabled per repo, in every harness.** The tapppi-skills `browser` plugin (its skill
 plus the Playwright and Chrome DevTools MCP servers) is off at user level. macos-setup, tieto and
-ikeh each commit the same four files, and each harness reads the one meant for it:
+ikeh each commit the same five files, and each harness reads the one meant for it:
 
 | Harness | Committed file | Entry | Per machine, once |
 | --- | --- | --- | --- |
@@ -106,7 +106,7 @@ ikeh each commit the same four files, and each harness reads the one meant for i
 | Codex | `.codex/config.toml` | `[plugins."browser@tapppi-skills"]` with `enabled = true` | The project is trusted in Codex |
 | OpenCode | `opencode.json` at the repo root | a `plugin` entry for the plugin's `opencode/browser.js`, under `{env:HOME}` | None |
 | Pi | `.pi/settings.json` | a `packages` entry for the plugin directory, under `~` | `/trust` in the repo once |
-| Cursor | (Claude Code's file) | | The install record below |
+| Cursor | `.cursor/mcp.json` | The two `browser` MCP servers, copied from the plugin's `.mcp.json` | Approve the project servers once (`cursor-agent mcp list` shows `needs approval`) |
 
 - The plugin ships its own OpenCode module and Pi package beside its `.mcp.json`, its one MCP
   definition (tapppi/skills `README.md`). The OpenCode and Pi entries point into the checkout at
@@ -115,17 +115,22 @@ ikeh each commit the same four files, and each harness reads the one meant for i
 - Claude Code loads the plugin from the committed key alone, because tapppi-skills is a
   directory marketplace. Its documentation says a plugin needs an install, so each repo also gets
   one project-scope install record, run once from the main checkout:
-  `claude plugin install browser@tapppi-skills --scope project`. Cursor needs that record, and
-  loads the plugin only where the record's path equals the workspace root, so it has browser in
-  the main checkout but not in worktrees. The committed file keeps Claude Code's own 2-space
+  `claude plugin install browser@tapppi-skills --scope project`. That record is a Claude Code
+  step. Cursor reads the plugin's skill through its Claude Code compatibility, but it starts no
+  MCP server from a Claude Code plugin, record or not, so its two servers come from the repo's
+  own `.cursor/mcp.json`. The committed `.claude/settings.json` keeps Claude Code's own 2-space
   serialisation, so the install leaves it byte-identical; the other files follow `.editorconfig`.
+- **Drift point:** `.cursor/mcp.json` holds a copy of the two server definitions in tapppi/skills
+  `tapppi/browser/.mcp.json` (`browser-playwright`, `browser-chrome-devtools`: same command and
+  args). When that file changes, update the copy in macos-setup, tieto and ikeh with it; nothing
+  syncs them.
 - Codex keeps the plugin installed at user level with `enabled = false`: its cache is what the
   repo's `enabled = true` switches on, and `install_codex` writes the `false` after every
   `codex plugin add`, which always writes `true`. A hand-run `codex plugin add
   browser@tapppi-skills`, or enabling it in Codex's `/plugins`, therefore turns it on in every
   project until `./setup.sh codex` runs again. A new browser version also reaches Codex only
   through `./setup.sh codex`, whose `codex plugin add` re-copies the cache; OpenCode and Pi read
-  the checkout directly, and Claude Code and Cursor take it through the install record.
+  the checkout directly, and Claude Code takes it through the install record.
 - Pi loads nothing project-scoped in an untrusted repo, so browser appears there only after
   `/trust`. Pi matches trust by path, so a worktree inside the repo (`.claude/worktrees/`)
   inherits it, and a worktree elsewhere needs its own `/trust`. Codex trusts every linked
