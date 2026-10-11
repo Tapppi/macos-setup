@@ -19,12 +19,12 @@ their steps skip until `nix run .#build-switch` has run; each has its own dispat
 | --- | --- | --- |
 | `./setup.sh dotfiles` | `install_dotfiles`, then the re-assertions below | Stops if the sync fails |
 | `./setup.sh herdr` | `install_herdr_integrations` | |
-| `./setup.sh codex` | `install_codex` | Asks for `sudo`; refuses while Codex runs |
+| `./setup.sh codex` | `install_codex` | Refuses while Codex runs |
 | `./setup.sh opencode` | `install_opencode` | Checks and hints only |
 | `./setup.sh pi` | `install_pi` | |
 | `./setup.sh context7` | `install_context7` | Both context7 servers and ctx7's skill and rule |
 
-All of these are owner commands.
+All of these are owner commands, and every `setup.sh` dispatch asks for `sudo` first.
 
 ## Tool-owned config is re-asserted, not vendored
 
