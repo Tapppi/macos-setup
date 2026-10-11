@@ -8,11 +8,14 @@
 2. Copy backup and this repo to new mac
 3. Run `bash hooks/install.sh` to set up git hooks (submodule init on checkout/worktree)
 4. Run `./setup.sh init` to set hostname, permissions, updates and disable guest
-5. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log in with it
+5. If no non-superadmin account exists yet, run `./setup.sh new_account` to create one, then log
+   in with it
 6. Run `./setup.sh clean_account` to remove default dock icons
-   - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or `./setup.sh init_ssh_local` if you use a local key
+   - Run `./setup.sh init_ssh_1password` if you use 1Password SSH signing, or
+     `./setup.sh init_ssh_local` if you use a local key
 7. Run `./setup.sh install` to install all software and runtimes
-8. If you need app configs or credentials from backup, use `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
+8. If you need app configs or credentials from backup, use
+   `restore.sh /path/to/backups/backup-name.<timestamp>.tar.gz`
 9. Run `./setup.sh config` to configure apps and file associations
 10. Run `./setup.sh macos` to apply macOS system defaults, then reboot
 
@@ -55,7 +58,8 @@ instead of being restored from backup.
 On a fresh Mac:
 
 1. Sign in to 1Password and confirm your signing key is available in the vault.
-2. Run `./setup.sh init_ssh_1password` to point SSH at the 1Password agent and write an `agent.toml` allowlist for the vaults you enter.
+2. Run `./setup.sh init_ssh_1password` to point SSH at the 1Password agent and write an
+   `agent.toml` allowlist for the vaults you enter.
 3. Bootstrap your dotfiles or run the full install so Git picks up the existing
    1Password SSH signing configuration.
 4. If Git signing prompts appear, approve them in 1Password the first time you
@@ -76,9 +80,15 @@ Available tasks:
 | `init_ssh_1password` | Write SSH config and interactive 1Password vault allowlist (standalone) |
 | `init_ssh_local` | Generate a local SSH key if you don't have one from backup |
 | `install` | Install all software and runtimes (also works as update) |
-| `dotfiles` | Bootstrap dotfiles only (re-sync without full install) |
-| `config` | Apply application configuration (VLC, duti, login items, etc.) |
+| `dotfiles` | Bootstrap dotfiles only (re-sync without full install), then re-assert tool-written config |
+| `herdr` | herdr's agent-state integrations only (also part of `install`) |
+| `codex` | Codex's plugins, ikeh roles, skill links and context7 only (also part of `install`) |
+| `opencode` | Check OpenCode's setup and print hints (also part of `install`) |
+| `pi` | Pi's user-level skills and MCP servers only (also part of `install`) |
+| `context7` | context7 for Claude Code and Codex only (also part of `install`) |
+| `config` | Apply application configuration (VLC, duti, login items, etc.); `config <name...>` runs only those steps |
 | `macos` | Apply macOS system defaults (Finder, Dock, keyboard, power, etc.) |
+| `projects` | Per-project plugins and env from `.tapppi-project` manifests |
 
 #### init
 
@@ -119,6 +129,15 @@ Also works as update — rerun it to update apps and runtimes.
   - Core dotfiles are in the [`dotfiles` subrepo](https://github.com/tapppi/dotfiles)
   - Personal and extra configs are in this repo at [`.extra`](/.extra),
     [`.path`](/.path) and [`.credentials.dist`](/.credentials.dist)
+- Sets up the agent harnesses (Claude Code, Codex, OpenCode, Pi and Cursor):
+  plugins, user-level skills, MCP servers and tool integrations. Codex,
+  OpenCode and Pi come from `tapppi/systems`, so on a fresh Mac re-run their
+  tasks after its first `nix run .#build-switch`. See
+  [`docs/harnesses.md`](docs/harnesses.md) and [`docs/skills.md`](docs/skills.md)
+
+API keys for tools go in `~/.config/bash/.credentials` (mode `0600`, never
+committed), copied from [`.credentials.dist`](/.credentials.dist) or restored
+from backup.
 
 #### config
 
@@ -163,6 +182,16 @@ NotificationCenter) that can disrupt permissions dialogs during app config.
 - Finder: show hidden files, path bar, list view, spring loading
 - Dock: autohide, no recents, hot corners, Mission Control speed
 - Safari, Mail, Terminal, Time Machine, Activity Monitor, and more
+
+#### projects
+
+Scans `~/project` for gitignored `.tapppi-project.{json,yml,yaml}` workspace
+manifests. For each workspace it enables the listed marketplace plugins at
+local scope in the named repos, renders a `mise.local.toml` that loads a
+local `0600` dotenv file into every repo under the workspace, and, for a
+`jira` block, prints the one-time commands that write that file from
+1Password. It is idempotent and never runs on its own. The header of
+[`tasks/projects.sh`](/tasks/projects.sh) documents the manifest.
 
 ## Manual steps
 
@@ -236,7 +265,8 @@ remaining usable as a backup laptop, keep the setup reversible:
 
 ## Thanks to...
 
-- [Mathias Bynens](https://mths.be) for his [_dotfiles_ repository](https://github.com/mathiasbynens/dotfiles)
+- [Mathias Bynens](https://mths.be) for his
+  [_dotfiles_ repository](https://github.com/mathiasbynens/dotfiles)
   which is the upstream for the fork used here
 - @ptb and [his _macOS Setup_ repository](https://github.com/ptb/mac-setup)
   for inspiration and basis for installation scripts
