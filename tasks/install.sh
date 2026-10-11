@@ -972,14 +972,16 @@ install_codex() {
 }
 
 # Define Function =codex_ready=
-# 0 when the codex CLI exists and no Codex process runs. 1 when codex is absent
-# (skip; it comes from tapppi/systems, so a fresh Mac may not have it yet). 2
-# when Codex runs: the CLI, the ChatGPT app's app-server and the Claude codex
-# plugin's broker all rewrite config.toml and could drop these edits.
+# Arg: [setup.sh dispatch to name in the skip hint, default codex]. 0 when the
+# codex CLI exists and no Codex process runs. 1 when codex is absent (skip; it
+# comes from tapppi/systems, so a fresh Mac may not have it yet). 2 when Codex
+# runs: the CLI, the ChatGPT app's app-server and the Claude codex plugin's
+# broker all rewrite config.toml and could drop these edits.
 codex_ready() {
+	local dispatch="${1:-codex}"
 	if ! command -v codex >/dev/null 2>&1; then
 		p3 "Codex not installed (tapppi/systems provides it), skipping"
-		p3 "After 'nix run .#build-switch' in systems, run './setup.sh codex'."
+		p3 "After 'nix run .#build-switch' in systems, run './setup.sh ${dispatch}'."
 		return 1
 	fi
 	if pgrep -x codex >/dev/null 2>&1; then
@@ -1000,9 +1002,11 @@ install_context7() {
 	else
 		p3 "Claude Code not installed, skipping"
 	fi
-	codex_ready || ready=$?
+	codex_ready context7 || ready=$?
 	case "${ready}" in
 	0) install_codex_context7 || status=1 ;;
+	# Absent: codex_ready has said so and named this dispatch; not a failure.
+	1) ;;
 	2) status=1 ;;
 	esac
 	return "${status}"
@@ -1063,7 +1067,10 @@ install_codex_context7() {
 	codex mcp add context7 -- npx -y @upstash/context7-mcp >/dev/null
 	# `command`: install() above shadows install(1) once this file is sourced.
 	local tmp="${config}.context7-tmp"
-	# The copy holds all of config.toml, so it is never readable by others.
+	# The copy holds all of config.toml, so it is never readable by others. A
+	# stale copy from an interrupted run is removed first: `>` would keep its
+	# old mode.
+	rm -f "${tmp}"
 	(umask 077 && awk '{ print } $0 == "[mcp_servers.context7]" && !done {
 		print "env_vars = [\"CONTEXT7_API_KEY\"]"; done = 1 }' "${config}" > "${tmp}") &&
 		command install -m 600 "${tmp}" "${config}"
