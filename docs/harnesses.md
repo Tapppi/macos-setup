@@ -24,7 +24,7 @@ their steps skip until `nix run .#build-switch` has run; each has its own dispat
 | `./setup.sh pi` | `install_pi` | |
 | `./setup.sh context7` | `install_context7` | Both context7 servers and ctx7's skill and rule |
 
-All of these are owner commands, and every `setup.sh` dispatch asks for `sudo` first.
+All of these are owner commands, and each asks for `sudo` first.
 
 ## Tool-owned config is re-asserted, not vendored
 
