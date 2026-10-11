@@ -8,10 +8,11 @@ skills and plugins reach a repo is in [skills.md](skills.md). Each function's he
 
 ## Order inside `install()`
 
-`install()` installs Homebrew and the Brewfile, mise runtimes and the agent-skills venv, then
-syncs dotfiles with `install_dotfiles`. The harness steps run only after that sync succeeds:
-`install_claude_code`, `install_codex`, `install_opencode`, `install_pi`, `install_cursor_agent`
-and `install_herdr_integrations`. Codex, OpenCode and Pi come from systems, so on a fresh Mac
+`install()` installs macOS software and the Brewfile, syncs dotfiles with `install_dotfiles`,
+then installs mise runtimes and the document skills' tools. The harness steps run only after the
+sync succeeded: the user-level skill link for Claude Code, then `install_claude_code`,
+`install_codex`, `install_opencode`, `install_pi`, `install_cursor_agent`, and
+`install_herdr_integrations` last. Codex, OpenCode and Pi come from systems, so on a fresh Mac
 their steps skip until `nix run .#build-switch` has run; each has its own dispatch for the re-run.
 
 | Dispatch | Runs | Notes |
@@ -89,8 +90,8 @@ Codex comes from systems, so on a fresh Mac the owner runs `./setup.sh codex` af
 ## OpenCode
 
 `config/opencode/` in dotfiles carries the whole user-level config, so `install_opencode` only
-checks: it warns about `skills.paths` targets that are missing and prints the login commands when
-no provider is configured. It never adds MCP servers.
+checks: it warns about each `skills.paths` entry and local `plugin` path that is missing, and
+prints the login commands when no provider is configured. It never edits OpenCode's files.
 
 ## Pi
 

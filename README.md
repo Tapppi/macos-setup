@@ -86,6 +86,7 @@ Available tasks:
 | `opencode` | Check OpenCode's setup and print hints (also part of `install`) |
 | `pi` | Pi's user-level skills and MCP servers only (also part of `install`) |
 | `context7` | context7 for Claude Code and Codex only (also part of `install`) |
+| `agent-skills` | The document skills' venv, markitdown and npm packages only (also part of `install`) |
 | `config` | Apply application configuration (VLC, duti, login items, etc.); `config <name...>` runs only those steps |
 | `macos` | Apply macOS system defaults (Finder, Dock, keyboard, power, etc.) |
 | `projects` | Per-project plugins and env from `.tapppi-project` manifests |
@@ -129,6 +130,12 @@ Also works as update — rerun it to update apps and runtimes.
   - Core dotfiles are in the [`dotfiles` subrepo](https://github.com/tapppi/dotfiles)
   - Personal and extra configs are in this repo at [`.extra`](/.extra),
     [`.path`](/.path) and [`.credentials.dist`](/.credentials.dist)
+- Sets up the document skills' tools: pandoc and qpdf come from the Brewfile,
+  and `install_agent_skills` builds the shared venv at
+  `~/.local/share/agent-skills/venv/` on a uv-managed Python 3.14 (rebuilding
+  one bound to mise's `python/latest`), installs the markitdown uv tool and
+  fills an npm prefix at `~/.local/share/agent-skills/node/` (JS runs with
+  `NODE_PATH` set to its `node_modules`)
 - Sets up the agent harnesses (Claude Code, Codex, OpenCode, Pi and Cursor):
   plugins, user-level skills, MCP servers and tool integrations. Codex,
   OpenCode and Pi come from `tapppi/systems`, so on a fresh Mac re-run their
