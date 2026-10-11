@@ -123,7 +123,9 @@ ikeh each commit the same four files, and each harness reads the one meant for i
   repo's `enabled = true` switches on, and `install_codex` writes the `false` after every
   `codex plugin add`, which always writes `true`. A hand-run `codex plugin add
   browser@tapppi-skills`, or enabling it in Codex's `/plugins`, therefore turns it on in every
-  project until `./setup.sh codex` runs again.
+  project until `./setup.sh codex` runs again. A new browser version also reaches Codex only
+  through `./setup.sh codex`, whose `codex plugin add` re-copies the cache; OpenCode and Pi read
+  the checkout directly, and Claude Code and Cursor take it through the install record.
 - Pi loads nothing project-scoped in an untrusted repo, so browser appears there only after
   `/trust`. Pi matches trust by path, so a worktree inside the repo (`.claude/worktrees/`)
   inherits it, and a worktree elsewhere needs its own `/trust`. Codex trusts every linked
