@@ -11,7 +11,7 @@ macos-setup/
   Brewfile              # Homebrew bundle manifest (all apps/tools/casks)
   tasks/
     init.sh             # System init (hostname, users, SSH, Xcode)
-    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, Pi skills and MCP servers, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
+    install.sh          # Software install (brew, mise runtimes, dotfiles, Claude Code and Codex plugins and context7, Pi skills and MCP servers, the document skills' venv, markitdown and npm prefix, tapppi-skills and ikeh marketplaces, cursor-agent quarantine)
     config.sh           # App configuration (defaults, duti, login items)
     macos.sh            # macOS system defaults and power-management (separate task)
     projects.sh         # Per-project plugin enablement (tapppi-skills, ikeh marketplaces) + env from .tapppi-project manifests
@@ -166,17 +166,17 @@ This is a shell-script-based repo with no formal build system or test suite.
 bash hooks/install.sh
 
 # Full setup (requires sudo, interactive dialogs)
-./setup.sh init     # System initialization
-./setup.sh install  # Install all software
-./setup.sh dotfiles # Bootstrap dotfiles only
-./setup.sh herdr    # herdr's agent-state integrations only (also part of install)
-./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
-./setup.sh pi       # Pi's user-level skills and MCP servers only (also part of install)
-./setup.sh context7 # context7 for Claude Code and Codex only (also part of install)
+./setup.sh init         # System initialization
+./setup.sh install      # Install all software
+./setup.sh dotfiles     # Bootstrap dotfiles only
+./setup.sh herdr        # herdr's agent-state integrations only (also part of install)
+./setup.sh codex        # Codex plugins, ikeh roles and context7 only (also part of install)
+./setup.sh pi           # Pi's user-level skills and MCP servers only (also part of install)
+./setup.sh context7     # context7 for Claude Code and Codex only (also part of install)
 ./setup.sh agent-skills # Document skills' venv, markitdown and npm prefix only (also part of install)
-./setup.sh config   # Apply app configuration (optionally named: config [name...])
-./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
-./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
+./setup.sh config       # Apply app configuration (optionally named: config [name...])
+./setup.sh macos        # Apply macOS system defaults (kills Finder, Dock, etc.)
+./setup.sh projects     # Per-project plugins + env from .tapppi-project manifests
 reload              # Reloads all shell configurations
 
 # Homebrew
