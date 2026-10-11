@@ -69,6 +69,8 @@ On a fresh Mac:
 
 [`setup.sh`](/setup.sh) orchestrates [`tasks/`](/tasks) for setting up a new
 Mac. To use, run `./setup.sh <task>` in the root folder of this repo.
+`./setup.sh` with no argument (or `help`) prints the commands and exits
+before asking for `sudo`.
 
 Available tasks:
 

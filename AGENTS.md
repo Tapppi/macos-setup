@@ -8,7 +8,8 @@ set (its `AGENTS.md` lists what). This repo is public: keep private values and s
 ## Layout
 
 - `setup.sh`: the entry point. `./setup.sh <task>` dispatches to `tasks/` and defines the shared
-  helpers; the [README](README.md) lists every task and dispatch.
+  helpers. Its dispatch `case` names every command with a one-line description, which `./setup.sh`
+  with no argument prints without changing anything; the [README](README.md) describes each task.
 - `tasks/`: `init.sh` (system init), `install.sh` (software, runtimes, the document skills'
   tools, dotfiles sync, agent harnesses), `config.sh` (app configuration), `macos.sh` (macOS
   defaults; a separate task because it kills Finder, Dock and ControlCenter), `projects.sh`
