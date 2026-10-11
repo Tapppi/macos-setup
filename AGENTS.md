@@ -10,9 +10,10 @@ set (its `AGENTS.md` lists what). This repo is public: keep private values and s
 - `setup.sh`: the entry point. `./setup.sh <task>` dispatches to `tasks/` and defines the shared
   helpers; the [README](README.md) lists every task and dispatch.
 - `tasks/`: `init.sh` (system init), `install.sh` (software, runtimes, the document skills'
-  tools, dotfiles sync, agent harnesses), `config.sh` (app configuration), `macos.sh` (macOS defaults; a separate task because
-  it kills Finder, Dock and ControlCenter), `projects.sh` (per-workspace plugins and env from
-  `.tapppi-project` manifests). Each function's header comment documents it.
+  tools, dotfiles sync, agent harnesses), `config.sh` (app configuration), `macos.sh` (macOS
+  defaults; a separate task because it kills Finder, Dock and ControlCenter), `projects.sh`
+  (per-workspace plugins and env from `.tapppi-project` manifests). Each function's header
+  comment documents it.
 - `Brewfile` and `intel.Brewfile`: the Homebrew manifests.
 - `dotfiles/`: a submodule ([Tapppi/dotfiles](https://github.com/Tapppi/dotfiles)) with its own
   `AGENTS.md`: shell and harness config, and the user-level agent instructions in `agents/`.
