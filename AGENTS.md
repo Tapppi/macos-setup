@@ -55,6 +55,10 @@ macos-setup/
   chrome-devtools and playwright MCP servers start in every Claude Code session; `superpowers` is
   installed per repo from a workspace manifest, and `document-skills@anthropic-agent-skills` is
   off at user level (the claude.ai skill sync delivers newer docx, pdf, pptx and xlsx skills).
+  Those skills' tools: pandoc and qpdf come from the Brewfile, and `install_agent_skills` builds the
+  venv on a uv-managed Python 3.14 (rebuilding one bound to mise's `python/latest`), installs the
+  markitdown uv tool and fills an npm prefix at `~/.local/share/agent-skills/node/` (JS runs with
+  `NODE_PATH` set to its `node_modules`).
 - **`tasks/config.sh`**: app configuration (`defaults write`, `PlistBuddy`, `duti` file
   associations, login items via AppleScript, VLC and Terminal customisation), and it launches
   apps for first-run setup. It does not apply macOS system defaults.
@@ -169,6 +173,7 @@ bash hooks/install.sh
 ./setup.sh codex    # Codex plugins, ikeh roles and context7 only (also part of install)
 ./setup.sh pi       # Pi's user-level skills and MCP servers only (also part of install)
 ./setup.sh context7 # context7 for Claude Code and Codex only (also part of install)
+./setup.sh agent-skills # Document skills' venv, markitdown and npm prefix only (also part of install)
 ./setup.sh config   # Apply app configuration (optionally named: config [name...])
 ./setup.sh macos    # Apply macOS system defaults (kills Finder, Dock, etc.)
 ./setup.sh projects # Per-project plugins + env from .tapppi-project manifests
