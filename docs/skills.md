@@ -125,7 +125,9 @@ ikeh each commit the same four files, and each harness reads the one meant for i
   browser@tapppi-skills`, or enabling it in Codex's `/plugins`, therefore turns it on in every
   project until `./setup.sh codex` runs again.
 - Pi loads nothing project-scoped in an untrusted repo, so browser appears there only after
-  `/trust`. Worktrees under the repo inherit its trust, in Pi as in Codex and Claude Code.
+  `/trust`. Pi matches trust by path, so a worktree inside the repo (`.claude/worktrees/`)
+  inherits it, and a worktree elsewhere needs its own `/trust`. Codex trusts every linked
+  worktree of a trusted checkout.
 
 Verified harnesses: Claude Code 2.1.293, codex-cli 0.161.0, Cursor 2026.10.01 (read from its
 source), OpenCode 1.18.35 and Pi 1.0.4 for the route-1 locations and the per-repo `browser` files.
