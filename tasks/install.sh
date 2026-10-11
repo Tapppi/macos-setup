@@ -13,7 +13,8 @@ install() {
 	# After mise runtimes: podman-compose is installed via the mise-managed uv
 	install_podman_intel
 	install_powershell_modules
-	install_agent_skills_venv
+	# After mise runtimes: the venv and markitdown need uv, the npm prefix needs node
+	install_agent_skills
 
 	# These re-assert tool-owned config into files bootstrap.sh just overwrote
 	# (see "Tool-owned config is re-asserted, not vendored"). That ordering only
@@ -447,15 +448,68 @@ install_powershell_modules() {
 	p2 "PowerShell modules installed!"
 }
 
+# Define Function =install_agent_skills=
+# Sets up everything the claude.ai-synced document skills (docx, pdf, pptx, xlsx) need
+# beyond Homebrew's pandoc, qpdf and poppler: the Python venv, the markitdown tool and
+# the npm prefix. Each step runs even when an earlier one failed, and the function
+# returns non-zero when any of them did. Also `./setup.sh agent-skills`.
+install_agent_skills() {
+	local failed=0
+
+	install_agent_skills_venv || failed=1
+	install_markitdown || failed=1
+	install_agent_skills_node || failed=1
+
+	if [[ "${failed}" -ne 0 ]]; then
+		p1 "Agent-skills setup finished with failures; see the messages above."
+		return 1
+	fi
+	p2 "Agent-skills setup done!"
+}
+
+# The Python minor version the agent-skills venv and the markitdown tool are bound to: a
+# uv-managed CPython, never mise's `python/latest` alias (a `mise upgrade` or `mise install`
+# repoints that alias and breaks every venv built on it). markitdown 0.1.8 needs < 3.15 and
+# onnxruntime has no cp315 wheel, so raise this only when both tools support the next minor.
+agent_skills_python="3.14"
+
+# Define Function =agent_skills_venv_bound=
+# Succeeds when the venv in $1 runs, is the pinned minor version, and is bound to uv's
+# managed minor-version link (<uv python dir>/cpython-3.14-*/), which uv keeps pointing at
+# the newest 3.14 patch. Fails for a missing, dangling, other-version or mise/Homebrew-bound
+# venv.
+agent_skills_venv_bound() {
+	local venv_dir="${1}"
+	local venv_home uv_python_dir
+
+	[[ -x "${venv_dir}/bin/python" ]] || return 1
+	"${venv_dir}/bin/python" -c 'import sys; sys.exit(0 if "%d.%d" % sys.version_info[:2] == sys.argv[1] else 1)' \
+		"${agent_skills_python}" 2>/dev/null || return 1
+
+	venv_home="$(sed -n 's/^home = //p' "${venv_dir}/pyvenv.cfg" 2>/dev/null)"
+	uv_python_dir="$(uv python dir 2>/dev/null)" || return 1
+	case "${venv_home}" in
+	"${uv_python_dir}/cpython-${agent_skills_python}-"*) return 0 ;;
+	esac
+	return 1
+}
+
 # Define Function =install_agent_skills_venv=
 # Creates a shared uv venv at ~/.local/share/agent-skills/venv/ used by
 # agent skills that need Python libraries. Its first users are Anthropic's
 # docx, pdf, pptx and xlsx skills, which reach this machine through the
 # claude.ai skill sync (anthropic-skills:* in Claude Code, bare names in
 # OpenCode and Cursor) and are never vendored, because their licence forbids
-# redistribution. The document-skills@anthropic-agent-skills plugin carries
-# the same skills and needs the same deps. Per-skill dependencies are
-# appended below as skills are adopted.
+# redistribution. Per-skill dependencies are appended below as skills are
+# adopted.
+#
+# The venv is bound to a uv-managed Python (agent_skills_python), so a mise
+# upgrade cannot break it. A venv that is not (an older one built on mise's
+# `python/latest`, a dangling link, another minor version) is rebuilt once: the
+# old venv is moved aside, the new one gets the declared dependencies plus the
+# package names the old one held (so packages added ad hoc survive), and the old
+# one is removed only after that succeeded. On a failure the old venv is moved
+# back and the function returns non-zero. A correct venv is never touched.
 install_agent_skills_venv() {
 	p2 "Setting up agent-skills uv venv..."
 
@@ -465,36 +519,145 @@ install_agent_skills_venv() {
 	fi
 
 	local venv_dir="${HOME}/.local/share/agent-skills/venv"
+	local venv_python="${venv_dir}/bin/python"
+	local old_dir="${venv_dir}.old"
+	local extras_file=""
+	local rebuilding=0
+
+	if [[ -e "${venv_dir}" || -L "${venv_dir}" ]]; then
+		if agent_skills_venv_bound "${venv_dir}"; then
+			p3 "Venv at ${venv_dir} is already bound to a managed Python ${agent_skills_python}"
+		else
+			if [[ -e "${old_dir}" || -L "${old_dir}" ]]; then
+				p1 "Cannot rebuild the venv: ${old_dir} is left over from an earlier rebuild. Remove it, or move it back to ${venv_dir}, and re-run."
+				return 1
+			fi
+			p2 "The venv at ${venv_dir} is not bound to a managed Python ${agent_skills_python}; rebuilding it"
+			p3 "(its packages are reinstalled; the old venv is kept at ${old_dir} until the new one is ready)"
+			# Keep what agents added to the old venv, if it still runs.
+			extras_file="$(mktemp "${TMPDIR:-/tmp}/agent-skills-extras.XXXXXX")" || return 1
+			if [[ -x "${venv_python}" ]]; then
+				uv pip freeze --python "${venv_python}" 2>/dev/null |
+					sed -n 's/^\([A-Za-z0-9._-]*\)==.*/\1/p' >"${extras_file}"
+			fi
+			mv "${venv_dir}" "${old_dir}" || {
+				rm -f "${extras_file}"
+				return 1
+			}
+			rebuilding=1
+		fi
+	fi
+
+	local ok=1
 	if [[ ! -d "${venv_dir}" ]]; then
 		mkdir -p "$(dirname "${venv_dir}")"
-		uv venv "${venv_dir}"
-	else
-		p3 "Venv already exists at ${venv_dir}"
+		# Idempotent: makes sure uv's managed CPython and its minor-version link exist; --no-bin
+		# keeps it from linking python3.14 into ~/.local/bin, ahead of mise's shims.
+		uv python install --no-bin "${agent_skills_python}" &&
+			uv venv --managed-python --python "${agent_skills_python}" "${venv_dir}" || ok=0
 	fi
 
 	# Per-skill Python dependencies.
 	# uv pip install --python is idempotent — safe to re-run.
 	# Add deps here as skills are adopted; document each one's purpose.
-	local venv_python="${venv_dir}/bin/python"
-	# pdfplumber: the pdf skill's scripts/extract_form_structure.py.
-	p3 "Installing Python deps for Anthropic's document skills (docx/pdf/pptx/xlsx)..."
-	uv pip install --python "${venv_python}" --quiet \
-		pypdf pdfplumber pdf2image pillow reportlab numpy \
-		defusedxml lxml \
-		openpyxl pandas
+	if [[ "${ok}" -eq 1 ]]; then
+		# pdfplumber: the pdf skill's scripts/extract_form_structure.py.
+		# pytesseract: the pdf skill's OCR recipe for scanned PDFs (needs the tesseract
+		# formula from the Brewfile).
+		# playwright: the browser bundle's deterministic mode (tapppi/skills, browser:browser)
+		# drives it from Python scripts run with this interpreter.
+		p3 "Installing Python deps for Anthropic's document skills (docx/pdf/pptx/xlsx) and Playwright..."
+		uv pip install --python "${venv_python}" --quiet \
+			pypdf pdfplumber pdf2image pillow reportlab numpy \
+			defusedxml lxml \
+			openpyxl pandas pytesseract playwright || ok=0
+	fi
+	if [[ "${ok}" -eq 1 && "${rebuilding}" -eq 1 && -s "${extras_file}" ]]; then
+		p3 "Reinstalling the packages the old venv held..."
+		uv pip install --python "${venv_python}" --quiet -r "${extras_file}" || ok=0
+	fi
+	[[ -n "${extras_file}" ]] && rm -f "${extras_file}"
 
-	# The browser bundle's deterministic mode (tapppi/skills, browser:browser)
-	# drives Playwright from Python scripts run with this interpreter; the MCP
-	# servers in that bundle bring their own browser, this one needs its own.
-	# `playwright install` is idempotent: it downloads only what is missing.
-	p3 "Installing Python Playwright and its Chromium for the browser bundle..."
-	if ! uv pip install --python "${venv_python}" --quiet playwright ||
-		! "${venv_dir}/bin/playwright" install chromium; then
+	if [[ "${ok}" -eq 0 ]]; then
+		p1 "Agent-skills venv setup failed."
+		if [[ "${rebuilding}" -eq 1 ]]; then
+			rm -rf "${venv_dir}" && mv "${old_dir}" "${venv_dir}" &&
+				p3 "The previous venv is back at ${venv_dir}; re-run after fixing the error."
+		fi
+		return 1
+	fi
+	if [[ "${rebuilding}" -eq 1 ]]; then
+		rm -rf "${old_dir}"
+		p3 "Rebuilt the venv on a managed Python ${agent_skills_python}; removed ${old_dir}"
+	fi
+
+	# `playwright install` is idempotent: it downloads only what is missing. The MCP
+	# servers in the browser bundle bring their own browser, this one needs its own.
+	p3 "Installing Python Playwright's Chromium for the browser bundle..."
+	if ! "${venv_dir}/bin/playwright" install chromium; then
 		p1 "Playwright install failed; the browser bundle's scripted mode will not work until it succeeds."
 		return 1
 	fi
 
 	p2 "Agent-skills venv ready at ${venv_dir}"
+}
+
+# Define Function =install_markitdown=
+# markitdown (Microsoft) is a CLI the pptx skill runs to read and check decks
+# (`markitdown deck.pptx`) and the xlsx skill can use for a quick look. No skill
+# imports it, so it is a uv tool, outside the venv's dependency resolution, and
+# links itself into ~/.local/bin. It is bound to the same managed Python as the
+# venv (agent_skills_python). Only the extras the skills use are installed (pptx,
+# xlsx, xls). A re-run is a no-op and does not upgrade; run `uv tool upgrade
+# markitdown` for that, as for the repo's other uv tools.
+install_markitdown() {
+	p2 "Installing the markitdown tool..."
+
+	if ! command -v uv >/dev/null 2>&1; then
+		p1 "ERROR: uv not found. Mise should provide it."
+		return 1
+	fi
+
+	if ! uv tool install --managed-python --python "${agent_skills_python}" 'markitdown[pptx,xlsx,xls]'; then
+		p1 "markitdown install failed; the pptx skill's 'markitdown deck.pptx' will not work until it succeeds."
+		return 1
+	fi
+	p2 "markitdown ready"
+}
+
+# Define Function =install_agent_skills_node=
+# The docx and pptx skills write documents with npm packages the claude.ai sandbox
+# "preinstalls" (`require('docx')`, `require('pptxgenjs')`, react, react-dom,
+# react-icons and sharp for icons) and the pdf skill's recipes use pdf-lib. They go in
+# one npm prefix, ~/.local/share/agent-skills/node/, next to the venv. Node does not
+# search it on its own: an agent runs the skills' JS from a scratch directory outside
+# any project, as CommonJS, with NODE_PATH set to the prefix's node_modules (the
+# always-on rule in the user-level instructions says so). Not `npm install -g`: under
+# mise the global prefix is per Node version, and `require` does not search it anyway.
+# Each run moves the listed packages to their latest versions, because the synced
+# skills change continuously; it installs nothing outside the prefix.
+install_agent_skills_node() {
+	p2 "Setting up the agent-skills npm prefix..."
+
+	if ! command -v npm >/dev/null 2>&1; then
+		p1 "ERROR: npm not found. Mise should provide node; run this after install_mise_runtimes."
+		return 1
+	fi
+
+	local node_dir="${HOME}/.local/share/agent-skills/node"
+	mkdir -p "${node_dir}" || return 1
+
+	# sharp ships prebuilt Node-API binaries and none of these packages needs an
+	# install script, so scripts stay off.
+	p3 "Installing npm packages for the docx, pptx and pdf skills into ${node_dir}..."
+	if ! npm install --prefix "${node_dir}" --ignore-scripts --no-audit --no-fund --loglevel=error \
+		docx@latest pptxgenjs@latest react@latest react-dom@latest react-icons@latest \
+		sharp@latest pdf-lib@latest; then
+		p1 "npm install into ${node_dir} failed; the docx and pptx skills' JS will not find its packages."
+		return 1
+	fi
+
+	p2 "Agent-skills npm prefix ready; run the skills' JS with NODE_PATH=${node_dir}/node_modules"
 }
 
 # Define Function =clear_cask_quarantine=
