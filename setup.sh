@@ -1,6 +1,42 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+# Define Function =commands=
+# Prints "name<TAB>description" for each command of the dispatch `case` at the
+# end of this file, read from its `name) # description` lines.
+commands() {
+	awk '/^case "\$\{1\}" in$/ { in_case = 1; next }
+		in_case && /^esac$/ { exit }
+		in_case && /^[a-z0-9_-]+\)/ {
+			name = $0; sub(/\).*/, "", name)
+			desc = $0; if (!sub(/^[^#]*# ?/, "", desc)) desc = ""
+			printf "%s\t%s\n", name, desc
+		}' "${BASH_SOURCE[0]}"
+}
+
+# Define Function =usage=
+usage() {
+	echo "Usage: ${0} <command>"
+	echo "Commands:"
+	commands | while IFS=$'\t' read -r name desc; do
+		printf '  %-20s %s\n' "${name}" "${desc}"
+	done
+	echo "See README.md for more information."
+}
+
+# Usage and an unknown command are handled here, before anything asks for sudo.
+case "${1:-}" in
+"" | -h | --help | help)
+	usage
+	exit 0
+	;;
+esac
+if ! commands | cut -f 1 | grep -qxF -- "${1}"; then
+	echo "Unknown command: ${1}" >&2
+	usage >&2
+	exit 2
+fi
+
 # Bootstrap Homebrew on PATH. The dotfile-installed shell rc files only set
 # brew paths in interactive shells (`[ -n "$PS1" ]`), so subscripts started
 # from a non-interactive context would otherwise fail with `brew: command
@@ -78,25 +114,35 @@ run() {
 EOF
 }
 
-if [[ "${1}" = "init" ]]; then
+# Dispatch. Each command is one `name)` line whose trailing comment is its usage
+# text: commands() reads them back from here, so the usage list and the check of
+# the argument above cannot drift from this case.
+case "${1}" in
+init) # System initialisation: hostname, permissions, updates, SSH, new account
 	. tasks/init.sh
 	init
-elif [[ "${1}" = "new_account" ]]; then
+	;;
+new_account) # Create a new user account
 	. tasks/init.sh
 	new_account
-elif [[ "${1}" = "clean_account" ]]; then
+	;;
+clean_account) # Clean up an account
 	. tasks/init.sh
 	clean_account
-elif [[ "${1}" = "init_ssh_local" ]]; then
+	;;
+init_ssh_local) # Set up a local SSH key
 	. tasks/init.sh
 	init_ssh_local
-elif [[ "${1}" = "init_ssh_1password" ]]; then
+	;;
+init_ssh_1password) # Set up SSH through the 1Password agent
 	. tasks/init.sh
 	init_ssh_1password
-elif [[ "${1}" = "install" ]]; then
+	;;
+install) # Install all software and configure the agent harnesses
 	. tasks/install.sh
 	install
-elif [[ "${1}" = "dotfiles" ]]; then
+	;;
+dotfiles) # Sync dotfiles, then re-assert the skill link and herdr integrations
 	. tasks/install.sh
 	# Gated on the sync succeeding: bootstrap.sh has just overwritten the tracked
 	# agent config files, dropping the keys herdr writes into them, and putting
@@ -114,46 +160,44 @@ elif [[ "${1}" = "dotfiles" ]]; then
 		p3 "Fix the sync, then re-run './setup.sh dotfiles'."
 		exit "${dotfiles_status}"
 	fi
-elif [[ "${1}" = "herdr" ]]; then
+	;;
+herdr) # herdr's agent-state integrations only (also part of install)
 	. tasks/install.sh
 	install_herdr_integrations
-elif [[ "${1}" = "codex" ]]; then
+	;;
+codex) # Codex's plugins, ikeh roles, skill links and context7 only (also part of install)
 	. tasks/install.sh
 	install_codex
-elif [[ "${1}" = "pi" ]]; then
+	;;
+pi) # Pi's user-level skills and MCP servers only (also part of install)
 	. tasks/install.sh
 	install_pi
-elif [[ "${1}" = "opencode" ]]; then
+	;;
+opencode) # Check OpenCode's skill paths and provider logins only (also part of install)
 	. tasks/install.sh
 	install_opencode
-elif [[ "${1}" = "context7" ]]; then
+	;;
+context7) # Re-assert context7 for Claude Code and Codex only (also part of install)
 	. tasks/install.sh
 	install_context7
-elif [[ "${1}" = "agent-skills" ]]; then
+	;;
+agent-skills) # The document skills' venv, markitdown and npm packages only (also part of install)
 	. tasks/install.sh
 	# Runs every step and reports the combined status, so a failing step exits non-zero.
 	agent_skills_status=0
 	install_agent_skills || agent_skills_status=$?
 	exit "${agent_skills_status}"
-elif [[ "${1}" = "config" ]]; then
+	;;
+config) # [name...] App configuration: all config_* and custom_* steps, or only those named
 	. tasks/config.sh
 	shift
 	config "$@"
-elif [[ "${1}" = "macos" ]]; then
+	;;
+macos) # macOS system defaults (restarts Finder, Dock and ControlCenter)
 	./tasks/macos.sh
-elif [[ "${1}" = "projects" ]]; then
+	;;
+projects) # Per-project plugins and env from .tapppi-project manifests
 	. tasks/projects.sh
 	projects
-else
-	echo "Usage: $0 [init | new_account | clean_account | init_ssh_local | init_ssh_1password | install | dotfiles | herdr | codex | pi | opencode | context7 | agent-skills | config [name...] | macos | projects]"
-	echo "  config without args runs all config_* and custom_* steps."
-	echo "  projects sets up per-project plugins and env from .tapppi-project manifests."
-	echo "  herdr installs herdr's agent-state integrations only (also part of install)."
-	echo "  codex installs Codex's plugins, ikeh roles, skill links and context7 only (also part of install)."
-	echo "  pi adds Pi's user-level skills and MCP servers only (also part of install)."
-	echo "  opencode checks OpenCode's skill paths and provider logins only (also part of install)."
-	echo "  context7 re-asserts context7 for Claude Code and Codex only (also part of install)."
-	echo "  agent-skills sets up the document skills' venv, markitdown and npm packages only (also part of install)."
-	echo "  config with names runs only those (e.g. 'config podman spotify')."
-	echo "See README.md for more information."
-fi
+	;;
+esac
