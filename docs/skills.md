@@ -16,33 +16,47 @@ A skill reaches a repo by exactly three routes:
    in every repo. Machine-global by construction, so nothing repo-specific
    goes here: a user-level copy cannot follow a branch.
 
-   Route 1 has more than one location, and each harness reads its own set:
-   - `browser` and `frontend-design` are user-level in every harness, and
-     each reaches it once. Claude Code enables them at user scope (the
-     tracked `enabledPlugins`; `install_claude_code` fetches them), and Cursor
-     follows that list. Codex has them as user-wide plugins, OpenCode through
-     `skills.paths` and Pi as local-path packages. A repo that also enables
-     them at local scope is redundant and harmless.
-   - `~/.agents/skills` holds one link, to ctx7's `context7-mcp` skill, which
-     `install_codex` in `tasks/install.sh` writes. Codex, OpenCode, Cursor and
-     Pi read the directory, so a skill linked there reaches all four.
-   - Codex enables plugins user-wide: `install_codex` installs `browser`,
-     `frontend-design` and `ikeh-development`, and `./setup.sh codex` re-runs
-     it once systems provides `codex` (an owner command: `setup.sh` asks for
-     `sudo` first). Codex also loads its own bundled skills from
-     `~/.codex/skills/.system`.
-   - OpenCode's `skills.paths` in `opencode.json` adds user-level skill
-     directories: `browser`, `frontend-design` and the ikeh-development
-     plugin's skills from the ikeh checkout. OpenCode has no plugin form for
-     them.
-   - Pi reads `~/.pi/agent/skills`, `~/.agents/skills` and the skills of the
-     packages listed in its own `~/.pi/agent/settings.json`. `install_pi`
-     adds `browser` and `frontend-design` there with `pi install <dir>`,
-     which loads a plugin directory's `skills/` in place, and `./setup.sh pi`
-     re-runs it once systems provides `pi`. A Pi package carries no MCP
-     servers, so on Pi 0.99 or later `install_pi` also adds the browser
-     plugin's two servers and context7 to `~/.pi/agent/mcp.json`, each only
-     when missing.
+   Route 1 has more than one location, and each harness reads its own set. Each user-level skill
+   reaches each harness exactly once, through a location no other harness would read a second
+   time:
+
+   | Skill | Claude Code | Codex | OpenCode | Pi |
+   | --- | --- | --- | --- | --- |
+   | `frontend-design` | user-scope plugin | user-level plugin | `skills.paths` | package |
+   | `my-machine-configs` | link in `~/.claude/skills` | link in `~/.codex/skills` | the Claude link | package of dotfiles `agents/` |
+   | ctx7's `context7-mcp` | ctx7's own copy in `~/.claude/skills` | link in `~/.codex/skills` | the Claude copy | link in `~/.pi/agent/skills` |
+   | `pi-config` | none | none | none | package |
+
+   - `my-machine-configs` is the machine-configuration skill. Its source is dotfiles
+     `agents/skills/my-machine-configs/`, outside the trees `bootstrap.sh` syncs, so each harness
+     reaches the checkout through an absolute link or a package path, never a copy. Every link
+     resolves through macos-setup's main checkout, never a worktree. A missing source is skipped
+     with a hint rather than linked, and a link path that is not a symlink is left alone.
+     `install_claude_user_skills` writes the Claude link, and `./setup.sh dotfiles` re-asserts it
+     after a sync.
+   - `~/.agents/skills` holds nothing of ours. Codex, OpenCode, Cursor and Pi all read it, so a
+     skill there would be listed twice in OpenCode and Cursor beside `~/.claude/skills`. Earlier
+     installs linked ctx7's skill there; `install_codex` removes that link when it is that exact
+     symlink.
+   - Codex reads its plugins and `~/.codex/skills`, where `install_codex` links ctx7's skill and
+     `my-machine-configs`. Codex calls that root the deprecated user skills location but still
+     scans it. It was chosen over `/etc/codex/skills` from systems, which only Codex reads; if a
+     Codex upgrade drops the root, the links move there. Codex's user-level plugins are
+     `frontend-design` and `ikeh-development`, and its bundled skills load from
+     `~/.codex/skills/.system`. `./setup.sh codex` re-runs `install_codex` once systems provides
+     `codex` (an owner command: `setup.sh` asks for `sudo` first).
+   - OpenCode reads `~/.claude/skills`, which brings it the Claude link and ctx7's copy, and the
+     `skills.paths` in `opencode.json`: `frontend-design` and the ikeh-development plugin's skills
+     from the ikeh checkout. Its own configuration help is the built-in `customize-opencode` skill,
+     which `permission.skill` leaves allowed. `./setup.sh opencode` checks that every path exists
+     and prints the provider logins still to do.
+   - Pi reads `~/.pi/agent/skills`, `~/.agents/skills` and the skills of the packages listed in
+     its own `~/.pi/agent/settings.json`. `install_pi` adds the packages with `pi install <dir>`,
+     which loads a directory's `skills/` in place, and links ctx7's skill, because no Pi command
+     writes a `skills` entry. `pi-config`, the generic Pi configuration skill, comes from
+     tapppi/skills; the other harnesses ship their own. On Pi 0.99 or later `install_pi` also
+     adds context7 to `~/.pi/agent/mcp.json` when it is missing. `./setup.sh pi` re-runs it once
+     systems provides `pi`.
    - The claude.ai account sync writes `~/.claude/skills/synced/`, which
      Claude Code, OpenCode and Cursor all read. `skillOverrides` in
      `settings.json` hides synced skills from Claude Code by name, and
@@ -51,8 +65,10 @@ A skill reaches a repo by exactly three routes:
      `skillOverrides`, so it lists every synced skill.
    - Cursor reads `~/.cursor/skills-cursor` (its own), `~/.claude/skills`
      under the home directory (it ignores `CLAUDE_CONFIG_DIR`, so another
-     Claude profile's skills never reach it), `~/.agents/skills` and the
-     caches of enabled Claude Code plugins.
+     Claude profile's skills never reach it), `~/.agents/skills`,
+     `~/.codex/skills` and the caches of enabled Claude Code plugins. It
+     therefore lists `my-machine-configs` and `context7-mcp` twice, an
+     accepted residue carried with the pending Cursor configuration refresh.
 2. **Plugins from a marketplace.** Capability someone else publishes is
    consumed from their marketplace rather than vendored: they ship versions, we
    choose which to enable, and none of their release cadence lands in our
@@ -70,16 +86,54 @@ A skill reaches a repo by exactly three routes:
    gitignored local list from a workspace manifest; its own comments say how.
 
    OpenCode loads no Claude Code plugins; it reads only Claude Code's skill
-   directories. Pi reads neither. Cursor loads a user-scope plugin only when
-   the user `enabledPlugins` says `true`, so a new user-scope plugin reaches
-   Cursor only when it is enabled by name.
+   directories. Pi reads neither. A plugin can still reach both by shipping an
+   OpenCode module and a Pi package of its own, as `browser` does (below).
+   Cursor loads a user-scope plugin only when the user `enabledPlugins` says
+   `true`, so a new user-scope plugin reaches Cursor only when it is enabled by
+   name.
 3. **Repo-committed `.agents/skills` or `.claude/skills`**, discovered in
    place. In our repos this is the bundle layout below. In other people's
    repos it is whatever they commit under their own conventions, read as-is.
    We impose no layout there.
 
-Verified harnesses: Claude Code 2.1.293, codex-cli 0.159.1, Cursor
-2026.10.01, OpenCode 1.18.31 and Pi 0.87.1 for the route-1 locations.
+**`browser` is enabled per repo, in every harness.** The tapppi-skills `browser` plugin (its skill
+plus the Playwright and Chrome DevTools MCP servers) is off at user level. macos-setup, tieto and
+ikeh each commit the same four files, and each harness reads the one meant for it:
+
+| Harness | Committed file | Entry | Per machine, once |
+| --- | --- | --- | --- |
+| Claude Code | `.claude/settings.json` | `"browser@tapppi-skills": true` in `enabledPlugins` | None to load it; see the install record below |
+| Codex | `.codex/config.toml` | `[plugins."browser@tapppi-skills"]` with `enabled = true` | The project is trusted in Codex |
+| OpenCode | `opencode.json` at the repo root | a `plugin` entry for the plugin's `opencode/browser.js`, under `{env:HOME}` | None |
+| Pi | `.pi/settings.json` | a `packages` entry for the plugin directory, under `~` | `/trust` in the repo once |
+| Cursor | None: these repos are not used in Cursor | | |
+
+- The plugin ships its own OpenCode module and Pi package beside its `.mcp.json`, its one MCP
+  definition (tapppi/skills `README.md`). The OpenCode and Pi entries point into the checkout at
+  `~/project/github/tapppi/skills`; on a machine without it, each harness starts without
+  browser.
+- Claude Code loads the plugin from the committed key alone, because tapppi-skills is a
+  directory marketplace. Its documentation says a plugin needs an install, so each repo also gets
+  one project-scope install record, run once from the main checkout:
+  `claude plugin install browser@tapppi-skills --scope project`. That record is a Claude Code
+  step. Cursor reads the plugin's skill through its Claude Code compatibility, but it starts no
+  MCP server from a Claude Code plugin, record or not; a repo used in Cursor would need its own
+  `.cursor/mcp.json`. The committed `.claude/settings.json` keeps Claude Code's own 2-space
+  serialisation, so the install leaves it byte-identical; the other files follow `.editorconfig`.
+- Codex keeps the plugin installed at user level with `enabled = false`: its cache is what the
+  repo's `enabled = true` switches on, and `install_codex` writes the `false` after every
+  `codex plugin add`, which always writes `true`. A hand-run `codex plugin add
+  browser@tapppi-skills`, or enabling it in Codex's `/plugins`, therefore turns it on in every
+  project until `./setup.sh codex` runs again. A new browser version also reaches Codex only
+  through `./setup.sh codex`, whose `codex plugin add` re-copies the cache; OpenCode and Pi read
+  the checkout directly, and Claude Code takes it through the install record.
+- Pi loads nothing project-scoped in an untrusted repo, so browser appears there only after
+  `/trust`. Pi matches trust by path, so a worktree inside the repo (`.claude/worktrees/`)
+  inherits it, and a worktree elsewhere needs its own `/trust`. Codex trusts every linked
+  worktree of a trusted checkout.
+
+Verified harnesses: Claude Code 2.1.293, codex-cli 0.161.0, Cursor 2026.10.01 (read from its
+source), OpenCode 1.18.35 and Pi 1.0.4 for the route-1 locations and the per-repo `browser` files.
 Routes 2 and 3 were last verified on Claude Code 2.1.267, codex-cli 0.154.0,
 Cursor 2026.09.02 and OpenCode 1.15.12; Pi's `.agents/skills` reading comes
 from its 0.87.1 documentation and source.

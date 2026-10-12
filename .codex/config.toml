@@ -1,0 +1,3 @@
+# browser for this repo; Codex has it installed but disabled at user level (docs/skills.md).
+[plugins."browser@tapppi-skills"]
+enabled = true

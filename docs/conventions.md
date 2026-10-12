@@ -19,7 +19,8 @@ Style and layout rules for this repo's scripts, the Brewfile and the shell envir
   `command -v` to `which`.
 - In functions, fail with `return 1`, never `exit 1`, which kills the calling shell. Send expected
   failures' stderr to `/dev/null`.
-- `setup.sh` keeps `sudo` alive for the duration of a run.
+- `setup.sh` keeps `sudo` alive for the duration of a run, except for `projects`, which needs
+  no root.
 
 ### Bootstrap code must be portable
 

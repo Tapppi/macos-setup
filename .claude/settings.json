@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
-    "ikeh-git@ikeh": true
+    "ikeh-git@ikeh": true,
+    "browser@tapppi-skills": true
   },
   "permissions": {
     "ask": [
