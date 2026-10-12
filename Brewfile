@@ -149,7 +149,6 @@ cask "karabiner-elements"
 # neovide to launch that exact binary. Do not re-add them here — brew's neovim
 # would shadow the configured one on PATH.
 brew "micro"
-cask "cursor"
 
 # Claude desktop app
 cask "claude"

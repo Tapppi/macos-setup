@@ -151,7 +151,6 @@ cask "karabiner-elements"
 # neovide is not re-added — it is only useful with the configured nvim.
 brew "micro"
 brew "neovim"
-cask "cursor"
 
 # Claude desktop app
 cask "claude"
