@@ -242,11 +242,6 @@ config_podman() {
 		memory_mib=10240
 		disk_gib=200
 		;;
-	tmopro18)
-		cpus=6
-		memory_mib=8000
-		disk_gib=120
-		;;
 	*)
 		p3 "Skip host-specific Podman machine setup on ${HOST_NAME}"
 		return 0
@@ -330,10 +325,6 @@ config_resolutionator() {
 		asterix)
 			p3 "Setting resolution 1800x1169 for ${HOST_NAME}..."
 			displayplacer "id:s0 res:1800x1169 scaling:on"
-			;;
-		tmopro18)
-			p3 "Setting resolution 1680x1050 for ${HOST_NAME}..."
-			displayplacer "id:s0 res:1680x1050 scaling:on"
 			;;
 		esac
 	fi

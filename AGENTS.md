@@ -15,7 +15,7 @@ set (its `AGENTS.md` lists what). This repo is public: keep private values and s
   defaults; a separate task because it kills Finder, Dock and ControlCenter), `projects.sh`
   (per-workspace plugins and env from `.tapppi-project` manifests). Each function's header
   comment documents it.
-- `Brewfile` and `intel.Brewfile`: the Homebrew manifests.
+- `Brewfile`: the Homebrew manifest for Apple Silicon Macs.
 - `dotfiles/`: a submodule ([Tapppi/dotfiles](https://github.com/Tapppi/dotfiles)) with its own
   `AGENTS.md`: shell and harness config, and the user-level agent instructions in `agents/`.
 - `.extra` (git identity, personal aliases), `.path` (PATH extensions), `.credentials.dist` (the
