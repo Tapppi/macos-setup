@@ -37,9 +37,7 @@ non-bootstrap code can rely on it.
 - Group by category with comments, and keep each group sorted.
 - `brew "name"` for formulae, `cask "name"` for GUI apps, `mas "name", id:` for the App Store.
 - Comment out packages that are temporarily unavailable or problematic.
-- `Brewfile` is the primary manifest (Apple Silicon). `intel.Brewfile` is a copy without the
-  ARM-only packages (such as `krunkit`). Edit `Brewfile` first, then replicate the applicable
-  changes to `intel.Brewfile`.
+- `Brewfile` is the single manifest for Apple Silicon Macs.
 - **Keg-only formulae need an explicit `.path` entry.** Homebrew does not link them into its
   `bin`, so a `brew "x"` line alone installs the formula but leaves it unreachable. That is how
   `curl` silently stayed Apple's older build and `psql` was missing although both were declared.

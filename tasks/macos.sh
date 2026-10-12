@@ -13,8 +13,6 @@ if ! sudo -n true 2>/dev/null; then
 	while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 fi
 
-host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
-
 ###############################################################################
 # General UI/UX                                                               #
 ###############################################################################
@@ -24,10 +22,6 @@ host_name="$(hostname -s 2>/dev/null || printf '%s' unknown)"
 #sudo scutil --set HostName "0x6D746873"
 #sudo scutil --set LocalHostName "0x6D746873"
 #sudo defaults write /Library/Preferences/SystemConfiguration/com.appl.smb.server NetBIOSName -string "0x6D746873"
-
-# Disable the sound effects on boot
-# NOTE: nvram is Intel-only; Apple Silicon ignores this. Harmless no-op.
-sudo nvram SystemAudioVolume=" " 2>/dev/null || true
 
 # Disable transparency in the menu bar and elsewhere on Yosemite
 sudo defaults write com.apple.universalaccess reduceTransparency -bool true
@@ -328,22 +322,6 @@ sudo pmset -a standby 1
 sudo pmset -a standbydelayhigh 14400
 sudo pmset -a standbydelaylow 7200
 
-# Disable hibernation (speeds up entering sleep mode on Intel; no-op on AS)
-sudo pmset -a hibernatemode 0 2>/dev/null || true
-
-# Keep tmopro18 awake on charger while it is being used as a temporary SSH
-# worker. Battery behavior stays on the normal defaults above.
-if [[ "${host_name}" == "tmopro18" ]]; then
-	sudo pmset -c sleep 0
-	sudo pmset -c disksleep 0
-	sudo pmset -c powernap 1
-	sudo pmset -c standby 0
-	sudo pmset -a acwake 1
-	sudo pmset -c displaysleep 5
-	sudo pmset -c autorestart 1
-	sudo pmset -c womp 1
-fi
-
 ###############################################################################
 # Screen                                                                      #
 ###############################################################################
@@ -351,10 +329,6 @@ fi
 # Require password 5 min after sleep or screen saver begins
 defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 300
-
-if [[ "${host_name}" == "tmopro18" ]]; then
-	defaults write com.apple.screensaver askForPasswordDelay -int 0
-fi
 
 # Save screenshots to the Screenshots directory
 mkdir -p "${HOME}/Screenshots"

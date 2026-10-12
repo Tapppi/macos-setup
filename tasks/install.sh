@@ -10,8 +10,6 @@ install() {
 	link_terraform_to_tofu
 	install_dotfiles || dotfiles_ok=$?
 	install_mise_runtimes
-	# After mise runtimes: podman-compose is installed via the mise-managed uv
-	install_podman_intel
 	install_powershell_modules
 	# After mise runtimes: the venv and markitdown need uv, the npm prefix needs node
 	install_agent_skills
@@ -61,85 +59,6 @@ link_terraform_to_tofu() {
 	p2 "Symlink terraform -> tofu (${tofu_bin})..."
 	mkdir -p "$(dirname "${link}")"
 	ln -sf "${tofu_bin}" "${link}"
-}
-
-# Define Function =install_podman_intel=
-# homebrew-core only carries podman 6.x, which dropped Intel-mac support and
-# never shipped the 5.8.3/5.8.4 security fixes over 5.8.2 — so on Intel the
-# newest 5.x comes from the official upstream installer pkg (signed, bundles
-# the gvproxy/vfkit helpers, adds /opt/podman/bin to PATH via /etc/paths.d).
-# The newest 5.x tag and its pkg checksum are resolved from GitHub at run
-# time, so 5.x patch releases are followed without editing this file.
-# brew's podman-compose formula depends on the podman formula (which would
-# pull 6.x back in on any upgrade), so podman-compose moves to a uv tool
-# install. Intel stays on the default applehv/vfkit VM backend — libkrun/
-# krunkit is Apple-Silicon-only; existing 5.x machines keep working.
-install_podman_intel() {
-	if [[ "$(uname -m)" != "x86_64" ]]; then
-		return 0
-	fi
-
-	local tag version pkg_sha256
-	tag="$(curl -fsSL --max-time 15 \
-		'https://api.github.com/repos/containers/podman/releases?per_page=100' |
-		jq -r '.[].tag_name' | grep -E '^v5\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
-	if [[ -z "${tag}" ]]; then
-		p3 "ERROR: could not resolve newest podman 5.x release from GitHub"
-		return 1
-	fi
-	version="${tag#v}"
-	p2 "Install podman ${version} from upstream pkg (Intel)..."
-
-	if command -v podman >/dev/null 2>&1 &&
-		[[ "$(podman --version 2>/dev/null | awk '{print $3}')" == "${version}" ]]; then
-		p3 "podman ${version} already installed, skipping"
-	else
-		pkg_sha256="$(curl -fsSL --max-time 15 \
-			"https://github.com/containers/podman/releases/download/${tag}/shasums" |
-			awk '/ podman-installer-macos-amd64\.pkg$/{print $1}')"
-		if [[ -z "${pkg_sha256}" ]]; then
-			p3 "ERROR: could not fetch shasums for podman ${version}"
-			return 1
-		fi
-
-		# Replace the brew formulae if present. podman-compose goes first so
-		# podman itself uninstalls cleanly (no --ignore-dependencies needed).
-		if brew list podman >/dev/null 2>&1 || brew list podman-compose >/dev/null 2>&1; then
-			p3 "Removing brew podman formulae (superseded by upstream pkg + uv)..."
-			podman machine stop >/dev/null 2>&1
-			brew list podman-compose >/dev/null 2>&1 && brew uninstall podman-compose
-			brew unpin podman >/dev/null 2>&1
-			brew list podman >/dev/null 2>&1 && brew uninstall podman
-		fi
-
-		local pkg="/tmp/podman-installer-macos-amd64-${version}.pkg"
-		if ! curl --fail --location --silent --show-error --output "${pkg}" \
-			"https://github.com/containers/podman/releases/download/${tag}/podman-installer-macos-amd64.pkg"; then
-			p3 "ERROR: download failed for podman ${version} pkg"
-			return 1
-		fi
-		if ! printf '%s  %s\n' "${pkg_sha256}" "${pkg}" | shasum -a 256 -c - >/dev/null 2>&1; then
-			p3 "ERROR: checksum mismatch for ${pkg}; aborting podman install"
-			rm -f "${pkg}"
-			return 1
-		fi
-		if ! sudo installer -pkg "${pkg}" -target /; then
-			rm -f "${pkg}"
-			return 1
-		fi
-		rm -f "${pkg}"
-		p3 "Installed $(/opt/podman/bin/podman --version 2>/dev/null || echo 'podman (version check failed)')"
-	fi
-
-	# podman-compose via uv (pure-python CLI; brew formula is entangled with 6.x).
-	# uv is mise-managed, so this task must run after install_mise_runtimes.
-	if ! command -v podman-compose >/dev/null 2>&1; then
-		if ! command -v uv >/dev/null 2>&1; then
-			p3 "ERROR: uv not found (mise runtimes not installed yet?) — re-run this task after install_mise_runtimes to get podman-compose"
-			return 1
-		fi
-		uv tool install podman-compose
-	fi
 }
 
 # Define Function =install_xcode=
@@ -226,10 +145,7 @@ install_macos_sw() {
 # Add Homebrew sbin to Default Path
 install_paths() {
 	p2 "Ensure homebrew in path..."
-	local brew_sbin="/usr/local/sbin"
-	if [ "$(uname -m)" = "arm64" ]; then
-		brew_sbin="/opt/homebrew/sbin"
-	fi
+	local brew_sbin="/opt/homebrew/sbin"
 	if ! grep -Fq "${brew_sbin}" /etc/paths; then
 		p2 "Add ${brew_sbin} to /etc/paths"
 		echo "${brew_sbin}" | sudo tee -a /etc/paths >/dev/null
@@ -300,8 +216,6 @@ install_brew() {
 		# Ensure brew is on PATH for the rest of this script
 		if [ -x "/opt/homebrew/bin/brew" ]; then
 			eval "$(/opt/homebrew/bin/brew shellenv)"
-		elif [ -x "/usr/local/bin/brew" ]; then
-			eval "$(/usr/local/bin/brew shellenv)"
 		fi
 	else
 		p3 "Brew already installed"
@@ -314,7 +228,6 @@ install_brew() {
 
 	p3 "Install Brewfile..."
 	local brewfile="Brewfile"
-	[[ "$(uname -m)" != "arm64" ]] && brewfile="intel.Brewfile"
 	# Trust declared taps before bundling so they load under
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"

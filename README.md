@@ -2,6 +2,8 @@
 
 > Macos setup automation with basic settings, application installs and dotfiles
 
+Targets Apple Silicon Macs. The active Mac is an M5 Pro; Intel Macs are no longer managed here.
+
 ## Usage
 
 1. Backup credentials and personal settings by running `backup.sh /path/to/backups backup-name`
@@ -97,7 +99,7 @@ Available tasks:
 
 - Sets up temporary passwordless sudo for the setup duration
 - Asks for and sets hostname (ComputerName, HostName, LocalHostName)
-- Sets permissions on install destinations (supports Intel and Apple Silicon)
+- Sets permissions on install destinations for Apple Silicon
 - Installs macOS updates
 - Turns off guest account
 - Removes temporary sudo rule and prompts to log out
@@ -185,7 +187,7 @@ NotificationCenter) that can disrupt permissions dialogs during app config.
 - General UI/UX: transparency, highlight color, save/print panels, auto-correct off
 - Keyboard/input: function keys as standard, fast key repeat, input sources
 - Trackpad/mouse: natural scrolling off, Magic Mouse gestures
-- Energy: display/disk/machine sleep timers, host-specific overrides for tmopro18
+- Energy: display/disk/machine sleep timers
 - Screen: password on wake, screenshots to ~/Screenshots
 - Notifications: suppress when mirroring/sharing
 - Finder: show hidden files, path bar, list view, spring loading
@@ -251,27 +253,6 @@ Not all steps have been automated:
 - Clone any private repos this machine needs into `~/project/github/<owner>/`.
 - Set up iTerm2 key binds if backups don't restore correctly:
   https://medium.com/@jonnyhaynes/jump-forwards-backwards-and-delete-a-word-in-iterm2-on-mac-os-43821511f0a
-
-## tmopro18 temporary always-on worker notes
-
-If `tmopro18` is temporarily acting as a lid-closed SSH worker while still
-remaining usable as a backup laptop, keep the setup reversible:
-
-- **Recommended now**
-  - Keep Remote Login limited to the users you actually need.
-  - Use the AC-only `pmset` override in `tasks/macos.sh` so the machine stays
-    awake on charger without changing battery behavior.
-  - Require the password immediately when the display sleeps or the screen
-    saver starts.
-- **Maybe later**
-  - Use `caffeinate` for short experiments before changing longer-lived power
-    settings again.
-  - Tighten SSH access further with host-specific `AllowUsers` / network
-    restrictions if this machine becomes more exposed.
-- **Avoid**
-  - Deep sleep / hibernate hacks that diverge from Apple’s default power model.
-  - Lid-sensor bypass tools or other unsupported tweaks that make the machine
-    harder to trust as a normal laptop afterward.
 
 ## Thanks to...
 

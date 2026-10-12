@@ -89,8 +89,8 @@ _dest='/usr/local/bin
 /Library/User Pictures'
 
 init_perms() {
-	# On Apple Silicon, Homebrew uses /opt/homebrew instead of /usr/local
-	if [[ "$(uname -m)" == "arm64" ]] && [[ ! -d "/opt/homebrew" ]]; then
+	# Homebrew uses /opt/homebrew on the supported Apple Silicon Macs
+	if [[ ! -d "/opt/homebrew" ]]; then
 		sudo mkdir -p /opt/homebrew
 		sudo chown -R "$(whoami):admin" /opt/homebrew
 	fi
