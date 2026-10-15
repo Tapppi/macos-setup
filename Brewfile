@@ -315,6 +315,8 @@ brew "tag"
 brew "aspell"
 
 # Markdown presentation writer
+# Pinned at 4.5.0 (`brew pin`, see pin_toolkit_tools in tasks/install.sh): the ikeh artifact
+# toolkit's manifest requires this version.
 brew "marp-cli"
 # Ghostscript for pdf utility scripts
 brew "ghostscript"
@@ -438,6 +440,8 @@ brew "ffmpeg"
 brew "mpv"
 
 # Do pretty much anything to images - https://www.imagemagick.org/
+# Pinned at 7.1.2-27 (`brew pin`, see pin_toolkit_tools in tasks/install.sh): the ikeh artifact
+# toolkit's manifest requires this version.
 brew "imagemagick"
 # PDF rendering CLI used by pdf2image (the claude.ai-synced pdf skill)
 brew "poppler"
