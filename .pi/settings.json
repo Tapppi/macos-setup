@@ -1,3 +1,6 @@
 {
-	"packages": ["~/project/github/tapppi/skills/tapppi/browser"]
+	"packages": [
+		"~/project/github/tapppi/skills/tapppi/browser",
+		"~/.claude/plugins/cache/ikeh/ikeh-git/0.2.0/harness/pi"
+	]
 }

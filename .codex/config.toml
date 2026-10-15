@@ -1,3 +1,8 @@
 # browser for this repo; Codex has it installed but disabled at user level (docs/skills.md).
 [plugins."browser@tapppi-skills"]
 enabled = true
+
+# The ikeh-git plugin. docs/harnesses/codex.md in the ikeh repository says what the plugin runs there
+# and which steps stay with the owner (install, hook trust).
+[plugins."ikeh-git@ikeh"]
+enabled = true
