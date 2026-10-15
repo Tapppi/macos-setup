@@ -1,4 +1,7 @@
 {
 	"$schema": "https://opencode.ai/config.json",
-	"plugin": ["{env:HOME}/project/github/tapppi/skills/tapppi/browser/opencode/browser.js"]
+	"plugin": [
+		"{env:HOME}/project/github/tapppi/skills/tapppi/browser/opencode/browser.js",
+		"{env:HOME}/.claude/plugins/cache/ikeh/ikeh-git/0.2.0/harness/opencode/plugin.js"
+	]
 }
