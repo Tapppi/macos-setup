@@ -82,7 +82,8 @@ context7's API key lives only in `~/.config/bash/.credentials`.
 ## Codex
 
 `install_codex` installs Codex's user-wide plugins and ikeh-development's Codex roles, keeps
-`browser@tapppi-skills` installed but disabled at user level (repos enable it), and links
+`browser@tapppi-skills` and `ikeh-git@ikeh` installed but disabled at user level (repos enable
+them), and links
 `my-machine-configs` and ctx7's `context7-mcp` skill into `${CODEX_HOME:-~/.codex}/skills/`.
 Codex comes from systems, so on a fresh Mac the owner runs `./setup.sh codex` after
 `nix run .#build-switch`, with every Codex process closed.

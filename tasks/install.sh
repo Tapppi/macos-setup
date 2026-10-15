@@ -893,16 +893,17 @@ install_claude_code() {
 # Codex's plugins, its ikeh roles, the context7 MCP server and its user-level
 # skill links. A plugin enabled in ~/.codex/config.toml applies in every
 # project, so frontend-design (user-level in every harness, see docs/skills.md)
-# and ikeh-development are enabled there. browser is installed but disabled
-# there: its cache is what a repo's committed .codex/config.toml switches on
-# (`enabled = true`, honoured once the project is trusted).
+# and ikeh-development are enabled there. browser and ikeh-git are installed
+# but disabled there: their cache is what a repo's committed .codex/config.toml
+# switches on (`enabled = true`, honoured once the project is trusted).
 #
 # Everything here lives in ~/.codex/config.toml, which Codex owns and
 # tapppi/systems never writes, so it goes through the codex CLI, except two
-# edits the CLI has no verb for (browser's `enabled = false`, context7's
-# `env_vars`). `codex plugin add` re-copies a plugin from its marketplace, so a
-# re-run also refreshes the cache to the checkout's version, and it also
-# re-enables the plugin, which is why browser is disabled again after every add.
+# edits the CLI has no verb for (the per-repo plugins' `enabled = false`,
+# context7's `env_vars`). `codex plugin add` re-copies a plugin from its
+# marketplace, so a re-run also refreshes the cache to the checkout's version,
+# and it also re-enables the plugin, which is why browser and ikeh-git are
+# disabled again after every add.
 #
 # Codex itself comes from tapppi/systems (modules/darwin/codex.nix), so on a
 # fresh Mac it may not exist yet: then this skips, and `./setup.sh codex` runs
@@ -928,11 +929,12 @@ install_codex() {
 		p1 "Codex Git marketplaces could not be upgraded."
 
 	local plugin
-	for plugin in browser@tapppi-skills ikeh-development@ikeh frontend-design@claude-plugins-official; do
+	for plugin in browser@tapppi-skills ikeh-git@ikeh ikeh-development@ikeh frontend-design@claude-plugins-official; do
 		codex plugin add "${plugin}" >/dev/null ||
 			p1 "Codex plugin ${plugin} could not be installed."
 	done
 	codex_plugin_disable browser@tapppi-skills
+	codex_plugin_disable ikeh-git@ikeh
 
 	# ikeh-development's Codex roles (~/.codex/agents/ikeh-*.toml), per the
 	# plugin's README. --check installs the committed roles and refuses if they
