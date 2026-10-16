@@ -256,6 +256,10 @@ install_brew() {
 	# HOMEBREW_REQUIRE_TAP_TRUST=1 instead of being refused.
 	trust_brew_taps "${brewfile}"
 
+	# Pin before the bundle, which upgrades outdated formulae, so installed toolkit
+	# versions are held; pin again after it for formulae the bundle just installed.
+	pin_toolkit_tools
+
 	# op runs its binary at install to build completions. A quarantined
 	# binary's first exec needs Gatekeeper's consent dialog, which renders on the
 	# local console — on a headless/remote box nobody can click it, so the exec
