@@ -207,6 +207,30 @@ run_with_timeout() {
 	wait "${pid}"
 }
 
+# Define Function =pin_toolkit_tools=
+# Hold marp-cli (4.5.0) and imagemagick (7.1.2-27) at the versions the ikeh artifact
+# toolkit's manifest requires, so `brew upgrade` and `brew bundle` leave them alone.
+# A pin is Homebrew state on this machine: it keeps an installed version, but cannot
+# install an older one, so a fresh machine gets the current stable until the toolkit
+# re-pins.
+# Upgrade path, when the toolkit moves its pins: `brew unpin marp-cli imagemagick`,
+# `brew upgrade marp-cli imagemagick`, then re-run './setup.sh install' (or
+# `brew pin marp-cli imagemagick`), and update the pin comments in the Brewfile.
+# Idempotent: an already pinned formula is fine.
+pin_toolkit_tools() {
+	local formula
+	for formula in marp-cli imagemagick; do
+		if ! brew list --formula --versions "${formula}" >/dev/null 2>&1; then
+			p3 "${formula} not installed, skipping pin"
+		elif brew list --pinned 2>/dev/null | grep -qx "${formula}"; then
+			p3 "${formula} already pinned"
+		else
+			p2 "Pin ${formula}..."
+			brew pin "${formula}" || p1 "could not pin ${formula}"
+		fi
+	done
+}
+
 install_brew() {
 	p2 "Installing and/or configuring brew"
 	if ! command -v brew >/dev/null 2>&1; then
@@ -239,6 +263,8 @@ install_brew() {
 	# so that hang can't wedge setup indefinitely (override BREW_BUNDLE_TIMEOUT).
 	run_with_timeout "${BREW_BUNDLE_TIMEOUT:-5400}" brew bundle --file="${brewfile}" ||
 		p1 "brew bundle exited non-zero (timeout or package failure); re-run './setup.sh install' after resolving."
+
+	pin_toolkit_tools
 
 	# Homebrew 6.0 dropped --no-quarantine, so casks are always quarantined.
 	# Clearing it post-install kills the first-launch "unverified app" popup for
