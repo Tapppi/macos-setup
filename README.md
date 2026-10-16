@@ -86,7 +86,7 @@ Available tasks:
 | `install` | Install all software and runtimes (also works as update) |
 | `dotfiles` | Bootstrap dotfiles only (re-sync without full install), then re-assert tool-written config |
 | `herdr` | herdr's agent-state integrations only (also part of `install`) |
-| `codex` | Codex's plugins, ikeh roles, skill links and context7 only (also part of `install`) |
+| `codex` | Codex's plugins, skill links and context7 only (also part of `install`) |
 | `opencode` | Check OpenCode's setup and print hints (also part of `install`) |
 | `pi` | Pi's user-level skills and MCP servers only (also part of `install`) |
 | `context7` | context7 for Claude Code and Codex only (also part of `install`) |
