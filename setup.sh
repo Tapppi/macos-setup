@@ -167,7 +167,7 @@ herdr) # herdr's agent-state integrations only (also part of install)
 	. tasks/install.sh
 	install_herdr_integrations
 	;;
-codex) # Codex's plugins, ikeh roles, skill links and context7 only (also part of install)
+codex) # Codex's plugins, skill links and context7 only (also part of install)
 	. tasks/install.sh
 	install_codex
 	;;
