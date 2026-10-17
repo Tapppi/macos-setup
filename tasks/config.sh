@@ -240,7 +240,7 @@ config_podman() {
 	asterix)
 		cpus=3
 		memory_mib=10240
-		disk_gib=200
+		disk_gib=100
 		;;
 	*)
 		p3 "Skip host-specific Podman machine setup on ${HOST_NAME}"
