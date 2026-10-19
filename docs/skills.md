@@ -41,13 +41,14 @@ A skill reaches a repo by exactly three routes:
    - Codex reads its plugins and `~/.codex/skills`, where `install_codex` links ctx7's skill and
      `my-machine-configs`. Codex calls that root the deprecated user skills location but still
      scans it. It was chosen over `/etc/codex/skills` from systems, which only Codex reads; if a
-     Codex upgrade drops the root, the links move there. Codex's user-level plugins are
-     `frontend-design` and `ikeh-development`, and its bundled skills load from
-     `~/.codex/skills/.system`. `./setup.sh codex` re-runs `install_codex` once systems provides
-     `codex` (an owner command: `setup.sh` asks for `sudo` first).
+     Codex upgrade drops the root, the links move there. Codex's user-level plugin is
+     `frontend-design` (the ikeh method arrives through ikeh's own installer, not setup), and its
+     bundled skills load from `~/.codex/skills/.system`. `./setup.sh codex` re-runs
+     `install_codex` once systems provides `codex` (an owner command: `setup.sh` asks for `sudo`
+     first).
    - OpenCode reads `~/.claude/skills`, which brings it the Claude link and ctx7's copy, and the
-     `skills.paths` in `opencode.json`: `frontend-design` and the ikeh-development plugin's skills
-     from the ikeh checkout. Its own configuration help is the built-in `customize-opencode` skill,
+     `skills.paths` in `opencode.json`: `frontend-design` and the ikeh plugin's skills from
+     the ikeh checkout. Its own configuration help is the built-in `customize-opencode` skill,
      which `permission.skill` leaves allowed. `./setup.sh opencode` checks that every path exists
      and prints the provider logins still to do.
    - Pi reads `~/.pi/agent/skills`, `~/.agents/skills` and the skills of the packages listed in

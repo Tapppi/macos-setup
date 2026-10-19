@@ -56,7 +56,11 @@ the writing command instead (`./setup.sh herdr`).
 - `install_claude_marketplaces` registers the `tapppi-skills` and `ikeh` marketplaces, each a
   checkout under `~/project/github/` declared as a directory source. It installs no `ikeh`
   plugin: `claude plugin install` is user-scope by default, which would enable `ikeh-git`'s hooks
-  in every repo. A repo enables `ikeh-git@ikeh` itself, through its committed `enabledPlugins`.
+  and `ikeh`'s agents in every repo. A repo enables `ikeh-git@ikeh` and `ikeh@ikeh` itself,
+  through its committed `enabledPlugins`; `ikeh` loads in place from the checkout's
+  `plugins/ikeh`.
+- No plugin drives Codex from Claude Code: setup installs the Codex plugin for it no longer, and
+  model routing stays inside each harness.
 - `install_claude_code` installs the user-level plugins the tracked `settings.json` enables.
   Per-repo plugins, such as `browser`, are committed in each repo ([skills.md](skills.md)).
 - The user-level `my-machine-configs` skill lives in `dotfiles/agents/skills/`. An absolute link
@@ -81,10 +85,15 @@ context7's API key lives only in `~/.config/bash/.credentials`.
 
 ## Codex
 
-`install_codex` installs Codex's user-wide plugins and ikeh-development's Codex roles, keeps
+`install_codex` installs Codex's user-wide plugin (`frontend-design`), keeps
 `browser@tapppi-skills` and `ikeh-git@ikeh` installed but disabled at user level (repos enable
-them), and links
-`my-machine-configs` and ctx7's `context7-mcp` skill into `${CODEX_HOME:-~/.codex}/skills/`.
+them), and links `my-machine-configs` and ctx7's `context7-mcp` skill into
+`${CODEX_HOME:-~/.codex}/skills/`.
+
+The ikeh method on Codex (`ikeh@ikeh-codex`, its roles in `~/.codex/agents/` and the `ikeh` MCP
+server) comes from ikeh's own installer, `tooling/compose/compose.py install codex --build <kept
+build> --default-home` in the ikeh checkout, run by the owner. Setup never runs it and installs no
+ikeh roles, so `./setup.sh codex` cannot overwrite them.
 Codex comes from systems, so on a fresh Mac the owner runs `./setup.sh codex` after
 `nix run .#build-switch`, with every Codex process closed.
 

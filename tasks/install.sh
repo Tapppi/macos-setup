@@ -762,9 +762,6 @@ install_claude_marketplaces() {
 	claude plugin marketplace add anthropics/claude-plugins-official
 	claude plugin marketplace update claude-plugins-official
 
-	claude plugin marketplace add openai/codex-plugin-cc
-	claude plugin marketplace update openai-codex
-
 	# document-skills' marketplace only: the plugin is off at user level (the
 	# docx/pdf/pptx/xlsx skills synced from claude.ai are the newer copies),
 	# and a repo can still enable it locally.
@@ -775,9 +772,9 @@ install_claude_marketplaces() {
 	claude plugin marketplace add "${tapppi_skills_root}"
 
 	# Only the ikeh marketplace is registered, never a plugin from it: `claude
-	# plugin install` defaults to user scope, so installing ikeh-git would
-	# switch its hooks on in every repo. ikeh-git is enabled per repo, through
-	# the repo's committed enabledPlugins or tasks/projects.sh.
+	# plugin install` defaults to user scope, so installing ikeh-git or ikeh
+	# would switch their hooks and agents on in every repo. Both are enabled
+	# per repo, through the repo's committed enabledPlugins or tasks/projects.sh.
 	ensure_checkout "${ikeh_root}" git@github.com:mantadevoy/ikeh.git mantadevoy/ikeh
 	claude plugin marketplace add "${ikeh_root}"
 }
@@ -895,11 +892,9 @@ install_claude_code() {
 	# enabledPlugins but loads a plugin only when it says `true`, with no
 	# per-harness override, so every plugin installed here loads there too.
 	#
-	# codex drives the Codex CLI from Claude Code; auth is the codex CLI's own
-	# (`codex login`). frontend-design is user-level in every harness
-	# (docs/skills.md).
+	# frontend-design is user-level in every harness (docs/skills.md). No plugin
+	# drives Codex from Claude Code: routing stays inside each harness.
 	claude plugin install duckdb-skills@claude-plugins-official
-	claude plugin install codex@openai-codex
 	claude plugin install skill-creator@tapppi-skills
 	claude plugin install frontend-design@claude-plugins-official
 
@@ -920,12 +915,18 @@ install_claude_code() {
 }
 
 # Define Function =install_codex=
-# Codex's plugins, its ikeh roles, the context7 MCP server and its user-level
-# skill links. A plugin enabled in ~/.codex/config.toml applies in every
-# project, so frontend-design (user-level in every harness, see docs/skills.md)
-# and ikeh-development are enabled there. browser and ikeh-git are installed
-# but disabled there: their cache is what a repo's committed .codex/config.toml
-# switches on (`enabled = true`, honoured once the project is trusted).
+# Codex's plugins, the context7 MCP server and its user-level skill links. A
+# plugin enabled in ~/.codex/config.toml applies in every project, so
+# frontend-design (user-level in every harness, see docs/skills.md) is enabled
+# there. browser and ikeh-git are installed but disabled there: their cache is
+# what a repo's committed .codex/config.toml switches on (`enabled = true`,
+# honoured once the project is trusted).
+#
+# The ikeh method (ikeh@ikeh-codex, its roles in ~/.codex/agents/ and its MCP
+# server) is not installed here: ikeh's own installer owns them, and the owner
+# runs it from the ikeh checkout (`tooling/compose/compose.py install codex
+# --build <kept build> --default-home`; tooling/compose/docs/install.md there).
+# This task installs no ikeh roles, so it cannot overwrite them.
 #
 # Everything here lives in ~/.codex/config.toml, which Codex owns and
 # tapppi/systems never writes, so it goes through the codex CLI, except two
@@ -959,23 +960,12 @@ install_codex() {
 		p1 "Codex Git marketplaces could not be upgraded."
 
 	local plugin
-	for plugin in browser@tapppi-skills ikeh-git@ikeh ikeh-development@ikeh frontend-design@claude-plugins-official; do
+	for plugin in browser@tapppi-skills ikeh-git@ikeh frontend-design@claude-plugins-official; do
 		codex plugin add "${plugin}" >/dev/null ||
 			p1 "Codex plugin ${plugin} could not be installed."
 	done
 	codex_plugin_disable browser@tapppi-skills
 	codex_plugin_disable ikeh-git@ikeh
-
-	# ikeh-development's Codex roles (~/.codex/agents/ikeh-*.toml), per the
-	# plugin's README. --check installs the committed roles and refuses if they
-	# are out of date, instead of regenerating them inside the checkout.
-	local build_agents="${ikeh_root}/plugins/ikeh-development/scripts/build-agents.py"
-	if [[ -f "${build_agents}" ]] && command -v uv >/dev/null 2>&1; then
-		uv run --quiet --script "${build_agents}" --check --install-codex ||
-			p1 "ikeh Codex roles were not installed."
-	else
-		p1 "ikeh Codex roles skipped: ${build_agents} or uv is missing."
-	fi
 
 	install_codex_context7
 
