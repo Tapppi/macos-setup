@@ -60,6 +60,13 @@ Homebrew therefore wins over the nix-darwin config in `Tapppi/systems` for anyth
 PATH.** That is how `nvim` resolves to the nixCats build. An earlier attempt to prepend the Nix
 profile instead was reverted, because it also shadowed Homebrew's `bash`, `sh` and `zsh`.
 
+One exception is scoped to devenv. A shell started inside a devenv environment (a herdr pane, a
+nested `bash -l` or a Claude Code session launched from a devenv shell) inherits
+`DEVENV_PROFILE`, but its login startup puts the order above back in front of the devenv tools.
+The last lines of `dotfiles/home/.bash_profile` therefore re-prepend `$DEVENV_PROFILE/bin` when it
+is set and exists, outside the `PS1` guard so `bash -lc` gets it too. Outside devenv they do
+nothing.
+
 ## XDG base directories
 
 `XDG_CONFIG_HOME=~/.config` is set in `dotfiles/config/bash/.exports`, so tools that support XDG
