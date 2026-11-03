@@ -345,11 +345,6 @@ cask "gcloud-cli"
 brew "azure-cli"
 brew "azcopy"
 
-# OpenTofu's language server. The tofu CLI itself comes from each project's
-# environment (pinned per project), not from Homebrew, so one version cannot
-# shadow another.
-brew "tofu-ls"
-
 # Let's encrypt tooling
 brew "certbot"
 
