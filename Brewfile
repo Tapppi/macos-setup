@@ -345,11 +345,9 @@ cask "gcloud-cli"
 brew "azure-cli"
 brew "azcopy"
 
-# OpenTofu replaces Terraform: Terraform's CLI is BUSL-licensed and not in
-# homebrew-core (only hashicorp/tap, whose vagrant.rb is a Linux-only formula
-# that breaks `brew doctor` on macOS). tofu-ls is OpenTofu's language server.
-# install.sh symlinks `terraform` -> `tofu` so scripts calling terraform work.
-brew "opentofu"
+# OpenTofu's language server. The tofu CLI itself comes from each project's
+# environment (pinned per project), not from Homebrew, so one version cannot
+# shadow another.
 brew "tofu-ls"
 
 # Let's encrypt tooling
